@@ -20,12 +20,12 @@ const PAYMENT_REQUEST_COLUMNS = [
   "reversed_at",
 ].join(",");
 
-const BUSINESS_ENTITY_COLUMNS = [
-  "id",
-  "name",
-  "display_name",
-  "status",
-].join(",");
+const BUSINESS_ENTITY_SELECT_CANDIDATES = [
+  "id,name",
+  "id,business_name",
+  "id,entity_name",
+  "id,label",
+];
 
 function toRpcParams(filters) {
   // Adjust these names if the deployed RPC uses a different signature.
@@ -68,16 +68,33 @@ export async function fetchPaymentRequests(filters) {
 }
 
 export async function fetchBusinessEntities() {
-  const { data, error } = await supabase
-    .from("school_business_entities")
-    .select(BUSINESS_ENTITY_COLUMNS)
-    .order("name", { ascending: true });
+  const errors = [];
 
-  if (error) {
-    return { data: [], warning: error.message };
+  for (const columns of BUSINESS_ENTITY_SELECT_CANDIDATES) {
+    const { data, error } = await supabase
+      .from("school_business_entities")
+      .select(columns);
+
+    if (!error) {
+      return {
+        data: normalizeBusinessEntities(data || []),
+        warning: "",
+      };
+    }
+
+    errors.push(error.message);
   }
 
-  return { data: data || [], warning: "" };
+  return { data: [], warning: errors.join(" / ") };
+}
+
+function normalizeBusinessEntities(rows) {
+  return rows
+    .map((row) => ({
+      id: row.id,
+      name: row.name || row.business_name || row.entity_name || row.label || row.id,
+    }))
+    .sort((a, b) => String(a.name).localeCompare(String(b.name), "zh-CN"));
 }
 
 function applyPaymentFilters(query, filters) {

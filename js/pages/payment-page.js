@@ -133,7 +133,7 @@ function renderBusinessEntities(items) {
   const options = ['<option value="">全部</option>'];
 
   for (const item of items) {
-    const name = item.display_name || item.name || item.id;
+    const name = item.name || item.id;
     options.push(
       `<option value="${escapeAttribute(item.id)}">${escapeHtml(name)}</option>`
     );
