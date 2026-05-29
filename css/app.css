@@ -163,6 +163,17 @@ h2 {
   resize: vertical;
 }
 
+.field.is-invalid {
+  color: var(--danger);
+}
+
+.field.is-invalid input,
+.field.is-invalid select,
+.field.is-invalid textarea {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.12);
+}
+
 .filter-actions {
   display: flex;
   gap: 8px;
@@ -356,6 +367,18 @@ h2 {
 
 .dialog-summary-label {
   color: var(--muted);
+  font-weight: 700;
+}
+
+.dialog-error {
+  margin-top: 12px;
+  border: 1px solid #fecaca;
+  border-left: 4px solid var(--danger);
+  border-radius: 8px;
+  background: #fef2f2;
+  color: var(--danger);
+  padding: 10px 12px;
+  font-size: 14px;
   font-weight: 700;
 }
 

@@ -120,18 +120,19 @@
         </div>
 
         <div id="confirmPaymentSummary" class="dialog-summary"></div>
+        <div id="confirmPaymentError" class="dialog-error is-hidden"></div>
 
-        <label class="field">
+        <label class="field" data-confirm-field="account">
           <span>支付账户</span>
           <select id="confirmAccountSelect"></select>
         </label>
 
-        <label class="field">
+        <label class="field" data-confirm-field="payDate">
           <span>支付日期</span>
           <input id="confirmPayDateInput" type="date">
         </label>
 
-        <label class="field">
+        <label class="field" data-confirm-field="amount">
           <span>支付金额</span>
           <input id="confirmAmountInput" type="number" readonly>
         </label>

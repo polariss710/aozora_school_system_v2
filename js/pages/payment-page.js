@@ -72,6 +72,7 @@ function cacheDom() {
   dom.recordCount = document.querySelector("#recordCount");
   dom.confirmPaymentDialog = document.querySelector("#confirmPaymentDialog");
   dom.confirmPaymentSummary = document.querySelector("#confirmPaymentSummary");
+  dom.confirmPaymentError = document.querySelector("#confirmPaymentError");
   dom.confirmAccountSelect = document.querySelector("#confirmAccountSelect");
   dom.confirmPayDateInput = document.querySelector("#confirmPayDateInput");
   dom.confirmAmountInput = document.querySelector("#confirmAmountInput");
@@ -105,6 +106,14 @@ function bindEvents() {
 
   dom.confirmCancelButton.addEventListener("click", closeConfirmPaymentDialog);
   dom.confirmSubmitButton.addEventListener("click", submitConfirmPayment);
+  dom.confirmAccountSelect.addEventListener("change", () => {
+    setConfirmFieldInvalid("account", false);
+    hideConfirmErrorIfClean();
+  });
+  dom.confirmPayDateInput.addEventListener("input", () => {
+    setConfirmFieldInvalid("payDate", false);
+    hideConfirmErrorIfClean();
+  });
 }
 
 function setDefaultFilters() {
@@ -252,6 +261,7 @@ function openConfirmPaymentDialog(row) {
   }
 
   currentConfirmRow = row;
+  clearConfirmErrors();
   dom.confirmPaymentSummary.innerHTML = renderConfirmSummary(row);
   dom.confirmPayDateInput.value = currentDate();
   dom.confirmAmountInput.value = row.amount || "";
@@ -304,31 +314,42 @@ async function submitConfirmPayment() {
     return;
   }
 
+  clearConfirmErrors();
+
   if (!currentConfirmRow || currentConfirmRow.status !== "pending") {
-    showMessage("error", "当前支付请求不是待支付状态，无法确认。");
+    showConfirmError("当前支付请求不是待支付状态，无法确认。");
     return;
   }
 
   const accountId = dom.confirmAccountSelect.value;
   if (!accountId) {
-    showMessage("error", "请选择支付账户。");
+    showConfirmError("请选择支付账户。", ["account"]);
     return;
   }
 
   const account = accounts.find((item) => item.id === accountId);
   if (!account) {
-    showMessage("error", "未找到选择的支付账户。");
+    showConfirmError("支付账户信息无效，请重新选择。", ["account"]);
     return;
   }
 
   if (account.currency !== currentConfirmRow.currency) {
-    showMessage("error", "支付账户币种与支付请求币种不一致。");
+    showConfirmError("支付账户币种与支付请求币种不一致。", ["account"]);
     return;
   }
 
   const payDate = dom.confirmPayDateInput.value;
   if (!payDate) {
-    showMessage("error", "请选择支付日期。");
+    showConfirmError("请选择支付日期。", ["payDate"]);
+    return;
+  }
+
+  if (
+    currentConfirmRow.amount === null ||
+    currentConfirmRow.amount === undefined ||
+    currentConfirmRow.amount === ""
+  ) {
+    showConfirmError("支付金额无效，请刷新后重试。", ["amount"]);
     return;
   }
 
@@ -345,11 +366,11 @@ async function submitConfirmPayment() {
 
     setConfirmSubmitting(false);
     closeConfirmPaymentDialog();
-    showMessage("success", "支付已确认。");
     await loadPaymentData();
+    showMessage("success", "支付已确认。");
   } catch (error) {
     console.error(error);
-    showMessage("error", `确认支付失败：${error.message || error}`);
+    showConfirmError(`确认支付失败：${error.message || error}`);
   } finally {
     setConfirmSubmitting(false);
   }
@@ -381,6 +402,38 @@ function renderConfirmSummary(row) {
       `
     )
     .join("");
+}
+
+function clearConfirmErrors() {
+  dom.confirmPaymentError.textContent = "";
+  dom.confirmPaymentError.classList.add("is-hidden");
+  setConfirmFieldInvalid("account", false);
+  setConfirmFieldInvalid("payDate", false);
+  setConfirmFieldInvalid("amount", false);
+}
+
+function showConfirmError(message, fieldIds = []) {
+  dom.confirmPaymentError.textContent = message;
+  dom.confirmPaymentError.classList.remove("is-hidden");
+
+  for (const fieldId of fieldIds) {
+    setConfirmFieldInvalid(fieldId, true);
+  }
+}
+
+function setConfirmFieldInvalid(fieldId, invalid) {
+  const field = dom.confirmPaymentDialog.querySelector(`[data-confirm-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideConfirmErrorIfClean() {
+  const hasInvalidField = Boolean(dom.confirmPaymentDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.confirmPaymentError.textContent = "";
+    dom.confirmPaymentError.classList.add("is-hidden");
+  }
 }
 
 function findRenderedRow(id) {
