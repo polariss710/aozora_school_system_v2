@@ -28,9 +28,8 @@ const BUSINESS_ENTITY_SELECT_CANDIDATES = [
 ];
 
 function toRpcParams(filters) {
-  // Adjust these names if the deployed RPC uses a different signature.
   return {
-    p_year_month: filters.month || null,
+    p_request_month: filters.month || null,
     p_status: filters.status || null,
     p_source_type: filters.sourceType || null,
     p_business_entity_id: filters.businessEntityId || null,

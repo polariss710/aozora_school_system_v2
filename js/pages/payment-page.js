@@ -15,14 +15,17 @@ import {
 } from "../utils/format.js";
 
 const SUMMARY_FIELDS = [
-  { key: "total_amount", label: "总金额" },
-  { key: "pending_amount", label: "待支付金额" },
-  { key: "paid_amount", label: "已支付金额" },
-  { key: "cancelled_amount", label: "已取消金额" },
-  { key: "reversed_amount", label: "已撤销金额" },
-  { key: "request_count", label: "请求数量" },
+  { key: "filtered_amount_jpy", label: "筛选合计 JPY", currency: "JPY" },
+  { key: "filtered_amount_cny", label: "筛选合计 CNY", currency: "CNY" },
+  { key: "pending_amount_jpy", label: "待支付金额 JPY", currency: "JPY" },
+  { key: "pending_amount_cny", label: "待支付金额 CNY", currency: "CNY" },
+  { key: "paid_amount_jpy", label: "已支付金额 JPY", currency: "JPY" },
+  { key: "paid_amount_cny", label: "已支付金额 CNY", currency: "CNY" },
+  { key: "record_count", label: "请求数量" },
   { key: "pending_count", label: "待支付数量" },
   { key: "paid_count", label: "已支付数量" },
+  { key: "cancelled_count", label: "已取消数量" },
+  { key: "void_count", label: "已作废数量" },
 ];
 
 const dom = {};
@@ -145,7 +148,7 @@ function renderBusinessEntities(items) {
 function renderSummary(summary) {
   const cards = SUMMARY_FIELDS.map((field) => {
     const value = summary[field.key];
-    const displayValue = formatSummaryValue(field.key, value, summary.currency);
+    const displayValue = formatSummaryValue(field, value);
 
     return `
       <article class="summary-card">
@@ -194,13 +197,13 @@ function normalizeSummary(summary) {
   return summary || {};
 }
 
-function formatSummaryValue(key, value, currency) {
+function formatSummaryValue(field, value) {
   if (value === null || value === undefined || value === "") {
-    return key.endsWith("_count") ? "0" : "-";
+    return field.key.endsWith("_count") ? "0" : "-";
   }
 
-  if (key.endsWith("_amount")) {
-    return formatCurrency(value, currency);
+  if (field.currency) {
+    return formatCurrency(value, field.currency);
   }
 
   return safeText(value);
