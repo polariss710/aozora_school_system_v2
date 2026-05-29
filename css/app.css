@@ -343,6 +343,12 @@ h2 {
   white-space: nowrap;
 }
 
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .table-action-button {
   min-height: 32px;
   padding: 5px 10px;

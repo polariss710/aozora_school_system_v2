@@ -149,6 +149,31 @@ export async function reversePaidPaymentRequest(payload) {
   return data;
 }
 
+export async function cancelPaymentRequest(payload) {
+  const { data, error } = await supabase.rpc("school_cancel_payment_request", {
+    p_payment_request_id: payload.paymentRequestId,
+    p_reason: payload.reason || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function restoreCancelledPaymentRequest(payload) {
+  const { data, error } = await supabase.rpc("school_restore_cancelled_payment_request", {
+    p_payment_request_id: payload.paymentRequestId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 function normalizeBusinessEntities(rows) {
   return rows
     .map((row) => ({

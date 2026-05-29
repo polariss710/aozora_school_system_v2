@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支付管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.0.3-payment-reverse-20260529">
+    <link rel="stylesheet" href="./css/app.css?v=v2.0.4-payment-status-actions-20260529">
   </head>
   <body>
     <div class="app-shell">
@@ -188,6 +188,25 @@
       </section>
     </div>
 
-    <script type="module" src="./js/app.js?v=v2.0.3-payment-reverse-20260529"></script>
+    <div id="statusActionDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="statusActionTitle">
+        <div class="section-heading">
+          <h2 id="statusActionTitle">状态操作</h2>
+        </div>
+
+        <div id="statusActionSummary" class="dialog-summary"></div>
+
+        <div id="statusActionMessage" class="dialog-warning"></div>
+
+        <div id="statusActionError" class="dialog-error is-hidden"></div>
+
+        <div class="dialog-actions">
+          <button class="button" id="statusActionSubmitButton" type="button">确认</button>
+          <button class="button" id="statusActionCancelButton" type="button">返回</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/app.js?v=v2.0.4-payment-status-actions-20260529"></script>
   </body>
 </html>

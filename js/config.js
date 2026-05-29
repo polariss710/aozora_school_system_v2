@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.0.3-payment-reverse-20260529";
+export const APP_VERSION = "v2.0.4-payment-status-actions-20260529";
 
 export const DEFAULT_FILTERS = {
   status: "",

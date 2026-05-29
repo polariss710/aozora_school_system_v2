@@ -1,12 +1,14 @@
 import { DEFAULT_FILTERS } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  cancelPaymentRequest,
   confirmPaymentRequest,
   fetchAccounts,
   fetchBusinessEntities,
   fetchPaymentRequests,
   fetchPaymentSummary,
   reversePaidPaymentRequest,
+  restoreCancelledPaymentRequest,
 } from "../api/payment-api.js";
 import {
   formatCurrency,
@@ -37,6 +39,9 @@ let currentConfirmRow = null;
 let isConfirmSubmitting = false;
 let currentReverseRow = null;
 let isReverseSubmitting = false;
+let currentStatusActionRow = null;
+let currentStatusActionType = null;
+let isStatusActionSubmitting = false;
 
 export function initPaymentPage() {
   cacheDom();
@@ -90,6 +95,13 @@ function cacheDom() {
   dom.reverseConfirmCheck = document.querySelector("#reverseConfirmCheck");
   dom.reverseSubmitButton = document.querySelector("#reverseSubmitButton");
   dom.reverseCancelButton = document.querySelector("#reverseCancelButton");
+  dom.statusActionDialog = document.querySelector("#statusActionDialog");
+  dom.statusActionTitle = document.querySelector("#statusActionTitle");
+  dom.statusActionSummary = document.querySelector("#statusActionSummary");
+  dom.statusActionMessage = document.querySelector("#statusActionMessage");
+  dom.statusActionError = document.querySelector("#statusActionError");
+  dom.statusActionSubmitButton = document.querySelector("#statusActionSubmitButton");
+  dom.statusActionCancelButton = document.querySelector("#statusActionCancelButton");
 }
 
 function bindEvents() {
@@ -119,6 +131,14 @@ function bindEvents() {
         openReversePaymentDialog(row);
       }
     }
+
+    const statusButton = event.target.closest("[data-status-action]");
+    if (statusButton) {
+      const row = findRenderedRow(statusButton.dataset.paymentId);
+      if (row) {
+        openStatusActionDialog(row, statusButton.dataset.statusAction);
+      }
+    }
   });
 
   dom.confirmCancelButton.addEventListener("click", closeConfirmPaymentDialog);
@@ -145,6 +165,8 @@ function bindEvents() {
     setReverseFieldInvalid("confirmCheck", false);
     hideReverseErrorIfClean();
   });
+  dom.statusActionCancelButton.addEventListener("click", closeStatusActionDialog);
+  dom.statusActionSubmitButton.addEventListener("click", submitStatusAction);
 }
 
 function setDefaultFilters() {
@@ -271,17 +293,34 @@ function renderRows(rows) {
 function renderPaymentActions(row) {
   if (row.status === "pending") {
     return `
-      <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}">
-        确认支付
-      </button>
+      <div class="action-buttons">
+        <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}">
+          确认支付
+        </button>
+        <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
+          取消
+        </button>
+      </div>
     `;
   }
 
   if (row.status === "paid") {
     return `
-      <button class="button button-danger table-action-button" type="button" data-reverse-payment-id="${escapeAttribute(row.id)}">
-        撤销支付
-      </button>
+      <div class="action-buttons">
+        <button class="button button-danger table-action-button" type="button" data-reverse-payment-id="${escapeAttribute(row.id)}">
+          撤销支付
+        </button>
+      </div>
+    `;
+  }
+
+  if (row.status === "cancelled") {
+    return `
+      <div class="action-buttons">
+        <button class="button table-action-button" type="button" data-status-action="restore" data-payment-id="${escapeAttribute(row.id)}">
+          恢复待支付
+        </button>
+      </div>
     `;
   }
 
@@ -616,6 +655,170 @@ function hideReverseErrorIfClean() {
     dom.reversePaymentError.textContent = "";
     dom.reversePaymentError.classList.add("is-hidden");
   }
+}
+
+function openStatusActionDialog(row, actionType) {
+  if (actionType === "cancel" && row.status !== "pending") {
+    showMessage("error", "只有待支付的支付要求可以取消。");
+    return;
+  }
+
+  if (actionType === "restore" && row.status !== "cancelled") {
+    showMessage("error", "只有已取消的支付要求可以恢复。");
+    return;
+  }
+
+  if (!["cancel", "restore"].includes(actionType)) {
+    showMessage("error", "未知的状态操作。");
+    return;
+  }
+
+  currentStatusActionRow = row;
+  currentStatusActionType = actionType;
+  clearStatusActionErrors();
+  renderStatusActionContent(row, actionType);
+  setStatusActionSubmitting(false);
+  dom.statusActionDialog.classList.remove("is-hidden");
+  dom.statusActionDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeStatusActionDialog() {
+  if (isStatusActionSubmitting) {
+    return;
+  }
+
+  currentStatusActionRow = null;
+  currentStatusActionType = null;
+  dom.statusActionDialog.classList.add("is-hidden");
+  dom.statusActionDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitStatusAction() {
+  if (isStatusActionSubmitting) {
+    return;
+  }
+
+  clearStatusActionErrors();
+
+  if (!currentStatusActionRow) {
+    showStatusActionError("操作对象不存在，请关闭后重试。");
+    return;
+  }
+
+  if (currentStatusActionType === "cancel" && currentStatusActionRow.status !== "pending") {
+    showStatusActionError("只有待支付的支付要求可以取消。");
+    return;
+  }
+
+  if (currentStatusActionType === "restore" && currentStatusActionRow.status !== "cancelled") {
+    showStatusActionError("只有已取消的支付要求可以恢复。");
+    return;
+  }
+
+  if (!["cancel", "restore"].includes(currentStatusActionType)) {
+    showStatusActionError("未知的状态操作。");
+    return;
+  }
+
+  setStatusActionSubmitting(true);
+
+  try {
+    if (currentStatusActionType === "cancel") {
+      await cancelPaymentRequest({
+        paymentRequestId: currentStatusActionRow.id,
+        reason: null,
+      });
+    } else {
+      await restoreCancelledPaymentRequest({
+        paymentRequestId: currentStatusActionRow.id,
+      });
+    }
+
+    const successMessage =
+      currentStatusActionType === "cancel"
+        ? "支付要求已取消。"
+        : "支付要求已恢复为待支付。";
+
+    setStatusActionSubmitting(false);
+    closeStatusActionDialog();
+    await loadPaymentData();
+    showMessage("success", successMessage);
+  } catch (error) {
+    console.error(error);
+    showStatusActionError(`操作失败：${error.message || error}`);
+  } finally {
+    setStatusActionSubmitting(false);
+  }
+}
+
+function renderStatusActionContent(row, actionType) {
+  const config =
+    actionType === "cancel"
+      ? {
+          title: "取消支付要求",
+          message: "取消后该支付要求将不再计入待支付，但不会影响账户余额，也不会生成支出或账户流水。",
+          submitText: "确认取消",
+        }
+      : {
+          title: "恢复待支付",
+          message: "恢复后该支付要求会重新进入待支付列表，可再次确认支付。",
+          submitText: "确认恢复",
+        };
+
+  dom.statusActionTitle.textContent = config.title;
+  dom.statusActionSummary.innerHTML = renderStatusActionSummary(row);
+  dom.statusActionMessage.textContent = config.message;
+  dom.statusActionSubmitButton.textContent = config.submitText;
+}
+
+function renderStatusActionSummary(row) {
+  const items = [
+    ["支付对象", row.payee_name || row.source_id || row.id],
+    ["业务归属", row.business_name || row.business_entity_id || "-"],
+    ["请求月份", formatMonth(row.request_month)],
+    ["来源类型", sourceTypeLabel(row.source_type)],
+    ["支付金额", formatCurrency(row.amount, row.currency)],
+  ];
+
+  return items
+    .map(
+      ([label, value]) => `
+        <div class="dialog-summary-row">
+          <span class="dialog-summary-label">${escapeHtml(label)}</span>
+          <span>${escapeHtml(value)}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function clearStatusActionErrors() {
+  dom.statusActionError.textContent = "";
+  dom.statusActionError.classList.add("is-hidden");
+}
+
+function showStatusActionError(message) {
+  dom.statusActionError.textContent = message;
+  dom.statusActionError.classList.remove("is-hidden");
+}
+
+function setStatusActionSubmitting(isSubmitting) {
+  isStatusActionSubmitting = isSubmitting;
+  dom.statusActionSubmitButton.disabled = isSubmitting;
+  dom.statusActionCancelButton.disabled = isSubmitting;
+  dom.statusActionSubmitButton.textContent = isSubmitting ? "处理中..." : getStatusActionSubmitText();
+}
+
+function getStatusActionSubmitText() {
+  if (currentStatusActionType === "cancel") {
+    return "确认取消";
+  }
+
+  if (currentStatusActionType === "restore") {
+    return "确认恢复";
+  }
+
+  return "确认";
 }
 
 function findRenderedRow(id) {
