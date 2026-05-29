@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支付管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.0.2-payment-dialog-error-20260529">
+    <link rel="stylesheet" href="./css/app.css?v=v2.0.3-payment-reverse-20260529">
   </head>
   <body>
     <div class="app-shell">
@@ -152,6 +152,42 @@
       </section>
     </div>
 
-    <script type="module" src="./js/app.js?v=v2.0.2-payment-dialog-error-20260529"></script>
+    <div id="reversePaymentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reversePaymentTitle">
+        <div class="section-heading">
+          <h2 id="reversePaymentTitle">撤销支付</h2>
+        </div>
+
+        <div id="reversePaymentSummary" class="dialog-summary"></div>
+
+        <div id="reversePaymentWarning" class="dialog-warning">
+          撤销支付会生成反向账户流水，并恢复账户余额。原支付记录、支出记录和原账户流水会保留作为历史。此操作不应随意执行。
+        </div>
+
+        <div id="reversePaymentError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reverse-field="reverseDate">
+          <span>撤销日期</span>
+          <input id="reverseDateInput" type="date">
+        </label>
+
+        <label class="field" data-reverse-field="reason">
+          <span>撤销原因</span>
+          <textarea id="reverseReasonInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-reverse-field="confirmCheck">
+          <input id="reverseConfirmCheck" type="checkbox">
+          <span>我确认撤销本次支付，并理解系统会生成反向账户流水、恢复账户余额，原支付记录会保留。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="reverseSubmitButton" type="button">确认撤销支付</button>
+          <button class="button" id="reverseCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/app.js?v=v2.0.3-payment-reverse-20260529"></script>
   </body>
 </html>

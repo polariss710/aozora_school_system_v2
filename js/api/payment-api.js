@@ -135,6 +135,20 @@ export async function confirmPaymentRequest(payload) {
   return data;
 }
 
+export async function reversePaidPaymentRequest(payload) {
+  const { data, error } = await supabase.rpc("school_reverse_paid_payment_request", {
+    p_payment_request_id: payload.paymentRequestId,
+    p_reason: payload.reason,
+    p_reverse_date: payload.reverseDate,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 function normalizeBusinessEntities(rows) {
   return rows
     .map((row) => ({

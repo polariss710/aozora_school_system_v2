@@ -6,6 +6,7 @@ import {
   fetchBusinessEntities,
   fetchPaymentRequests,
   fetchPaymentSummary,
+  reversePaidPaymentRequest,
 } from "../api/payment-api.js";
 import {
   formatCurrency,
@@ -34,6 +35,8 @@ const dom = {};
 let accounts = [];
 let currentConfirmRow = null;
 let isConfirmSubmitting = false;
+let currentReverseRow = null;
+let isReverseSubmitting = false;
 
 export function initPaymentPage() {
   cacheDom();
@@ -79,6 +82,14 @@ function cacheDom() {
   dom.confirmNoteInput = document.querySelector("#confirmNoteInput");
   dom.confirmSubmitButton = document.querySelector("#confirmSubmitButton");
   dom.confirmCancelButton = document.querySelector("#confirmCancelButton");
+  dom.reversePaymentDialog = document.querySelector("#reversePaymentDialog");
+  dom.reversePaymentSummary = document.querySelector("#reversePaymentSummary");
+  dom.reversePaymentError = document.querySelector("#reversePaymentError");
+  dom.reverseDateInput = document.querySelector("#reverseDateInput");
+  dom.reverseReasonInput = document.querySelector("#reverseReasonInput");
+  dom.reverseConfirmCheck = document.querySelector("#reverseConfirmCheck");
+  dom.reverseSubmitButton = document.querySelector("#reverseSubmitButton");
+  dom.reverseCancelButton = document.querySelector("#reverseCancelButton");
 }
 
 function bindEvents() {
@@ -93,14 +104,20 @@ function bindEvents() {
   });
 
   dom.tableBody.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-confirm-payment-id]");
-    if (!button) {
-      return;
+    const confirmButton = event.target.closest("[data-confirm-payment-id]");
+    if (confirmButton) {
+      const row = findRenderedRow(confirmButton.dataset.confirmPaymentId);
+      if (row) {
+        openConfirmPaymentDialog(row);
+      }
     }
 
-    const row = findRenderedRow(button.dataset.confirmPaymentId);
-    if (row) {
-      openConfirmPaymentDialog(row);
+    const reverseButton = event.target.closest("[data-reverse-payment-id]");
+    if (reverseButton) {
+      const row = findRenderedRow(reverseButton.dataset.reversePaymentId);
+      if (row) {
+        openReversePaymentDialog(row);
+      }
     }
   });
 
@@ -113,6 +130,20 @@ function bindEvents() {
   dom.confirmPayDateInput.addEventListener("input", () => {
     setConfirmFieldInvalid("payDate", false);
     hideConfirmErrorIfClean();
+  });
+  dom.reverseCancelButton.addEventListener("click", closeReversePaymentDialog);
+  dom.reverseSubmitButton.addEventListener("click", submitReversePayment);
+  dom.reverseDateInput.addEventListener("input", () => {
+    setReverseFieldInvalid("reverseDate", false);
+    hideReverseErrorIfClean();
+  });
+  dom.reverseReasonInput.addEventListener("input", () => {
+    setReverseFieldInvalid("reason", false);
+    hideReverseErrorIfClean();
+  });
+  dom.reverseConfirmCheck.addEventListener("change", () => {
+    setReverseFieldInvalid("confirmCheck", false);
+    hideReverseErrorIfClean();
   });
 }
 
@@ -238,15 +269,23 @@ function renderRows(rows) {
 }
 
 function renderPaymentActions(row) {
-  if (row.status !== "pending") {
-    return "-";
+  if (row.status === "pending") {
+    return `
+      <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}">
+        确认支付
+      </button>
+    `;
   }
 
-  return `
-    <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}">
-      确认支付
-    </button>
-  `;
+  if (row.status === "paid") {
+    return `
+      <button class="button button-danger table-action-button" type="button" data-reverse-payment-id="${escapeAttribute(row.id)}">
+        撤销支付
+      </button>
+    `;
+  }
+
+  return "-";
 }
 
 function openConfirmPaymentDialog(row) {
@@ -433,6 +472,149 @@ function hideConfirmErrorIfClean() {
   if (!hasInvalidField) {
     dom.confirmPaymentError.textContent = "";
     dom.confirmPaymentError.classList.add("is-hidden");
+  }
+}
+
+function openReversePaymentDialog(row) {
+  if (row.status !== "paid") {
+    showMessage("error", "只有已支付的支付要求可以撤销。");
+    return;
+  }
+
+  currentReverseRow = row;
+  clearReverseErrors();
+  dom.reversePaymentSummary.innerHTML = renderReverseSummary(row);
+  dom.reverseDateInput.value = currentDate();
+  dom.reverseReasonInput.value = "";
+  dom.reverseConfirmCheck.checked = false;
+  setReverseSubmitting(false);
+  dom.reversePaymentDialog.classList.remove("is-hidden");
+  dom.reversePaymentDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeReversePaymentDialog() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  currentReverseRow = null;
+  dom.reversePaymentDialog.classList.add("is-hidden");
+  dom.reversePaymentDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitReversePayment() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  clearReverseErrors();
+
+  if (!currentReverseRow) {
+    showReverseError("撤销对象不存在，请关闭后重试。");
+    return;
+  }
+
+  if (currentReverseRow.status !== "paid") {
+    showReverseError("只有已支付的支付要求可以撤销。");
+    return;
+  }
+
+  const reverseDate = dom.reverseDateInput.value;
+  if (!reverseDate) {
+    showReverseError("请选择撤销日期。", ["reverseDate"]);
+    return;
+  }
+
+  const reason = dom.reverseReasonInput.value.trim();
+  if (!reason) {
+    showReverseError("请输入撤销原因。", ["reason"]);
+    return;
+  }
+
+  if (!dom.reverseConfirmCheck.checked) {
+    showReverseError("请勾选确认撤销说明。", ["confirmCheck"]);
+    return;
+  }
+
+  setReverseSubmitting(true);
+
+  try {
+    await reversePaidPaymentRequest({
+      paymentRequestId: currentReverseRow.id,
+      reason,
+      reverseDate,
+    });
+
+    setReverseSubmitting(false);
+    closeReversePaymentDialog();
+    await loadPaymentData();
+    showMessage("success", "支付已撤销，账户余额已恢复。");
+  } catch (error) {
+    console.error(error);
+    showReverseError(`撤销支付失败：${error.message || error}`);
+  } finally {
+    setReverseSubmitting(false);
+  }
+}
+
+function setReverseSubmitting(isSubmitting) {
+  isReverseSubmitting = isSubmitting;
+  dom.reverseSubmitButton.disabled = isSubmitting;
+  dom.reverseCancelButton.disabled = isSubmitting;
+  dom.reverseSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销支付";
+}
+
+function renderReverseSummary(row) {
+  const items = [
+    ["支付对象", row.payee_name || row.source_id || row.id],
+    ["业务归属", row.business_name || row.business_entity_id || "-"],
+    ["请求月份", formatMonth(row.request_month)],
+    ["来源类型", sourceTypeLabel(row.source_type)],
+    ["支付金额", formatCurrency(row.amount, row.currency)],
+    ["支付时间", formatDate(row.paid_at)],
+  ];
+
+  return items
+    .map(
+      ([label, value]) => `
+        <div class="dialog-summary-row">
+          <span class="dialog-summary-label">${escapeHtml(label)}</span>
+          <span>${escapeHtml(value)}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function clearReverseErrors() {
+  dom.reversePaymentError.textContent = "";
+  dom.reversePaymentError.classList.add("is-hidden");
+  setReverseFieldInvalid("reverseDate", false);
+  setReverseFieldInvalid("reason", false);
+  setReverseFieldInvalid("confirmCheck", false);
+}
+
+function showReverseError(message, fieldIds = []) {
+  dom.reversePaymentError.textContent = message;
+  dom.reversePaymentError.classList.remove("is-hidden");
+
+  for (const fieldId of fieldIds) {
+    setReverseFieldInvalid(fieldId, true);
+  }
+}
+
+function setReverseFieldInvalid(fieldId, invalid) {
+  const field = dom.reversePaymentDialog.querySelector(`[data-reverse-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideReverseErrorIfClean() {
+  const hasInvalidField = Boolean(dom.reversePaymentDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.reversePaymentError.textContent = "";
+    dom.reversePaymentError.classList.add("is-hidden");
   }
 }
 

@@ -220,6 +220,17 @@ h2 {
   background: var(--accent-dark);
 }
 
+.button-danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+}
+
+.button-danger:hover {
+  border-color: #991b1b;
+  background: #991b1b;
+}
+
 .button:disabled {
   cursor: not-allowed;
   opacity: 0.6;
@@ -394,6 +405,30 @@ h2 {
   padding: 10px 12px;
   font-size: 14px;
   font-weight: 700;
+}
+
+.dialog-warning {
+  margin-top: 12px;
+  border: 1px solid #fed7aa;
+  border-left: 4px solid var(--warning);
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.confirm-check {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 8px;
+}
+
+.confirm-check input {
+  width: auto;
+  min-height: auto;
+  margin-top: 3px;
 }
 
 .dialog-actions {
