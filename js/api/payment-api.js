@@ -2,22 +2,26 @@ import { supabase } from "../supabase-client.js";
 
 const PAYMENT_REQUEST_COLUMNS = [
   "id",
-  "year_month",
-  "request_month",
-  "month",
-  "status",
   "source_type",
+  "source_id",
+  "request_month",
+  "payee_type",
+  "payee_id",
+  "payee_name",
   "business_entity_id",
-  "business_entity_name",
-  "target_name",
-  "teacher_name",
-  "description",
-  "memo",
+  "business_name",
   "currency",
   "amount",
-  "created_at",
+  "amount_jpy",
+  "amount_cny",
+  "status",
+  "due_date",
   "paid_at",
+  "note",
+  "created_at",
+  "updated_at",
   "reversed_at",
+  "reversal_reason",
 ].join(",");
 
 const BUSINESS_ENTITY_SELECT_CANDIDATES = [
@@ -98,7 +102,7 @@ function normalizeBusinessEntities(rows) {
 
 function applyPaymentFilters(query, filters) {
   if (filters.month) {
-    query = query.eq("year_month", filters.month);
+    query = query.eq("request_month", filters.month);
   }
 
   if (filters.status) {

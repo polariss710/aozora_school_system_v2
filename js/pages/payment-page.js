@@ -167,16 +167,15 @@ function renderRows(rows) {
 
   dom.tableBody.innerHTML = rows
     .map((row) => {
-      const month = row.year_month || row.request_month || row.month;
-      const targetText =
-        row.target_name || row.teacher_name || row.description || row.memo || row.id;
+      const month = row.request_month;
+      const targetText = row.payee_name || row.note || row.source_id || row.id;
 
       return `
         <tr>
           <td>${escapeHtml(formatMonth(month))}</td>
           <td><span class="status-badge status-${escapeAttribute(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td>
           <td>${escapeHtml(sourceTypeLabel(row.source_type))}</td>
-          <td>${escapeHtml(row.business_entity_name || row.business_entity_id || "-")}</td>
+          <td>${escapeHtml(row.business_name || row.business_entity_id || "-")}</td>
           <td class="description-cell">${escapeHtml(targetText || "-")}</td>
           <td>${escapeHtml(row.currency || "-")}</td>
           <td class="number-cell">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
