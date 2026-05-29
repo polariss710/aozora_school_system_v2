@@ -1,4 +1,4 @@
-import { DEFAULT_FILTERS } from "../config.js";
+import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   cancelPaymentRequest,
@@ -45,6 +45,8 @@ let isStatusActionSubmitting = false;
 
 export function initPaymentPage() {
   cacheDom();
+  populateYearOptions();
+  populateMonthOptions();
   setDefaultFilters();
   bindEvents();
   renderSummary({});
@@ -67,7 +69,8 @@ export function initPaymentPage() {
 function cacheDom() {
   dom.messageArea = document.querySelector("#messageArea");
   dom.filterForm = document.querySelector("#filterForm");
-  dom.monthInput = document.querySelector("#monthInput");
+  dom.yearFilter = document.querySelector("#yearFilter");
+  dom.monthFilter = document.querySelector("#monthFilter");
   dom.statusSelect = document.querySelector("#statusSelect");
   dom.sourceTypeSelect = document.querySelector("#sourceTypeSelect");
   dom.businessEntitySelect = document.querySelector("#businessEntitySelect");
@@ -170,7 +173,7 @@ function bindEvents() {
 }
 
 function setDefaultFilters() {
-  dom.monthInput.value = currentYearMonth();
+  setMonthSelectValue(currentYearMonth());
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.sourceTypeSelect.value = DEFAULT_FILTERS.sourceType;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
@@ -201,6 +204,10 @@ async function loadPaymentData() {
   }
 
   const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
   setLoading(true);
   showMessage("info", "正在加载支付管理数据...");
 
@@ -223,13 +230,66 @@ async function loadPaymentData() {
 }
 
 function readFilters() {
+  const selectedMonth = getSelectedYearMonth();
+  if (!selectedMonth) {
+    showMessage("error", "请选择正确的年月。");
+    return null;
+  }
+
   return {
-    month: dom.monthInput.value,
+    month: selectedMonth,
     status: dom.statusSelect.value,
     sourceType: dom.sourceTypeSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
     currency: dom.currencySelect.value,
   };
+}
+
+function populateYearOptions() {
+  const currentYear = new Date().getFullYear();
+  const startYear = Number(PAYMENT_MONTH_FILTER_YEAR_RANGE.start);
+  const endYear = Number(PAYMENT_MONTH_FILTER_YEAR_RANGE.end);
+  const years = new Set();
+
+  for (let year = startYear; year <= endYear; year += 1) {
+    years.add(year);
+  }
+
+  years.add(currentYear);
+
+  dom.yearFilter.innerHTML = Array.from(years)
+    .sort((a, b) => a - b)
+    .map((year) => `<option value="${year}">${year}年</option>`)
+    .join("");
+}
+
+function populateMonthOptions() {
+  const options = [];
+
+  for (let month = 1; month <= 12; month += 1) {
+    const value = String(month).padStart(2, "0");
+    options.push(`<option value="${value}">${value}月</option>`);
+  }
+
+  dom.monthFilter.innerHTML = options.join("");
+}
+
+function setMonthSelectValue(yearMonth) {
+  const [year, month] = String(yearMonth || "").split("-");
+  dom.yearFilter.value = year || "";
+  dom.monthFilter.value = month || "";
+}
+
+function getSelectedYearMonth() {
+  const year = dom.yearFilter.value;
+  const month = dom.monthFilter.value;
+  const yearMonth = `${year}-${month}`;
+
+  if (!year || !month || !/^\d{4}-\d{2}$/.test(yearMonth)) {
+    return "";
+  }
+
+  return yearMonth;
 }
 
 function renderBusinessEntities(items) {

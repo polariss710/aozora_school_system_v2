@@ -199,6 +199,24 @@ h2 {
   resize: vertical;
 }
 
+.month-select-field {
+  min-width: 0;
+}
+
+.month-select-group {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.month-select-group select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .field.is-invalid {
   color: var(--danger);
 }
@@ -613,6 +631,10 @@ h2 {
   }
 
   .filter-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .month-select-group {
     grid-template-columns: 1fr;
   }
 
