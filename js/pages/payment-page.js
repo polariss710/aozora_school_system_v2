@@ -1,6 +1,8 @@
 import { DEFAULT_FILTERS } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  confirmPaymentRequest,
+  fetchAccounts,
   fetchBusinessEntities,
   fetchPaymentRequests,
   fetchPaymentSummary,
@@ -29,6 +31,9 @@ const SUMMARY_FIELDS = [
 ];
 
 const dom = {};
+let accounts = [];
+let currentConfirmRow = null;
+let isConfirmSubmitting = false;
 
 export function initPaymentPage() {
   cacheDom();
@@ -47,6 +52,7 @@ export function initPaymentPage() {
   }
 
   loadBusinessEntities();
+  loadAccounts();
   loadPaymentData();
 }
 
@@ -64,6 +70,14 @@ function cacheDom() {
   dom.emptyState = document.querySelector("#emptyState");
   dom.tableBody = document.querySelector("#paymentTableBody");
   dom.recordCount = document.querySelector("#recordCount");
+  dom.confirmPaymentDialog = document.querySelector("#confirmPaymentDialog");
+  dom.confirmPaymentSummary = document.querySelector("#confirmPaymentSummary");
+  dom.confirmAccountSelect = document.querySelector("#confirmAccountSelect");
+  dom.confirmPayDateInput = document.querySelector("#confirmPayDateInput");
+  dom.confirmAmountInput = document.querySelector("#confirmAmountInput");
+  dom.confirmNoteInput = document.querySelector("#confirmNoteInput");
+  dom.confirmSubmitButton = document.querySelector("#confirmSubmitButton");
+  dom.confirmCancelButton = document.querySelector("#confirmCancelButton");
 }
 
 function bindEvents() {
@@ -76,6 +90,21 @@ function bindEvents() {
     setDefaultFilters();
     loadPaymentData();
   });
+
+  dom.tableBody.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-confirm-payment-id]");
+    if (!button) {
+      return;
+    }
+
+    const row = findRenderedRow(button.dataset.confirmPaymentId);
+    if (row) {
+      openConfirmPaymentDialog(row);
+    }
+  });
+
+  dom.confirmCancelButton.addEventListener("click", closeConfirmPaymentDialog);
+  dom.confirmSubmitButton.addEventListener("click", submitConfirmPayment);
 }
 
 function setDefaultFilters() {
@@ -92,6 +121,15 @@ async function loadBusinessEntities() {
 
   if (result.warning) {
     showMessage("warning", `业务归属选项读取失败，已继续加载支付数据：${result.warning}`);
+  }
+}
+
+async function loadAccounts() {
+  try {
+    accounts = await fetchAccounts();
+  } catch (error) {
+    accounts = [];
+    showMessage("warning", `支付账户读取失败，确认支付暂不可用：${error.message || error}`);
   }
 }
 
@@ -162,6 +200,7 @@ function renderSummary(summary) {
 }
 
 function renderRows(rows) {
+  dom.tableBody.dataset.rows = JSON.stringify(rows);
   dom.recordCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
 
@@ -182,10 +221,175 @@ function renderRows(rows) {
           <td>${escapeHtml(formatDate(row.created_at))}</td>
           <td>${escapeHtml(formatDate(row.paid_at))}</td>
           <td>${escapeHtml(formatDate(row.reversed_at))}</td>
+          <td class="action-cell">${renderPaymentActions(row)}</td>
         </tr>
       `;
     })
     .join("");
+}
+
+function renderPaymentActions(row) {
+  if (row.status !== "pending") {
+    return "-";
+  }
+
+  return `
+    <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}">
+      确认支付
+    </button>
+  `;
+}
+
+function openConfirmPaymentDialog(row) {
+  if (row.status !== "pending") {
+    showMessage("error", "只有待支付的请求可以确认支付。");
+    return;
+  }
+
+  if (accounts.length === 0) {
+    showMessage("error", "暂无可用支付账户，无法确认支付。");
+    return;
+  }
+
+  currentConfirmRow = row;
+  dom.confirmPaymentSummary.innerHTML = renderConfirmSummary(row);
+  dom.confirmPayDateInput.value = currentDate();
+  dom.confirmAmountInput.value = row.amount || "";
+  dom.confirmNoteInput.value = "";
+  renderAccountOptions(row);
+  setConfirmSubmitting(false);
+  dom.confirmPaymentDialog.classList.remove("is-hidden");
+  dom.confirmPaymentDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeConfirmPaymentDialog() {
+  if (isConfirmSubmitting) {
+    return;
+  }
+
+  currentConfirmRow = null;
+  dom.confirmPaymentDialog.classList.add("is-hidden");
+  dom.confirmPaymentDialog.setAttribute("aria-hidden", "true");
+}
+
+function renderAccountOptions(row) {
+  const orderedAccounts = [...accounts].sort((left, right) => {
+    const leftMatches = left.business_entity_id === row.business_entity_id ? 0 : 1;
+    const rightMatches = right.business_entity_id === row.business_entity_id ? 0 : 1;
+    return leftMatches - rightMatches || safeText(left.name).localeCompare(safeText(right.name), "zh-CN");
+  });
+
+  const options = ['<option value="">请选择支付账户</option>'];
+
+  for (const account of orderedAccounts) {
+    const label = [
+      account.name || account.account_code || account.id,
+      account.currency || "-",
+      formatCurrency(account.current_balance, account.currency),
+      account.account_type || "",
+    ]
+      .filter(Boolean)
+      .join(" / ");
+
+    options.push(
+      `<option value="${escapeAttribute(account.id)}">${escapeHtml(label)}</option>`
+    );
+  }
+
+  dom.confirmAccountSelect.innerHTML = options.join("");
+}
+
+async function submitConfirmPayment() {
+  if (isConfirmSubmitting) {
+    return;
+  }
+
+  if (!currentConfirmRow || currentConfirmRow.status !== "pending") {
+    showMessage("error", "当前支付请求不是待支付状态，无法确认。");
+    return;
+  }
+
+  const accountId = dom.confirmAccountSelect.value;
+  if (!accountId) {
+    showMessage("error", "请选择支付账户。");
+    return;
+  }
+
+  const account = accounts.find((item) => item.id === accountId);
+  if (!account) {
+    showMessage("error", "未找到选择的支付账户。");
+    return;
+  }
+
+  if (account.currency !== currentConfirmRow.currency) {
+    showMessage("error", "支付账户币种与支付请求币种不一致。");
+    return;
+  }
+
+  const payDate = dom.confirmPayDateInput.value;
+  if (!payDate) {
+    showMessage("error", "请选择支付日期。");
+    return;
+  }
+
+  setConfirmSubmitting(true);
+
+  try {
+    await confirmPaymentRequest({
+      paymentRequestId: currentConfirmRow.id,
+      accountId,
+      payDate,
+      amount: currentConfirmRow.amount,
+      note: dom.confirmNoteInput.value.trim(),
+    });
+
+    setConfirmSubmitting(false);
+    closeConfirmPaymentDialog();
+    showMessage("success", "支付已确认。");
+    await loadPaymentData();
+  } catch (error) {
+    console.error(error);
+    showMessage("error", `确认支付失败：${error.message || error}`);
+  } finally {
+    setConfirmSubmitting(false);
+  }
+}
+
+function setConfirmSubmitting(isSubmitting) {
+  isConfirmSubmitting = isSubmitting;
+  dom.confirmSubmitButton.disabled = isSubmitting;
+  dom.confirmCancelButton.disabled = isSubmitting;
+  dom.confirmSubmitButton.textContent = isSubmitting ? "确认中..." : "确认支付";
+}
+
+function renderConfirmSummary(row) {
+  const items = [
+    ["支付对象", row.payee_name || row.source_id || row.id],
+    ["业务归属", row.business_name || row.business_entity_id || "-"],
+    ["请求月份", formatMonth(row.request_month)],
+    ["来源类型", sourceTypeLabel(row.source_type)],
+    ["支付金额", formatCurrency(row.amount, row.currency)],
+  ];
+
+  return items
+    .map(
+      ([label, value]) => `
+        <div class="dialog-summary-row">
+          <span class="dialog-summary-label">${escapeHtml(label)}</span>
+          <span>${escapeHtml(value)}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function findRenderedRow(id) {
+  try {
+    const rows = JSON.parse(dom.tableBody.dataset.rows || "[]");
+    return rows.find((row) => row.id === id) || null;
+  } catch {
+    return null;
+  }
 }
 
 function normalizeSummary(summary) {
@@ -222,6 +426,14 @@ function currentYearMonth() {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
+}
+
+function currentDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function escapeHtml(value) {

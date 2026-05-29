@@ -31,6 +31,18 @@ const BUSINESS_ENTITY_SELECT_CANDIDATES = [
   "id,label",
 ];
 
+const ACCOUNT_COLUMNS = [
+  "id",
+  "account_code",
+  "name",
+  "account_type",
+  "currency",
+  "business_entity_id",
+  "current_balance",
+  "is_active",
+  "app_type",
+].join(",");
+
 function toRpcParams(filters) {
   return {
     p_request_month: filters.month || null,
@@ -89,6 +101,38 @@ export async function fetchBusinessEntities() {
   }
 
   return { data: [], warning: errors.join(" / ") };
+}
+
+export async function fetchAccounts() {
+  const { data, error } = await supabase
+    .from("school_accounts")
+    .select(ACCOUNT_COLUMNS)
+    .eq("is_active", true)
+    .eq("app_type", "school")
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function confirmPaymentRequest(payload) {
+  const { data, error } = await supabase.rpc("school_confirm_payment_request", {
+    p_payment_request_id: payload.paymentRequestId,
+    p_account_id: payload.accountId,
+    p_pay_date: payload.payDate,
+    p_amount: payload.amount,
+    p_note: payload.note || null,
+    p_payment_method: "bank_transfer",
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
 }
 
 function normalizeBusinessEntities(rows) {

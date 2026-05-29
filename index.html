@@ -103,6 +103,7 @@
                   <th>创建时间</th>
                   <th>支付时间</th>
                   <th>撤销时间</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody id="paymentTableBody"></tbody>
@@ -110,6 +111,41 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="confirmPaymentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="confirmPaymentTitle">
+        <div class="section-heading">
+          <h2 id="confirmPaymentTitle">确认支付</h2>
+        </div>
+
+        <div id="confirmPaymentSummary" class="dialog-summary"></div>
+
+        <label class="field">
+          <span>支付账户</span>
+          <select id="confirmAccountSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>支付日期</span>
+          <input id="confirmPayDateInput" type="date">
+        </label>
+
+        <label class="field">
+          <span>支付金额</span>
+          <input id="confirmAmountInput" type="number" readonly>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="confirmNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="confirmSubmitButton" type="button">确认支付</button>
+          <button class="button" id="confirmCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <script type="module" src="./js/app.js"></script>
