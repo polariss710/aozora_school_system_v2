@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.0.6-responsive-overflow-fix-20260529";
+export const APP_VERSION = "v2.0.7-filter-month-width-20260529";
 
 export const DEFAULT_FILTERS = {
   status: "",

@@ -166,13 +166,15 @@ h2 {
 .filter-grid {
   display: grid;
   min-width: 0;
-  grid-template-columns: repeat(5, minmax(140px, 1fr)) auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, auto);
   gap: 12px;
   align-items: end;
 }
 
 .field {
   display: grid;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   gap: 6px;
   color: var(--muted);
@@ -195,6 +197,14 @@ h2 {
   font-weight: 500;
 }
 
+.field input[type="month"] {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  appearance: auto;
+  box-sizing: border-box;
+}
+
 .field textarea {
   resize: vertical;
 }
@@ -212,9 +222,16 @@ h2 {
 
 .filter-actions {
   display: flex;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.filter-actions .button,
+.filter-actions button {
+  max-width: 100%;
 }
 
 .button {
