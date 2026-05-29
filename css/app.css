@@ -197,16 +197,25 @@ h2 {
   font-weight: 500;
 }
 
-.field input[type="month"] {
+.field textarea {
+  resize: vertical;
+}
+
+.month-filter-field {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.month-filter-input,
+.month-filter-field input[type="month"] {
+  display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  inline-size: 100%;
+  max-inline-size: 100%;
   appearance: auto;
   box-sizing: border-box;
-}
-
-.field textarea {
-  resize: vertical;
 }
 
 .field.is-invalid {
@@ -514,7 +523,7 @@ h2 {
   display: none !important;
 }
 
-@media (max-width: 1023px) {
+@media (min-width: 768px) and (max-width: 1023px) {
   .app-shell {
     padding-inline: 14px;
     padding-top: 24px;
@@ -527,6 +536,11 @@ h2 {
   .filter-actions {
     grid-column: auto;
     justify-content: flex-start;
+  }
+
+  .month-filter-field {
+    width: 100%;
+    overflow: hidden;
   }
 
   .summary-grid {
