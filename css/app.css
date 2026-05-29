@@ -80,6 +80,20 @@ h2 {
   font-weight: 700;
 }
 
+.header-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.app-version {
+  color: var(--muted);
+  font-size: 12px;
+  opacity: 0.7;
+}
+
 .page-main {
   display: grid;
   gap: 16px;
