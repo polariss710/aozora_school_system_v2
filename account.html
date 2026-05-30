@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 账户管理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.1.0-account-readonly-20260530">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>账户管理</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a class="is-active" href="./account.html">账户管理</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="accountMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="accountFilterTitle">
+          <div class="section-heading">
+            <h2 id="accountFilterTitle">筛选</h2>
+          </div>
+
+          <form id="accountFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="accountYearFilter" name="year" aria-label="年份"></select>
+                <select id="accountMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>账户</span>
+              <select id="accountSelect" name="accountId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="accountBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>币种</span>
+              <select id="accountCurrencySelect" name="currency">
+                <option value="">全部</option>
+                <option value="JPY">JPY</option>
+                <option value="CNY">CNY</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>流水类型</span>
+              <select id="transactionTypeSelect" name="transactionType">
+                <option value="">全部</option>
+                <option value="payment">支付扣款</option>
+                <option value="payment_reversal">支付撤销</option>
+                <option value="income">收入</option>
+                <option value="expense">支出</option>
+                <option value="transfer">转账</option>
+                <option value="adjustment">调整</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="accountResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="accountListTitle">
+          <div class="section-heading">
+            <h2 id="accountListTitle">账户列表</h2>
+          </div>
+
+          <div id="accountLoadingState" class="state-text is-hidden">正在加载账户...</div>
+          <div id="accountEmptyState" class="state-text is-hidden">暂无账户。</div>
+          <div id="accountGrid" class="account-grid"></div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="accountTransactionTitle">
+          <div class="section-heading section-heading-row">
+            <h2 id="accountTransactionTitle">账户流水</h2>
+            <span id="accountTransactionCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="accountTransactionLoadingState" class="state-text is-hidden">正在加载流水...</div>
+          <div id="accountTransactionEmptyState" class="state-text is-hidden">暂无符合条件的账户流水。</div>
+
+          <div class="table-scroll">
+            <table class="payment-table account-transaction-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>账户</th>
+                  <th>业务归属</th>
+                  <th>类型</th>
+                  <th>币种</th>
+                  <th class="number-cell">金额</th>
+                  <th class="number-cell">余额</th>
+                  <th>说明</th>
+                  <th>关联来源</th>
+                  <th>创建时间</th>
+                </tr>
+              </thead>
+              <tbody id="accountTransactionTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/account-app.js?v=v2.1.0-account-readonly-20260530"></script>
+  </body>
+</html>
