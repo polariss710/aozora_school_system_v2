@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 老师管理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.2.0-teacher-readonly-20260531">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>老师管理</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a href="./account.html">账户管理</a>
+            <a class="is-active" href="./teacher.html">老师管理</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="teacherMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="teacherFilterTitle">
+          <div class="section-heading">
+            <h2 id="teacherFilterTitle">筛选</h2>
+          </div>
+
+          <form id="teacherFilterForm" class="filter-grid">
+            <label class="field">
+              <span>关键字</span>
+              <input id="teacherKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 读音 / 编号 / 备注">
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <select id="teacherStatusSelect" name="status">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>老师分类</span>
+              <select id="teacherDepartmentSelect" name="department">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="teacherBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="teacherResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="teacherListTitle">
+          <div class="section-heading section-heading-row">
+            <h2 id="teacherListTitle">老师列表</h2>
+            <span id="teacherCount" class="record-count">0 人</span>
+          </div>
+
+          <div id="teacherLoadingState" class="state-text is-hidden">正在加载老师...</div>
+          <div id="teacherEmptyState" class="state-text is-hidden">暂无符合条件的老师。</div>
+          <div id="teacherGrid" class="teacher-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/teacher-app.js?v=v2.2.0-teacher-readonly-20260531"></script>
+  </body>
+</html>

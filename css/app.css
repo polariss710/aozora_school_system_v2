@@ -396,6 +396,62 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.teacher-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.teacher-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 14px;
+}
+
+.teacher-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.teacher-name {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.teacher-code {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.teacher-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.teacher-meta div {
+  min-width: 0;
+}
+
+.teacher-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.teacher-meta dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .record-count,
 .state-text {
   color: var(--muted);
@@ -493,6 +549,16 @@ h2 {
 .status-void {
   background: #fef2f2;
   color: #b91c1c;
+}
+
+.status-employed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.status-unset {
+  background: #f3f4f6;
+  color: #4b5563;
 }
 
 .action-cell {
@@ -694,6 +760,10 @@ h2 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .teacher-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .table-action-button {
     min-height: 44px;
   }
@@ -743,6 +813,10 @@ h2 {
   }
 
   .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .teacher-meta {
     grid-template-columns: 1fr;
   }
 }
