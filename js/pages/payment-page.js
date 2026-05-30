@@ -7,6 +7,7 @@ import {
   fetchBusinessEntities,
   fetchPaymentRequests,
   fetchPaymentSummary,
+  reissueReversedPaymentRequest,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
 } from "../api/payment-api.js";
@@ -42,6 +43,8 @@ let isReverseSubmitting = false;
 let currentStatusActionRow = null;
 let currentStatusActionType = null;
 let isStatusActionSubmitting = false;
+let currentReissueRow = null;
+let isReissueSubmitting = false;
 
 export function initPaymentPage() {
   cacheDom();
@@ -105,6 +108,12 @@ function cacheDom() {
   dom.statusActionError = document.querySelector("#statusActionError");
   dom.statusActionSubmitButton = document.querySelector("#statusActionSubmitButton");
   dom.statusActionCancelButton = document.querySelector("#statusActionCancelButton");
+  dom.reissuePaymentDialog = document.querySelector("#reissuePaymentDialog");
+  dom.reissuePaymentSummary = document.querySelector("#reissuePaymentSummary");
+  dom.reissuePaymentError = document.querySelector("#reissuePaymentError");
+  dom.reissueReasonInput = document.querySelector("#reissueReasonInput");
+  dom.reissueSubmitButton = document.querySelector("#reissueSubmitButton");
+  dom.reissueCancelButton = document.querySelector("#reissueCancelButton");
 }
 
 function bindEvents() {
@@ -142,6 +151,14 @@ function bindEvents() {
         openStatusActionDialog(row, statusButton.dataset.statusAction);
       }
     }
+
+    const reissueButton = event.target.closest("[data-reissue-payment-id]");
+    if (reissueButton) {
+      const row = findRenderedRow(reissueButton.dataset.reissuePaymentId);
+      if (row) {
+        openReissuePaymentDialog(row);
+      }
+    }
   });
 
   dom.confirmCancelButton.addEventListener("click", closeConfirmPaymentDialog);
@@ -170,6 +187,12 @@ function bindEvents() {
   });
   dom.statusActionCancelButton.addEventListener("click", closeStatusActionDialog);
   dom.statusActionSubmitButton.addEventListener("click", submitStatusAction);
+  dom.reissueCancelButton.addEventListener("click", closeReissuePaymentDialog);
+  dom.reissueSubmitButton.addEventListener("click", submitReissuePayment);
+  dom.reissueReasonInput.addEventListener("input", () => {
+    setReissueFieldInvalid("reason", false);
+    hideReissueErrorIfClean();
+  });
 }
 
 function setDefaultFilters() {
@@ -379,6 +402,20 @@ function renderPaymentActions(row) {
       <div class="action-buttons">
         <button class="button table-action-button" type="button" data-status-action="restore" data-payment-id="${escapeAttribute(row.id)}">
           恢复待支付
+        </button>
+      </div>
+    `;
+  }
+
+  if (row.status === "reversed") {
+    if (row.replacement_payment_request_id) {
+      return "已重新生成";
+    }
+
+    return `
+      <div class="action-buttons">
+        <button class="button table-action-button" type="button" data-reissue-payment-id="${escapeAttribute(row.id)}">
+          重新生成待支付
         </button>
       </div>
     `;
@@ -879,6 +916,145 @@ function getStatusActionSubmitText() {
   }
 
   return "确认";
+}
+
+function openReissuePaymentDialog(row) {
+  if (row.status !== "reversed") {
+    showMessage("error", "只有已撤销的支付请求可以重新生成待支付。");
+    return;
+  }
+
+  if (row.replacement_payment_request_id) {
+    showMessage("error", "该支付请求已重新生成待支付。");
+    return;
+  }
+
+  currentReissueRow = row;
+  clearReissueErrors();
+  dom.reissuePaymentSummary.innerHTML = renderReissueSummary(row);
+  dom.reissueReasonInput.value = "";
+  setReissueSubmitting(false);
+  dom.reissuePaymentDialog.classList.remove("is-hidden");
+  dom.reissuePaymentDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeReissuePaymentDialog() {
+  if (isReissueSubmitting) {
+    return;
+  }
+
+  currentReissueRow = null;
+  dom.reissuePaymentDialog.classList.add("is-hidden");
+  dom.reissuePaymentDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitReissuePayment() {
+  if (isReissueSubmitting) {
+    return;
+  }
+
+  clearReissueErrors();
+
+  if (!currentReissueRow) {
+    showReissueError("重新生成对象不存在，请关闭后重试。");
+    return;
+  }
+
+  if (currentReissueRow.status !== "reversed") {
+    showReissueError("只有已撤销的支付请求可以重新生成待支付。");
+    return;
+  }
+
+  if (currentReissueRow.replacement_payment_request_id) {
+    showReissueError("该支付请求已重新生成待支付。");
+    return;
+  }
+
+  const reason = dom.reissueReasonInput.value.trim();
+  if (!reason) {
+    showReissueError("请输入重新生成原因。", ["reason"]);
+    return;
+  }
+
+  setReissueSubmitting(true);
+
+  try {
+    await reissueReversedPaymentRequest({
+      paymentRequestId: currentReissueRow.id,
+      reason,
+    });
+
+    setReissueSubmitting(false);
+    closeReissuePaymentDialog();
+    await loadPaymentData();
+    showMessage("success", "已重新生成待支付请求。");
+  } catch (error) {
+    console.error(error);
+    showReissueError(`重新生成待支付失败：${error.message || error}`);
+  } finally {
+    setReissueSubmitting(false);
+  }
+}
+
+function renderReissueSummary(row) {
+  const items = [
+    ["支付对象", row.payee_name || row.source_id || row.id],
+    ["业务归属", row.business_name || row.business_entity_id || "-"],
+    ["请求月份", formatMonth(row.request_month)],
+    ["币种", row.currency || "-"],
+    ["支付金额", formatCurrency(row.amount, row.currency)],
+    ["原撤销时间", formatDate(row.reversed_at)],
+    ["原撤销原因", row.reversal_reason || "-"],
+    ["原请求 ID", row.id],
+  ];
+
+  return items
+    .map(
+      ([label, value]) => `
+        <div class="dialog-summary-row">
+          <span class="dialog-summary-label">${escapeHtml(label)}</span>
+          <span>${escapeHtml(value)}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function clearReissueErrors() {
+  dom.reissuePaymentError.textContent = "";
+  dom.reissuePaymentError.classList.add("is-hidden");
+  setReissueFieldInvalid("reason", false);
+}
+
+function showReissueError(message, fieldIds = []) {
+  dom.reissuePaymentError.textContent = message;
+  dom.reissuePaymentError.classList.remove("is-hidden");
+
+  for (const fieldId of fieldIds) {
+    setReissueFieldInvalid(fieldId, true);
+  }
+}
+
+function setReissueFieldInvalid(fieldId, invalid) {
+  const field = dom.reissuePaymentDialog.querySelector(`[data-reissue-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideReissueErrorIfClean() {
+  const hasInvalidField = Boolean(dom.reissuePaymentDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.reissuePaymentError.textContent = "";
+    dom.reissuePaymentError.classList.add("is-hidden");
+  }
+}
+
+function setReissueSubmitting(isSubmitting) {
+  isReissueSubmitting = isSubmitting;
+  dom.reissueSubmitButton.disabled = isSubmitting;
+  dom.reissueCancelButton.disabled = isSubmitting;
+  dom.reissueSubmitButton.textContent = isSubmitting ? "生成中..." : "重新生成待支付";
 }
 
 function findRenderedRow(id) {

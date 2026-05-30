@@ -22,6 +22,10 @@ const PAYMENT_REQUEST_COLUMNS = [
   "updated_at",
   "reversed_at",
   "reversal_reason",
+  "reissued_from_payment_request_id",
+  "replacement_payment_request_id",
+  "reissue_reason",
+  "reissued_at",
 ].join(",");
 
 const BUSINESS_ENTITY_SELECT_CANDIDATES = [
@@ -165,6 +169,19 @@ export async function cancelPaymentRequest(payload) {
 export async function restoreCancelledPaymentRequest(payload) {
   const { data, error } = await supabase.rpc("school_restore_cancelled_payment_request", {
     p_payment_request_id: payload.paymentRequestId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+export async function reissueReversedPaymentRequest(payload) {
+  const { data, error } = await supabase.rpc("school_reissue_reversed_payment_request", {
+    p_payment_request_id: payload.paymentRequestId,
+    p_reason: payload.reason,
   });
 
   if (error) {

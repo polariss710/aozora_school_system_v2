@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支付管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.1.0-account-readonly-20260530">
+    <link rel="stylesheet" href="./css/app.css?v=v2.1.1-payment-reissue-20260530">
   </head>
   <body>
     <div class="app-shell">
@@ -214,6 +214,31 @@
       </section>
     </div>
 
-    <script type="module" src="./js/app.js?v=v2.1.0-account-readonly-20260530"></script>
+    <div id="reissuePaymentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reissuePaymentTitle">
+        <div class="section-heading">
+          <h2 id="reissuePaymentTitle">重新生成待支付</h2>
+        </div>
+
+        <div class="dialog-warning">
+          将从已撤销的支付请求重新生成一条新的待支付请求。原撤销记录会保留为审计记录。
+        </div>
+
+        <div id="reissuePaymentSummary" class="dialog-summary"></div>
+        <div id="reissuePaymentError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reissue-field="reason">
+          <span>重新生成原因</span>
+          <textarea id="reissueReasonInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="reissueSubmitButton" type="button">重新生成待支付</button>
+          <button class="button" id="reissueCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/app.js?v=v2.1.1-payment-reissue-20260530"></script>
   </body>
 </html>
