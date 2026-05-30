@@ -452,6 +452,62 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.student-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.student-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 14px;
+}
+
+.student-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.student-name {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.student-code {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.student-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.student-meta div {
+  min-width: 0;
+}
+
+.student-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.student-meta dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .record-count,
 .state-text {
   color: var(--muted);
@@ -552,6 +608,11 @@ h2 {
 }
 
 .status-employed {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.status-active {
   background: #ecfdf5;
   color: #047857;
 }
@@ -761,6 +822,10 @@ h2 {
   }
 
   .teacher-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .student-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

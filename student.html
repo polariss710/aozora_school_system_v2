@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 学生管理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.3.0-student-readonly-20260531">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>学生管理</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./teacher.html">老师管理</a>
+            <a class="is-active" href="./student.html">学生管理</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="studentMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="studentFilterTitle">
+          <div class="section-heading">
+            <h2 id="studentFilterTitle">筛选</h2>
+          </div>
+
+          <form id="studentFilterForm" class="filter-grid">
+            <label class="field">
+              <span>关键字</span>
+              <input id="studentKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 读音 / 编号 / 目标学校 / 备注">
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <select id="studentStatusSelect" name="status">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>课程方向</span>
+              <select id="studentCourseTrackSelect" name="courseTrack">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>目标类型</span>
+              <select id="studentTargetTypeSelect" name="targetType">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="studentBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>默认币种</span>
+              <select id="studentDefaultCurrencySelect" name="defaultCurrency">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="studentResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="studentListTitle">
+          <div class="section-heading section-heading-row">
+            <h2 id="studentListTitle">学生列表</h2>
+            <span id="studentCount" class="record-count">0 人</span>
+          </div>
+
+          <div id="studentLoadingState" class="state-text is-hidden">正在加载学生...</div>
+          <div id="studentEmptyState" class="state-text is-hidden">暂无符合条件的学生。</div>
+          <div id="studentGrid" class="student-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/student-app.js?v=v2.3.0-student-readonly-20260531"></script>
+  </body>
+</html>
