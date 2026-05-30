@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchAccountTransactions,
+  fetchAccountTransactionTypes,
   fetchAccounts,
   fetchBusinessEntitiesForAccounts,
 } from "../api/account-api.js";
@@ -21,12 +22,21 @@ const DEFAULT_FILTERS = {
   transactionType: "",
 };
 
+const COMMON_TRANSACTION_TYPES = [
+  "expense_adjust",
+  "payment_reversal",
+  "income",
+  "expense",
+  "transfer",
+  "adjustment",
+];
+
 const TRANSACTION_TYPE_LABELS = {
-  payment: "支付扣款",
+  expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
   income: "收入",
   expense: "支出",
-  transfer: "转账",
+  transfer: "调拨",
   adjustment: "调整",
 };
 
@@ -115,10 +125,16 @@ async function loadAccountData() {
   setLoading(true);
   showMessage("info", "正在加载账户管理数据...");
 
+  let transactionTypeWarning = "";
+
   try {
-    const [accountRows, businessEntityRows, transactionRows] = await Promise.all([
+    const [accountRows, businessEntityRows, transactionTypeRows, transactionRows] = await Promise.all([
       fetchAccounts(),
       fetchBusinessEntitiesForAccounts(),
+      fetchAccountTransactionTypes().catch((error) => {
+        transactionTypeWarning = `流水类型读取失败，已保留固定选项：${error.message || error}`;
+        return [];
+      }),
       fetchAccountTransactions(filters),
     ]);
 
@@ -128,16 +144,21 @@ async function loadAccountData() {
 
     renderAccountOptions(accounts);
     renderBusinessEntityOptions(businessEntities);
+    renderTransactionTypeOptions(mergeTransactionTypes(transactionTypeRows));
     restoreFilterSelections(filters);
     renderAccounts(filterAccountsForDisplay(accounts, filters));
     renderTransactions(transactions);
-    showMessage("success", "账户管理数据已加载。");
+    showMessage(
+      transactionTypeWarning ? "warning" : "success",
+      transactionTypeWarning || "账户管理数据已加载。"
+    );
   } catch (error) {
     accounts = [];
     businessEntities = [];
     transactions = [];
     renderAccountOptions([]);
     renderBusinessEntityOptions([]);
+    renderTransactionTypeOptions(COMMON_TRANSACTION_TYPES);
     renderAccounts([]);
     renderTransactions([]);
     showMessage("error", `读取账户管理数据失败：${error.message || error}`);
@@ -198,6 +219,30 @@ function renderBusinessEntityOptions(items) {
   }
 
   dom.businessEntitySelect.innerHTML = options.join("");
+}
+
+function renderTransactionTypeOptions(items) {
+  const options = ['<option value="">全部</option>'];
+
+  for (const type of items) {
+    options.push(
+      `<option value="${escapeAttribute(type)}">${escapeHtml(transactionTypeLabel(type))}</option>`
+    );
+  }
+
+  dom.transactionTypeSelect.innerHTML = options.join("");
+}
+
+function mergeTransactionTypes(actualTypes) {
+  const normalizedActualTypes = (actualTypes || [])
+    .map((type) => String(type || "").trim())
+    .filter(Boolean);
+  const commonSet = new Set(COMMON_TRANSACTION_TYPES);
+  const extraTypes = Array.from(new Set(normalizedActualTypes))
+    .filter((type) => !commonSet.has(type))
+    .sort((a, b) => transactionTypeLabel(a).localeCompare(transactionTypeLabel(b), "zh-CN"));
+
+  return [...COMMON_TRANSACTION_TYPES, ...extraTypes];
 }
 
 function filterAccountsForDisplay(items, filters) {

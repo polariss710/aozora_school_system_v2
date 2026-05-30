@@ -67,6 +67,27 @@ export async function fetchAccountTransactions(filters) {
   return data || [];
 }
 
+export async function fetchAccountTransactionTypes() {
+  const { data, error } = await supabase
+    .from("school_account_transactions")
+    .select("transaction_type")
+    .eq("app_type", "school")
+    .not("transaction_type", "is", null)
+    .order("transaction_type", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.from(
+    new Set(
+      (data || [])
+        .map((row) => String(row.transaction_type || "").trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 export async function fetchBusinessEntitiesForAccounts() {
   const { data, error } = await supabase
     .from("school_business_entities")
