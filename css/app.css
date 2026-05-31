@@ -513,6 +513,77 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.subject-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.subject-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 14px;
+}
+
+.subject-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.subject-title {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.subject-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.subject-color-swatch {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.subject-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.subject-meta div {
+  min-width: 0;
+}
+
+.subject-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.subject-meta dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.subject-note {
+  white-space: pre-wrap;
+}
+
 .record-count,
 .state-text {
   color: var(--muted);
@@ -620,6 +691,11 @@ h2 {
 .status-active {
   background: #ecfdf5;
   color: #047857;
+}
+
+.status-inactive {
+  background: #f3f4f6;
+  color: #4b5563;
 }
 
 .status-unset {
@@ -831,6 +907,10 @@ h2 {
   }
 
   .student-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .subject-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

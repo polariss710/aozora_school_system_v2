@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 科目管理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.4.0-subject-readonly-20260531">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>科目管理</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./student.html">学生管理</a>
+            <a class="is-active" href="./subject.html">科目管理</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="subjectMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="subjectFilterTitle">
+          <div class="section-heading">
+            <h2 id="subjectFilterTitle">筛选</h2>
+          </div>
+
+          <form id="subjectFilterForm" class="filter-grid">
+            <label class="field">
+              <span>关键字</span>
+              <input id="subjectKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="科目名 / 分类 / 备注">
+            </label>
+
+            <label class="field">
+              <span>启用状态</span>
+              <select id="subjectActiveSelect" name="activeState">
+                <option value="">全部</option>
+                <option value="active">启用</option>
+                <option value="inactive">停用</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>一级分类</span>
+              <select id="subjectPrimaryCategorySelect" name="primaryCategory">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>分类</span>
+              <select id="subjectCategorySelect" name="category">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>三级分类</span>
+              <select id="subjectTertiaryCategorySelect" name="tertiaryCategory">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="subjectResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="subjectListTitle">
+          <div class="section-heading section-heading-row">
+            <h2 id="subjectListTitle">科目列表</h2>
+            <span id="subjectCount" class="record-count">0 个</span>
+          </div>
+
+          <div id="subjectLoadingState" class="state-text is-hidden">正在加载科目...</div>
+          <div id="subjectEmptyState" class="state-text is-hidden">暂无符合条件的科目。</div>
+          <div id="subjectGrid" class="subject-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/subject-app.js?v=v2.4.0-subject-readonly-20260531"></script>
+  </body>
+</html>
