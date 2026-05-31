@@ -260,7 +260,8 @@ h2 {
 }
 
 .student-filter-actions,
-.lesson-filter-actions {
+.lesson-filter-actions,
+.settlement-filter-actions {
   grid-column: 1 / -1;
   justify-content: flex-end;
 }
@@ -620,6 +621,10 @@ h2 {
   min-width: 1560px;
 }
 
+.settlement-table {
+  min-width: 1700px;
+}
+
 .payment-table td {
   white-space: normal;
 }
@@ -662,10 +667,21 @@ h2 {
   white-space: nowrap;
 }
 
+.settlement-nowrap {
+  white-space: nowrap;
+}
+
 .lesson-content-cell,
 .lesson-note-cell {
   min-width: 180px;
   max-width: 260px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.settlement-note-cell {
+  min-width: 180px;
+  max-width: 280px;
   overflow-wrap: anywhere;
   white-space: normal;
 }
@@ -867,7 +883,8 @@ h2 {
   }
 
   .student-filter-actions,
-  .lesson-filter-actions {
+  .lesson-filter-actions,
+  .settlement-filter-actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
   }

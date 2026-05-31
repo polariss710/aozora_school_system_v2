@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 学生月度结算</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.6.0-student-settlement-readonly-20260601">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>学生月度结算</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a class="is-active" href="./settlement.html">学生月度结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="settlementMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="settlementFilterTitle">
+          <div class="section-heading">
+            <h2 id="settlementFilterTitle">筛选</h2>
+          </div>
+
+          <form id="settlementFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="settlementYearFilter" name="year" aria-label="年份"></select>
+                <select id="settlementMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>学生</span>
+              <select id="settlementStudentSelect" name="studentId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="settlementBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>结算状态</span>
+              <select id="settlementStatusSelect" name="status">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>关键字</span>
+              <input id="settlementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 业务归属 / 状态 / 备注">
+            </label>
+
+            <div class="filter-actions settlement-filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="settlementResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="settlementListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="settlementListTitle">学生月度结算记录</h2>
+              <p class="section-note">本页显示已保存的学生月度结算记录，不代表实时课时/收款重新计算结果。</p>
+            </div>
+            <span id="settlementCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="settlementLoadingState" class="state-text is-hidden">正在加载学生月度结算...</div>
+          <div id="settlementEmptyState" class="state-text is-hidden">暂无符合条件的学生月度结算记录。</div>
+          <div class="table-scroll">
+            <table class="payment-table settlement-table">
+              <thead>
+                <tr>
+                  <th>年月</th>
+                  <th>学生</th>
+                  <th>业务归属</th>
+                  <th>结算状态</th>
+                  <th>汇率</th>
+                  <th>预定课时费 JPY</th>
+                  <th>预定课时费 CNY</th>
+                  <th>实际课时费 JPY</th>
+                  <th>实际课时费 CNY</th>
+                  <th>前月余额 CNY</th>
+                  <th>已收 JPY</th>
+                  <th>已收 CNY</th>
+                  <th>已收折算 CNY</th>
+                  <th>系统差额 CNY</th>
+                  <th>调整金额 CNY</th>
+                  <th>结转金额 CNY</th>
+                  <th>锁定时间</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody id="settlementTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/settlement-app.js?v=v2.6.0-student-settlement-readonly-20260601"></script>
+  </body>
+</html>
