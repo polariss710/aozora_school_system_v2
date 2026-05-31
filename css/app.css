@@ -259,7 +259,8 @@ h2 {
   justify-content: flex-end;
 }
 
-.student-filter-actions {
+.student-filter-actions,
+.lesson-filter-actions {
   grid-column: 1 / -1;
   justify-content: flex-end;
 }
@@ -590,6 +591,12 @@ h2 {
   font-size: 14px;
 }
 
+.section-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .table-scroll {
   width: 100%;
   max-width: 100%;
@@ -607,6 +614,10 @@ h2 {
 
 .account-transaction-table {
   min-width: 1120px;
+}
+
+.lesson-table {
+  min-width: 1560px;
 }
 
 .payment-table td {
@@ -647,6 +658,18 @@ h2 {
   min-width: 180px;
 }
 
+.lesson-nowrap {
+  white-space: nowrap;
+}
+
+.lesson-content-cell,
+.lesson-note-cell {
+  min-width: 180px;
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -676,6 +699,11 @@ h2 {
 .status-reversed {
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+.status-neutral {
+  background: #f3f4f6;
+  color: var(--neutral);
 }
 
 .status-void {
@@ -836,6 +864,12 @@ h2 {
   .filter-actions {
     grid-column: auto;
     justify-content: flex-start;
+  }
+
+  .student-filter-actions,
+  .lesson-filter-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
   }
 
   .summary-grid {

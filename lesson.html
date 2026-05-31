@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 课时管理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.5.0-lesson-readonly-20260531">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>课时管理</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a class="is-active" href="./lesson.html">课时管理</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="lessonMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="lessonFilterTitle">
+          <div class="section-heading">
+            <h2 id="lessonFilterTitle">筛选</h2>
+          </div>
+
+          <form id="lessonFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="lessonYearFilter" name="year" aria-label="年份"></select>
+                <select id="lessonMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>学生</span>
+              <select id="lessonStudentSelect" name="studentId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>老师</span>
+              <select id="lessonTeacherSelect" name="teacherId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>科目</span>
+              <select id="lessonSubjectSelect" name="subjectId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="lessonBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>课时类型</span>
+              <select id="lessonTypeSelect" name="lessonType">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <select id="lessonStatusSelect" name="status">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>计费</span>
+              <select id="lessonBillableSelect" name="isBillable">
+                <option value="">全部</option>
+                <option value="true">计费</option>
+                <option value="false">不计费</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>关键字</span>
+              <input id="lessonKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 老师 / 科目 / 内容 / 备注">
+            </label>
+
+            <div class="filter-actions lesson-filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="lessonResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="lessonListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="lessonListTitle">课时记录</h2>
+              <p class="section-note">本页为原始课时记录一览，不代表结算统计口径。</p>
+            </div>
+            <span id="lessonCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="lessonLoadingState" class="state-text is-hidden">正在加载课时记录...</div>
+          <div id="lessonEmptyState" class="state-text is-hidden">暂无符合条件的课时记录。</div>
+          <div class="table-scroll">
+            <table class="payment-table lesson-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>星期</th>
+                  <th>时间</th>
+                  <th>学生</th>
+                  <th>老师</th>
+                  <th>科目</th>
+                  <th>业务归属</th>
+                  <th>类型</th>
+                  <th>状态</th>
+                  <th>计费</th>
+                  <th>时长</th>
+                  <th>实际分钟</th>
+                  <th>单价</th>
+                  <th>金额</th>
+                  <th>内容</th>
+                  <th>备注</th>
+                  <th>老师结算月</th>
+                  <th>导入来源</th>
+                </tr>
+              </thead>
+              <tbody id="lessonTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/lesson-app.js?v=v2.5.0-lesson-readonly-20260531"></script>
+  </body>
+</html>
