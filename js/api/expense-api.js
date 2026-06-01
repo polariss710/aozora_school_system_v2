@@ -26,6 +26,19 @@ const EXPENSE_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const WAGE_PAYMENT_REQUEST_COLUMNS = [
+  "id",
+  "status",
+  "paid_expense_id",
+  "source_id",
+  "paid_account_transaction_id",
+  "reversal_transaction_id",
+  "replacement_payment_request_id",
+  "reissued_from_payment_request_id",
+  "reissued_at",
+  "created_at",
+].join(",");
+
 export async function fetchExpenseRecords(month) {
   const { data, error } = await supabase
     .from("school_expense_records")
@@ -33,6 +46,26 @@ export async function fetchExpenseRecords(month) {
     .eq("app_type", "school")
     .eq("year_month", month)
     .order("expense_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function fetchExpensePaymentRequests(expenseIds) {
+  const ids = Array.from(new Set((expenseIds || []).filter(Boolean)));
+  if (!ids.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("school_payment_requests")
+    .select(WAGE_PAYMENT_REQUEST_COLUMNS)
+    .eq("source_type", "teacher_wage")
+    .in("paid_expense_id", ids)
     .order("created_at", { ascending: false });
 
   if (error) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.10.0-reimbursement-readonly-20260601">
+    <link rel="stylesheet" href="./css/app.css?v=v2.10.1-expense-wage-payment-status-20260602">
   </head>
   <body>
     <div class="app-shell">
@@ -99,6 +99,13 @@
             </label>
 
             <label class="field">
+              <span>来源支付状态</span>
+              <select id="expenseWagePaymentStatusSelect" name="wagePaymentStatus">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
               <span>收据状态</span>
               <select id="expenseReceiptStatusSelect" name="receiptStatus">
                 <option value="">全部</option>
@@ -128,7 +135,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="expenseListTitle">支出记录</h2>
-              <p class="section-note">本页显示已登记支出记录，只读查看；不从老师工资结算、支付请求或账户流水重新计算金额。</p>
+              <p class="section-note">本页显示已登记支出记录，只读查看；老师工资类支出会显示来源工资支付状态，已撤销或已作废记录仍保留用于审计，不代表有效经营支出。</p>
             </div>
             <span id="expenseCount" class="record-count">0 条</span>
           </div>
@@ -153,6 +160,7 @@
                   <th>汇率</th>
                   <th>支付方式</th>
                   <th>支出状态</th>
+                  <th>工资支付状态</th>
                   <th>收据状态</th>
                   <th>报销状态</th>
                   <th>附件</th>
@@ -168,6 +176,6 @@
       </main>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=v2.10.0-reimbursement-readonly-20260601"></script>
+    <script type="module" src="./js/expense-app.js?v=v2.10.1-expense-wage-payment-status-20260602"></script>
   </body>
 </html>

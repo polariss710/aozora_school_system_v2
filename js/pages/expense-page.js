@@ -1,6 +1,10 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchExpenseLookups, fetchExpenseRecords } from "../api/expense-api.js";
+import {
+  fetchExpenseLookups,
+  fetchExpensePaymentRequests,
+  fetchExpenseRecords,
+} from "../api/expense-api.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -18,6 +22,7 @@ const DEFAULT_FILTERS = {
   expenseCategory: "",
   paymentMethod: "",
   status: "",
+  wagePaymentStatus: "",
   receiptStatus: "",
   reimbursementStatus: "",
   keyword: "",
@@ -48,11 +53,30 @@ const REIMBURSEMENT_STATUS_LABELS = {
   pending: "待报销",
 };
 
+const WAGE_PAYMENT_STATUS_LABELS = {
+  paid: "工资支付：已支付",
+  reversed: "工资支付：已撤销",
+  void: "工资支付：已作废",
+  pending: "工资支付：待支付",
+  cancelled: "工资支付：已取消",
+  unlinked: "未关联",
+};
+
+const WAGE_PAYMENT_STATUS_FILTER_OPTIONS = [
+  ["paid", "已支付"],
+  ["reversed", "已撤销"],
+  ["void", "已作废"],
+  ["pending", "待支付"],
+  ["cancelled", "已取消"],
+  ["unlinked", "未关联"],
+];
+
 const dom = {};
 let businessEntities = [];
 let accounts = [];
 let teachers = [];
 let expenseRecords = [];
+let paymentRequestsByExpenseId = new Map();
 let loadedMonth = "";
 
 export function initExpensePage() {
@@ -86,6 +110,7 @@ function cacheDom() {
   dom.expenseCategorySelect = document.querySelector("#expenseCategorySelect");
   dom.paymentMethodSelect = document.querySelector("#expensePaymentMethodSelect");
   dom.statusSelect = document.querySelector("#expenseStatusSelect");
+  dom.wagePaymentStatusSelect = document.querySelector("#expenseWagePaymentStatusSelect");
   dom.receiptStatusSelect = document.querySelector("#expenseReceiptStatusSelect");
   dom.reimbursementStatusSelect = document.querySelector("#expenseReimbursementStatusSelect");
   dom.keywordInput = document.querySelector("#expenseKeywordInput");
@@ -117,6 +142,7 @@ function setDefaultFilters() {
   dom.expenseCategorySelect.value = DEFAULT_FILTERS.expenseCategory;
   dom.paymentMethodSelect.value = DEFAULT_FILTERS.paymentMethod;
   dom.statusSelect.value = DEFAULT_FILTERS.status;
+  dom.wagePaymentStatusSelect.value = DEFAULT_FILTERS.wagePaymentStatus;
   dom.receiptStatusSelect.value = DEFAULT_FILTERS.receiptStatus;
   dom.reimbursementStatusSelect.value = DEFAULT_FILTERS.reimbursementStatus;
   dom.keywordInput.value = DEFAULT_FILTERS.keyword;
@@ -140,6 +166,7 @@ async function loadInitialData() {
     accounts = [];
     teachers = [];
     expenseRecords = [];
+    paymentRequestsByExpenseId = new Map();
     loadedMonth = "";
     renderMasterOptions();
     renderDataOptions([]);
@@ -171,6 +198,7 @@ async function applyQuery() {
       showMessage("success", "支出记录已加载。");
     } catch (error) {
       expenseRecords = [];
+      paymentRequestsByExpenseId = new Map();
       loadedMonth = "";
       renderDataOptions([]);
       renderExpenseRecords([]);
@@ -186,6 +214,8 @@ async function applyQuery() {
 
 async function loadExpenseMonth(month) {
   expenseRecords = await fetchExpenseRecords(month);
+  const paymentRequests = await fetchExpensePaymentRequests(teacherWageExpenseIds(expenseRecords));
+  paymentRequestsByExpenseId = groupPaymentRequestsByExpenseId(paymentRequests);
   loadedMonth = month;
   renderDataOptions(expenseRecords);
 }
@@ -216,6 +246,7 @@ function readFilters() {
     expenseCategory: dom.expenseCategorySelect.value,
     paymentMethod: dom.paymentMethodSelect.value,
     status: dom.statusSelect.value,
+    wagePaymentStatus: dom.wagePaymentStatusSelect.value,
     receiptStatus: dom.receiptStatusSelect.value,
     reimbursementStatus: dom.reimbursementStatusSelect.value,
     keyword: dom.keywordInput.value.trim(),
@@ -231,6 +262,7 @@ function restoreFilterSelections(filters) {
   dom.expenseCategorySelect.value = filters.expenseCategory;
   dom.paymentMethodSelect.value = filters.paymentMethod;
   dom.statusSelect.value = filters.status;
+  dom.wagePaymentStatusSelect.value = filters.wagePaymentStatus;
   dom.receiptStatusSelect.value = filters.receiptStatus;
   dom.reimbursementStatusSelect.value = filters.reimbursementStatus;
   dom.keywordInput.value = filters.keyword;
@@ -240,6 +272,7 @@ function renderMasterOptions() {
   renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderEntityOptions(dom.accountSelect, accounts, accountName);
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
+  renderWagePaymentStatusOptions();
 }
 
 function renderDataOptions(rows) {
@@ -253,6 +286,14 @@ function renderDataOptions(rows) {
     distinctValues(rows, "reimbursement_status"),
     reimbursementStatusLabel
   );
+}
+
+function renderWagePaymentStatusOptions() {
+  const options = ['<option value="">全部</option>'];
+  for (const [value, label] of WAGE_PAYMENT_STATUS_FILTER_OPTIONS) {
+    options.push(`<option value="${escapeAttribute(value)}">${escapeHtml(label)}</option>`);
+  }
+  dom.wagePaymentStatusSelect.innerHTML = options.join("");
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -304,6 +345,7 @@ function renderExpenseRecords(rows) {
       <td class="number-cell expense-nowrap">${escapeHtml(displayValue(row.exchange_rate))}</td>
       <td>${escapeHtml(paymentMethodLabel(row.payment_method))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(expenseStatusLabel(row.status))}</span></td>
+      <td>${renderWagePaymentStatus(row)}</td>
       <td>${escapeHtml(displayValue(row.receipt_status))}</td>
       <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status))}</td>
       <td class="expense-nowrap">暂未接入</td>
@@ -344,6 +386,10 @@ function filterExpenseRecords(rows, filters) {
       return false;
     }
 
+    if (filters.wagePaymentStatus && wagePaymentStatusKey(row) !== filters.wagePaymentStatus) {
+      return false;
+    }
+
     if (filters.receiptStatus && row.receipt_status !== filters.receiptStatus) {
       return false;
     }
@@ -372,6 +418,7 @@ function matchesKeyword(row, keyword) {
     row.payment_method,
     expenseStatusLabel(row.status),
     row.status,
+    wagePaymentStatusLabel(wagePaymentStatusKey(row)),
     row.receipt_status,
     reimbursementStatusLabel(row.reimbursement_status),
     row.reimbursement_status,
@@ -380,6 +427,53 @@ function matchesKeyword(row, keyword) {
   ]
     .map((value) => safeText(value).toLowerCase())
     .some((value) => value.includes(normalizedKeyword));
+}
+
+function teacherWageExpenseIds(rows) {
+  return rows
+    .filter((row) => row.expense_category === "teacher_wage")
+    .map((row) => row.id)
+    .filter(Boolean);
+}
+
+function groupPaymentRequestsByExpenseId(rows) {
+  const grouped = new Map();
+
+  for (const row of rows) {
+    if (!row.paid_expense_id) {
+      continue;
+    }
+
+    if (!grouped.has(row.paid_expense_id)) {
+      grouped.set(row.paid_expense_id, []);
+    }
+
+    grouped.get(row.paid_expense_id).push(row);
+  }
+
+  return grouped;
+}
+
+function paymentRequestForExpense(expenseId) {
+  const requests = paymentRequestsByExpenseId.get(expenseId) || [];
+  return requests[0] || null;
+}
+
+function wagePaymentStatusKey(row) {
+  if (row.expense_category !== "teacher_wage") {
+    return "";
+  }
+
+  return paymentRequestForExpense(row.id)?.status || "unlinked";
+}
+
+function renderWagePaymentStatus(row) {
+  const status = wagePaymentStatusKey(row);
+  if (!status) {
+    return "-";
+  }
+
+  return `<span class="status-badge ${escapeAttribute(wagePaymentStatusClass(status))}">${escapeHtml(wagePaymentStatusLabel(status))}</span>`;
 }
 
 function distinctValues(rows, key) {
@@ -449,9 +543,29 @@ function reimbursementStatusLabel(value) {
   return REIMBURSEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 
+function wagePaymentStatusLabel(value) {
+  return WAGE_PAYMENT_STATUS_LABELS[value] || displayValue(value);
+}
+
 function statusClass(status) {
   if (status === "paid") {
     return "status-paid";
+  }
+
+  return "status-neutral";
+}
+
+function wagePaymentStatusClass(status) {
+  if (status === "paid") {
+    return "status-paid";
+  }
+
+  if (status === "reversed" || status === "void" || status === "cancelled") {
+    return "status-cancelled";
+  }
+
+  if (status === "pending") {
+    return "status-pending";
   }
 
   return "status-neutral";

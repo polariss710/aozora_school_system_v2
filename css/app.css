@@ -608,6 +608,23 @@ h2 {
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
+  scrollbar-color: #94a3b8 #e7edf5;
+  scrollbar-width: thin;
+}
+
+.table-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+.table-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #e7edf5;
+}
+
+.table-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid #e7edf5;
+  border-radius: 999px;
+  background: #94a3b8;
 }
 
 .payment-table {
@@ -626,8 +643,8 @@ h2 {
 }
 
 .expense-table {
-  width: 2400px;
-  min-width: 2400px;
+  width: 2580px;
+  min-width: 2580px;
 }
 
 .reimbursement-table {
