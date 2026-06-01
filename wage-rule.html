@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 老师工资规则</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.11.0-wage-rule-readonly-20260602">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>老师工资规则</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a class="is-active" href="./wage-rule.html">老师工资规则</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="wageRuleMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="wageRuleFilterTitle">
+          <div class="section-heading">
+            <h2 id="wageRuleFilterTitle">筛选</h2>
+          </div>
+
+          <form id="wageRuleFilterForm" class="filter-grid">
+            <label class="field">
+              <span>老师</span>
+              <select id="wageRuleTeacherSelect" name="teacherId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>学生</span>
+              <select id="wageRuleStudentSelect" name="studentId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>科目</span>
+              <select id="wageRuleSubjectSelect" name="subjectId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="wageRuleBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>结算类型</span>
+              <select id="wageRuleSettlementTypeSelect" name="settlementType">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>启用状态</span>
+              <select id="wageRuleActiveSelect" name="activeState">
+                <option value="">全部</option>
+                <option value="active">启用</option>
+                <option value="inactive">停用</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>老师分类</span>
+              <select id="wageRuleTeacherDepartmentSelect" name="teacherDepartment">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>关键字</span>
+              <input id="wageRuleKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 学生 / 科目 / 业务归属 / 备注">
+            </label>
+
+            <div class="filter-actions wage-rule-filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="wageRuleResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="wageRuleListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="wageRuleListTitle">规则列表</h2>
+              <p class="section-note">本页显示老师工资规则配置，只读查看；不重新计算已锁定工资，也不影响老师工资支付或支出记录。规则按老师、学生、科目、业务归属和结算类型区分，表格可横向滚动查看更多列。</p>
+            </div>
+            <span id="wageRuleCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="wageRuleLoadingState" class="state-text is-hidden">正在加载老师工资规则...</div>
+          <div id="wageRuleEmptyState" class="state-text is-hidden">暂无符合条件的老师工资规则。</div>
+          <div class="table-scroll">
+            <table class="payment-table wage-rule-table">
+              <thead>
+                <tr>
+                  <th>老师</th>
+                  <th>老师分类</th>
+                  <th>老师状态</th>
+                  <th>学生</th>
+                  <th>科目</th>
+                  <th>业务归属</th>
+                  <th>结算类型</th>
+                  <th>日元时薪</th>
+                  <th>人民币时薪</th>
+                  <th>汇率</th>
+                  <th>交通费</th>
+                  <th>教室费</th>
+                  <th>启用状态</th>
+                  <th>备注</th>
+                  <th>创建时间</th>
+                  <th>更新时间</th>
+                </tr>
+              </thead>
+              <tbody id="wageRuleTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/wage-rule-app.js?v=v2.11.0-wage-rule-readonly-20260602"></script>
+  </body>
+</html>

@@ -263,6 +263,7 @@ h2 {
 .income-filter-actions,
 .expense-filter-actions,
 .reimbursement-filter-actions,
+.wage-rule-filter-actions,
 .lesson-filter-actions,
 .settlement-filter-actions,
 .wage-filter-actions {
@@ -652,6 +653,10 @@ h2 {
   min-width: 1460px;
 }
 
+.wage-rule-table {
+  min-width: 1880px;
+}
+
 .lesson-table {
   min-width: 1560px;
 }
@@ -722,6 +727,10 @@ h2 {
   white-space: nowrap;
 }
 
+.wage-rule-nowrap {
+  white-space: nowrap;
+}
+
 .settlement-nowrap {
   white-space: nowrap;
 }
@@ -735,6 +744,7 @@ h2 {
 .expense-description-cell,
 .expense-note-cell,
 .reimbursement-note-cell,
+.wage-rule-note-cell,
 .lesson-note-cell {
   min-width: 180px;
   max-width: 260px;
@@ -774,6 +784,12 @@ h2 {
   max-width: 260px;
   overflow-wrap: normal;
   white-space: normal;
+}
+
+.wage-rule-table .wage-rule-note-cell {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
 }
 
 .status-badge {
@@ -976,6 +992,7 @@ h2 {
   .income-filter-actions,
   .expense-filter-actions,
   .reimbursement-filter-actions,
+  .wage-rule-filter-actions,
   .lesson-filter-actions,
   .settlement-filter-actions,
   .wage-filter-actions {
