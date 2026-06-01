@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 老师工资结算</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.7.0-teacher-wage-readonly-20260601">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>老师工资结算</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">支付管理</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a class="is-active" href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="wageMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="wageFilterTitle">
+          <div class="section-heading">
+            <h2 id="wageFilterTitle">筛选</h2>
+          </div>
+
+          <form id="wageFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="wageYearFilter" name="year" aria-label="年份"></select>
+                <select id="wageMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>老师</span>
+              <select id="wageTeacherSelect" name="teacherId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="wageBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>结算类型</span>
+              <select id="wageSettlementTypeSelect" name="settlementType">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <select id="wageStatusSelect" name="status">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>关键字</span>
+              <input id="wageKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 业务归属 / 类型 / 状态">
+            </label>
+
+            <div class="filter-actions wage-filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="wageResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="wageListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="wageListTitle">老师工资锁定记录</h2>
+              <p class="section-note">本页显示已保存的老师工资锁定记录，不代表实时工资预览或重新计算结果。</p>
+            </div>
+            <span id="wageCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="wageLoadingState" class="state-text is-hidden">正在加载老师工资结算...</div>
+          <div id="wageEmptyState" class="state-text is-hidden">暂无符合条件的老师工资锁定记录。</div>
+          <div class="table-scroll">
+            <table class="payment-table wage-table">
+              <thead>
+                <tr>
+                  <th>结算月</th>
+                  <th>老师</th>
+                  <th>业务归属</th>
+                  <th>结算类型</th>
+                  <th>状态</th>
+                  <th>汇率</th>
+                  <th>课时数</th>
+                  <th>总分钟</th>
+                  <th>支付小时</th>
+                  <th>课时费 JPY</th>
+                  <th>课时工资 JPY</th>
+                  <th>课时工资 CNY</th>
+                  <th>合计 JPY</th>
+                  <th>合计 CNY</th>
+                  <th>锁定时间</th>
+                  <th>作废时间</th>
+                </tr>
+              </thead>
+              <tbody id="wageTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/wage-app.js?v=v2.7.0-teacher-wage-readonly-20260601"></script>
+  </body>
+</html>

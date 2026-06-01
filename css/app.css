@@ -261,7 +261,8 @@ h2 {
 
 .student-filter-actions,
 .lesson-filter-actions,
-.settlement-filter-actions {
+.settlement-filter-actions,
+.wage-filter-actions {
   grid-column: 1 / -1;
   justify-content: flex-end;
 }
@@ -625,6 +626,10 @@ h2 {
   min-width: 1700px;
 }
 
+.wage-table {
+  min-width: 1480px;
+}
+
 .payment-table td {
   white-space: normal;
 }
@@ -668,6 +673,10 @@ h2 {
 }
 
 .settlement-nowrap {
+  white-space: nowrap;
+}
+
+.wage-nowrap {
   white-space: nowrap;
 }
 
@@ -884,7 +893,8 @@ h2 {
 
   .student-filter-actions,
   .lesson-filter-actions,
-  .settlement-filter-actions {
+  .settlement-filter-actions,
+  .wage-filter-actions {
     grid-column: 1 / -1;
     justify-content: flex-end;
   }
