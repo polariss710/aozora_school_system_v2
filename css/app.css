@@ -608,6 +608,7 @@ h2 {
   overflow-x: auto;
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 6px;
   scrollbar-color: #94a3b8 #e7edf5;
   scrollbar-width: thin;
 }
@@ -757,6 +758,22 @@ h2 {
   overflow-wrap: normal;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.table-cell-summary {
+  display: -webkit-box;
+  max-height: 3em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reimbursement-table .reimbursement-note-cell {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  overflow-wrap: normal;
+  white-space: normal;
 }
 
 .status-badge {

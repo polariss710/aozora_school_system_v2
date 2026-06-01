@@ -277,7 +277,7 @@ function renderReimbursements(rows) {
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(reimbursementStatusLabel(row.status))}</span></td>
       <td class="number-cell reimbursement-nowrap">${escapeHtml(displayCount(itemCount(row.id)))}</td>
       <td class="number-cell reimbursement-nowrap">${escapeHtml(displayCount(transactionCount(row.id)))}</td>
-      <td class="reimbursement-note-cell">${escapeHtml(displayValue(row.note))}</td>
+      <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
     </tr>
