@@ -112,7 +112,7 @@ function setDefaultFilters() {
 
 async function loadInitialData() {
   setLoading(true);
-  showMessage("info", "正在加载收入管理数据...");
+  showMessage("info", "正在加载收入记录数据...");
 
   try {
     const lookups = await fetchIncomeLookups();
@@ -122,7 +122,7 @@ async function loadInitialData() {
     renderMasterOptions();
     await loadIncomeMonth(currentYearMonth());
     applyCurrentFilters();
-    showMessage("success", "收入管理数据已加载。");
+    showMessage("success", "收入记录数据已加载。");
   } catch (error) {
     students = [];
     businessEntities = [];
@@ -132,7 +132,7 @@ async function loadInitialData() {
     renderMasterOptions();
     renderDataOptions([]);
     renderIncomeRecords([]);
-    showMessage("error", `读取收入管理数据失败：${error.message || error}`);
+    showMessage("error", `读取收入记录数据失败：${error.message || error}`);
   } finally {
     setLoading(false);
   }

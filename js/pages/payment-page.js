@@ -232,7 +232,7 @@ async function loadPaymentData() {
   }
 
   setLoading(true);
-  showMessage("info", "正在加载支付管理数据...");
+  showMessage("info", "正在加载老师工资支付数据...");
 
   try {
     const [summary, requests] = await Promise.all([
@@ -242,11 +242,11 @@ async function loadPaymentData() {
 
     renderSummary(normalizeSummary(summary));
     renderRows(requests);
-    showMessage("success", "支付管理数据已加载。");
+    showMessage("success", "老师工资支付数据已加载。");
   } catch (error) {
     renderSummary({});
     renderRows([]);
-    showMessage("error", `读取支付管理数据失败：${error.message || error}`);
+    showMessage("error", `读取老师工资支付数据失败：${error.message || error}`);
   } finally {
     setLoading(false);
   }

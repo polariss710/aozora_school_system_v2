@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const messageArea = document.querySelector("#incomeMessageArea");
     if (messageArea) {
       messageArea.className = "message message-error";
-      messageArea.textContent = `收入管理页面初始化失败：${error.message || error}`;
+      messageArea.textContent = `收入记录页面初始化失败：${error.message || error}`;
     }
   }
 });
