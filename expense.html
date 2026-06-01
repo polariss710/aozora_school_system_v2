@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>青空塾 管理系统 v2 / 收入记录</title>
+    <title>青空塾 管理系统 v2 / 支出记录</title>
     <link rel="stylesheet" href="./css/app.css?v=v2.9.0-expense-readonly-20260601">
   </head>
   <body>
@@ -11,12 +11,12 @@
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
-          <h1>收入记录</h1>
+          <h1>支出记录</h1>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
             <a href="./account.html">账户管理</a>
-            <a class="is-active" href="./income.html">收入记录</a>
-            <a href="./expense.html">支出记录</a>
+            <a href="./income.html">收入记录</a>
+            <a class="is-active" href="./expense.html">支出记录</a>
             <a href="./teacher.html">老师管理</a>
             <a href="./student.html">学生管理</a>
             <a href="./subject.html">科目管理</a>
@@ -32,135 +32,141 @@
       </header>
 
       <main class="page-main">
-        <section id="incomeMessageArea" class="message is-hidden" aria-live="polite"></section>
+        <section id="expenseMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="incomeFilterTitle">
+        <section class="panel filter-panel" aria-labelledby="expenseFilterTitle">
           <div class="section-heading">
-            <h2 id="incomeFilterTitle">筛选</h2>
+            <h2 id="expenseFilterTitle">筛选</h2>
           </div>
 
-          <form id="incomeFilterForm" class="filter-grid">
+          <form id="expenseFilterForm" class="filter-grid">
             <label class="field month-select-field">
               <span>月份</span>
               <div class="month-select-group">
-                <select id="incomeYearFilter" name="year" aria-label="年份"></select>
-                <select id="incomeMonthFilter" name="month" aria-label="月份"></select>
+                <select id="expenseYearFilter" name="year" aria-label="年份"></select>
+                <select id="expenseMonthFilter" name="month" aria-label="月份"></select>
               </div>
             </label>
 
             <label class="field">
-              <span>学生</span>
-              <select id="incomeStudentSelect" name="studentId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>业务归属</span>
-              <select id="incomeBusinessEntitySelect" name="businessEntityId">
+              <select id="expenseBusinessEntitySelect" name="businessEntityId">
                 <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
               <span>账户</span>
-              <select id="incomeAccountSelect" name="accountId">
+              <select id="expenseAccountSelect" name="accountId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>老师</span>
+              <select id="expenseTeacherSelect" name="teacherId">
                 <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
               <span>币种</span>
-              <select id="incomeCurrencySelect" name="currency">
+              <select id="expenseCurrencySelect" name="currency">
                 <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
-              <span>收入分类</span>
-              <select id="incomeCategorySelect" name="incomeCategory">
+              <span>支出分类</span>
+              <select id="expenseCategorySelect" name="expenseCategory">
                 <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
               <span>支付方式</span>
-              <select id="incomePaymentMethodSelect" name="paymentMethod">
+              <select id="expensePaymentMethodSelect" name="paymentMethod">
                 <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
-              <span>状态</span>
-              <select id="incomeStatusSelect" name="status">
+              <span>支出状态</span>
+              <select id="expenseStatusSelect" name="status">
                 <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
-              <span>进入学生结算</span>
-              <select id="incomeIncludeSelect" name="includeInSettlement">
+              <span>收据状态</span>
+              <select id="expenseReceiptStatusSelect" name="receiptStatus">
                 <option value="">全部</option>
-                <option value="true">是</option>
-                <option value="false">否</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>报销状态</span>
+              <select id="expenseReimbursementStatusSelect" name="reimbursementStatus">
+                <option value="">全部</option>
               </select>
             </label>
 
             <label class="field">
               <span>关键字</span>
-              <input id="incomeKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 业务归属 / 账户 / 分类 / 备注">
+              <input id="expenseKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="业务归属 / 账户 / 老师 / 分类 / 描述 / 备注">
             </label>
 
-            <div class="filter-actions income-filter-actions">
+            <div class="filter-actions expense-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
-              <button class="button" id="incomeResetButton" type="button">重置</button>
+              <button class="button" id="expenseResetButton" type="button">重置</button>
             </div>
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="incomeListTitle">
+        <section class="panel" aria-labelledby="expenseListTitle">
           <div class="section-heading section-heading-row">
             <div>
-              <h2 id="incomeListTitle">收入记录</h2>
-              <p class="section-note">本页显示已登记收入记录，只读查看；不代表学生月度结算实时预览，不从结算快照或账户流水反推金额。</p>
+              <h2 id="expenseListTitle">支出记录</h2>
+              <p class="section-note">本页显示已登记支出记录，只读查看；不从老师工资结算、支付请求或账户流水重新计算金额。</p>
             </div>
-            <span id="incomeCount" class="record-count">0 条</span>
+            <span id="expenseCount" class="record-count">0 条</span>
           </div>
 
-          <div id="incomeLoadingState" class="state-text is-hidden">正在加载收入记录...</div>
-          <div id="incomeEmptyState" class="state-text is-hidden">暂无符合条件的收入记录。</div>
+          <div id="expenseLoadingState" class="state-text is-hidden">正在加载支出记录...</div>
+          <div id="expenseEmptyState" class="state-text is-hidden">暂无符合条件的支出记录。</div>
           <div class="table-scroll">
-            <table class="payment-table income-table">
+            <table class="payment-table expense-table">
               <thead>
                 <tr>
-                  <th>收入日期</th>
+                  <th>支出日期</th>
                   <th>月份</th>
-                  <th>结算月份</th>
-                  <th>学生</th>
+                  <th>支出分类</th>
                   <th>业务归属</th>
                   <th>账户</th>
-                  <th>收入分类</th>
+                  <th>老师</th>
+                  <th>描述</th>
                   <th>币种</th>
                   <th>原币金额</th>
                   <th>JPY 金额</th>
                   <th>CNY 金额</th>
                   <th>汇率</th>
                   <th>支付方式</th>
-                  <th>状态</th>
+                  <th>支出状态</th>
                   <th>收据状态</th>
-                  <th>进入学生结算</th>
+                  <th>报销状态</th>
+                  <th>附件</th>
                   <th>备注</th>
                   <th>创建时间</th>
                   <th>更新时间</th>
                 </tr>
               </thead>
-              <tbody id="incomeTableBody"></tbody>
+              <tbody id="expenseTableBody"></tbody>
             </table>
           </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v2.9.0-expense-readonly-20260601"></script>
+    <script type="module" src="./js/expense-app.js?v=v2.9.0-expense-readonly-20260601"></script>
   </body>
 </html>

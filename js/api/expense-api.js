@@ -1,0 +1,82 @@
+import { supabase } from "../supabase-client.js";
+
+const EXPENSE_COLUMNS = [
+  "id",
+  "business_entity_id",
+  "teacher_id",
+  "student_id",
+  "salary_payment_id",
+  "account_id",
+  "expense_date",
+  "year_month",
+  "expense_category",
+  "description",
+  "currency",
+  "amount",
+  "amount_jpy",
+  "amount_cny",
+  "exchange_rate",
+  "payment_method",
+  "status",
+  "receipt_status",
+  "reimbursement_status",
+  "note",
+  "app_type",
+  "created_at",
+  "updated_at",
+].join(",");
+
+export async function fetchExpenseRecords(month) {
+  const { data, error } = await supabase
+    .from("school_expense_records")
+    .select(EXPENSE_COLUMNS)
+    .eq("app_type", "school")
+    .eq("year_month", month)
+    .order("expense_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function fetchExpenseLookups() {
+  const [businessEntitiesResult, accountsResult, teachersResult] = await Promise.all([
+    supabase
+      .from("school_business_entities")
+      .select("id,name,is_active")
+      .order("name", { ascending: true }),
+    supabase
+      .from("school_accounts")
+      .select("id,account_code,name,currency,is_active,app_type")
+      .eq("app_type", "school")
+      .order("currency", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("school_teachers")
+      .select("id,name,display_name,status,default_business_entity_id")
+      .eq("app_type", "school")
+      .order("display_name", { ascending: true })
+      .order("name", { ascending: true }),
+  ]);
+
+  if (businessEntitiesResult.error) {
+    throw businessEntitiesResult.error;
+  }
+
+  if (accountsResult.error) {
+    throw accountsResult.error;
+  }
+
+  if (teachersResult.error) {
+    throw teachersResult.error;
+  }
+
+  return {
+    businessEntities: businessEntitiesResult.data || [],
+    accounts: accountsResult.data || [],
+    teachers: teachersResult.data || [],
+  };
+}
