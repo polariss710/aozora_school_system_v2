@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 报销管理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.10.0-reimbursement-readonly-20260601">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>报销管理</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a class="is-active" href="./reimbursement.html">报销管理</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="reimbursementMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="reimbursementFilterTitle">
+          <div class="section-heading">
+            <h2 id="reimbursementFilterTitle">筛选</h2>
+          </div>
+
+          <form id="reimbursementFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="reimbursementYearFilter" name="year" aria-label="年份"></select>
+                <select id="reimbursementMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="reimbursementBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>转出账户</span>
+              <select id="reimbursementFromAccountSelect" name="fromAccountId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>转入账户</span>
+              <select id="reimbursementToAccountSelect" name="toAccountId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>币种</span>
+              <select id="reimbursementCurrencySelect" name="currency">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <select id="reimbursementStatusSelect" name="status">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>关联支出</span>
+              <select id="reimbursementHasItemsSelect" name="hasItems">
+                <option value="">全部</option>
+                <option value="yes">有</option>
+                <option value="no">无</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>账户流水</span>
+              <select id="reimbursementHasTransactionsSelect" name="hasTransactions">
+                <option value="">全部</option>
+                <option value="yes">有</option>
+                <option value="no">无</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>关键字</span>
+              <input id="reimbursementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="业务归属 / 账户 / 状态 / 备注">
+            </label>
+
+            <div class="filter-actions reimbursement-filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="reimbursementResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="reimbursementListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="reimbursementListTitle">报销记录</h2>
+              <p class="section-note">本页显示已登记报销记录，只读查看；不从支出记录或账户流水重新计算报销金额，不执行报销支付或账户余额修改。</p>
+            </div>
+            <span id="reimbursementCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="reimbursementLoadingState" class="state-text is-hidden">正在加载报销记录...</div>
+          <div id="reimbursementEmptyState" class="state-text is-hidden">暂无符合条件的报销记录。</div>
+          <div class="table-scroll">
+            <table class="payment-table reimbursement-table">
+              <thead>
+                <tr>
+                  <th>报销日期</th>
+                  <th>月份</th>
+                  <th>业务归属</th>
+                  <th>转出账户</th>
+                  <th>转入账户</th>
+                  <th>币种</th>
+                  <th>金额</th>
+                  <th>状态</th>
+                  <th>关联支出数</th>
+                  <th>账户流水数</th>
+                  <th>备注</th>
+                  <th>创建时间</th>
+                  <th>更新时间</th>
+                </tr>
+              </thead>
+              <tbody id="reimbursementTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/reimbursement-app.js?v=v2.10.0-reimbursement-readonly-20260601"></script>
+  </body>
+</html>
