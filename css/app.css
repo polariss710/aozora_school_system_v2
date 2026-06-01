@@ -260,6 +260,7 @@ h2 {
 }
 
 .student-filter-actions,
+.income-filter-actions,
 .lesson-filter-actions,
 .settlement-filter-actions,
 .wage-filter-actions {
@@ -618,6 +619,10 @@ h2 {
   min-width: 1120px;
 }
 
+.income-table {
+  min-width: 1840px;
+}
+
 .lesson-table {
   min-width: 1560px;
 }
@@ -672,6 +677,10 @@ h2 {
   white-space: nowrap;
 }
 
+.income-nowrap {
+  white-space: nowrap;
+}
+
 .settlement-nowrap {
   white-space: nowrap;
 }
@@ -681,6 +690,7 @@ h2 {
 }
 
 .lesson-content-cell,
+.income-note-cell,
 .lesson-note-cell {
   min-width: 180px;
   max-width: 260px;
@@ -892,6 +902,7 @@ h2 {
   }
 
   .student-filter-actions,
+  .income-filter-actions,
   .lesson-filter-actions,
   .settlement-filter-actions,
   .wage-filter-actions {
