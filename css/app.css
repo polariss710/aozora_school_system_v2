@@ -626,7 +626,8 @@ h2 {
 }
 
 .expense-table {
-  min-width: 1960px;
+  width: 2400px;
+  min-width: 2400px;
 }
 
 .reimbursement-table {
@@ -695,6 +696,10 @@ h2 {
   white-space: nowrap;
 }
 
+.expense-table td {
+  white-space: nowrap;
+}
+
 .reimbursement-nowrap {
   white-space: nowrap;
 }
@@ -724,6 +729,17 @@ h2 {
   max-width: 280px;
   overflow-wrap: anywhere;
   white-space: normal;
+}
+
+.expense-table .expense-description-cell,
+.expense-table .expense-note-cell {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  overflow: hidden;
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-badge {
