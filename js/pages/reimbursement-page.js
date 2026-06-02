@@ -267,6 +267,7 @@ function renderReimbursements(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
+      <td class="reimbursement-nowrap"><a class="table-action-button" href="./reimbursement-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDateOnly(row.reimbursement_date))}</td>
       <td class="reimbursement-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
@@ -278,7 +279,6 @@ function renderReimbursements(rows) {
       <td class="number-cell reimbursement-nowrap">${escapeHtml(displayCount(itemCount(row.id)))}</td>
       <td class="number-cell reimbursement-nowrap">${escapeHtml(displayCount(transactionCount(row.id)))}</td>
       <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
-      <td class="reimbursement-nowrap"><a class="table-action-button" href="./reimbursement-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
     </tr>
