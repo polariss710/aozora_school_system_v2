@@ -591,6 +591,66 @@ h2 {
   white-space: pre-wrap;
 }
 
+.business-entity-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.business-entity-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 14px;
+}
+
+.business-entity-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.business-entity-name {
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.business-entity-code {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.business-entity-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+}
+
+.business-entity-meta div {
+  min-width: 0;
+}
+
+.business-entity-meta dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.business-entity-meta dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.business-entity-note {
+  grid-column: 1 / -1;
+}
+
 .record-count,
 .state-text {
   color: var(--muted);
@@ -1073,6 +1133,10 @@ h2 {
   }
 
   .subject-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .business-entity-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

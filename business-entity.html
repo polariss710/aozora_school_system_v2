@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 业务归属</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.12.0-business-entity-readonly-20260602">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>业务归属</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a class="is-active" href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="businessEntityMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="businessEntityFilterTitle">
+          <div class="section-heading">
+            <h2 id="businessEntityFilterTitle">筛选</h2>
+          </div>
+
+          <form id="businessEntityFilterForm" class="filter-grid">
+            <label class="field">
+              <span>关键字</span>
+              <input id="businessEntityKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="名称 / 编码 / 类型 / 币种 / 备注">
+            </label>
+
+            <label class="field">
+              <span>类型</span>
+              <select id="businessEntityTypeSelect" name="entityType">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>默认币种</span>
+              <select id="businessEntityDefaultCurrencySelect" name="defaultCurrency">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>启用状态</span>
+              <select id="businessEntityActiveSelect" name="activeState">
+                <option value="">全部</option>
+                <option value="active">启用</option>
+                <option value="inactive">停用</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>公司报表</span>
+              <select id="businessEntityCompanyReportSelect" name="companyReportState">
+                <option value="">全部</option>
+                <option value="included">是</option>
+                <option value="excluded">否</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="businessEntityResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="businessEntityListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="businessEntityListTitle">业务归属列表</h2>
+              <p class="section-note">本页为业务归属基础主数据只读一览，用于确认收入、支出、报销、账户、老师、学生、课时、工资和结算等模块的归属口径。第一版不提供新增、编辑、删除、启用或停用操作。</p>
+            </div>
+            <span id="businessEntityCount" class="record-count">0 个</span>
+          </div>
+
+          <div id="businessEntityLoadingState" class="state-text is-hidden">正在加载业务归属...</div>
+          <div id="businessEntityEmptyState" class="state-text is-hidden">暂无符合条件的业务归属。</div>
+          <div id="businessEntityGrid" class="business-entity-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/business-entity-app.js?v=v2.12.0-business-entity-readonly-20260602"></script>
+  </body>
+</html>
