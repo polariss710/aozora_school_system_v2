@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 学生月度结算详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.16.0-settlement-detail-readonly-20260603">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>学生月度结算详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a class="is-active" href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="settlementDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="settlementDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="settlementDetailPageTitle">详情</h2>
+              <p class="section-note">本页为学生月度结算快照只读详情。显示内容来自已保存的学生月度结算记录，不代表实时结算预览。本页不会从课时、收入或结转重新计算结算结果。</p>
+            </div>
+            <a class="button" href="./settlement.html">返回学生月度结算</a>
+          </div>
+        </section>
+
+        <div id="settlementDetailLoadingState" class="state-text is-hidden">正在加载学生月度结算详情...</div>
+
+        <section id="settlementDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="settlementDetailTitle">
+            <div class="section-heading">
+              <h2 id="settlementDetailTitle">结算摘要</h2>
+              <p id="settlementDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>结算基本信息</h3>
+                <div id="settlementDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>学费快照</h3>
+                <div id="settlementDetailFeeInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>收款快照</h3>
+                <div id="settlementDetailReceiptInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>差额 / 调整 / 结转</h3>
+                <div id="settlementDetailBalanceInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>学生参考</h3>
+                <div id="settlementDetailStudentInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="settlementDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="settlementDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="settlementDetailNoteTitle">备注 / 调整理由</h2>
+            </div>
+            <div id="settlementDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="settlementDetailLessonTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="settlementDetailLessonTitle">原始课时参考</h2>
+                <p class="section-note">以下为按学生、月份、业务归属筛选出的原始课时记录参考，不用于本页重新计算结算结果。表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="settlementDetailLessonCount" class="record-count">0 条</span>
+            </div>
+            <div id="settlementDetailLessonEmpty" class="state-text is-hidden">无原始课时参考记录。</div>
+            <div class="table-scroll">
+              <table class="payment-table settlement-detail-lesson-table">
+                <thead>
+                  <tr>
+                    <th>课时日期</th>
+                    <th>lesson_type</th>
+                    <th>状态</th>
+                    <th>老师</th>
+                    <th>科目</th>
+                    <th>开始</th>
+                    <th>结束</th>
+                    <th>小时</th>
+                    <th>实际分钟</th>
+                    <th>课次数</th>
+                    <th>单价</th>
+                    <th>课时费</th>
+                    <th>计费</th>
+                    <th>planned ID</th>
+                    <th>课程内容</th>
+                  </tr>
+                </thead>
+                <tbody id="settlementDetailLessonRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="settlementDetailIncomeTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="settlementDetailIncomeTitle">收入记录参考</h2>
+                <p class="section-note">以下为关联收入记录参考，不用于本页重新计算收款快照。表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="settlementDetailIncomeCount" class="record-count">0 条</span>
+            </div>
+            <div id="settlementDetailIncomeEmpty" class="state-text is-hidden">无关联收入记录。</div>
+            <div class="table-scroll">
+              <table class="payment-table settlement-detail-income-table">
+                <thead>
+                  <tr>
+                    <th>收款日期</th>
+                    <th>分类</th>
+                    <th>描述</th>
+                    <th>币种</th>
+                    <th>金额</th>
+                    <th>JPY</th>
+                    <th>CNY</th>
+                    <th>汇率</th>
+                    <th>支付币种</th>
+                    <th>支付方式</th>
+                    <th>账户</th>
+                    <th>状态</th>
+                    <th>收据状态</th>
+                    <th>纳入结算</th>
+                    <th>备注</th>
+                  </tr>
+                </thead>
+                <tbody id="settlementDetailIncomeRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/settlement-detail-app.js?v=v2.16.0-settlement-detail-readonly-20260603"></script>
+  </body>
+</html>

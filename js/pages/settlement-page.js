@@ -228,6 +228,7 @@ function renderSettlements(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
+      <td class="settlement-nowrap"><a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
       <td class="settlement-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td>${escapeHtml(nameById(students, row.student_id, studentName))}</td>
       <td>${escapeHtml(nameById(businessEntities, row.business_entity_id, businessEntityName))}</td>

@@ -729,6 +729,14 @@ h2 {
   min-width: 1700px;
 }
 
+.settlement-detail-lesson-table {
+  min-width: 1980px;
+}
+
+.settlement-detail-income-table {
+  min-width: 2120px;
+}
+
 .wage-table {
   min-width: 1480px;
 }
@@ -937,6 +945,15 @@ h2 {
 }
 
 .wage-detail-table .wage-detail-content-cell {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  overflow-wrap: normal;
+  white-space: normal;
+}
+
+.settlement-detail-lesson-table .settlement-detail-text-cell,
+.settlement-detail-income-table .settlement-detail-text-cell {
   width: 260px;
   min-width: 260px;
   max-width: 260px;
