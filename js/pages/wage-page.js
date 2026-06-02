@@ -244,6 +244,7 @@ function renderWageLocks(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
+      <td class="wage-nowrap"><a class="table-action-button" href="./wage-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
       <td class="wage-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
       <td>${escapeHtml(displayTeacherName(row))}</td>
       <td>${escapeHtml(displayBusinessName(row))}</td>

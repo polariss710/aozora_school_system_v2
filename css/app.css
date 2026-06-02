@@ -733,6 +733,10 @@ h2 {
   min-width: 1480px;
 }
 
+.wage-detail-table {
+  min-width: 2180px;
+}
+
 .payment-table td {
   white-space: normal;
 }
@@ -930,6 +934,14 @@ h2 {
   width: 260px;
   min-width: 260px;
   max-width: 260px;
+}
+
+.wage-detail-table .wage-detail-content-cell {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  overflow-wrap: normal;
+  white-space: normal;
 }
 
 .status-badge {

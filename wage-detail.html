@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 老师工资结算详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.15.0-wage-detail-readonly-20260603">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>老师工资结算详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a class="is-active" href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="wageDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="wageDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="wageDetailPageTitle">详情</h2>
+              <p class="section-note">本页为老师工资锁定快照只读详情。显示内容来自已保存的工资锁定主表和明细表，不代表实时工资重算结果。当前工资规则仅作为配置源，不用于重算历史锁定工资。</p>
+            </div>
+            <a class="button" href="./wage.html">返回老师工资结算</a>
+          </div>
+        </section>
+
+        <div id="wageDetailLoadingState" class="state-text is-hidden">正在加载老师工资结算详情...</div>
+
+        <section id="wageDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="wageDetailTitle">
+            <div class="section-heading">
+              <h2 id="wageDetailTitle">工资锁定摘要</h2>
+              <p id="wageDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>工资锁定基本信息</h3>
+                <div id="wageDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>金额快照</h3>
+                <div id="wageDetailAmountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>明细对账辅助</h3>
+                <div id="wageDetailSummaryInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="wageDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="wageDetailPaymentTitle">
+            <div class="section-heading">
+              <h2 id="wageDetailPaymentTitle">关联支付请求</h2>
+              <p class="section-note">仅显示 source_type = teacher_wage 且 source_id 为当前工资锁定记录的支付请求。这里不提供确认支付、撤销或重新生成操作。</p>
+            </div>
+            <div id="wageDetailPaymentRequests" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="wageDetailRowsTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="wageDetailRowsTitle">工资明细</h2>
+                <p class="section-note">明细来自 school_teacher_wage_lock_details 的已保存课时快照；表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="wageDetailRowCount" class="record-count">0 条</span>
+            </div>
+            <div id="wageDetailRowEmpty" class="state-text is-hidden">无工资明细。</div>
+            <div class="table-scroll">
+              <table class="payment-table wage-detail-table">
+                <thead>
+                  <tr>
+                    <th>课时日期</th>
+                    <th>时间</th>
+                    <th>学生</th>
+                    <th>科目</th>
+                    <th>业务归属</th>
+                    <th>支付小时</th>
+                    <th>结算类型</th>
+                    <th>课时工资 JPY</th>
+                    <th>课时工资 CNY</th>
+                    <th>交通费 JPY</th>
+                    <th>教室费 JPY</th>
+                    <th>合计 JPY</th>
+                    <th>合计 CNY</th>
+                    <th>无工资</th>
+                    <th>状态</th>
+                    <th>课程内容</th>
+                  </tr>
+                </thead>
+                <tbody id="wageDetailRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/wage-detail-app.js?v=v2.15.0-wage-detail-readonly-20260603"></script>
+  </body>
+</html>
