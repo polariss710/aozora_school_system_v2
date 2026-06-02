@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 支出记录详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.13.0-expense-detail-readonly-20260602">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>支出记录详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a class="is-active" href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="expenseDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="expenseDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="expenseDetailPageTitle">详情</h2>
+              <p class="section-note">本页为支出记录只读详情。支出记录是审计明细，不代表利润统计或有效经营支出自动汇总。老师工资类支出需要结合来源支付请求状态判断，已撤销或已作废来源仍会保留原支出记录用于审计。</p>
+            </div>
+            <a class="button" href="./expense.html">返回支出记录</a>
+          </div>
+        </section>
+
+        <div id="expenseDetailLoadingState" class="state-text is-hidden">正在加载支出记录详情...</div>
+
+        <section id="expenseDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="expenseDetailTitle">
+            <div class="section-heading">
+              <h2 id="expenseDetailTitle">支出摘要</h2>
+              <p id="expenseDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>支出基本信息</h3>
+                <div id="expenseDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>金额信息</h3>
+                <div id="expenseDetailAmountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>关联对象</h3>
+                <div id="expenseDetailRelatedInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>收据 / 报销状态</h3>
+                <div id="expenseDetailReceiptInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="expenseDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="expenseDetailNoteTitle">备注</h2>
+            </div>
+            <div id="expenseDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="expenseDetailPaymentTitle">
+            <div class="section-heading">
+              <h2 id="expenseDetailPaymentTitle">来源支付请求</h2>
+            </div>
+            <div id="expenseDetailPaymentRequests" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="expenseDetailTransactionTitle">
+            <div class="section-heading">
+              <h2 id="expenseDetailTransactionTitle">账户流水</h2>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>支出相关流水</h3>
+                <div id="expenseDetailDirectTransactions" class="detail-list"></div>
+              </article>
+              <article class="detail-card">
+                <h3>来源支付请求流水</h3>
+                <div id="expenseDetailPaymentTransactions" class="detail-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="expenseDetailReimbursementTitle">
+            <div class="section-heading">
+              <h2 id="expenseDetailReimbursementTitle">报销信息</h2>
+            </div>
+            <div id="expenseDetailReimbursements" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="expenseDetailAttachmentTitle">
+            <div class="section-heading">
+              <h2 id="expenseDetailAttachmentTitle">附件信息</h2>
+            </div>
+            <div id="expenseDetailAttachments" class="detail-list"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/expense-detail-app.js?v=v2.13.0-expense-detail-readonly-20260602"></script>
+  </body>
+</html>

@@ -331,6 +331,7 @@ function renderExpenseRecords(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
+      <td class="action-cell"><a class="button table-action-button" href="${escapeAttribute(expenseDetailUrl(row.id))}">详情</a></td>
       <td class="expense-nowrap">${escapeHtml(formatDateOnly(row.expense_date))}</td>
       <td class="expense-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(expenseCategoryLabel(row.expense_category))}</span></td>
@@ -577,6 +578,10 @@ function formatDateOnly(value) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function expenseDetailUrl(expenseId) {
+  return `./expense-detail.html?id=${encodeURIComponent(safeText(expenseId))}`;
 }
 
 function setLoading(isLoading) {

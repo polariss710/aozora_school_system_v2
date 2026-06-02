@@ -705,8 +705,8 @@ h2 {
 }
 
 .expense-table {
-  width: 2580px;
-  min-width: 2580px;
+  width: 2680px;
+  min-width: 2680px;
 }
 
 .reimbursement-table {
@@ -836,6 +836,74 @@ h2 {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.detail-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.detail-card,
+.detail-list-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 14px;
+}
+
+.detail-card h3 {
+  margin: 0 0 10px;
+  font-size: 15px;
+}
+
+.detail-list {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.detail-list-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.detail-definition-list {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.detail-definition-list div {
+  min-width: 0;
+}
+
+.detail-definition-list dt {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.detail-definition-list dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.readonly-text-block {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .reimbursement-table .reimbursement-note-cell {
@@ -1137,6 +1205,11 @@ h2 {
   }
 
   .business-entity-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail-grid,
+  .detail-definition-list {
     grid-template-columns: minmax(0, 1fr);
   }
 
