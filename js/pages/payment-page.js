@@ -356,6 +356,7 @@ function renderRows(rows) {
 
       return `
         <tr>
+          <td><a class="table-action-button" href="./payment-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
           <td>${escapeHtml(formatMonth(month))}</td>
           <td><span class="status-badge status-${escapeAttribute(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td>
           <td>${escapeHtml(sourceTypeLabel(row.source_type))}</td>

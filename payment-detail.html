@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 老师工资支付详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.17.0-payment-detail-readonly-20260603">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>老师工资支付详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a class="is-active" href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="paymentDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="paymentDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="paymentDetailPageTitle">详情</h2>
+              <p class="section-note">本页为老师工资支付请求只读详情。支付请求状态以 payment request 本身为准；关联支出记录是支付确认后生成的审计记录，不能仅凭支出记录状态判断支付是否有效。本页不提供确认支付、撤销、取消、恢复或重新生成操作。</p>
+            </div>
+            <a class="button" href="./index.html">返回老师工资支付</a>
+          </div>
+        </section>
+
+        <div id="paymentDetailLoadingState" class="state-text is-hidden">正在加载老师工资支付详情...</div>
+
+        <section id="paymentDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="paymentDetailTitle">
+            <div class="section-heading">
+              <h2 id="paymentDetailTitle">支付请求摘要</h2>
+              <p id="paymentDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>Payment Request 基本信息</h3>
+                <div id="paymentDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>金额信息</h3>
+                <div id="paymentDetailAmountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>状态时间线</h3>
+                <div id="paymentDetailTimelineInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="paymentDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="paymentDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="paymentDetailNoteTitle">备注</h2>
+            </div>
+            <div id="paymentDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="paymentDetailWageTitle">
+            <div class="section-heading">
+              <h2 id="paymentDetailWageTitle">工资锁定来源</h2>
+            </div>
+            <div id="paymentDetailWageLock" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="paymentDetailExpenseTitle">
+            <div class="section-heading">
+              <h2 id="paymentDetailExpenseTitle">支出审计记录</h2>
+              <p class="section-note">支出记录为支付确认后落地的审计记录，payment request 的有效状态仍以本页支付请求状态为准。</p>
+            </div>
+            <div id="paymentDetailExpense" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="paymentDetailTransactionTitle">
+            <div class="section-heading">
+              <h2 id="paymentDetailTransactionTitle">账户与流水</h2>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>支付账户</h3>
+                <div id="paymentDetailAccountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>原扣款流水</h3>
+                <div id="paymentDetailPaidTransaction" class="detail-list"></div>
+              </article>
+              <article class="detail-card">
+                <h3>撤销冲销流水</h3>
+                <div id="paymentDetailReversalTransaction" class="detail-list"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="paymentDetailReissueTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="paymentDetailReissueTitle">Reissue 链路</h2>
+                <p class="section-note">本区只读展示同源支付请求链路，不提供任何重新生成或状态操作。</p>
+              </div>
+              <span id="paymentDetailChainCount" class="record-count">0 条</span>
+            </div>
+            <div id="paymentDetailChainSummary" class="detail-list"></div>
+            <div class="table-scroll">
+              <table class="payment-table">
+                <thead>
+                  <tr>
+                    <th>详情</th>
+                    <th>请求 ID</th>
+                    <th>状态</th>
+                    <th>月份</th>
+                    <th class="number-cell">金额</th>
+                    <th>支付时间</th>
+                    <th>撤销时间</th>
+                    <th>reissued_from</th>
+                    <th>replacement</th>
+                    <th>paid_expense_id</th>
+                    <th>标记</th>
+                  </tr>
+                </thead>
+                <tbody id="paymentDetailChainRows"></tbody>
+              </table>
+            </div>
+            <div id="paymentDetailChainEmpty" class="state-text is-hidden">无其他同源支付请求。</div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/payment-detail-app.js?v=v2.17.0-payment-detail-readonly-20260603"></script>
+  </body>
+</html>
