@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 报销记录详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.14.0-reimbursement-detail-readonly-20260602">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>报销记录详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a class="is-active" href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="reimbursementDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="reimbursementDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="reimbursementDetailPageTitle">详情</h2>
+              <p class="section-note">本页为报销记录只读详情。报销记录用于追踪账户间报销流转及其关联支出明细；报销账户流水是账户转移，不代表经营支出统计。第一版不提供新增、编辑、删除、状态修改或账户余额调整。</p>
+            </div>
+            <a class="button" href="./reimbursement.html">返回报销管理</a>
+          </div>
+        </section>
+
+        <div id="reimbursementDetailLoadingState" class="state-text is-hidden">正在加载报销记录详情...</div>
+
+        <section id="reimbursementDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="reimbursementDetailTitle">
+            <div class="section-heading">
+              <h2 id="reimbursementDetailTitle">报销摘要</h2>
+              <p id="reimbursementDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>报销基本信息</h3>
+                <div id="reimbursementDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>账户流转</h3>
+                <div id="reimbursementDetailAccountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>核对摘要</h3>
+                <div id="reimbursementDetailSummaryInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="reimbursementDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="reimbursementDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="reimbursementDetailNoteTitle">备注</h2>
+            </div>
+            <div id="reimbursementDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="reimbursementDetailTransactionsTitle">
+            <div class="section-heading">
+              <h2 id="reimbursementDetailTransactionsTitle">账户流水</h2>
+              <p class="section-note">仅显示 related_table = school_reimbursements 且 related_id 为当前报销记录的账户流水；这些流水用于账户间报销流转核对，不作为经营支出统计。</p>
+            </div>
+            <div id="reimbursementDetailTransactions" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="reimbursementDetailExpensesTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="reimbursementDetailExpensesTitle">关联支出</h2>
+                <p class="section-note">关联支出来自 school_reimbursement_items.expense_id，可跳转到支出详情继续只读查看。表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="reimbursementDetailExpenseCount" class="record-count">0 条</span>
+            </div>
+            <div id="reimbursementDetailExpenseEmpty" class="state-text is-hidden">无关联支出明细。</div>
+            <div class="table-scroll">
+              <table class="payment-table reimbursement-detail-expense-table">
+                <thead>
+                  <tr>
+                    <th>支出日期</th>
+                    <th>月份</th>
+                    <th>分类</th>
+                    <th>描述</th>
+                    <th>item 金额</th>
+                    <th>支出金额</th>
+                    <th>币种</th>
+                    <th>状态</th>
+                    <th>收据状态</th>
+                    <th>报销状态</th>
+                    <th>备注</th>
+                    <th>详情</th>
+                  </tr>
+                </thead>
+                <tbody id="reimbursementDetailExpenseRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/reimbursement-detail-app.js?v=v2.14.0-reimbursement-detail-readonly-20260602"></script>
+  </body>
+</html>

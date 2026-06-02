@@ -235,6 +235,7 @@ function renderReimbursements(items, reimbursements) {
           <strong>${escapeHtml(shortId(item.reimbursement_id))}</strong>
           <span class="status-badge ${escapeAttribute(statusClass(reimbursement?.status))}">${escapeHtml(displayValue(reimbursement?.status))}</span>
         </div>
+        ${reimbursement?.id ? `<p><a class="table-action-button" href="./reimbursement-detail.html?id=${encodeURIComponent(reimbursement.id)}">查看报销详情</a></p>` : ""}
         ${renderDefinitionList([
           ["报销明细金额", formatCurrency(item.amount, reimbursement?.currency)],
           ["明细备注", displayValue(item.note)],

@@ -713,6 +713,10 @@ h2 {
   min-width: 1460px;
 }
 
+.reimbursement-detail-expense-table {
+  min-width: 1680px;
+}
+
 .wage-rule-table {
   min-width: 1880px;
 }
@@ -907,6 +911,14 @@ h2 {
 }
 
 .reimbursement-table .reimbursement-note-cell {
+  width: 260px;
+  min-width: 260px;
+  max-width: 260px;
+  overflow-wrap: normal;
+  white-space: normal;
+}
+
+.reimbursement-detail-expense-table .reimbursement-note-cell {
   width: 260px;
   min-width: 260px;
   max-width: 260px;
