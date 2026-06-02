@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 收入记录详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.18.0-income-detail-readonly-20260603">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>收入记录详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a class="is-active" href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="incomeDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="incomeDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="incomeDetailPageTitle">详情</h2>
+              <p class="section-note">本页为收入记录只读详情。收入记录是审计明细，不代表学生月度结算实时重算结果，也不从账户流水反推收入金额。本页不提供新增、编辑、删除、收款确认或结算修改操作。</p>
+            </div>
+            <a class="button" href="./income.html">返回收入记录</a>
+          </div>
+        </section>
+
+        <div id="incomeDetailLoadingState" class="state-text is-hidden">正在加载收入记录详情...</div>
+
+        <section id="incomeDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="incomeDetailTitle">
+            <div class="section-heading">
+              <h2 id="incomeDetailTitle">收入摘要</h2>
+              <p id="incomeDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>收入基本信息</h3>
+                <div id="incomeDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>金额信息</h3>
+                <div id="incomeDetailAmountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>学生 / 账户</h3>
+                <div id="incomeDetailRelatedInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="incomeDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="incomeDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="incomeDetailNoteTitle">备注</h2>
+            </div>
+            <div id="incomeDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="incomeDetailSettlementTitle">
+            <div class="section-heading">
+              <h2 id="incomeDetailSettlementTitle">学生月度结算参考</h2>
+              <p class="section-note">以下为按学生、结算月份、业务归属匹配到的学生月度结算快照参考，不用于本页重新计算收入或结算收款金额。</p>
+            </div>
+            <div id="incomeDetailSettlements" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="incomeDetailTransactionTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="incomeDetailTransactionTitle">账户流水参考</h2>
+                <p class="section-note">以下为关联账户流水参考，不用于本页重新计算收入金额或账户余额。</p>
+              </div>
+              <span id="incomeDetailTransactionCount" class="record-count">0 条</span>
+            </div>
+            <div id="incomeDetailTransactionEmpty" class="state-text is-hidden">无关联账户流水。</div>
+            <div class="table-scroll">
+              <table class="payment-table income-table">
+                <thead>
+                  <tr>
+                    <th>交易日期</th>
+                    <th>交易类型</th>
+                    <th>账户</th>
+                    <th>币种</th>
+                    <th class="number-cell">金额</th>
+                    <th class="number-cell">余额</th>
+                    <th>related_table</th>
+                    <th>related_id</th>
+                    <th>描述</th>
+                    <th>备注</th>
+                    <th>创建时间</th>
+                  </tr>
+                </thead>
+                <tbody id="incomeDetailTransactionRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/income-detail-app.js?v=v2.18.0-income-detail-readonly-20260603"></script>
+  </body>
+</html>

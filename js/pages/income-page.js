@@ -270,6 +270,7 @@ function renderIncomeRecords(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
+      <td><a class="table-action-button" href="./income-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
       <td class="income-nowrap">${escapeHtml(formatDateOnly(row.income_date))}</td>
       <td class="income-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td class="income-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
