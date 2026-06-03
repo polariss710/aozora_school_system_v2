@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchIncomeLookups, fetchIncomeRecords } from "../api/income-api.js";
+import { createIncomeRecord, fetchIncomeLookups, fetchIncomeRecords } from "../api/income-api.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -44,6 +44,7 @@ let businessEntities = [];
 let accounts = [];
 let incomeRecords = [];
 let loadedMonth = "";
+let isCreateSubmitting = false;
 
 export function initIncomePage() {
   cacheDom();
@@ -83,6 +84,25 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#incomeLoadingState");
   dom.emptyState = document.querySelector("#incomeEmptyState");
   dom.incomeCount = document.querySelector("#incomeCount");
+  dom.openCreateIncomeButton = document.querySelector("#openCreateIncomeButton");
+  dom.createIncomeDialog = document.querySelector("#createIncomeDialog");
+  dom.createIncomeError = document.querySelector("#createIncomeError");
+  dom.createIncomeDateInput = document.querySelector("#createIncomeDateInput");
+  dom.createSettlementMonthInput = document.querySelector("#createSettlementMonthInput");
+  dom.createIncomeBusinessEntitySelect = document.querySelector("#createIncomeBusinessEntitySelect");
+  dom.createIncomeStudentSelect = document.querySelector("#createIncomeStudentSelect");
+  dom.createIncomeAccountSelect = document.querySelector("#createIncomeAccountSelect");
+  dom.createIncomeCurrencyInput = document.querySelector("#createIncomeCurrencyInput");
+  dom.createIncomeAmountInput = document.querySelector("#createIncomeAmountInput");
+  dom.createIncomePaymentMethodSelect = document.querySelector("#createIncomePaymentMethodSelect");
+  dom.createIncomeDescriptionInput = document.querySelector("#createIncomeDescriptionInput");
+  dom.createIncomeExchangeRateInput = document.querySelector("#createIncomeExchangeRateInput");
+  dom.createIncomeTaxableSelect = document.querySelector("#createIncomeTaxableSelect");
+  dom.createIncomeTaxCategoryInput = document.querySelector("#createIncomeTaxCategoryInput");
+  dom.createIncomeReceiptStatusInput = document.querySelector("#createIncomeReceiptStatusInput");
+  dom.createIncomeNoteInput = document.querySelector("#createIncomeNoteInput");
+  dom.createIncomeSubmitButton = document.querySelector("#createIncomeSubmitButton");
+  dom.createIncomeCancelButton = document.querySelector("#createIncomeCancelButton");
 }
 
 function bindEvents() {
@@ -95,6 +115,39 @@ function bindEvents() {
     setDefaultFilters();
     applyQuery();
   });
+
+  dom.openCreateIncomeButton.addEventListener("click", openCreateIncomeDialog);
+  dom.createIncomeCancelButton.addEventListener("click", closeCreateIncomeDialog);
+  dom.createIncomeSubmitButton.addEventListener("click", submitCreateIncome);
+  dom.createIncomeBusinessEntitySelect.addEventListener("change", () => {
+    renderCreateStudentOptions();
+    renderCreateAccountOptions();
+    updateCreateCurrency();
+    clearCreateFieldInvalid("businessEntity");
+    hideCreateErrorIfClean();
+  });
+  dom.createIncomeStudentSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("student");
+    hideCreateErrorIfClean();
+  });
+  dom.createIncomeAccountSelect.addEventListener("change", () => {
+    updateCreateCurrency();
+    clearCreateFieldInvalid("account");
+    hideCreateErrorIfClean();
+  });
+
+  for (const [input, fieldId] of [
+    [dom.createIncomeDateInput, "incomeDate"],
+    [dom.createSettlementMonthInput, "settlementMonth"],
+    [dom.createIncomeAmountInput, "amount"],
+    [dom.createIncomePaymentMethodSelect, "paymentMethod"],
+    [dom.createIncomeExchangeRateInput, "exchangeRate"],
+  ]) {
+    input.addEventListener("input", () => {
+      clearCreateFieldInvalid(fieldId);
+      hideCreateErrorIfClean();
+    });
+  }
 }
 
 function setDefaultFilters() {
@@ -294,6 +347,321 @@ function renderIncomeRecords(rows) {
   `).join("");
 }
 
+function openCreateIncomeDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  clearCreateErrors();
+  setCreateSubmitting(false);
+
+  const filters = readFilters();
+  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
+  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const defaultStudentId = filters?.studentId || "";
+  const defaultAccountId = filters?.accountId || "";
+
+  dom.createIncomeDateInput.value = currentDate();
+  dom.createSettlementMonthInput.value = filters?.month || currentYearMonth();
+  dom.createIncomeAmountInput.value = "";
+  dom.createIncomePaymentMethodSelect.value = "";
+  dom.createIncomeDescriptionInput.value = "";
+  dom.createIncomeExchangeRateInput.value = "";
+  dom.createIncomeTaxableSelect.value = "false";
+  dom.createIncomeTaxCategoryInput.value = "売上";
+  dom.createIncomeReceiptStatusInput.value = "待确认";
+  dom.createIncomeNoteInput.value = "";
+
+  renderCreateBusinessEntityOptions(activeBusinessEntities);
+  dom.createIncomeBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
+    ? defaultBusinessEntityId
+    : "";
+
+  renderCreateStudentOptions();
+  dom.createIncomeStudentSelect.value = filteredCreateStudents().some((student) => student.id === defaultStudentId)
+    ? defaultStudentId
+    : "";
+
+  renderCreateAccountOptions();
+  dom.createIncomeAccountSelect.value = filteredCreateAccounts().some((account) => account.id === defaultAccountId)
+    ? defaultAccountId
+    : "";
+  updateCreateCurrency();
+
+  dom.createIncomeDialog.classList.remove("is-hidden");
+  dom.createIncomeDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeCreateIncomeDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  dom.createIncomeDialog.classList.add("is-hidden");
+  dom.createIncomeDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateIncome() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = readCreateIncomePayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    const result = await createIncomeRecord(payload);
+    setCreateSubmitting(false);
+    closeCreateIncomeDialog();
+    await refreshCurrentIncomeList();
+    showIncomeCreateSuccess(result);
+  } catch (error) {
+    console.error(error);
+    showCreateError(`新增收入失败：${error.message || error}`, createFieldIdsForError(error.message || ""));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
+function readCreateIncomePayload() {
+  const incomeDate = dom.createIncomeDateInput.value;
+  if (!incomeDate) {
+    showCreateError("请选择实际收款日期。", ["incomeDate"]);
+    return null;
+  }
+
+  const settlementMonth = dom.createSettlementMonthInput.value;
+  if (!settlementMonth || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(settlementMonth)) {
+    showCreateError("结算月份格式无效。", ["settlementMonth"]);
+    return null;
+  }
+
+  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
+  if (!businessEntityId) {
+    showCreateError("请选择业务归属。", ["businessEntity"]);
+    return null;
+  }
+
+  const studentId = dom.createIncomeStudentSelect.value;
+  if (!studentId) {
+    showCreateError("请选择学生。", ["student"]);
+    return null;
+  }
+
+  const accountId = dom.createIncomeAccountSelect.value;
+  if (!accountId) {
+    showCreateError("请选择入账账户。", ["account"]);
+    return null;
+  }
+
+  const account = accounts.find((item) => item.id === accountId);
+  if (!account || account.is_active !== true || account.app_type !== "school") {
+    showCreateError("入账账户无效或已停用。", ["account"]);
+    return null;
+  }
+
+  if (account.business_entity_id !== businessEntityId) {
+    showCreateError("入账账户与业务归属不一致。", ["account"]);
+    return null;
+  }
+
+  if (!account.currency) {
+    showCreateError("入账账户缺少币种。", ["account"]);
+    return null;
+  }
+
+  const amount = Number(dom.createIncomeAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showCreateError("收入金额必须大于 0。", ["amount"]);
+    return null;
+  }
+
+  const paymentMethod = dom.createIncomePaymentMethodSelect.value;
+  if (!paymentMethod) {
+    showCreateError("请选择收款方式。", ["paymentMethod"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.createIncomeExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showCreateError("汇率必须大于 0。", ["exchangeRate"]);
+    return null;
+  }
+
+  return {
+    incomeDate,
+    settlementMonth,
+    businessEntityId,
+    studentId,
+    accountId,
+    amount,
+    currency: account.currency,
+    paymentCurrency: account.currency,
+    exchangeRate,
+    paymentMethod,
+    description: dom.createIncomeDescriptionInput.value.trim(),
+    isTaxableIncome: dom.createIncomeTaxableSelect.value === "true",
+    taxCategory: dom.createIncomeTaxCategoryInput.value.trim(),
+    receiptStatus: dom.createIncomeReceiptStatusInput.value.trim(),
+    note: dom.createIncomeNoteInput.value.trim(),
+  };
+}
+
+async function refreshCurrentIncomeList() {
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  await loadIncomeMonth(filters.month);
+  restoreFilterSelections(filters);
+  applyCurrentFilters();
+}
+
+function showIncomeCreateSuccess(result) {
+  const incomeId = result?.income_id;
+  dom.messageArea.className = "message message-success";
+  if (incomeId) {
+    dom.messageArea.innerHTML = `收入已新增并自动入账。<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看详情</a>`;
+  } else {
+    dom.messageArea.textContent = "收入已新增并自动入账。";
+  }
+}
+
+function renderCreateBusinessEntityOptions(rows) {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of rows) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessEntityName(entity))}</option>`);
+  }
+  dom.createIncomeBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function renderCreateStudentOptions() {
+  const selectedValue = dom.createIncomeStudentSelect.value;
+  const options = ['<option value="">请选择学生</option>'];
+  for (const student of filteredCreateStudents()) {
+    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
+  }
+  dom.createIncomeStudentSelect.innerHTML = options.join("");
+  if (filteredCreateStudents().some((student) => student.id === selectedValue)) {
+    dom.createIncomeStudentSelect.value = selectedValue;
+  }
+}
+
+function renderCreateAccountOptions() {
+  const selectedValue = dom.createIncomeAccountSelect.value;
+  const options = ['<option value="">请选择入账账户</option>'];
+  for (const account of filteredCreateAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(createAccountLabel(account))}</option>`);
+  }
+  dom.createIncomeAccountSelect.innerHTML = options.join("");
+  if (filteredCreateAccounts().some((account) => account.id === selectedValue)) {
+    dom.createIncomeAccountSelect.value = selectedValue;
+  }
+}
+
+function filteredCreateStudents() {
+  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
+  return students.filter((student) => {
+    if (businessEntityId && student.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+  });
+}
+
+function filteredCreateAccounts() {
+  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
+  return accounts.filter((account) => {
+    if (account.is_active !== true || account.app_type !== "school") {
+      return false;
+    }
+
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function createAccountLabel(account) {
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+  ].filter(Boolean).join(" / ");
+}
+
+function updateCreateCurrency() {
+  const account = accounts.find((item) => item.id === dom.createIncomeAccountSelect.value);
+  dom.createIncomeCurrencyInput.value = account?.currency || "";
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createIncomeSubmitButton.disabled = isSubmitting;
+  dom.createIncomeCancelButton.disabled = isSubmitting;
+  dom.createIncomeSubmitButton.textContent = isSubmitting ? "保存中..." : "保存收入";
+}
+
+function clearCreateErrors() {
+  dom.createIncomeError.textContent = "";
+  dom.createIncomeError.classList.add("is-hidden");
+  for (const fieldId of ["incomeDate", "settlementMonth", "businessEntity", "student", "account", "amount", "paymentMethod", "exchangeRate"]) {
+    clearCreateFieldInvalid(fieldId);
+  }
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createIncomeError.textContent = message;
+  dom.createIncomeError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreateFieldInvalid(fieldId, true);
+  }
+}
+
+function createFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("金额")) fields.push("amount");
+  if (text.includes("收款日期")) fields.push("incomeDate");
+  if (text.includes("结算月份") || text.includes("已锁定")) fields.push("settlementMonth");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("学生")) fields.push("student");
+  if (text.includes("账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("汇率")) fields.push("exchangeRate");
+  return fields;
+}
+
+function setCreateFieldInvalid(fieldId, invalid) {
+  const field = dom.createIncomeDialog.querySelector(`[data-create-income-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  setCreateFieldInvalid(fieldId, false);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createIncomeDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.createIncomeError.textContent = "";
+    dom.createIncomeError.classList.add("is-hidden");
+  }
+}
+
 function filterIncomeRecords(rows, filters) {
   return rows.filter((row) => {
     if (filters.studentId && row.student_id !== filters.studentId) {
@@ -440,6 +808,14 @@ function booleanLabel(value) {
 
 function formatDateOnly(value) {
   return safeText(value) || "-";
+}
+
+function currentDate() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function displayValue(value) {

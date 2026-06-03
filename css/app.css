@@ -259,6 +259,15 @@ h2 {
   justify-content: flex-end;
 }
 
+.table-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .student-filter-actions,
 .income-filter-actions,
 .expense-filter-actions,

@@ -41,6 +41,39 @@ export async function fetchIncomeRecords(month) {
   return data || [];
 }
 
+export async function createIncomeRecord(payload) {
+  const { data, error } = await supabase.rpc("school_create_income_record", {
+    p_income_date: payload.incomeDate,
+    p_settlement_month: payload.settlementMonth,
+    p_business_entity_id: payload.businessEntityId,
+    p_student_id: payload.studentId,
+    p_account_id: payload.accountId,
+    p_amount: payload.amount,
+    p_income_category: "tuition",
+    p_description: payload.description || null,
+    p_currency: payload.currency,
+    p_payment_currency: payload.paymentCurrency,
+    p_exchange_rate: payload.exchangeRate || null,
+    p_payment_method: payload.paymentMethod || null,
+    p_is_taxable_income: Boolean(payload.isTaxableIncome),
+    p_tax_category: payload.taxCategory || null,
+    p_receipt_status: payload.receiptStatus || null,
+    p_include_in_student_settlement: true,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("收入新增成功，但 RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function fetchIncomeLookups() {
   const [studentsResult, businessEntitiesResult, accountsResult] = await Promise.all([
     supabase
@@ -55,7 +88,7 @@ export async function fetchIncomeLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")
-      .select("id,account_code,name,currency,is_active,app_type")
+      .select("id,account_code,name,currency,business_entity_id,current_balance,is_active,app_type")
       .eq("app_type", "school")
       .order("currency", { ascending: true })
       .order("name", { ascending: true }),

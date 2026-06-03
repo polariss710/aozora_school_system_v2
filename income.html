@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.20.0-lesson-detail-readonly-20260603">
+    <link rel="stylesheet" href="./css/app.css?v=v2.21.6-income-create-frontend-20260603">
   </head>
   <body>
     <div class="app-shell">
@@ -127,7 +127,10 @@
               <h2 id="incomeListTitle">收入记录</h2>
               <p class="section-note">本页显示已登记收入记录，只读查看；不代表学生月度结算实时预览，不从结算快照或账户流水反推金额。</p>
             </div>
-            <span id="incomeCount" class="record-count">0 条</span>
+            <div class="table-actions">
+              <button class="button button-primary" id="openCreateIncomeButton" type="button">新增收入</button>
+              <span id="incomeCount" class="record-count">0 条</span>
+            </div>
           </div>
 
           <div id="incomeLoadingState" class="state-text is-hidden">正在加载收入记录...</div>
@@ -165,6 +168,102 @@
       </main>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v2.20.0-lesson-detail-readonly-20260603"></script>
+    <div id="createIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createIncomeTitle">
+        <div class="section-heading">
+          <h2 id="createIncomeTitle">新增学费收入</h2>
+          <p class="section-note">新增后会通过 RPC 自动写入收入记录、账户余额和账户流水；第一版仅支持已收款学费收入。</p>
+        </div>
+
+        <div id="createIncomeError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-create-income-field="incomeDate">
+          <span>收款日期</span>
+          <input id="createIncomeDateInput" type="date">
+        </label>
+
+        <label class="field" data-create-income-field="settlementMonth">
+          <span>结算归属月份</span>
+          <input id="createSettlementMonthInput" type="month">
+        </label>
+
+        <label class="field" data-create-income-field="businessEntity">
+          <span>业务归属</span>
+          <select id="createIncomeBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-create-income-field="student">
+          <span>学生</span>
+          <select id="createIncomeStudentSelect"></select>
+        </label>
+
+        <label class="field" data-create-income-field="account">
+          <span>入账账户</span>
+          <select id="createIncomeAccountSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>账户币种</span>
+          <input id="createIncomeCurrencyInput" type="text" readonly>
+        </label>
+
+        <label class="field" data-create-income-field="amount">
+          <span>金额</span>
+          <input id="createIncomeAmountInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-create-income-field="paymentMethod">
+          <span>收款方式</span>
+          <select id="createIncomePaymentMethodSelect">
+            <option value="">请选择收款方式</option>
+            <option value="cash">现金</option>
+            <option value="bank_transfer">银行转账</option>
+            <option value="alipay">支付宝</option>
+            <option value="wechat">微信</option>
+            <option value="card">银行卡</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>描述</span>
+          <input id="createIncomeDescriptionInput" type="text" autocomplete="off" placeholder="学费收入">
+        </label>
+
+        <label class="field" data-create-income-field="exchangeRate">
+          <span>汇率</span>
+          <input id="createIncomeExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal" placeholder="可选">
+        </label>
+
+        <label class="field">
+          <span>课税区分</span>
+          <select id="createIncomeTaxableSelect">
+            <option value="false">非课税</option>
+            <option value="true">课税</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>税务分类</span>
+          <input id="createIncomeTaxCategoryInput" type="text" autocomplete="off" placeholder="売上">
+        </label>
+
+        <label class="field">
+          <span>收据状态</span>
+          <input id="createIncomeReceiptStatusInput" type="text" autocomplete="off" placeholder="待确认">
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="createIncomeNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createIncomeSubmitButton" type="button">保存收入</button>
+          <button class="button" id="createIncomeCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/income-app.js?v=v2.21.6-income-create-frontend-20260603"></script>
   </body>
 </html>
