@@ -274,6 +274,7 @@ function renderLessonRecords(records) {
 
   dom.tableBody.innerHTML = records.map((record) => `
     <tr>
+      <td class="lesson-nowrap"><a class="table-action-button" href="./lesson-detail.html?id=${encodeURIComponent(record.id)}">详情</a></td>
       <td class="lesson-nowrap">${escapeHtml(formatDateOnly(record.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatWeekday(record.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatTimeRange(record.start_time, record.end_time))}</td>

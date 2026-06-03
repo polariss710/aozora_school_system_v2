@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountPage } from "./pages/account-page.js?v=v2.19.0-account-transaction-detail-readonly-20260603";
+import { initAccountPage } from "./pages/account-page.js?v=v2.20.0-lesson-detail-readonly-20260603";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

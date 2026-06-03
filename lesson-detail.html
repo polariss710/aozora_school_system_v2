@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 课时详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.20.0-lesson-detail-readonly-20260603">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>课时详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a class="is-active" href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="lessonDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="lessonDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="lessonDetailPageTitle">详情</h2>
+              <p class="section-note">本页为课时记录来源追踪只读详情。课时记录是原始记录，不代表学生月度结算口径或老师工资结算口径。本页仅展示来源链和关联快照参考，不重新计算结算、工资或补课归属。</p>
+            </div>
+            <a class="button" href="./lesson.html">返回课时管理</a>
+          </div>
+        </section>
+
+        <div id="lessonDetailLoadingState" class="state-text is-hidden">正在加载课时详情...</div>
+
+        <section id="lessonDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="lessonDetailTitle">
+            <div class="section-heading">
+              <h2 id="lessonDetailTitle">课时摘要</h2>
+              <p id="lessonDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>课时基本信息</h3>
+                <div id="lessonDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>关联对象</h3>
+                <div id="lessonDetailObjectInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>计费信息</h3>
+                <div id="lessonDetailBillingInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>导入 / 系统信息</h3>
+                <div id="lessonDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="lessonDetailTextTitle">
+            <div class="section-heading">
+              <h2 id="lessonDetailTextTitle">内容 / 备注</h2>
+            </div>
+            <div id="lessonDetailTextBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="lessonDetailChainTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="lessonDetailChainTitle">planned / actual / makeup 来源链</h2>
+                <p class="section-note">以下为 planned / actual / makeup 来源链参考，不用于重新判断补课归属或结算状态。表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="lessonDetailChainCount" class="record-count">0 条</span>
+            </div>
+            <div id="lessonDetailChainEmpty" class="state-text is-hidden">无关联来源链记录。</div>
+            <div class="table-scroll">
+              <table class="payment-table lesson-detail-chain-table">
+                <thead>
+                  <tr>
+                    <th>详情</th>
+                    <th>关系</th>
+                    <th>短 ID</th>
+                    <th>类型</th>
+                    <th>状态</th>
+                    <th>日期</th>
+                    <th>时间</th>
+                    <th>时长</th>
+                    <th>实际分钟</th>
+                    <th>计费</th>
+                    <th>课时费</th>
+                    <th>planned ID</th>
+                    <th>内容</th>
+                  </tr>
+                </thead>
+                <tbody id="lessonDetailChainRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="lessonDetailSettlementTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="lessonDetailSettlementTitle">学生月度结算参考</h2>
+                <p class="section-note">该区域只显示按学生、月份、业务归属匹配到的结算快照参考，不用于重新计算本课时的学生结算归属。</p>
+              </div>
+              <span id="lessonDetailSettlementCount" class="record-count">0 条</span>
+            </div>
+            <div id="lessonDetailSettlementEmpty" class="state-text is-hidden">无关联学生月度结算快照。</div>
+            <div id="lessonDetailSettlementCards" class="detail-list"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="lessonDetailWageTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="lessonDetailWageTitle">老师工资结算参考</h2>
+                <p class="section-note">该区域只显示已保存工资锁定明细参考，不用于重新计算老师工资。表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="lessonDetailWageCount" class="record-count">0 条</span>
+            </div>
+            <div id="lessonDetailWageEmpty" class="state-text is-hidden">无关联老师工资锁定明细。</div>
+            <div class="table-scroll">
+              <table class="payment-table lesson-detail-wage-table">
+                <thead>
+                  <tr>
+                    <th>工资详情</th>
+                    <th>wage lock</th>
+                    <th>锁定状态</th>
+                    <th>结算月</th>
+                    <th>老师</th>
+                    <th>支付小时</th>
+                    <th>课时工资 JPY</th>
+                    <th>课时工资 CNY</th>
+                    <th>交通费 JPY</th>
+                    <th>教室费 JPY</th>
+                    <th>合计 JPY</th>
+                    <th>合计 CNY</th>
+                    <th>明细状态</th>
+                    <th>结算类型</th>
+                    <th>汇率</th>
+                  </tr>
+                </thead>
+                <tbody id="lessonDetailWageRows"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/lesson-detail-app.js?v=v2.20.0-lesson-detail-readonly-20260603"></script>
+  </body>
+</html>

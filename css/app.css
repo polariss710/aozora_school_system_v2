@@ -722,11 +722,19 @@ h2 {
 }
 
 .lesson-table {
-  min-width: 1560px;
+  min-width: 1660px;
 }
 
 .settlement-table {
   min-width: 1700px;
+}
+
+.lesson-detail-chain-table {
+  min-width: 1600px;
+}
+
+.lesson-detail-wage-table {
+  min-width: 1880px;
 }
 
 .settlement-detail-lesson-table {
@@ -953,7 +961,8 @@ h2 {
 }
 
 .settlement-detail-lesson-table .settlement-detail-text-cell,
-.settlement-detail-income-table .settlement-detail-text-cell {
+.settlement-detail-income-table .settlement-detail-text-cell,
+.lesson-detail-chain-table .lesson-content-cell {
   width: 260px;
   min-width: 260px;
   max-width: 260px;
