@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.21.6-income-create-frontend-20260603">
+    <link rel="stylesheet" href="./css/app.css?v=v2.21.7-income-create-dialog-layout-20260604">
   </head>
   <body>
     <div class="app-shell">
@@ -169,7 +169,7 @@
     </div>
 
     <div id="createIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createIncomeTitle">
+      <section class="dialog-panel income-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createIncomeTitle">
         <div class="section-heading">
           <h2 id="createIncomeTitle">新增学费收入</h2>
           <p class="section-note">新增后会通过 RPC 自动写入收入记录、账户余额和账户流水；第一版仅支持已收款学费收入。</p>
@@ -177,6 +177,7 @@
 
         <div id="createIncomeError" class="dialog-error is-hidden"></div>
 
+        <div class="income-create-field-grid">
         <label class="field" data-create-income-field="incomeDate">
           <span>收款日期</span>
           <input id="createIncomeDateInput" type="date">
@@ -224,7 +225,7 @@
           </select>
         </label>
 
-        <label class="field">
+        <label class="field income-create-wide-field">
           <span>描述</span>
           <input id="createIncomeDescriptionInput" type="text" autocomplete="off" placeholder="学费收入">
         </label>
@@ -252,10 +253,11 @@
           <input id="createIncomeReceiptStatusInput" type="text" autocomplete="off" placeholder="待确认">
         </label>
 
-        <label class="field">
+        <label class="field income-create-wide-field">
           <span>备注</span>
           <textarea id="createIncomeNoteInput" rows="3"></textarea>
         </label>
+        </div>
 
         <div class="dialog-actions">
           <button class="button button-primary" id="createIncomeSubmitButton" type="button">保存收入</button>
@@ -264,6 +266,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v2.21.6-income-create-frontend-20260603"></script>
+    <script type="module" src="./js/income-app.js?v=v2.21.7-income-create-dialog-layout-20260604"></script>
   </body>
 </html>

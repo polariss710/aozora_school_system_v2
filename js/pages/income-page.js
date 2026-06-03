@@ -628,6 +628,7 @@ function showCreateError(message, fieldIds = []) {
   for (const fieldId of fieldIds) {
     setCreateFieldInvalid(fieldId, true);
   }
+  dom.createIncomeDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function createFieldIdsForError(message) {

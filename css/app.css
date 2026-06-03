@@ -1092,6 +1092,26 @@ h2 {
   margin-top: 12px;
 }
 
+.income-create-dialog-panel {
+  width: min(820px, 100%);
+}
+
+.income-create-dialog-panel .dialog-error {
+  position: sticky;
+  top: -1px;
+  z-index: 1;
+}
+
+.income-create-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.income-create-wide-field {
+  grid-column: 1 / -1;
+}
+
 .dialog-summary {
   display: grid;
   gap: 8px;
@@ -1284,6 +1304,10 @@ h2 {
     width: calc(100vw - 24px);
     min-width: 0;
     padding: 16px;
+  }
+
+  .income-create-field-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .dialog-actions {
