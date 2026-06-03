@@ -75,21 +75,59 @@ export async function fetchExpensePaymentRequests(expenseIds) {
   return data || [];
 }
 
+export async function createExpenseRecord(payload) {
+  const { data, error } = await supabase.rpc("school_create_expense_record", {
+    p_expense_date: payload.expenseDate,
+    p_business_entity_id: payload.businessEntityId,
+    p_account_id: payload.accountId,
+    p_expense_category: payload.expenseCategory,
+    p_description: payload.description,
+    p_currency: payload.currency,
+    p_amount: payload.amount,
+    p_exchange_rate: payload.exchangeRate || null,
+    p_payment_method: payload.paymentMethod || null,
+    p_is_business_expense: Boolean(payload.isBusinessExpense),
+    p_tax_category: payload.taxCategory || null,
+    p_receipt_status: payload.receiptStatus || null,
+    p_reimbursement_status: payload.reimbursementStatus || null,
+    p_teacher_id: payload.teacherId || null,
+    p_student_id: payload.studentId || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("支出新增成功，但 RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function fetchExpenseLookups() {
-  const [businessEntitiesResult, accountsResult, teachersResult] = await Promise.all([
+  const [businessEntitiesResult, accountsResult, teachersResult, studentsResult] = await Promise.all([
     supabase
       .from("school_business_entities")
       .select("id,name,is_active")
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")
-      .select("id,account_code,name,currency,is_active,app_type")
+      .select("id,account_code,name,currency,business_entity_id,current_balance,is_company_account,is_active,app_type")
       .eq("app_type", "school")
       .order("currency", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("school_teachers")
       .select("id,name,display_name,status,default_business_entity_id")
+      .eq("app_type", "school")
+      .order("display_name", { ascending: true })
+      .order("name", { ascending: true }),
+    supabase
+      .from("school_students")
+      .select("id,name,display_name,status,business_entity_id,app_type")
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),
@@ -107,9 +145,14 @@ export async function fetchExpenseLookups() {
     throw teachersResult.error;
   }
 
+  if (studentsResult.error) {
+    throw studentsResult.error;
+  }
+
   return {
     businessEntities: businessEntitiesResult.data || [],
     accounts: accountsResult.data || [],
     teachers: teachersResult.data || [],
+    students: studentsResult.data || [],
   };
 }

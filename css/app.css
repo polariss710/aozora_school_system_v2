@@ -1092,23 +1092,27 @@ h2 {
   margin-top: 12px;
 }
 
-.income-create-dialog-panel {
+.income-create-dialog-panel,
+.expense-create-dialog-panel {
   width: min(820px, 100%);
 }
 
-.income-create-dialog-panel .dialog-error {
+.income-create-dialog-panel .dialog-error,
+.expense-create-dialog-panel .dialog-error {
   position: sticky;
   top: -1px;
   z-index: 1;
 }
 
-.income-create-field-grid {
+.income-create-field-grid,
+.expense-create-field-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 14px;
 }
 
-.income-create-wide-field {
+.income-create-wide-field,
+.expense-create-wide-field {
   grid-column: 1 / -1;
 }
 
@@ -1306,7 +1310,8 @@ h2 {
     padding: 16px;
   }
 
-  .income-create-field-grid {
+  .income-create-field-grid,
+  .expense-create-field-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

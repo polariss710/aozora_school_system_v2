@@ -1,6 +1,7 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createExpenseRecord,
   fetchExpenseLookups,
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
@@ -36,15 +37,18 @@ const EXPENSE_CATEGORY_LABELS = {
   advertising: "广告宣传",
   classroom: "教室费用",
   other: "其他",
-  software: "软件服务",
+  software: "软件 / 系统",
   tax_accounting: "税务会计",
   teacher_wage: "老师工资",
 };
 
 const PAYMENT_METHOD_LABELS = {
+  alipay: "支付宝",
   bank: "银行",
   bank_transfer: "银行转账",
   card: "银行卡",
+  cash: "现金",
+  wechat: "微信",
 };
 
 const REIMBURSEMENT_STATUS_LABELS = {
@@ -71,13 +75,39 @@ const WAGE_PAYMENT_STATUS_FILTER_OPTIONS = [
   ["unlinked", "未关联"],
 ];
 
+const CREATE_EXPENSE_CATEGORY_OPTIONS = [
+  "classroom",
+  "other",
+  "tax_accounting",
+  "advertising",
+  "software",
+];
+
+const CREATE_RECEIPT_STATUS_OPTIONS = ["有", "无需收据", "待确认"];
+const CREATE_REIMBURSEMENT_STATUS_OPTIONS = ["not_required", "pending"];
+const CREATE_EXPENSE_FIELD_IDS = [
+  "expenseDate",
+  "businessEntity",
+  "account",
+  "expenseCategory",
+  "description",
+  "amount",
+  "receiptStatus",
+  "reimbursementStatus",
+  "teacher",
+  "student",
+  "exchangeRate",
+];
+
 const dom = {};
 let businessEntities = [];
 let accounts = [];
 let teachers = [];
+let students = [];
 let expenseRecords = [];
 let paymentRequestsByExpenseId = new Map();
 let loadedMonth = "";
+let isCreateSubmitting = false;
 
 export function initExpensePage() {
   cacheDom();
@@ -119,6 +149,27 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#expenseLoadingState");
   dom.emptyState = document.querySelector("#expenseEmptyState");
   dom.expenseCount = document.querySelector("#expenseCount");
+  dom.openCreateExpenseButton = document.querySelector("#openCreateExpenseButton");
+  dom.createExpenseDialog = document.querySelector("#createExpenseDialog");
+  dom.createExpenseError = document.querySelector("#createExpenseError");
+  dom.createExpenseDateInput = document.querySelector("#createExpenseDateInput");
+  dom.createExpenseBusinessEntitySelect = document.querySelector("#createExpenseBusinessEntitySelect");
+  dom.createExpenseAccountSelect = document.querySelector("#createExpenseAccountSelect");
+  dom.createExpenseCurrencyInput = document.querySelector("#createExpenseCurrencyInput");
+  dom.createExpenseCategorySelect = document.querySelector("#createExpenseCategorySelect");
+  dom.createExpenseAmountInput = document.querySelector("#createExpenseAmountInput");
+  dom.createExpenseDescriptionInput = document.querySelector("#createExpenseDescriptionInput");
+  dom.createExpensePaymentMethodSelect = document.querySelector("#createExpensePaymentMethodSelect");
+  dom.createExpenseReceiptStatusSelect = document.querySelector("#createExpenseReceiptStatusSelect");
+  dom.createExpenseReimbursementStatusSelect = document.querySelector("#createExpenseReimbursementStatusSelect");
+  dom.createExpenseBusinessExpenseSelect = document.querySelector("#createExpenseBusinessExpenseSelect");
+  dom.createExpenseTaxCategoryInput = document.querySelector("#createExpenseTaxCategoryInput");
+  dom.createExpenseTeacherSelect = document.querySelector("#createExpenseTeacherSelect");
+  dom.createExpenseStudentSelect = document.querySelector("#createExpenseStudentSelect");
+  dom.createExpenseExchangeRateInput = document.querySelector("#createExpenseExchangeRateInput");
+  dom.createExpenseNoteInput = document.querySelector("#createExpenseNoteInput");
+  dom.createExpenseSubmitButton = document.querySelector("#createExpenseSubmitButton");
+  dom.createExpenseCancelButton = document.querySelector("#createExpenseCancelButton");
 }
 
 function bindEvents() {
@@ -131,6 +182,46 @@ function bindEvents() {
     setDefaultFilters();
     applyQuery();
   });
+
+  dom.openCreateExpenseButton.addEventListener("click", openCreateExpenseDialog);
+  dom.createExpenseCancelButton.addEventListener("click", closeCreateExpenseDialog);
+  dom.createExpenseSubmitButton.addEventListener("click", submitCreateExpense);
+  dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
+    renderCreateAccountOptions();
+    renderCreateTeacherOptions();
+    renderCreateStudentOptions();
+    updateCreateCurrency();
+    updateCreateReimbursementDefault();
+    clearCreateFieldInvalid("businessEntity");
+    hideCreateErrorIfClean();
+  });
+  dom.createExpenseAccountSelect.addEventListener("change", () => {
+    updateCreateCurrency();
+    updateCreateReimbursementDefault();
+    clearCreateFieldInvalid("account");
+    hideCreateErrorIfClean();
+  });
+
+  for (const [input, fieldId] of [
+    [dom.createExpenseDateInput, "expenseDate"],
+    [dom.createExpenseCategorySelect, "expenseCategory"],
+    [dom.createExpenseDescriptionInput, "description"],
+    [dom.createExpenseAmountInput, "amount"],
+    [dom.createExpenseReceiptStatusSelect, "receiptStatus"],
+    [dom.createExpenseReimbursementStatusSelect, "reimbursementStatus"],
+    [dom.createExpenseTeacherSelect, "teacher"],
+    [dom.createExpenseStudentSelect, "student"],
+    [dom.createExpenseExchangeRateInput, "exchangeRate"],
+  ]) {
+    input.addEventListener("input", () => {
+      clearCreateFieldInvalid(fieldId);
+      hideCreateErrorIfClean();
+    });
+    input.addEventListener("change", () => {
+      clearCreateFieldInvalid(fieldId);
+      hideCreateErrorIfClean();
+    });
+  }
 }
 
 function setDefaultFilters() {
@@ -157,6 +248,7 @@ async function loadInitialData() {
     businessEntities = lookups.businessEntities;
     accounts = lookups.accounts;
     teachers = lookups.teachers;
+    students = lookups.students;
     renderMasterOptions();
     await loadExpenseMonth(currentYearMonth());
     applyCurrentFilters();
@@ -165,6 +257,7 @@ async function loadInitialData() {
     businessEntities = [];
     accounts = [];
     teachers = [];
+    students = [];
     expenseRecords = [];
     paymentRequestsByExpenseId = new Map();
     loadedMonth = "";
@@ -357,6 +450,391 @@ function renderExpenseRecords(rows) {
   `).join("");
 }
 
+function openCreateExpenseDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  clearCreateErrors();
+  setCreateSubmitting(false);
+
+  const filters = readFilters();
+  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
+  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const defaultAccountId = filters?.accountId || "";
+  const defaultTeacherId = filters?.teacherId || "";
+
+  dom.createExpenseDateInput.value = currentDate();
+  dom.createExpenseAmountInput.value = "";
+  dom.createExpenseDescriptionInput.value = "";
+  dom.createExpensePaymentMethodSelect.value = "";
+  dom.createExpenseReceiptStatusSelect.value = "待确认";
+  dom.createExpenseBusinessExpenseSelect.value = "true";
+  dom.createExpenseTaxCategoryInput.value = "待确认";
+  dom.createExpenseExchangeRateInput.value = "";
+  dom.createExpenseNoteInput.value = "";
+  renderCreateCategoryOptions();
+
+  renderCreateBusinessEntityOptions(activeBusinessEntities);
+  dom.createExpenseBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
+    ? defaultBusinessEntityId
+    : "";
+
+  renderCreateAccountOptions();
+  dom.createExpenseAccountSelect.value = filteredCreateAccounts().some((account) => account.id === defaultAccountId)
+    ? defaultAccountId
+    : "";
+
+  renderCreateTeacherOptions();
+  dom.createExpenseTeacherSelect.value = filteredCreateTeachers().some((teacher) => teacher.id === defaultTeacherId)
+    ? defaultTeacherId
+    : "";
+
+  renderCreateStudentOptions();
+  updateCreateCurrency();
+  updateCreateReimbursementDefault();
+
+  dom.createExpenseDialog.classList.remove("is-hidden");
+  dom.createExpenseDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeCreateExpenseDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  dom.createExpenseDialog.classList.add("is-hidden");
+  dom.createExpenseDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateExpense() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = readCreateExpensePayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    const result = await createExpenseRecord(payload);
+    setCreateSubmitting(false);
+    closeCreateExpenseDialog();
+    await refreshCurrentExpenseList();
+    showExpenseCreateSuccess(result);
+  } catch (error) {
+    console.error(error);
+    showCreateError(`新增支出失败：${error.message || error}`, createFieldIdsForError(error.message || ""));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
+function readCreateExpensePayload() {
+  const expenseDate = dom.createExpenseDateInput.value;
+  if (!expenseDate) {
+    showCreateError("请选择支出日期。", ["expenseDate"]);
+    return null;
+  }
+
+  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
+  if (!businessEntityId) {
+    showCreateError("请选择业务归属。", ["businessEntity"]);
+    return null;
+  }
+
+  const accountId = dom.createExpenseAccountSelect.value;
+  if (!accountId) {
+    showCreateError("请选择付款账户。", ["account"]);
+    return null;
+  }
+
+  const account = accounts.find((item) => item.id === accountId);
+  if (!account || account.is_active !== true || account.app_type !== "school") {
+    showCreateError("付款账户无效或已停用。", ["account"]);
+    return null;
+  }
+
+  if (account.business_entity_id !== businessEntityId) {
+    showCreateError("付款账户与业务归属不一致。", ["account"]);
+    return null;
+  }
+
+  if (!account.currency) {
+    showCreateError("付款账户缺少币种。", ["account"]);
+    return null;
+  }
+
+  const expenseCategory = dom.createExpenseCategorySelect.value;
+  if (!expenseCategory) {
+    showCreateError("支出分类不能为空。", ["expenseCategory"]);
+    return null;
+  }
+
+  if (expenseCategory === "teacher_wage" || !CREATE_EXPENSE_CATEGORY_OPTIONS.includes(expenseCategory)) {
+    showCreateError("暂不支持该支出分类。", ["expenseCategory"]);
+    return null;
+  }
+
+  const description = dom.createExpenseDescriptionInput.value.trim();
+  if (!description) {
+    showCreateError("支出内容不能为空。", ["description"]);
+    return null;
+  }
+
+  const amount = Number(dom.createExpenseAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showCreateError("支出金额必须大于 0。", ["amount"]);
+    return null;
+  }
+
+  const receiptStatus = dom.createExpenseReceiptStatusSelect.value;
+  if (!CREATE_RECEIPT_STATUS_OPTIONS.includes(receiptStatus)) {
+    showCreateError("收据状态无效。", ["receiptStatus"]);
+    return null;
+  }
+
+  const reimbursementStatus = dom.createExpenseReimbursementStatusSelect.value;
+  if (!CREATE_REIMBURSEMENT_STATUS_OPTIONS.includes(reimbursementStatus)) {
+    showCreateError("报销状态无效。", ["reimbursementStatus"]);
+    return null;
+  }
+
+  const teacherId = dom.createExpenseTeacherSelect.value;
+  if (teacherId && !filteredCreateTeachers().some((teacher) => teacher.id === teacherId)) {
+    showCreateError("老师无效或不可用。", ["teacher"]);
+    return null;
+  }
+
+  const studentId = dom.createExpenseStudentSelect.value;
+  if (studentId && !filteredCreateStudents().some((student) => student.id === studentId)) {
+    showCreateError("学生无效或不可用。", ["student"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.createExpenseExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showCreateError("汇率必须大于 0。", ["exchangeRate"]);
+    return null;
+  }
+
+  return {
+    expenseDate,
+    businessEntityId,
+    accountId,
+    expenseCategory,
+    description,
+    currency: account.currency,
+    amount,
+    exchangeRate,
+    paymentMethod: dom.createExpensePaymentMethodSelect.value,
+    isBusinessExpense: dom.createExpenseBusinessExpenseSelect.value === "true",
+    taxCategory: dom.createExpenseTaxCategoryInput.value.trim(),
+    receiptStatus,
+    reimbursementStatus,
+    teacherId,
+    studentId,
+    note: dom.createExpenseNoteInput.value.trim(),
+  };
+}
+
+async function refreshCurrentExpenseList() {
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  await loadExpenseMonth(filters.month);
+  restoreFilterSelections(filters);
+  applyCurrentFilters();
+}
+
+function showExpenseCreateSuccess(result) {
+  const expenseId = result?.expense_id;
+  dom.messageArea.className = "message message-success";
+  if (expenseId) {
+    dom.messageArea.innerHTML = `支出已新增并自动出账。<a href="${escapeAttribute(expenseDetailUrl(expenseId))}">查看详情</a>`;
+  } else {
+    dom.messageArea.textContent = "支出已新增并自动出账。";
+  }
+}
+
+function renderCreateBusinessEntityOptions(rows) {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of rows) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessEntityName(entity))}</option>`);
+  }
+  dom.createExpenseBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function renderCreateCategoryOptions() {
+  const options = ['<option value="">请选择支出分类</option>'];
+  for (const category of CREATE_EXPENSE_CATEGORY_OPTIONS) {
+    options.push(`<option value="${escapeAttribute(category)}">${escapeHtml(expenseCategoryLabel(category))}</option>`);
+  }
+  dom.createExpenseCategorySelect.innerHTML = options.join("");
+}
+
+function renderCreateAccountOptions() {
+  const selectedValue = dom.createExpenseAccountSelect.value;
+  const options = ['<option value="">请选择付款账户</option>'];
+  for (const account of filteredCreateAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(createAccountLabel(account))}</option>`);
+  }
+  dom.createExpenseAccountSelect.innerHTML = options.join("");
+  if (filteredCreateAccounts().some((account) => account.id === selectedValue)) {
+    dom.createExpenseAccountSelect.value = selectedValue;
+  }
+}
+
+function renderCreateTeacherOptions() {
+  const selectedValue = dom.createExpenseTeacherSelect.value;
+  const options = ['<option value="">不关联老师</option>'];
+  for (const teacher of filteredCreateTeachers()) {
+    options.push(`<option value="${escapeAttribute(teacher.id)}">${escapeHtml(teacherName(teacher))}</option>`);
+  }
+  dom.createExpenseTeacherSelect.innerHTML = options.join("");
+  if (filteredCreateTeachers().some((teacher) => teacher.id === selectedValue)) {
+    dom.createExpenseTeacherSelect.value = selectedValue;
+  }
+}
+
+function renderCreateStudentOptions() {
+  const selectedValue = dom.createExpenseStudentSelect.value;
+  const options = ['<option value="">不关联学生</option>'];
+  for (const student of filteredCreateStudents()) {
+    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
+  }
+  dom.createExpenseStudentSelect.innerHTML = options.join("");
+  if (filteredCreateStudents().some((student) => student.id === selectedValue)) {
+    dom.createExpenseStudentSelect.value = selectedValue;
+  }
+}
+
+function filteredCreateAccounts() {
+  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
+  return accounts.filter((account) => {
+    if (account.is_active !== true || account.app_type !== "school") {
+      return false;
+    }
+
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function filteredCreateTeachers() {
+  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
+  return teachers.filter((teacher) => {
+    if (businessEntityId && teacher.default_business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return teacher.status !== "inactive" && teacher.status !== "disabled" && teacher.status !== "archived";
+  });
+}
+
+function filteredCreateStudents() {
+  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
+  return students.filter((student) => {
+    if (businessEntityId && student.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+  });
+}
+
+function createAccountLabel(account) {
+  const accountKind = account.is_company_account ? "公司账户" : "个人垫付账户";
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+    accountKind,
+  ].filter(Boolean).join(" / ");
+}
+
+function updateCreateCurrency() {
+  const account = accounts.find((item) => item.id === dom.createExpenseAccountSelect.value);
+  dom.createExpenseCurrencyInput.value = account?.currency || "";
+}
+
+function updateCreateReimbursementDefault() {
+  const account = accounts.find((item) => item.id === dom.createExpenseAccountSelect.value);
+  dom.createExpenseReimbursementStatusSelect.value = account?.is_company_account ? "not_required" : "pending";
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createExpenseSubmitButton.disabled = isSubmitting;
+  dom.createExpenseCancelButton.disabled = isSubmitting;
+  dom.createExpenseSubmitButton.textContent = isSubmitting ? "保存中..." : "保存支出";
+}
+
+function clearCreateErrors() {
+  dom.createExpenseError.textContent = "";
+  dom.createExpenseError.classList.add("is-hidden");
+  for (const fieldId of CREATE_EXPENSE_FIELD_IDS) {
+    clearCreateFieldInvalid(fieldId);
+  }
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createExpenseError.textContent = message;
+  dom.createExpenseError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreateFieldInvalid(fieldId, true);
+  }
+  dom.createExpenseDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function createFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("金额")) fields.push("amount");
+  if (text.includes("支出日期")) fields.push("expenseDate");
+  if (text.includes("支出分类") || text.includes("老师工资支出")) fields.push("expenseCategory");
+  if (text.includes("支出内容")) fields.push("description");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("付款账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("汇率")) fields.push("exchangeRate");
+  if (text.includes("老师")) fields.push("teacher");
+  if (text.includes("学生")) fields.push("student");
+  if (text.includes("报销状态")) fields.push("reimbursementStatus");
+  if (text.includes("收据状态")) fields.push("receiptStatus");
+  return fields;
+}
+
+function setCreateFieldInvalid(fieldId, invalid) {
+  const field = dom.createExpenseDialog.querySelector(`[data-create-expense-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  setCreateFieldInvalid(fieldId, false);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createExpenseDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.createExpenseError.textContent = "";
+    dom.createExpenseError.classList.add("is-hidden");
+  }
+}
+
 function filterExpenseRecords(rows, filters) {
   return rows.filter((row) => {
     if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
@@ -528,6 +1006,10 @@ function teacherName(teacher) {
   return safeText(teacher.display_name || teacher.name) || "未设置";
 }
 
+function studentName(student) {
+  return safeText(student.display_name || student.name) || "未设置";
+}
+
 function expenseCategoryLabel(value) {
   return EXPENSE_CATEGORY_LABELS[value] || displayValue(value);
 }
@@ -574,6 +1056,14 @@ function wagePaymentStatusClass(status) {
 
 function formatDateOnly(value) {
   return safeText(value) || "-";
+}
+
+function currentDate() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function displayValue(value) {
