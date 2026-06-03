@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 账户流水详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.19.0-account-transaction-detail-readonly-20260603">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>账户流水详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a class="is-active" href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="accountTransactionDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="accountTransactionDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="accountTransactionDetailPageTitle">详情</h2>
+              <p class="section-note">本页为账户流水只读详情。账户流水是账户余额变化的审计明细，不用于反推收入、支出、报销或支付请求主表。本页不提供新增、编辑、删除、冲销或账户余额重算操作。</p>
+            </div>
+            <a class="button" href="./account.html">返回账户管理</a>
+          </div>
+        </section>
+
+        <div id="accountTransactionDetailLoadingState" class="state-text is-hidden">正在加载账户流水详情...</div>
+
+        <section id="accountTransactionDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="accountTransactionDetailTitle">
+            <div class="section-heading">
+              <h2 id="accountTransactionDetailTitle">流水摘要</h2>
+              <p id="accountTransactionDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>流水基本信息</h3>
+                <div id="accountTransactionDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>金额信息</h3>
+                <div id="accountTransactionDetailAmountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>账户信息</h3>
+                <div id="accountTransactionDetailAccountInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="accountTransactionDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="accountTransactionDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="accountTransactionDetailNoteTitle">备注 / 说明</h2>
+            </div>
+            <div id="accountTransactionDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="accountTransactionDetailSourceTitle">
+            <div class="section-heading">
+              <h2 id="accountTransactionDetailSourceTitle">来源对象参考</h2>
+              <p class="section-note">以下为 related_table / related_id 指向的来源对象参考，不用于反推或修改来源主表。</p>
+            </div>
+            <div id="accountTransactionDetailSource" class="detail-list"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/account-transaction-detail-app.js?v=v2.19.0-account-transaction-detail-readonly-20260603"></script>
+  </body>
+</html>

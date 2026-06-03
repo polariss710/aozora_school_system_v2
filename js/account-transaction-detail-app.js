@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomePage } from "./pages/income-page.js?v=v2.19.0-account-transaction-detail-readonly-20260603";
+import { initAccountTransactionDetailPage } from "./pages/account-transaction-detail-page.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
@@ -10,12 +10,12 @@ document.addEventListener("DOMContentLoaded", () => {
   console.info("[aozora-school-v2]", APP_VERSION);
 
   try {
-    initIncomePage();
+    initAccountTransactionDetailPage();
   } catch (error) {
-    const messageArea = document.querySelector("#incomeMessageArea");
+    const messageArea = document.querySelector("#accountTransactionDetailMessageArea");
     if (messageArea) {
       messageArea.className = "message message-error";
-      messageArea.textContent = `收入记录页面初始化失败：${error.message || error}`;
+      messageArea.textContent = `账户流水详情页面初始化失败：${error.message || error}`;
     }
   }
 });

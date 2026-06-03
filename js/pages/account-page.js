@@ -323,6 +323,7 @@ function renderTransactions(items) {
 
     return `
       <tr>
+        <td><a class="table-action-button" href="./account-transaction-detail.html?id=${encodeURIComponent(item.id)}">详情</a></td>
         <td>${escapeHtml(formatDate(item.transaction_date))}</td>
         <td>${escapeHtml(account?.name || item.account_id || "-")}</td>
         <td>${escapeHtml(businessEntity?.name || item.business_entity_id || "-")}</td>
