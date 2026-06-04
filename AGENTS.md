@@ -28,3 +28,10 @@
 - Schema execution phases may execute schema-only SQL only; do not create RPCs or write business data.
 - Frontend implementation phases may edit only the explicitly allowed frontend/API files; do not edit SQL/RPC files.
 - Every turn output must state whether files changed, whether SQL/RPC was executed, whether the database was written, whether commit/push happened, the current git status, and whether the next step can proceed.
+
+## Prompt Style
+
+- Future task prompts should default to: phase name, goal, focus points, and required output.
+- Do not repeat long background context when `docs/current-status.md` already captures the stable checkpoint.
+- Do not repeat default prohibitions in every prompt; `AGENTS.md` is the source of truth for default guardrails.
+- State explicit allowances only when the current task is an exception to the default guardrails.
