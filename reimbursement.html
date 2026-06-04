@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 报销管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.22.6-expense-create-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.23.9-reimbursement-create-frontend-20260604">
   </head>
   <body>
     <div class="app-shell">
@@ -120,9 +120,12 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="reimbursementListTitle">报销记录</h2>
-              <p class="section-note">本页显示已登记报销记录，只读查看；不从支出记录或账户流水重新计算报销金额，不执行报销支付或账户余额修改。表格可横向滚动查看更多列。</p>
+              <p class="section-note">本页显示已登记报销记录；确认报销会通过 RPC 创建报销记录、关联支出明细和账户流水，不从账户流水反推报销金额。表格可横向滚动查看更多列。</p>
             </div>
-            <span id="reimbursementCount" class="record-count">0 条</span>
+            <div class="table-actions">
+              <button class="button button-primary" id="openCreateReimbursementButton" type="button">确认报销</button>
+              <span id="reimbursementCount" class="record-count">0 条</span>
+            </div>
           </div>
 
           <div id="reimbursementLoadingState" class="state-text is-hidden">正在加载报销记录...</div>
@@ -154,6 +157,97 @@
       </main>
     </div>
 
-    <script type="module" src="./js/reimbursement-app.js?v=v2.22.6-expense-create-frontend-20260604"></script>
+    <div id="createReimbursementDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createReimbursementTitle">
+        <div class="section-heading">
+          <h2 id="createReimbursementTitle">确认报销</h2>
+          <p class="section-note">确认后会通过 RPC 创建报销主表、关联支出明细、两条账户流水，并更新账户余额和支出报销状态。第一版不支持编辑、撤销、部分报销、附件或统计。</p>
+        </div>
+
+        <div id="createReimbursementError" class="dialog-error is-hidden"></div>
+
+        <div class="reimbursement-create-field-grid">
+          <label class="field" data-create-reimbursement-field="reimbursementDate">
+            <span>报销日期</span>
+            <input id="createReimbursementDateInput" type="date">
+          </label>
+
+          <label class="field">
+            <span>候选月份</span>
+            <input id="createReimbursementMonthInput" type="text" readonly>
+          </label>
+
+          <label class="field" data-create-reimbursement-field="fromAccount">
+            <span>出金账户</span>
+            <select id="createReimbursementFromAccountSelect"></select>
+          </label>
+
+          <label class="field" data-create-reimbursement-field="toAccount">
+            <span>入金账户</span>
+            <select id="createReimbursementToAccountSelect"></select>
+          </label>
+
+          <div class="dialog-summary reimbursement-create-wide-field" aria-live="polite">
+            <div class="dialog-summary-row">
+              <span class="dialog-summary-label">已选支出</span>
+              <span id="createReimbursementSelectedCount">0 条</span>
+            </div>
+            <div class="dialog-summary-row">
+              <span class="dialog-summary-label">合计金额</span>
+              <span id="createReimbursementTotalAmount">-</span>
+            </div>
+            <div class="dialog-summary-row">
+              <span class="dialog-summary-label">业务归属</span>
+              <span id="createReimbursementBusinessEntity">-</span>
+            </div>
+            <div class="dialog-summary-row">
+              <span class="dialog-summary-label">币种</span>
+              <span id="createReimbursementCurrency">-</span>
+            </div>
+          </div>
+
+          <section class="reimbursement-create-wide-field" data-create-reimbursement-field="expenses" aria-labelledby="createReimbursementCandidateTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h3 id="createReimbursementCandidateTitle">待报销支出</h3>
+                <p class="section-note">仅显示当前月份中已支付、待报销、非老师工资的普通支出。表格可横向滚动查看更多列。</p>
+              </div>
+              <span id="createReimbursementCandidateCount" class="record-count">0 条</span>
+            </div>
+            <div id="createReimbursementCandidateLoading" class="state-text is-hidden">正在加载待报销支出...</div>
+            <div id="createReimbursementCandidateEmpty" class="state-text is-hidden">当前月份暂无待报销支出。</div>
+            <div class="table-scroll">
+              <table class="payment-table reimbursement-candidate-table">
+                <thead>
+                  <tr>
+                    <th>选择</th>
+                    <th>支出日期</th>
+                    <th>分类</th>
+                    <th>描述</th>
+                    <th>账户</th>
+                    <th>金额</th>
+                    <th>币种</th>
+                    <th>详情</th>
+                  </tr>
+                </thead>
+                <tbody id="createReimbursementCandidateRows"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <label class="field reimbursement-create-wide-field">
+            <span>备注</span>
+            <textarea id="createReimbursementNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createReimbursementSubmitButton" type="button">确认报销</button>
+          <button class="button" id="createReimbursementCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/reimbursement-app.js?v=v2.23.9-reimbursement-create-frontend-20260604"></script>
   </body>
 </html>

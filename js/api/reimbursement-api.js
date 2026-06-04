@@ -16,6 +16,24 @@ const REIMBURSEMENT_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const REIMBURSEMENT_CANDIDATE_EXPENSE_COLUMNS = [
+  "id",
+  "expense_date",
+  "year_month",
+  "business_entity_id",
+  "account_id",
+  "expense_category",
+  "description",
+  "currency",
+  "amount",
+  "status",
+  "reimbursement_status",
+  "receipt_status",
+  "note",
+  "app_type",
+  "created_at",
+].join(",");
+
 export async function fetchReimbursementRecords(month) {
   const { data, error } = await supabase
     .from("school_reimbursements")
@@ -40,7 +58,7 @@ export async function fetchReimbursementLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")
-      .select("id,account_code,name,currency,is_active,app_type")
+      .select("id,account_code,name,currency,business_entity_id,current_balance,is_active,app_type")
       .eq("app_type", "school")
       .order("currency", { ascending: true })
       .order("name", { ascending: true }),
@@ -58,6 +76,59 @@ export async function fetchReimbursementLookups() {
     businessEntities: businessEntitiesResult.data || [],
     accounts: accountsResult.data || [],
   };
+}
+
+export async function fetchReimbursementCandidateExpenses(filters = {}) {
+  let query = supabase
+    .from("school_expense_records")
+    .select(REIMBURSEMENT_CANDIDATE_EXPENSE_COLUMNS)
+    .eq("app_type", "school")
+    .eq("status", "paid")
+    .eq("reimbursement_status", "pending")
+    .neq("expense_category", "teacher_wage")
+    .order("expense_date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (filters.month) {
+    query = query.eq("year_month", filters.month);
+  }
+
+  if (filters.businessEntityId) {
+    query = query.eq("business_entity_id", filters.businessEntityId);
+  }
+
+  if (filters.currency) {
+    query = query.eq("currency", filters.currency);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function createReimbursementRecord(payload) {
+  const { data, error } = await supabase.rpc("school_create_reimbursement_record", {
+    p_reimbursement_date: payload.reimbursementDate,
+    p_business_entity_id: payload.businessEntityId,
+    p_from_account_id: payload.fromAccountId,
+    p_to_account_id: payload.toAccountId,
+    p_expense_ids: payload.expenseIds,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("报销确认失败。");
+  }
+
+  return result;
 }
 
 export async function fetchReimbursementItemCounts(reimbursementIds) {

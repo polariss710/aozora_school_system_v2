@@ -1,6 +1,8 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createReimbursementRecord,
+  fetchReimbursementCandidateExpenses,
   fetchReimbursementItemCounts,
   fetchReimbursementLookups,
   fetchReimbursementRecords,
@@ -30,6 +32,22 @@ const REIMBURSEMENT_STATUS_LABELS = {
   paid: "已支付",
 };
 
+const EXPENSE_CATEGORY_LABELS = {
+  advertising: "广告宣传",
+  classroom: "教室费用",
+  other: "其他",
+  software: "软件 / 系统",
+  tax_accounting: "税务会计",
+  teacher_wage: "老师工资",
+};
+
+const CREATE_REIMBURSEMENT_FIELD_IDS = [
+  "reimbursementDate",
+  "expenses",
+  "fromAccount",
+  "toAccount",
+];
+
 const dom = {};
 let businessEntities = [];
 let accounts = [];
@@ -37,6 +55,9 @@ let reimbursementRecords = [];
 let itemCounts = new Map();
 let transactionCounts = new Map();
 let loadedMonth = "";
+let isCreateSubmitting = false;
+let candidateExpenses = [];
+let selectedExpenseIds = new Set();
 
 export function initReimbursementPage() {
   cacheDom();
@@ -75,6 +96,24 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#reimbursementLoadingState");
   dom.emptyState = document.querySelector("#reimbursementEmptyState");
   dom.reimbursementCount = document.querySelector("#reimbursementCount");
+  dom.openCreateReimbursementButton = document.querySelector("#openCreateReimbursementButton");
+  dom.createReimbursementDialog = document.querySelector("#createReimbursementDialog");
+  dom.createReimbursementError = document.querySelector("#createReimbursementError");
+  dom.createReimbursementDateInput = document.querySelector("#createReimbursementDateInput");
+  dom.createReimbursementMonthInput = document.querySelector("#createReimbursementMonthInput");
+  dom.createReimbursementFromAccountSelect = document.querySelector("#createReimbursementFromAccountSelect");
+  dom.createReimbursementToAccountSelect = document.querySelector("#createReimbursementToAccountSelect");
+  dom.createReimbursementSelectedCount = document.querySelector("#createReimbursementSelectedCount");
+  dom.createReimbursementTotalAmount = document.querySelector("#createReimbursementTotalAmount");
+  dom.createReimbursementBusinessEntity = document.querySelector("#createReimbursementBusinessEntity");
+  dom.createReimbursementCurrency = document.querySelector("#createReimbursementCurrency");
+  dom.createReimbursementCandidateCount = document.querySelector("#createReimbursementCandidateCount");
+  dom.createReimbursementCandidateLoading = document.querySelector("#createReimbursementCandidateLoading");
+  dom.createReimbursementCandidateEmpty = document.querySelector("#createReimbursementCandidateEmpty");
+  dom.createReimbursementCandidateRows = document.querySelector("#createReimbursementCandidateRows");
+  dom.createReimbursementNoteInput = document.querySelector("#createReimbursementNoteInput");
+  dom.createReimbursementSubmitButton = document.querySelector("#createReimbursementSubmitButton");
+  dom.createReimbursementCancelButton = document.querySelector("#createReimbursementCancelButton");
 }
 
 function bindEvents() {
@@ -87,6 +126,26 @@ function bindEvents() {
     setDefaultFilters();
     applyQuery();
   });
+
+  dom.openCreateReimbursementButton.addEventListener("click", openCreateReimbursementDialog);
+  dom.createReimbursementCancelButton.addEventListener("click", closeCreateReimbursementDialog);
+  dom.createReimbursementSubmitButton.addEventListener("click", submitCreateReimbursement);
+  dom.createReimbursementCandidateRows.addEventListener("change", handleCandidateSelectionChange);
+
+  for (const [input, fieldId] of [
+    [dom.createReimbursementDateInput, "reimbursementDate"],
+    [dom.createReimbursementFromAccountSelect, "fromAccount"],
+    [dom.createReimbursementToAccountSelect, "toAccount"],
+  ]) {
+    input.addEventListener("input", () => {
+      clearCreateFieldInvalid(fieldId);
+      hideCreateErrorIfClean();
+    });
+    input.addEventListener("change", () => {
+      clearCreateFieldInvalid(fieldId);
+      hideCreateErrorIfClean();
+    });
+  }
 }
 
 function setDefaultFilters() {
@@ -285,6 +344,377 @@ function renderReimbursements(rows) {
   `).join("");
 }
 
+async function openCreateReimbursementDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  resetCreateReimbursementForm();
+  dom.createReimbursementDialog.classList.remove("is-hidden");
+  dom.createReimbursementDialog.setAttribute("aria-hidden", "false");
+  await loadCreateReimbursementCandidates();
+}
+
+function closeCreateReimbursementDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  dom.createReimbursementDialog.classList.add("is-hidden");
+  dom.createReimbursementDialog.setAttribute("aria-hidden", "true");
+}
+
+function resetCreateReimbursementForm() {
+  clearCreateErrors();
+  candidateExpenses = [];
+  selectedExpenseIds = new Set();
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
+  dom.createReimbursementDateInput.value = defaultReimbursementDateForMonth(month);
+  dom.createReimbursementMonthInput.value = month;
+  dom.createReimbursementFromAccountSelect.innerHTML = '<option value="">请先选择支出</option>';
+  dom.createReimbursementToAccountSelect.innerHTML = '<option value="">请先选择支出</option>';
+  dom.createReimbursementNoteInput.value = "";
+  renderCreateCandidateRows([]);
+  updateCreateSummary();
+  setCreateSubmitting(false);
+}
+
+async function loadCreateReimbursementCandidates() {
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (!month) {
+    showCreateError("请选择正确的年月。", ["expenses"]);
+    return;
+  }
+
+  dom.createReimbursementMonthInput.value = month;
+  setCreateCandidateLoading(true);
+
+  try {
+    candidateExpenses = await fetchReimbursementCandidateExpenses({
+      month,
+      businessEntityId: dom.businessEntitySelect.value,
+      currency: dom.currencySelect.value,
+    });
+    selectedExpenseIds = new Set();
+    renderCreateCandidateRows(candidateExpenses);
+    updateCreateSummary();
+  } catch (error) {
+    candidateExpenses = [];
+    selectedExpenseIds = new Set();
+    renderCreateCandidateRows([]);
+    updateCreateSummary();
+    showCreateError(`读取待报销支出失败：${error.message || error}`, ["expenses"]);
+  } finally {
+    setCreateCandidateLoading(false);
+  }
+}
+
+function renderCreateCandidateRows(rows) {
+  dom.createReimbursementCandidateCount.textContent = `${rows.length} 条`;
+  dom.createReimbursementCandidateEmpty.classList.toggle("is-hidden", rows.length > 0);
+
+  if (!rows.length) {
+    dom.createReimbursementCandidateRows.innerHTML = "";
+    return;
+  }
+
+  dom.createReimbursementCandidateRows.innerHTML = rows.map((row) => `
+    <tr>
+      <td class="reimbursement-nowrap">
+        <input type="checkbox" data-reimbursement-expense-id="${escapeAttribute(row.id)}" aria-label="选择支出 ${escapeAttribute(row.description || row.id)}">
+      </td>
+      <td class="reimbursement-nowrap">${escapeHtml(formatDateOnly(row.expense_date))}</td>
+      <td class="reimbursement-nowrap">${escapeHtml(expenseCategoryLabel(row.expense_category))}</td>
+      <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.description))}</span></td>
+      <td>${escapeHtml(accountNameById(row.account_id))}</td>
+      <td class="number-cell reimbursement-nowrap">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
+      <td class="reimbursement-nowrap">${escapeHtml(displayValue(row.currency))}</td>
+      <td class="reimbursement-nowrap"><a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
+    </tr>
+  `).join("");
+}
+
+function handleCandidateSelectionChange(event) {
+  const checkbox = event.target.closest("[data-reimbursement-expense-id]");
+  if (!checkbox) {
+    return;
+  }
+
+  const expenseId = checkbox.dataset.reimbursementExpenseId;
+  if (checkbox.checked) {
+    selectedExpenseIds.add(expenseId);
+  } else {
+    selectedExpenseIds = new Set(Array.from(selectedExpenseIds).filter((id) => id !== expenseId));
+  }
+
+  clearCreateFieldInvalid("expenses");
+  hideCreateErrorIfClean();
+  updateCreateSummary();
+}
+
+async function submitCreateReimbursement() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+  const payload = readCreateReimbursementPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    const result = await createReimbursementRecord(payload);
+    setCreateSubmitting(false);
+    closeCreateReimbursementDialog();
+    await refreshCurrentReimbursementList();
+    showReimbursementCreateSuccess(result);
+  } catch (error) {
+    console.error(error);
+    showCreateError(`确认报销失败：${error.message || error}`, createFieldIdsForError(error.message || ""));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
+function readCreateReimbursementPayload() {
+  const reimbursementDate = dom.createReimbursementDateInput.value;
+  if (!reimbursementDate) {
+    showCreateError("请选择报销日期。", ["reimbursementDate"]);
+    return null;
+  }
+
+  const candidateMonth = dom.createReimbursementMonthInput.value;
+  if (candidateMonth && reimbursementDate.slice(0, 7) !== candidateMonth) {
+    showCreateError("报销日期需要与候选支出月份一致。", ["reimbursementDate"]);
+    return null;
+  }
+
+  const selectedExpenses = createSelectedExpenses();
+  if (!selectedExpenses.length) {
+    showCreateError("请选择要报销的支出。", ["expenses"]);
+    return null;
+  }
+
+  const summary = createSelectionSummary(selectedExpenses);
+  if (summary.hasMixedBusinessEntity) {
+    showCreateError("已选支出业务归属不一致。", ["expenses"]);
+    return null;
+  }
+
+  if (summary.hasMixedCurrency) {
+    showCreateError("已选支出币种不一致。", ["expenses"]);
+    return null;
+  }
+
+  if (!summary.businessEntityId || !summary.currency) {
+    showCreateError("已选支出缺少业务归属或币种。", ["expenses"]);
+    return null;
+  }
+
+  if (!Number.isFinite(summary.totalAmount) || summary.totalAmount <= 0) {
+    showCreateError("报销金额必须大于 0。", ["expenses"]);
+    return null;
+  }
+
+  const fromAccountId = dom.createReimbursementFromAccountSelect.value;
+  const toAccountId = dom.createReimbursementToAccountSelect.value;
+  if (!fromAccountId || !toAccountId) {
+    showCreateError("请选择出金账户和入金账户。", ["fromAccount", "toAccount"]);
+    return null;
+  }
+
+  if (fromAccountId === toAccountId) {
+    showCreateError("出金账户和入金账户不能相同。", ["fromAccount", "toAccount"]);
+    return null;
+  }
+
+  const fromAccount = accounts.find((item) => item.id === fromAccountId);
+  const toAccount = accounts.find((item) => item.id === toAccountId);
+  if (!isValidReimbursementAccount(fromAccount, summary) || !isValidReimbursementAccount(toAccount, summary)) {
+    showCreateError("账户币种与支出币种不一致。", ["fromAccount", "toAccount"]);
+    return null;
+  }
+
+  return {
+    reimbursementDate,
+    businessEntityId: summary.businessEntityId,
+    fromAccountId,
+    toAccountId,
+    expenseIds: selectedExpenses.map((row) => row.id),
+    note: dom.createReimbursementNoteInput.value.trim(),
+  };
+}
+
+async function refreshCurrentReimbursementList() {
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  await loadReimbursementMonth(filters.month);
+  restoreFilterSelections(filters);
+  applyCurrentFilters();
+}
+
+function showReimbursementCreateSuccess(result) {
+  const reimbursementId = result?.reimbursement_id;
+  dom.messageArea.className = "message message-success";
+  if (reimbursementId) {
+    dom.messageArea.innerHTML = `报销已确认。<a href="${escapeAttribute(reimbursementDetailUrl(reimbursementId))}">查看详情</a>`;
+  } else {
+    dom.messageArea.textContent = "报销已确认。";
+  }
+}
+
+function updateCreateSummary() {
+  const selectedExpenses = createSelectedExpenses();
+  const summary = createSelectionSummary(selectedExpenses);
+  dom.createReimbursementSelectedCount.textContent = `${selectedExpenses.length} 条`;
+  dom.createReimbursementTotalAmount.textContent = selectedExpenses.length
+    ? formatCurrency(summary.totalAmount, summary.currency)
+    : "-";
+  dom.createReimbursementBusinessEntity.textContent = summary.hasMixedBusinessEntity
+    ? "业务归属不一致"
+    : businessNameById(summary.businessEntityId);
+  dom.createReimbursementCurrency.textContent = summary.hasMixedCurrency
+    ? "币种不一致"
+    : displayValue(summary.currency);
+  renderCreateAccountOptions(summary);
+}
+
+function createSelectedExpenses() {
+  return candidateExpenses.filter((row) => selectedExpenseIds.has(row.id));
+}
+
+function createSelectionSummary(rows) {
+  const businessEntityIds = distinctRawValues(rows, "business_entity_id");
+  const currencies = distinctRawValues(rows, "currency");
+  return {
+    businessEntityId: businessEntityIds.length === 1 ? businessEntityIds[0] : "",
+    currency: currencies.length === 1 ? currencies[0] : "",
+    totalAmount: rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    hasMixedBusinessEntity: businessEntityIds.length > 1,
+    hasMixedCurrency: currencies.length > 1,
+  };
+}
+
+function distinctRawValues(rows, key) {
+  return Array.from(new Set(rows.map((row) => row[key]).filter(Boolean)));
+}
+
+function renderCreateAccountOptions(summary = createSelectionSummary(createSelectedExpenses())) {
+  const fromSelected = dom.createReimbursementFromAccountSelect.value;
+  const toSelected = dom.createReimbursementToAccountSelect.value;
+  const filteredAccounts = filteredReimbursementAccounts(summary);
+  const options = [
+    `<option value="">${summary.businessEntityId && summary.currency ? "请选择账户" : "请先选择支出"}</option>`,
+    ...filteredAccounts.map((account) => `<option value="${escapeAttribute(account.id)}">${escapeHtml(createAccountLabel(account))}</option>`),
+  ];
+
+  dom.createReimbursementFromAccountSelect.innerHTML = options.join("");
+  dom.createReimbursementToAccountSelect.innerHTML = options.join("");
+  dom.createReimbursementFromAccountSelect.disabled = !filteredAccounts.length;
+  dom.createReimbursementToAccountSelect.disabled = !filteredAccounts.length;
+
+  if (filteredAccounts.some((account) => account.id === fromSelected)) {
+    dom.createReimbursementFromAccountSelect.value = fromSelected;
+  }
+
+  if (filteredAccounts.some((account) => account.id === toSelected)) {
+    dom.createReimbursementToAccountSelect.value = toSelected;
+  }
+}
+
+function filteredReimbursementAccounts(summary) {
+  if (!summary.businessEntityId || !summary.currency || summary.hasMixedBusinessEntity || summary.hasMixedCurrency) {
+    return [];
+  }
+
+  return accounts.filter((account) => isValidReimbursementAccount(account, summary));
+}
+
+function isValidReimbursementAccount(account, summary) {
+  return Boolean(
+    account &&
+    account.app_type === "school" &&
+    account.is_active === true &&
+    account.business_entity_id === summary.businessEntityId &&
+    account.currency === summary.currency
+  );
+}
+
+function createAccountLabel(account) {
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+  ].filter(Boolean).join(" / ");
+}
+
+function setCreateCandidateLoading(isLoading) {
+  dom.createReimbursementCandidateLoading.classList.toggle("is-hidden", !isLoading);
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createReimbursementSubmitButton.disabled = isSubmitting;
+  dom.createReimbursementCancelButton.disabled = isSubmitting;
+  dom.createReimbursementSubmitButton.textContent = isSubmitting ? "保存中..." : "确认报销";
+}
+
+function clearCreateErrors() {
+  dom.createReimbursementError.textContent = "";
+  dom.createReimbursementError.classList.add("is-hidden");
+  for (const fieldId of CREATE_REIMBURSEMENT_FIELD_IDS) {
+    clearCreateFieldInvalid(fieldId);
+  }
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createReimbursementError.textContent = message;
+  dom.createReimbursementError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreateFieldInvalid(fieldId, true);
+  }
+  dom.createReimbursementDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function createFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("支出") || text.includes("报销金额")) fields.push("expenses");
+  if (text.includes("账户") || text.includes("币种")) fields.push("fromAccount", "toAccount");
+  if (text.includes("报销日期")) fields.push("reimbursementDate");
+  return Array.from(new Set(fields));
+}
+
+function setCreateFieldInvalid(fieldId, invalid) {
+  const field = dom.createReimbursementDialog.querySelector(`[data-create-reimbursement-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  setCreateFieldInvalid(fieldId, false);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createReimbursementDialog.querySelector(".field.is-invalid, .is-invalid[data-create-reimbursement-field]"));
+  if (!hasInvalidField) {
+    dom.createReimbursementError.textContent = "";
+    dom.createReimbursementError.classList.add("is-hidden");
+  }
+}
+
+function reimbursementDetailUrl(id) {
+  return `./reimbursement-detail.html?id=${encodeURIComponent(id)}`;
+}
+
 function filterReimbursements(rows, filters) {
   return rows.filter((row) => {
     if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
@@ -419,6 +849,10 @@ function reimbursementStatusLabel(value) {
   return REIMBURSEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 
+function expenseCategoryLabel(value) {
+  return EXPENSE_CATEGORY_LABELS[value] || displayValue(value);
+}
+
 function statusClass(status) {
   if (status === "paid") {
     return "status-paid";
@@ -429,6 +863,19 @@ function statusClass(status) {
 
 function formatDateOnly(value) {
   return safeText(value) || "-";
+}
+
+function todayDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function defaultReimbursementDateForMonth(month) {
+  const today = todayDateString();
+  return month === today.slice(0, 7) ? today : `${month}-01`;
 }
 
 function displayCount(value) {
