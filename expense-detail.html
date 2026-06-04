@@ -43,7 +43,11 @@
               <h2 id="expenseDetailPageTitle">详情</h2>
               <p class="section-note">本页为支出记录只读详情。支出记录是审计明细，不代表利润统计或有效经营支出自动汇总。老师工资类支出需要结合来源支付请求状态判断，已撤销或已作废来源仍会保留原支出记录用于审计。</p>
             </div>
-            <a class="button" href="./expense.html">返回支出记录</a>
+            <div class="reimbursement-detail-actions">
+              <span id="expenseDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-danger is-hidden" id="openReverseExpenseButton" type="button">撤销支出</button>
+              <a class="button" href="./expense.html">返回支出记录</a>
+            </div>
           </div>
         </section>
 
@@ -71,6 +75,10 @@
               <article class="detail-card">
                 <h3>收据 / 报销状态</h3>
                 <div id="expenseDetailReceiptInfo"></div>
+              </article>
+              <article id="expenseDetailReversalCard" class="detail-card is-hidden">
+                <h3>撤销信息</h3>
+                <div id="expenseDetailReversalInfo"></div>
               </article>
             </div>
           </section>
@@ -120,6 +128,43 @@
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="reverseExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reverseExpenseTitle">
+        <div class="section-heading">
+          <h2 id="reverseExpenseTitle">撤销支出</h2>
+          <p class="section-note">撤销后会通过 RPC 生成反向账户流水，恢复支出账户余额，并把支出标记为已撤销。原支出记录和原账户流水都会保留用于审计。</p>
+        </div>
+
+        <div id="reverseExpenseSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning reimbursement-reverse-warning">
+          撤销支出不会删除历史记录。请确认这条支出确实需要撤销；撤销成功后不能重复撤销同一条记录。
+        </div>
+
+        <div id="reverseExpenseError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reverse-expense-field="reversalDate">
+          <span>撤销日期</span>
+          <input id="reverseExpenseDateInput" type="date">
+        </label>
+
+        <label class="field" data-reverse-expense-field="reason">
+          <span>撤销理由（可选）</span>
+          <textarea id="reverseExpenseReasonInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-reverse-expense-field="confirmCheck">
+          <input id="reverseExpenseConfirmCheck" type="checkbox">
+          <span>我确认要撤销这条支出记录，并理解系统会生成反向账户流水、恢复账户余额，原支出记录会保留。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="reverseExpenseSubmitButton" type="button">确认撤销</button>
+          <button class="button" id="reverseExpenseCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <script type="module" src="./js/expense-detail-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>

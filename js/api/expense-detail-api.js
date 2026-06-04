@@ -18,6 +18,9 @@ const EXPENSE_DETAIL_COLUMNS = [
   "exchange_rate",
   "payment_method",
   "status",
+  "reversed_at",
+  "reversal_reason",
+  "reversal_account_transaction_id",
   "is_business_expense",
   "tax_category",
   "receipt_status",
@@ -140,6 +143,25 @@ export async function fetchExpenseDetailPage(expenseId) {
     reimbursements,
     attachments,
   };
+}
+
+export async function reverseExpenseRecord(payload) {
+  const { data, error } = await supabase.rpc("school_reverse_expense_record", {
+    p_expense_id: payload.expenseId,
+    p_reversal_date: payload.reversalDate,
+    p_reason: payload.reason || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("支出撤销失败。");
+  }
+
+  return result;
 }
 
 async function fetchExpenseDetail(expenseId) {
