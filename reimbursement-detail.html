@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 报销记录详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.23.9-reimbursement-create-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
   </head>
   <body>
     <div class="app-shell">
@@ -43,7 +43,11 @@
               <h2 id="reimbursementDetailPageTitle">详情</h2>
               <p class="section-note">本页为报销记录只读详情。报销记录用于追踪账户间报销流转及其关联支出明细；报销账户流水是账户转移，不代表经营支出统计。第一版不提供新增、编辑、删除、状态修改或账户余额调整。</p>
             </div>
-            <a class="button" href="./reimbursement.html">返回报销管理</a>
+            <div class="reimbursement-detail-actions">
+              <span id="reimbursementDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-danger is-hidden" id="openReverseReimbursementButton" type="button">撤销报销</button>
+              <a class="button" href="./reimbursement.html">返回报销管理</a>
+            </div>
           </div>
         </section>
 
@@ -67,6 +71,10 @@
               <article class="detail-card">
                 <h3>核对摘要</h3>
                 <div id="reimbursementDetailSummaryInfo"></div>
+              </article>
+              <article id="reimbursementDetailReversalCard" class="detail-card is-hidden">
+                <h3>撤销信息</h3>
+                <div id="reimbursementDetailReversalInfo"></div>
               </article>
               <article class="detail-card">
                 <h3>系统信息</h3>
@@ -125,6 +133,43 @@
       </main>
     </div>
 
-    <script type="module" src="./js/reimbursement-detail-app.js?v=v2.23.9-reimbursement-create-frontend-20260604"></script>
+    <div id="reverseReimbursementDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reverseReimbursementTitle">
+        <div class="section-heading">
+          <h2 id="reverseReimbursementTitle">撤销报销</h2>
+          <p class="section-note">撤销后会通过 RPC 生成反向账户流水，恢复两侧账户余额，并把关联支出改回待报销。原报销记录、原关联支出明细和原账户流水都会保留用于审计。</p>
+        </div>
+
+        <div id="reverseReimbursementSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning reimbursement-reverse-warning">
+          撤销报销不会删除历史记录。请确认这条报销确实需要撤销；撤销成功后不能重复撤销同一条记录。
+        </div>
+
+        <div id="reverseReimbursementError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reverse-reimbursement-field="reversalDate">
+          <span>撤销日期</span>
+          <input id="reverseReimbursementDateInput" type="date">
+        </label>
+
+        <label class="field" data-reverse-reimbursement-field="reason">
+          <span>撤销理由（可选）</span>
+          <textarea id="reverseReimbursementReasonInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-reverse-reimbursement-field="confirmCheck">
+          <input id="reverseReimbursementConfirmCheck" type="checkbox">
+          <span>我确认要撤销这条报销记录，并理解系统会生成反向账户流水、恢复账户余额，原报销记录会保留。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="reverseReimbursementSubmitButton" type="button">确认撤销</button>
+          <button class="button" id="reverseReimbursementCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/reimbursement-detail-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
   </body>
 </html>

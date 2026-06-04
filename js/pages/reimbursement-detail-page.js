@@ -1,9 +1,13 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchReimbursementDetailPage } from "../api/reimbursement-detail-api.js";
+import {
+  fetchReimbursementDetailPage,
+  reverseReimbursementRecord,
+} from "../api/reimbursement-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const REIMBURSEMENT_STATUS_LABELS = {
-  paid: "已支付",
+  paid: "已报销",
+  reversed: "已撤销",
 };
 
 const EXPENSE_STATUS_LABELS = {
@@ -26,15 +30,24 @@ const REIMBURSEMENT_STATUS = {
 };
 
 const TRANSACTION_TYPE_LABELS = {
-  reimbursement_out: "报销转出",
-  reimbursement_in: "报销转入",
+  reimbursement_out: "报销出金",
+  reimbursement_in: "报销入金",
+  reimbursement_reverse_in: "报销撤销入金",
+  reimbursement_reverse_out: "报销撤销出金",
 };
+
+const REVERSE_REIMBURSEMENT_FIELD_IDS = [
+  "reversalDate",
+  "confirmCheck",
+];
 
 const dom = {};
 let detailData = null;
+let isReverseSubmitting = false;
 
 export function initReimbursementDetailPage() {
   cacheDom();
+  bindEvents();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -57,18 +70,48 @@ export function initReimbursementDetailPage() {
 
 function cacheDom() {
   dom.messageArea = document.querySelector("#reimbursementDetailMessageArea");
+  dom.actionStatus = document.querySelector("#reimbursementDetailActionStatus");
+  dom.openReverseReimbursementButton = document.querySelector("#openReverseReimbursementButton");
   dom.loadingState = document.querySelector("#reimbursementDetailLoadingState");
   dom.content = document.querySelector("#reimbursementDetailContent");
   dom.titleText = document.querySelector("#reimbursementDetailTitleText");
   dom.basicInfo = document.querySelector("#reimbursementDetailBasicInfo");
   dom.accountInfo = document.querySelector("#reimbursementDetailAccountInfo");
   dom.summaryInfo = document.querySelector("#reimbursementDetailSummaryInfo");
+  dom.reversalCard = document.querySelector("#reimbursementDetailReversalCard");
+  dom.reversalInfo = document.querySelector("#reimbursementDetailReversalInfo");
   dom.systemInfo = document.querySelector("#reimbursementDetailSystemInfo");
   dom.noteBlock = document.querySelector("#reimbursementDetailNoteBlock");
   dom.transactions = document.querySelector("#reimbursementDetailTransactions");
   dom.expenseCount = document.querySelector("#reimbursementDetailExpenseCount");
   dom.expenseEmpty = document.querySelector("#reimbursementDetailExpenseEmpty");
   dom.expenseRows = document.querySelector("#reimbursementDetailExpenseRows");
+  dom.reverseDialog = document.querySelector("#reverseReimbursementDialog");
+  dom.reverseSummary = document.querySelector("#reverseReimbursementSummary");
+  dom.reverseError = document.querySelector("#reverseReimbursementError");
+  dom.reverseDateInput = document.querySelector("#reverseReimbursementDateInput");
+  dom.reverseReasonInput = document.querySelector("#reverseReimbursementReasonInput");
+  dom.reverseConfirmCheck = document.querySelector("#reverseReimbursementConfirmCheck");
+  dom.reverseSubmitButton = document.querySelector("#reverseReimbursementSubmitButton");
+  dom.reverseCancelButton = document.querySelector("#reverseReimbursementCancelButton");
+}
+
+function bindEvents() {
+  dom.openReverseReimbursementButton.addEventListener("click", openReverseDialog);
+  dom.reverseCancelButton.addEventListener("click", closeReverseDialog);
+  dom.reverseSubmitButton.addEventListener("click", submitReverseReimbursement);
+  dom.reverseDateInput.addEventListener("input", () => {
+    setReverseFieldInvalid("reversalDate", false);
+    hideReverseErrorIfClean();
+  });
+  dom.reverseDateInput.addEventListener("change", () => {
+    setReverseFieldInvalid("reversalDate", false);
+    hideReverseErrorIfClean();
+  });
+  dom.reverseConfirmCheck.addEventListener("change", () => {
+    setReverseFieldInvalid("confirmCheck", false);
+    hideReverseErrorIfClean();
+  });
 }
 
 function readReimbursementId() {
@@ -109,6 +152,7 @@ function renderReimbursementDetail(data) {
   );
   const itemDifference = itemTotal - Number(reimbursement.amount || 0);
 
+  renderActionArea(reimbursement);
   dom.titleText.textContent = `${formatDateOnly(reimbursement.reimbursement_date)} / ${formatCurrency(reimbursement.amount, reimbursement.currency)}`;
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["报销日期", formatDateOnly(reimbursement.reimbursement_date)],
@@ -144,6 +188,7 @@ function renderReimbursementDetail(data) {
     ${Math.abs(itemDifference) > 0.0001 ? '<p class="section-note">item 合计与主表金额存在差异；本页仅提示差异，不自动修正任何金额。</p>' : ""}
   `;
 
+  renderReversalInfo(reimbursement);
   dom.systemInfo.innerHTML = renderDefinitionList([
     ["reimbursement id", shortId(reimbursement.id)],
     ["app_type", displayValue(reimbursement.app_type)],
@@ -154,6 +199,39 @@ function renderReimbursementDetail(data) {
   dom.noteBlock.textContent = displayValue(reimbursement.note);
   renderTransactions(transactions);
   renderExpenseItems(items, data.expenses, reimbursement.currency);
+}
+
+function renderActionArea(reimbursement) {
+  const status = reimbursement?.status || "";
+  dom.actionStatus.className = `status-badge ${reimbursementStatusClass(status)}`;
+  dom.actionStatus.textContent = reimbursementStatusLabel(status);
+  dom.openReverseReimbursementButton.classList.toggle("is-hidden", status !== "paid");
+  dom.openReverseReimbursementButton.disabled = status !== "paid";
+}
+
+function renderReversalInfo(reimbursement) {
+  const isReversed = reimbursement.status === "reversed";
+  dom.reversalCard.classList.toggle("is-hidden", !isReversed);
+
+  if (!isReversed) {
+    dom.reversalInfo.innerHTML = "";
+    return;
+  }
+
+  const fromTransactionId = reimbursement.reversal_from_account_transaction_id;
+  const toTransactionId = reimbursement.reversal_to_account_transaction_id;
+  dom.reversalInfo.innerHTML = `
+    ${renderDefinitionList([
+      ["撤销时间", formatDate(reimbursement.reversed_at)],
+      ["撤销理由", displayValue(reimbursement.reversal_reason)],
+      ["反向入金流水", shortId(fromTransactionId)],
+      ["反向出金流水", shortId(toTransactionId)],
+    ])}
+    <div class="reimbursement-reversal-links">
+      ${fromTransactionId ? `<a class="table-action-button" href="./account-transaction-detail.html?id=${encodeURIComponent(fromTransactionId)}">反向入金流水详情</a>` : ""}
+      ${toTransactionId ? `<a class="table-action-button" href="./account-transaction-detail.html?id=${encodeURIComponent(toTransactionId)}">反向出金流水详情</a>` : ""}
+    </div>
+  `;
 }
 
 function renderTransactions(transactions) {
@@ -179,6 +257,7 @@ function renderTransactions(transactions) {
         ["备注", displayValue(transaction.note)],
         ["创建时间", formatDate(transaction.created_at)],
       ])}
+      <p><a class="table-action-button" href="./account-transaction-detail.html?id=${encodeURIComponent(transaction.id)}">流水详情</a></p>
     </article>
   `).join("");
 }
@@ -211,6 +290,154 @@ function renderExpenseItems(items, expenses, reimbursementCurrency) {
       </tr>
     `;
   }).join("");
+}
+
+function openReverseDialog() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  if (!detailData?.reimbursement) {
+    showMessage("error", "撤销对象不存在，请刷新后重试。");
+    return;
+  }
+
+  if (detailData.reimbursement.status !== "paid") {
+    showMessage("error", "只有已支付的报销记录可以撤销。");
+    return;
+  }
+
+  clearReverseErrors();
+  dom.reverseSummary.innerHTML = renderReverseSummary(detailData.reimbursement);
+  dom.reverseDateInput.value = currentDate();
+  dom.reverseReasonInput.value = "";
+  dom.reverseConfirmCheck.checked = false;
+  setReverseSubmitting(false);
+  dom.reverseDialog.classList.remove("is-hidden");
+  dom.reverseDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeReverseDialog() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  dom.reverseDialog.classList.add("is-hidden");
+  dom.reverseDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitReverseReimbursement() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  clearReverseErrors();
+  const payload = readReversePayload();
+  if (!payload) {
+    return;
+  }
+
+  setReverseSubmitting(true);
+
+  try {
+    await reverseReimbursementRecord(payload);
+    setReverseSubmitting(false);
+    closeReverseDialog();
+    await loadReimbursementDetail(payload.reimbursementId);
+    showMessage("success", "报销已撤销。");
+  } catch (error) {
+    console.error(error);
+    showReverseError(`撤销报销失败：${error.message || error}`, reverseFieldIdsForError(error.message || ""));
+  } finally {
+    setReverseSubmitting(false);
+  }
+}
+
+function readReversePayload() {
+  const reimbursement = detailData?.reimbursement;
+  if (!reimbursement?.id) {
+    showReverseError("撤销对象不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (reimbursement.status !== "paid") {
+    showReverseError("只有已支付的报销记录可以撤销。");
+    return null;
+  }
+
+  const reversalDate = dom.reverseDateInput.value;
+  if (!reversalDate) {
+    showReverseError("请选择撤销日期。", ["reversalDate"]);
+    return null;
+  }
+
+  if (!dom.reverseConfirmCheck.checked) {
+    showReverseError("请勾选确认撤销说明。", ["confirmCheck"]);
+    return null;
+  }
+
+  return {
+    reimbursementId: reimbursement.id,
+    reversalDate,
+    reason: dom.reverseReasonInput.value.trim(),
+  };
+}
+
+function renderReverseSummary(reimbursement) {
+  return renderDefinitionList([
+    ["报销日期", formatDateOnly(reimbursement.reimbursement_date)],
+    ["状态", reimbursementStatusLabel(reimbursement.status)],
+    ["金额", formatCurrency(reimbursement.amount, reimbursement.currency)],
+    ["出金账户", accountNameById(reimbursement.from_account_id)],
+    ["入金账户", accountNameById(reimbursement.to_account_id)],
+    ["关联支出条数", displayCount(detailData?.items?.length || 0)],
+  ]);
+}
+
+function setReverseSubmitting(isSubmitting) {
+  isReverseSubmitting = isSubmitting;
+  dom.reverseSubmitButton.disabled = isSubmitting;
+  dom.reverseCancelButton.disabled = isSubmitting;
+  dom.reverseSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销";
+}
+
+function clearReverseErrors() {
+  dom.reverseError.textContent = "";
+  dom.reverseError.classList.add("is-hidden");
+  for (const fieldId of REVERSE_REIMBURSEMENT_FIELD_IDS) {
+    setReverseFieldInvalid(fieldId, false);
+  }
+}
+
+function showReverseError(message, fieldIds = []) {
+  dom.reverseError.textContent = message;
+  dom.reverseError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setReverseFieldInvalid(fieldId, true);
+  }
+  dom.reverseDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function reverseFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("撤销日期")) fields.push("reversalDate");
+  return fields;
+}
+
+function setReverseFieldInvalid(fieldId, invalid) {
+  const field = dom.reverseDialog.querySelector(`[data-reverse-reimbursement-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideReverseErrorIfClean() {
+  const hasInvalidField = Boolean(dom.reverseDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.reverseError.textContent = "";
+    dom.reverseError.classList.add("is-hidden");
+  }
 }
 
 function renderDefinitionList(items) {
@@ -264,6 +491,18 @@ function reimbursementStatusLabel(value) {
   return REIMBURSEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 
+function reimbursementStatusClass(value) {
+  if (value === "paid") {
+    return "status-paid";
+  }
+
+  if (value === "reversed") {
+    return "status-reversed";
+  }
+
+  return "status-neutral";
+}
+
 function expenseStatusLabel(value) {
   return EXPENSE_STATUS_LABELS[value] || displayValue(value);
 }
@@ -311,6 +550,10 @@ function displayCount(value) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function currentDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function setLoading(isLoading) {

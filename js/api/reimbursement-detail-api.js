@@ -10,6 +10,10 @@ const REIMBURSEMENT_COLUMNS = [
   "amount",
   "currency",
   "status",
+  "reversed_at",
+  "reversal_reason",
+  "reversal_from_account_transaction_id",
+  "reversal_to_account_transaction_id",
   "note",
   "app_type",
   "created_at",
@@ -86,6 +90,25 @@ export async function fetchReimbursementDetailPage(reimbursementId) {
     expenses,
     transactions,
   };
+}
+
+export async function reverseReimbursementRecord(payload) {
+  const { data, error } = await supabase.rpc("school_reverse_reimbursement_record", {
+    p_reimbursement_id: payload.reimbursementId,
+    p_reversal_date: payload.reversalDate,
+    p_reason: payload.reason || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("报销撤销失败。");
+  }
+
+  return result;
 }
 
 async function fetchReimbursementDetail(reimbursementId) {

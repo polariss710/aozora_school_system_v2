@@ -1051,6 +1051,14 @@ h2 {
   min-width: 0;
 }
 
+.reimbursement-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .table-action-button {
   min-height: 36px;
   padding: 5px 10px;
@@ -1122,6 +1130,17 @@ h2 {
 
 .reimbursement-candidate-table {
   min-width: 980px;
+}
+
+.reimbursement-reverse-dialog-panel {
+  width: min(620px, 100%);
+}
+
+.reimbursement-reversal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .dialog-summary {
@@ -1327,6 +1346,11 @@ h2 {
   .dialog-actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .reimbursement-detail-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .dialog-actions .button,
