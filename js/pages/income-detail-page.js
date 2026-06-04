@@ -1,9 +1,10 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchIncomeDetailPage } from "../api/income-detail-api.js";
+import { fetchIncomeDetailPage, reverseIncomeRecord } from "../api/income-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const INCOME_STATUS_LABELS = {
   received: "已收款",
+  reversed: "已撤销",
 };
 
 const INCOME_CATEGORY_LABELS = {
@@ -25,13 +26,17 @@ const SETTLEMENT_STATUS_LABELS = {
 
 const TRANSACTION_TYPE_LABELS = {
   income_adjust: "收入调整",
+  income_reversal: "收入撤销",
 };
 
 const dom = {};
 let detailData = null;
+let isReverseSubmitting = false;
+const REVERSE_INCOME_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 
 export function initIncomeDetailPage() {
   cacheDom();
+  bindEvents();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -54,6 +59,8 @@ export function initIncomeDetailPage() {
 
 function cacheDom() {
   dom.messageArea = document.querySelector("#incomeDetailMessageArea");
+  dom.actionStatus = document.querySelector("#incomeDetailActionStatus");
+  dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
   dom.content = document.querySelector("#incomeDetailContent");
   dom.titleText = document.querySelector("#incomeDetailTitleText");
@@ -61,11 +68,39 @@ function cacheDom() {
   dom.amountInfo = document.querySelector("#incomeDetailAmountInfo");
   dom.relatedInfo = document.querySelector("#incomeDetailRelatedInfo");
   dom.systemInfo = document.querySelector("#incomeDetailSystemInfo");
+  dom.reversalCard = document.querySelector("#incomeDetailReversalCard");
+  dom.reversalInfo = document.querySelector("#incomeDetailReversalInfo");
   dom.noteBlock = document.querySelector("#incomeDetailNoteBlock");
   dom.settlements = document.querySelector("#incomeDetailSettlements");
   dom.transactionCount = document.querySelector("#incomeDetailTransactionCount");
   dom.transactionEmpty = document.querySelector("#incomeDetailTransactionEmpty");
   dom.transactionRows = document.querySelector("#incomeDetailTransactionRows");
+  dom.reverseDialog = document.querySelector("#reverseIncomeDialog");
+  dom.reverseSummary = document.querySelector("#reverseIncomeSummary");
+  dom.reverseError = document.querySelector("#reverseIncomeError");
+  dom.reverseDateInput = document.querySelector("#reverseIncomeDateInput");
+  dom.reverseReasonInput = document.querySelector("#reverseIncomeReasonInput");
+  dom.reverseConfirmCheck = document.querySelector("#reverseIncomeConfirmCheck");
+  dom.reverseSubmitButton = document.querySelector("#reverseIncomeSubmitButton");
+  dom.reverseCancelButton = document.querySelector("#reverseIncomeCancelButton");
+}
+
+function bindEvents() {
+  dom.openReverseIncomeButton.addEventListener("click", openReverseDialog);
+  dom.reverseCancelButton.addEventListener("click", closeReverseDialog);
+  dom.reverseSubmitButton.addEventListener("click", submitReverseIncome);
+  dom.reverseDateInput.addEventListener("input", () => {
+    setReverseFieldInvalid("reversalDate", false);
+    hideReverseErrorIfClean();
+  });
+  dom.reverseDateInput.addEventListener("change", () => {
+    setReverseFieldInvalid("reversalDate", false);
+    hideReverseErrorIfClean();
+  });
+  dom.reverseConfirmCheck.addEventListener("change", () => {
+    setReverseFieldInvalid("confirmCheck", false);
+    hideReverseErrorIfClean();
+  });
 }
 
 function readIncomeId() {
@@ -94,6 +129,7 @@ async function loadIncomeDetail(incomeId) {
 
 function renderIncomeDetail(data) {
   const { income } = data;
+  renderActionArea(data);
   dom.titleText.textContent = `${formatDateOnly(income.income_date)} / ${incomeCategoryLabel(income.income_category)} / ${formatCurrency(income.amount, income.currency)}`;
 
   dom.basicInfo.innerHTML = renderDefinitionList([
@@ -145,9 +181,53 @@ function renderIncomeDetail(data) {
     ["updated_at", formatDate(income.updated_at)],
   ]);
 
+  renderReversalInfo(income);
   dom.noteBlock.textContent = displayValue(income.note);
   renderSettlements(data.settlements);
   renderTransactions(data.transactions);
+}
+
+function renderActionArea(data) {
+  const { income } = data;
+  const status = income?.status || "";
+  const canReverse = canReverseIncome(data);
+  dom.actionStatus.className = `status-badge ${statusClass(status)}`;
+  dom.actionStatus.textContent = incomeStatusLabel(status);
+  dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
+  dom.openReverseIncomeButton.disabled = !canReverse;
+}
+
+function canReverseIncome(data) {
+  const income = data?.income;
+  if (!income) {
+    return false;
+  }
+
+  const hasLockedSettlement = (data.settlements || []).some((settlement) => settlement.settlement_status === "locked");
+  return income.status === "received"
+    && income.income_category === "tuition"
+    && !income.reversed_at
+    && !income.reversal_account_transaction_id
+    && !income.student_payment_id
+    && !hasLockedSettlement;
+}
+
+function renderReversalInfo(income) {
+  const isReversed = income.status === "reversed"
+    || Boolean(income.reversed_at)
+    || Boolean(income.reversal_account_transaction_id);
+  dom.reversalCard.classList.toggle("is-hidden", !isReversed);
+
+  if (!isReversed) {
+    dom.reversalInfo.innerHTML = "";
+    return;
+  }
+
+  dom.reversalInfo.innerHTML = renderDefinitionList([
+    ["撤销时间", formatDate(income.reversed_at)],
+    ["撤销原因", displayValue(income.reversal_reason)],
+    ["反向流水", shortId(income.reversal_account_transaction_id)],
+  ]);
 }
 
 function renderSettlements(settlements) {
@@ -205,6 +285,169 @@ function renderTransactions(transactions) {
       <td class="income-nowrap">${escapeHtml(formatDate(transaction.created_at))}</td>
     </tr>
   `).join("");
+}
+
+function openReverseDialog() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  if (!detailData?.income) {
+    showMessage("error", "撤销对象不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!canReverseIncome(detailData)) {
+    showMessage("error", reverseNotAllowedMessage(detailData));
+    return;
+  }
+
+  clearReverseErrors();
+  dom.reverseSummary.innerHTML = renderReverseSummary(detailData.income);
+  dom.reverseDateInput.value = currentDate();
+  dom.reverseReasonInput.value = "";
+  dom.reverseConfirmCheck.checked = false;
+  setReverseSubmitting(false);
+  dom.reverseDialog.classList.remove("is-hidden");
+  dom.reverseDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeReverseDialog() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  dom.reverseDialog.classList.add("is-hidden");
+  dom.reverseDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitReverseIncome() {
+  if (isReverseSubmitting) {
+    return;
+  }
+
+  clearReverseErrors();
+  const payload = readReversePayload();
+  if (!payload) {
+    return;
+  }
+
+  setReverseSubmitting(true);
+
+  try {
+    await reverseIncomeRecord(payload);
+    setReverseSubmitting(false);
+    closeReverseDialog();
+    await loadIncomeDetail(payload.incomeId);
+    showMessage("success", "收入已撤销。");
+  } catch (error) {
+    console.error(error);
+    showReverseError(`撤销收入失败：${error.message || error}`, reverseFieldIdsForError(error.message || ""));
+  } finally {
+    setReverseSubmitting(false);
+  }
+}
+
+function readReversePayload() {
+  const income = detailData?.income;
+  if (!income?.id) {
+    showReverseError("撤销对象不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (!canReverseIncome(detailData)) {
+    showReverseError(reverseNotAllowedMessage(detailData));
+    return null;
+  }
+
+  const reversalDate = dom.reverseDateInput.value;
+  if (!reversalDate) {
+    showReverseError("请选择撤销日期。", ["reversalDate"]);
+    return null;
+  }
+
+  if (!dom.reverseConfirmCheck.checked) {
+    showReverseError("请勾选确认撤销说明。", ["confirmCheck"]);
+    return null;
+  }
+
+  return {
+    incomeId: income.id,
+    reversalDate,
+    reason: dom.reverseReasonInput.value.trim(),
+  };
+}
+
+function renderReverseSummary(income) {
+  return renderDefinitionList([
+    ["收入日期", formatDateOnly(income.income_date)],
+    ["结算月份", formatMonth(income.settlement_month)],
+    ["分类", incomeCategoryLabel(income.income_category)],
+    ["描述", displayValue(income.description)],
+    ["金额", formatCurrency(income.amount, income.currency)],
+    ["账户", accountNameById(income.account_id)],
+  ]);
+}
+
+function reverseNotAllowedMessage(data) {
+  const income = data?.income;
+  if (!income) return "撤销对象不存在，请刷新后重试。";
+  if (income.status === "reversed" || income.reversed_at || income.reversal_account_transaction_id) {
+    return "该收入已撤销，不能重复撤销。";
+  }
+  if (income.status !== "received") return "只能撤销已收款收入。";
+  if (income.income_category !== "tuition") return "第一版仅支持学费收入撤销。";
+  if (income.student_payment_id) return "关联学生收款链路的收入暂不支持通过普通收入撤销处理。";
+  if ((data.settlements || []).some((settlement) => settlement.settlement_status === "locked")) {
+    return "目标学生月度结算已锁定，不能撤销收入。";
+  }
+  return "当前收入不能撤销。";
+}
+
+function setReverseSubmitting(isSubmitting) {
+  isReverseSubmitting = isSubmitting;
+  dom.reverseSubmitButton.disabled = isSubmitting;
+  dom.reverseCancelButton.disabled = isSubmitting;
+  dom.reverseSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销";
+}
+
+function clearReverseErrors() {
+  dom.reverseError.textContent = "";
+  dom.reverseError.classList.add("is-hidden");
+  for (const fieldId of REVERSE_INCOME_FIELD_IDS) {
+    setReverseFieldInvalid(fieldId, false);
+  }
+}
+
+function showReverseError(message, fieldIds = []) {
+  dom.reverseError.textContent = message;
+  dom.reverseError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setReverseFieldInvalid(fieldId, true);
+  }
+  dom.reverseDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function reverseFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("撤销日期")) fields.push("reversalDate");
+  return fields;
+}
+
+function setReverseFieldInvalid(fieldId, invalid) {
+  const field = dom.reverseDialog.querySelector(`[data-reverse-income-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideReverseErrorIfClean() {
+  const hasInvalidField = Boolean(dom.reverseDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.reverseError.textContent = "";
+    dom.reverseError.classList.add("is-hidden");
+  }
 }
 
 function renderDefinitionList(items) {
@@ -298,6 +541,10 @@ function statusClass(value) {
     return "status-paid";
   }
 
+  if (value === "reversed") {
+    return "status-cancelled";
+  }
+
   if (value === "draft") {
     return "status-pending";
   }
@@ -318,6 +565,14 @@ function shortId(value) {
 
 function formatDateOnly(value) {
   return safeText(value) || "-";
+}
+
+function currentDate() {
+  const date = new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function displayValue(value) {

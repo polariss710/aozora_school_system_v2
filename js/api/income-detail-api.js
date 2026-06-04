@@ -19,6 +19,9 @@ const INCOME_DETAIL_COLUMNS = [
   "payment_currency",
   "payment_method",
   "status",
+  "reversed_at",
+  "reversal_reason",
+  "reversal_account_transaction_id",
   "is_taxable_income",
   "tax_category",
   "receipt_status",
@@ -120,6 +123,25 @@ export async function fetchIncomeDetailPage(incomeId) {
     settlements,
     transactions,
   };
+}
+
+export async function reverseIncomeRecord(payload) {
+  const { data, error } = await supabase.rpc("school_reverse_income_record", {
+    p_income_id: payload.incomeId,
+    p_reversal_date: payload.reversalDate,
+    p_reason: payload.reason || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("收入撤销失败。");
+  }
+
+  return result;
 }
 
 async function fetchIncomeDetail(incomeId) {

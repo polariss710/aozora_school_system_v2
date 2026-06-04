@@ -43,7 +43,11 @@
               <h2 id="incomeDetailPageTitle">详情</h2>
               <p class="section-note">本页为收入记录只读详情。收入记录是审计明细，不代表学生月度结算实时重算结果，也不从账户流水反推收入金额。本页不提供新增、编辑、删除、收款确认或结算修改操作。</p>
             </div>
-            <a class="button" href="./income.html">返回收入记录</a>
+            <div class="reimbursement-detail-actions">
+              <span id="incomeDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-danger is-hidden" id="openReverseIncomeButton" type="button">撤销收入</button>
+              <a class="button" href="./income.html">返回收入记录</a>
+            </div>
           </div>
         </section>
 
@@ -71,6 +75,10 @@
               <article class="detail-card">
                 <h3>系统信息</h3>
                 <div id="incomeDetailSystemInfo"></div>
+              </article>
+              <article id="incomeDetailReversalCard" class="detail-card is-hidden">
+                <h3>撤销信息</h3>
+                <div id="incomeDetailReversalInfo"></div>
               </article>
             </div>
           </section>
@@ -122,6 +130,43 @@
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="reverseIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reverseIncomeTitle">
+        <div class="section-heading">
+          <h2 id="reverseIncomeTitle">撤销收入</h2>
+          <p class="section-note">撤销后会通过 RPC 生成反向账户流水，恢复入账账户余额，并把收入标记为已撤销。原收入记录和原账户流水都会保留用于审计。</p>
+        </div>
+
+        <div id="reverseIncomeSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning reimbursement-reverse-warning">
+          撤销收入不会删除历史记录。请确认这条收入确实需要撤销；撤销成功后不能重复撤销同一条记录。
+        </div>
+
+        <div id="reverseIncomeError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reverse-income-field="reversalDate">
+          <span>撤销日期</span>
+          <input id="reverseIncomeDateInput" type="date">
+        </label>
+
+        <label class="field" data-reverse-income-field="reason">
+          <span>撤销理由（可选）</span>
+          <textarea id="reverseIncomeReasonInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-reverse-income-field="confirmCheck">
+          <input id="reverseIncomeConfirmCheck" type="checkbox">
+          <span>我确认要撤销这条收入记录，并理解系统会生成反向账户流水、恢复账户余额，原收入记录会保留。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="reverseIncomeSubmitButton" type="button">确认撤销</button>
+          <button class="button" id="reverseIncomeCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <script type="module" src="./js/income-detail-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
