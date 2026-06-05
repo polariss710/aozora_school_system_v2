@@ -29,7 +29,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">撤销可用</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -41,7 +41,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="accountTransactionDetailPageTitle">详情</h2>
-              <p class="section-note">本页为账户流水只读详情。账户流水是账户余额变化的审计明细，不用于反推收入、支出、报销或支付请求主表。本页不提供新增、编辑、删除、冲销或账户余额重算操作。</p>
+              <p class="section-note">本页展示账户流水审计明细。账户调整来源为 posted 时，可通过已验证 RPC 执行撤销。</p>
             </div>
             <a class="button" href="./account.html">返回账户管理</a>
           </div>
@@ -83,9 +83,14 @@
           </section>
 
           <section class="panel" aria-labelledby="accountTransactionDetailSourceTitle">
-            <div class="section-heading">
-              <h2 id="accountTransactionDetailSourceTitle">来源对象参考</h2>
-              <p class="section-note">以下为 related_table / related_id 指向的来源对象参考，不用于反推或修改来源主表。</p>
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="accountTransactionDetailSourceTitle">来源对象参考</h2>
+                <p class="section-note">以下为 related_table / related_id 指向的来源对象参考。</p>
+              </div>
+              <div class="table-actions">
+                <button class="button button-danger is-hidden" id="openReverseAccountAdjustmentButton" type="button">撤销账户调整</button>
+              </div>
             </div>
             <div id="accountTransactionDetailSource" class="detail-list"></div>
           </section>
@@ -93,6 +98,38 @@
       </main>
     </div>
 
-    <script type="module" src="./js/account-transaction-detail-app.js?v=v2.28.13-account-adjustment-frontend-20260606"></script>
+    <div id="reverseAccountAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reverseAccountAdjustmentTitle">
+        <div class="section-heading">
+          <h2 id="reverseAccountAdjustmentTitle">撤销账户调整</h2>
+          <p class="section-note">撤销后会反向调整账户余额，并写入账户调整撤销流水。</p>
+        </div>
+
+        <div id="reverseAccountAdjustmentSummary" class="dialog-summary"></div>
+        <div id="reverseAccountAdjustmentError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reverse-account-adjustment-field="reversalDate">
+          <span>撤销日期</span>
+          <input id="reverseAccountAdjustmentDateInput" type="date">
+        </label>
+
+        <label class="field" data-reverse-account-adjustment-field="reason">
+          <span>撤销原因</span>
+          <textarea id="reverseAccountAdjustmentReasonInput" rows="3" placeholder="请输入撤销原因"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-reverse-account-adjustment-field="confirmCheck">
+          <input id="reverseAccountAdjustmentConfirmCheck" type="checkbox">
+          <span>确认撤销该账户调整</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button" id="reverseAccountAdjustmentCancelButton" type="button">取消</button>
+          <button class="button button-danger" id="reverseAccountAdjustmentSubmitButton" type="button">确认撤销</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/account-transaction-detail-app.js?v=v2.30.9-account-adjustment-reversal-frontend-20260606"></script>
   </body>
 </html>

@@ -152,6 +152,25 @@ export async function fetchAccountTransactionDetailPage(transactionId) {
   };
 }
 
+export async function reverseAccountAdjustment({ adjustmentId, reversalDate, reason }) {
+  const { data, error } = await supabase.rpc("school_reverse_account_adjustment", {
+    p_adjustment_id: adjustmentId,
+    p_reversal_date: reversalDate,
+    p_reason: reason,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("账户调整撤销失败。");
+  }
+
+  return result;
+}
+
 async function fetchAccountTransaction(transactionId) {
   const { data, error } = await supabase
     .from("school_account_transactions")

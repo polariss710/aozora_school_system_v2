@@ -25,6 +25,7 @@ const DEFAULT_FILTERS = {
 
 const COMMON_TRANSACTION_TYPES = [
   "account_adjustment",
+  "account_adjustment_reversal",
   "expense_adjust",
   "payment_reversal",
   "income",
@@ -35,6 +36,7 @@ const COMMON_TRANSACTION_TYPES = [
 
 const TRANSACTION_TYPE_LABELS = {
   account_adjustment: "账户调整",
+  account_adjustment_reversal: "账户调整撤销",
   expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
   income: "收入",

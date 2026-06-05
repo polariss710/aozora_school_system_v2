@@ -1,9 +1,13 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchAccountTransactionDetailPage } from "../api/account-transaction-detail-api.js";
+import {
+  fetchAccountTransactionDetailPage,
+  reverseAccountAdjustment,
+} from "../api/account-transaction-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const TRANSACTION_TYPE_LABELS = {
   account_adjustment: "账户调整",
+  account_adjustment_reversal: "账户调整撤销",
   income_adjust: "收入调整",
   expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
@@ -38,6 +42,7 @@ const SOURCE_LINKS = {
 
 const dom = {};
 let detailData = null;
+let isReverseAccountAdjustmentSubmitting = false;
 
 export function initAccountTransactionDetailPage() {
   cacheDom();
@@ -72,6 +77,34 @@ function cacheDom() {
   dom.systemInfo = document.querySelector("#accountTransactionDetailSystemInfo");
   dom.noteBlock = document.querySelector("#accountTransactionDetailNoteBlock");
   dom.source = document.querySelector("#accountTransactionDetailSource");
+  dom.openReverseAccountAdjustmentButton = document.querySelector("#openReverseAccountAdjustmentButton");
+  dom.reverseAccountAdjustmentDialog = document.querySelector("#reverseAccountAdjustmentDialog");
+  dom.reverseAccountAdjustmentSummary = document.querySelector("#reverseAccountAdjustmentSummary");
+  dom.reverseAccountAdjustmentError = document.querySelector("#reverseAccountAdjustmentError");
+  dom.reverseAccountAdjustmentDateInput = document.querySelector("#reverseAccountAdjustmentDateInput");
+  dom.reverseAccountAdjustmentReasonInput = document.querySelector("#reverseAccountAdjustmentReasonInput");
+  dom.reverseAccountAdjustmentConfirmCheck = document.querySelector("#reverseAccountAdjustmentConfirmCheck");
+  dom.reverseAccountAdjustmentCancelButton = document.querySelector("#reverseAccountAdjustmentCancelButton");
+  dom.reverseAccountAdjustmentSubmitButton = document.querySelector("#reverseAccountAdjustmentSubmitButton");
+  bindEvents();
+}
+
+function bindEvents() {
+  dom.openReverseAccountAdjustmentButton.addEventListener("click", openReverseAccountAdjustmentDialog);
+  dom.reverseAccountAdjustmentCancelButton.addEventListener("click", closeReverseAccountAdjustmentDialog);
+  dom.reverseAccountAdjustmentSubmitButton.addEventListener("click", submitReverseAccountAdjustment);
+  dom.reverseAccountAdjustmentDateInput.addEventListener("input", () => {
+    clearReverseAccountAdjustmentFieldInvalid("reversalDate");
+    hideReverseAccountAdjustmentErrorIfClean();
+  });
+  dom.reverseAccountAdjustmentReasonInput.addEventListener("input", () => {
+    clearReverseAccountAdjustmentFieldInvalid("reason");
+    hideReverseAccountAdjustmentErrorIfClean();
+  });
+  dom.reverseAccountAdjustmentConfirmCheck.addEventListener("change", () => {
+    clearReverseAccountAdjustmentFieldInvalid("confirmCheck");
+    hideReverseAccountAdjustmentErrorIfClean();
+  });
 }
 
 function readTransactionId() {
@@ -140,6 +173,7 @@ function renderTransactionDetail(data) {
 
   dom.noteBlock.textContent = noteText(transaction);
   renderSource(data.source, transaction);
+  renderReverseAccountAdjustmentAction(data);
 }
 
 function renderAccountInfo(transaction) {
@@ -166,6 +200,155 @@ function renderAccountInfo(transaction) {
     ])}
     <p class="section-note">current_balance 为当前账户余额，不代表该流水发生时余额；该流水记录后的余额请以 balance_after 为准。</p>
   `;
+}
+
+function renderReverseAccountAdjustmentAction(data) {
+  const canReverse = canReverseAccountAdjustment(data);
+  dom.openReverseAccountAdjustmentButton.classList.toggle("is-hidden", !canReverse);
+}
+
+function canReverseAccountAdjustment(data) {
+  const transaction = data?.transaction;
+  const adjustment = data?.source?.row;
+  return Boolean(
+    transaction?.transaction_type === "account_adjustment" &&
+    transaction?.related_table === "school_account_adjustments" &&
+    adjustment?.status === "posted" &&
+    !adjustment?.reversed_at &&
+    !adjustment?.reversal_account_transaction_id
+  );
+}
+
+function openReverseAccountAdjustmentDialog() {
+  if (!canReverseAccountAdjustment(detailData)) {
+    showMessage("error", "当前账户流水不允许撤销账户调整。");
+    return;
+  }
+
+  const adjustment = detailData.source.row;
+  dom.reverseAccountAdjustmentSummary.innerHTML = renderDefinitionList([
+    ["调整 ID", shortId(adjustment.id)],
+    ["调整日期", formatDateOnly(adjustment.adjustment_date)],
+    ["账户", accountNameById(adjustment.account_id)],
+    ["业务归属", businessNameById(adjustment.business_entity_id)],
+    ["调整金额", formatCurrency(adjustment.amount, adjustment.currency)],
+    ["撤销后影响", formatCurrency(Number(adjustment.amount || 0) * -1, adjustment.currency)],
+  ]);
+  dom.reverseAccountAdjustmentDateInput.value = currentLocalDate();
+  dom.reverseAccountAdjustmentReasonInput.value = "";
+  dom.reverseAccountAdjustmentConfirmCheck.checked = false;
+  clearReverseAccountAdjustmentErrors();
+  setReverseAccountAdjustmentSubmitting(false);
+  dom.reverseAccountAdjustmentDialog.classList.remove("is-hidden");
+  dom.reverseAccountAdjustmentDialog.setAttribute("aria-hidden", "false");
+  dom.reverseAccountAdjustmentDateInput.focus();
+}
+
+function closeReverseAccountAdjustmentDialog({ force = false } = {}) {
+  if (isReverseAccountAdjustmentSubmitting && !force) {
+    return;
+  }
+
+  dom.reverseAccountAdjustmentDialog.classList.add("is-hidden");
+  dom.reverseAccountAdjustmentDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitReverseAccountAdjustment() {
+  if (isReverseAccountAdjustmentSubmitting) {
+    return;
+  }
+
+  clearReverseAccountAdjustmentErrors();
+
+  if (!canReverseAccountAdjustment(detailData)) {
+    showReverseAccountAdjustmentError("当前账户调整状态不允许撤销。", ["confirmCheck"]);
+    return;
+  }
+
+  const adjustment = detailData.source.row;
+  const reversalDate = dom.reverseAccountAdjustmentDateInput.value;
+  const reason = dom.reverseAccountAdjustmentReasonInput.value.trim();
+
+  if (!reversalDate) {
+    showReverseAccountAdjustmentError("请选择撤销日期。", ["reversalDate"]);
+    return;
+  }
+
+  if (!reason) {
+    showReverseAccountAdjustmentError("请输入撤销原因。", ["reason"]);
+    return;
+  }
+
+  if (!dom.reverseAccountAdjustmentConfirmCheck.checked) {
+    showReverseAccountAdjustmentError("请确认撤销该账户调整。", ["confirmCheck"]);
+    return;
+  }
+
+  setReverseAccountAdjustmentSubmitting(true);
+
+  try {
+    const result = await reverseAccountAdjustment({
+      adjustmentId: adjustment.id,
+      reversalDate,
+      reason,
+    });
+
+    closeReverseAccountAdjustmentDialog({ force: true });
+    await loadTransactionDetail(detailData.transaction.id);
+    const reversalTransactionId = result.reversal_account_transaction_id || result.reversal_transaction_id;
+    showMessage(
+      "success",
+      `账户调整已撤销。撤销流水：${shortId(reversalTransactionId)}。`
+    );
+  } catch (error) {
+    showReverseAccountAdjustmentError(error.message || String(error), reverseAccountAdjustmentFieldIdsForError(error));
+  } finally {
+    setReverseAccountAdjustmentSubmitting(false);
+  }
+}
+
+function showReverseAccountAdjustmentError(message, fieldIds = []) {
+  dom.reverseAccountAdjustmentError.textContent = message;
+  dom.reverseAccountAdjustmentError.classList.remove("is-hidden");
+  fieldIds.forEach(setReverseAccountAdjustmentFieldInvalid);
+}
+
+function clearReverseAccountAdjustmentErrors() {
+  dom.reverseAccountAdjustmentError.textContent = "";
+  dom.reverseAccountAdjustmentError.classList.add("is-hidden");
+  ["reversalDate", "reason", "confirmCheck"].forEach(clearReverseAccountAdjustmentFieldInvalid);
+}
+
+function hideReverseAccountAdjustmentErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-reverse-account-adjustment-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.reverseAccountAdjustmentError.textContent = "";
+    dom.reverseAccountAdjustmentError.classList.add("is-hidden");
+  }
+}
+
+function setReverseAccountAdjustmentFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-reverse-account-adjustment-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearReverseAccountAdjustmentFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-reverse-account-adjustment-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setReverseAccountAdjustmentSubmitting(isSubmitting) {
+  isReverseAccountAdjustmentSubmitting = isSubmitting;
+  dom.reverseAccountAdjustmentSubmitButton.disabled = isSubmitting;
+  dom.reverseAccountAdjustmentCancelButton.disabled = isSubmitting;
+  dom.reverseAccountAdjustmentSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销";
+}
+
+function reverseAccountAdjustmentFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("date") || message.includes("日期")) return ["reversalDate"];
+  if (message.includes("reason") || message.includes("原因")) return ["reason"];
+  return [];
 }
 
 function renderSource(source, transaction) {
@@ -393,6 +576,14 @@ function shortId(value) {
 
 function formatDateOnly(value) {
   return safeText(value) || "-";
+}
+
+function currentLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function displayValue(value) {
