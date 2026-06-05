@@ -115,6 +115,28 @@ const REIMBURSEMENT_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const ACCOUNT_ADJUSTMENT_COLUMNS = [
+  "id",
+  "business_entity_id",
+  "account_id",
+  "adjustment_date",
+  "year_month",
+  "currency",
+  "amount",
+  "balance_before",
+  "balance_after",
+  "reason",
+  "note",
+  "status",
+  "account_transaction_id",
+  "reversed_at",
+  "reversal_reason",
+  "reversal_account_transaction_id",
+  "app_type",
+  "created_at",
+  "updated_at",
+].join(",");
+
 export async function fetchAccountTransactionDetailPage(transactionId) {
   const transaction = await fetchAccountTransaction(transactionId);
 
@@ -212,6 +234,10 @@ function relatedSourceConfig(table) {
     school_reimbursements: {
       table,
       columns: REIMBURSEMENT_COLUMNS,
+    },
+    school_account_adjustments: {
+      table,
+      columns: ACCOUNT_ADJUSTMENT_COLUMNS,
     },
     school_accounts: {
       table,

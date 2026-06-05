@@ -1,6 +1,7 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createAccountAdjustment,
   fetchAccountTransactions,
   fetchAccountTransactionTypes,
   fetchAccounts,
@@ -23,6 +24,7 @@ const DEFAULT_FILTERS = {
 };
 
 const COMMON_TRANSACTION_TYPES = [
+  "account_adjustment",
   "expense_adjust",
   "payment_reversal",
   "income",
@@ -32,6 +34,7 @@ const COMMON_TRANSACTION_TYPES = [
 ];
 
 const TRANSACTION_TYPE_LABELS = {
+  account_adjustment: "账户调整",
   expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
   income: "收入",
@@ -52,6 +55,7 @@ const dom = {};
 let accounts = [];
 let businessEntities = [];
 let transactions = [];
+let isAdjustmentSubmitting = false;
 
 export function initAccountPage() {
   cacheDom();
@@ -90,6 +94,18 @@ function cacheDom() {
   dom.transactionLoadingState = document.querySelector("#accountTransactionLoadingState");
   dom.transactionEmptyState = document.querySelector("#accountTransactionEmptyState");
   dom.transactionCount = document.querySelector("#accountTransactionCount");
+  dom.openAccountAdjustmentButton = document.querySelector("#openAccountAdjustmentButton");
+  dom.accountAdjustmentDialog = document.querySelector("#accountAdjustmentDialog");
+  dom.accountAdjustmentError = document.querySelector("#accountAdjustmentError");
+  dom.accountAdjustmentDateInput = document.querySelector("#accountAdjustmentDateInput");
+  dom.accountAdjustmentBusinessEntitySelect = document.querySelector("#accountAdjustmentBusinessEntitySelect");
+  dom.accountAdjustmentAccountSelect = document.querySelector("#accountAdjustmentAccountSelect");
+  dom.accountAdjustmentAmountInput = document.querySelector("#accountAdjustmentAmountInput");
+  dom.accountAdjustmentPreview = document.querySelector("#accountAdjustmentPreview");
+  dom.accountAdjustmentReasonInput = document.querySelector("#accountAdjustmentReasonInput");
+  dom.accountAdjustmentNoteInput = document.querySelector("#accountAdjustmentNoteInput");
+  dom.accountAdjustmentCancelButton = document.querySelector("#accountAdjustmentCancelButton");
+  dom.accountAdjustmentSubmitButton = document.querySelector("#accountAdjustmentSubmitButton");
 }
 
 function bindEvents() {
@@ -101,6 +117,34 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadAccountData();
+  });
+
+  dom.openAccountAdjustmentButton.addEventListener("click", openAccountAdjustmentDialog);
+  dom.accountAdjustmentCancelButton.addEventListener("click", closeAccountAdjustmentDialog);
+  dom.accountAdjustmentSubmitButton.addEventListener("click", submitAccountAdjustment);
+  dom.accountAdjustmentBusinessEntitySelect.addEventListener("change", () => {
+    clearAdjustmentFieldInvalid("businessEntity");
+    renderAdjustmentAccountOptions();
+    updateAdjustmentPreview();
+    hideAdjustmentErrorIfClean();
+  });
+  dom.accountAdjustmentAccountSelect.addEventListener("change", () => {
+    clearAdjustmentFieldInvalid("account");
+    updateAdjustmentPreview();
+    hideAdjustmentErrorIfClean();
+  });
+  dom.accountAdjustmentAmountInput.addEventListener("input", () => {
+    clearAdjustmentFieldInvalid("amount");
+    updateAdjustmentPreview();
+    hideAdjustmentErrorIfClean();
+  });
+  dom.accountAdjustmentDateInput.addEventListener("input", () => {
+    clearAdjustmentFieldInvalid("adjustmentDate");
+    hideAdjustmentErrorIfClean();
+  });
+  dom.accountAdjustmentReasonInput.addEventListener("input", () => {
+    clearAdjustmentFieldInvalid("reason");
+    hideAdjustmentErrorIfClean();
   });
 }
 
@@ -337,6 +381,288 @@ function renderTransactions(items) {
       </tr>
     `;
   }).join("");
+}
+
+function openAccountAdjustmentDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  clearAdjustmentErrors();
+  setAdjustmentSubmitting(false);
+
+  const filters = readFilters();
+  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
+  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const defaultAccountId = filters?.accountId || "";
+
+  dom.accountAdjustmentDateInput.value = currentDate();
+  dom.accountAdjustmentAmountInput.value = "";
+  dom.accountAdjustmentReasonInput.value = "";
+  dom.accountAdjustmentNoteInput.value = "";
+
+  renderAdjustmentBusinessEntityOptions(activeBusinessEntities);
+  dom.accountAdjustmentBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
+    ? defaultBusinessEntityId
+    : "";
+
+  renderAdjustmentAccountOptions();
+  dom.accountAdjustmentAccountSelect.value = filteredAdjustmentAccounts().some((account) => account.id === defaultAccountId)
+    ? defaultAccountId
+    : "";
+  updateAdjustmentPreview();
+
+  dom.accountAdjustmentDialog.classList.remove("is-hidden");
+  dom.accountAdjustmentDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeAccountAdjustmentDialog() {
+  if (isAdjustmentSubmitting) {
+    return;
+  }
+
+  dom.accountAdjustmentDialog.classList.add("is-hidden");
+  dom.accountAdjustmentDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitAccountAdjustment() {
+  if (isAdjustmentSubmitting) {
+    return;
+  }
+
+  clearAdjustmentErrors();
+
+  const payload = readAccountAdjustmentPayload();
+  if (!payload) {
+    return;
+  }
+
+  setAdjustmentSubmitting(true);
+
+  try {
+    const result = await createAccountAdjustment(payload);
+    setAdjustmentSubmitting(false);
+    closeAccountAdjustmentDialog();
+    await refreshAfterAccountAdjustment(result);
+    showAccountAdjustmentSuccess(result);
+  } catch (error) {
+    console.error(error);
+    showAdjustmentError(`账户调整失败：${error.message || error}`, adjustmentFieldIdsForError(error.message || ""));
+  } finally {
+    setAdjustmentSubmitting(false);
+  }
+}
+
+function readAccountAdjustmentPayload() {
+  const adjustmentDate = dom.accountAdjustmentDateInput.value;
+  if (!adjustmentDate) {
+    showAdjustmentError("请选择调整日期。", ["adjustmentDate"]);
+    return null;
+  }
+
+  const businessEntityId = dom.accountAdjustmentBusinessEntitySelect.value;
+  if (!businessEntityId) {
+    showAdjustmentError("请选择业务归属。", ["businessEntity"]);
+    return null;
+  }
+
+  const accountId = dom.accountAdjustmentAccountSelect.value;
+  if (!accountId) {
+    showAdjustmentError("请选择调整账户。", ["account"]);
+    return null;
+  }
+
+  const account = accounts.find((item) => item.id === accountId);
+  if (!account || account.is_active !== true || account.app_type !== "school") {
+    showAdjustmentError("调整账户不存在或不可用。", ["account"]);
+    return null;
+  }
+
+  if (account.business_entity_id !== businessEntityId) {
+    showAdjustmentError("调整账户与业务归属不一致。", ["account"]);
+    return null;
+  }
+
+  const amount = Number(dom.accountAdjustmentAmountInput.value);
+  if (!Number.isFinite(amount) || amount === 0) {
+    showAdjustmentError("调整金额不能为 0。", ["amount"]);
+    return null;
+  }
+
+  const reason = dom.accountAdjustmentReasonInput.value.trim();
+  if (!reason) {
+    showAdjustmentError("调整原因不能为空。", ["reason"]);
+    return null;
+  }
+
+  return {
+    adjustmentDate,
+    businessEntityId,
+    accountId,
+    amount,
+    reason,
+    note: dom.accountAdjustmentNoteInput.value.trim(),
+  };
+}
+
+async function refreshAfterAccountAdjustment(result) {
+  if (result?.year_month) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, result.year_month);
+  }
+
+  if (result?.business_entity_id) {
+    dom.businessEntitySelect.value = result.business_entity_id;
+  }
+
+  if (result?.account_id) {
+    dom.accountSelect.value = result.account_id;
+  }
+
+  await loadAccountData();
+}
+
+function showAccountAdjustmentSuccess(result) {
+  const amountText = formatCurrency(result?.amount, result?.currency);
+  const balanceText = formatCurrency(result?.new_balance, result?.currency);
+  dom.messageArea.className = "message message-success";
+  if (result?.account_transaction_id) {
+    dom.messageArea.innerHTML = `账户调整已保存：${escapeHtml(amountText)}，调整后余额 ${escapeHtml(balanceText)}。<a href="./account-transaction-detail.html?id=${encodeURIComponent(result.account_transaction_id)}">查看流水</a>`;
+  } else {
+    dom.messageArea.textContent = `账户调整已保存：${amountText}，调整后余额 ${balanceText}。`;
+  }
+}
+
+function renderAdjustmentBusinessEntityOptions(items) {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of items) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
+  }
+  dom.accountAdjustmentBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function renderAdjustmentAccountOptions() {
+  const selectedValue = dom.accountAdjustmentAccountSelect.value;
+  const options = ['<option value="">请选择账户</option>'];
+  for (const account of filteredAdjustmentAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(adjustmentAccountLabel(account))}</option>`);
+  }
+  dom.accountAdjustmentAccountSelect.innerHTML = options.join("");
+  if (filteredAdjustmentAccounts().some((account) => account.id === selectedValue)) {
+    dom.accountAdjustmentAccountSelect.value = selectedValue;
+  }
+}
+
+function filteredAdjustmentAccounts() {
+  const businessEntityId = dom.accountAdjustmentBusinessEntitySelect.value;
+  return accounts.filter((account) => {
+    if (account.is_active !== true || account.app_type !== "school") {
+      return false;
+    }
+
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function adjustmentAccountLabel(account) {
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+  ].filter(Boolean).join(" / ");
+}
+
+function updateAdjustmentPreview() {
+  const account = accounts.find((item) => item.id === dom.accountAdjustmentAccountSelect.value);
+  const amount = Number(dom.accountAdjustmentAmountInput.value);
+  if (!account || !Number.isFinite(amount) || amount === 0) {
+    dom.accountAdjustmentPreview.classList.add("is-hidden");
+    dom.accountAdjustmentPreview.innerHTML = "";
+    return;
+  }
+
+  const currentBalance = Number(account.current_balance || 0);
+  const nextBalance = currentBalance + amount;
+  const direction = amount > 0 ? "增加" : "减少";
+  dom.accountAdjustmentPreview.classList.remove("is-hidden");
+  dom.accountAdjustmentPreview.innerHTML = `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">方向</span>
+      <span>${escapeHtml(direction)}</span>
+    </div>
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">调整前</span>
+      <span>${escapeHtml(formatCurrency(currentBalance, account.currency))}</span>
+    </div>
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">调整后</span>
+      <span>${escapeHtml(formatCurrency(nextBalance, account.currency))}</span>
+    </div>
+  `;
+}
+
+function setAdjustmentSubmitting(isSubmitting) {
+  isAdjustmentSubmitting = isSubmitting;
+  dom.accountAdjustmentSubmitButton.disabled = isSubmitting;
+  dom.accountAdjustmentCancelButton.disabled = isSubmitting;
+  dom.accountAdjustmentSubmitButton.textContent = isSubmitting ? "保存中..." : "保存调整";
+}
+
+function clearAdjustmentErrors() {
+  dom.accountAdjustmentError.textContent = "";
+  dom.accountAdjustmentError.classList.add("is-hidden");
+  for (const fieldId of ["adjustmentDate", "businessEntity", "account", "amount", "reason"]) {
+    clearAdjustmentFieldInvalid(fieldId);
+  }
+}
+
+function showAdjustmentError(message, fieldIds = []) {
+  dom.accountAdjustmentError.textContent = message;
+  dom.accountAdjustmentError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setAdjustmentFieldInvalid(fieldId, true);
+  }
+  dom.accountAdjustmentDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function adjustmentFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("日期")) fields.push("adjustmentDate");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("金额")) fields.push("amount");
+  if (text.includes("原因")) fields.push("reason");
+  return fields;
+}
+
+function setAdjustmentFieldInvalid(fieldId, invalid) {
+  const field = dom.accountAdjustmentDialog.querySelector(`[data-account-adjustment-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearAdjustmentFieldInvalid(fieldId) {
+  setAdjustmentFieldInvalid(fieldId, false);
+}
+
+function hideAdjustmentErrorIfClean() {
+  const hasInvalidField = Boolean(dom.accountAdjustmentDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.accountAdjustmentError.textContent = "";
+    dom.accountAdjustmentError.classList.add("is-hidden");
+  }
+}
+
+function currentDate() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
 }
 
 function findAccount(accountId) {

@@ -67,6 +67,28 @@ export async function fetchAccountTransactions(filters) {
   return data || [];
 }
 
+export async function createAccountAdjustment(payload) {
+  const { data, error } = await supabase.rpc("school_create_account_adjustment", {
+    p_adjustment_date: payload.adjustmentDate,
+    p_business_entity_id: payload.businessEntityId,
+    p_account_id: payload.accountId,
+    p_amount: payload.amount,
+    p_reason: payload.reason,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("账户调整失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function fetchAccountTransactionTypes() {
   const { data, error } = await supabase
     .from("school_account_transactions")
@@ -91,7 +113,7 @@ export async function fetchAccountTransactionTypes() {
 export async function fetchBusinessEntitiesForAccounts() {
   const { data, error } = await supabase
     .from("school_business_entities")
-    .select("id,name")
+    .select("id,name,is_active")
     .order("name", { ascending: true });
 
   if (error) {

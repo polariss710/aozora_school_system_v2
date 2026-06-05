@@ -29,7 +29,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">账户调整可用</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -89,8 +89,11 @@
         </section>
 
         <section class="panel" aria-labelledby="accountListTitle">
-          <div class="section-heading">
+          <div class="section-heading section-heading-row">
             <h2 id="accountListTitle">账户列表</h2>
+            <div class="table-actions">
+              <button class="button button-primary" id="openAccountAdjustmentButton" type="button">账户调整</button>
+            </div>
           </div>
 
           <div id="accountLoadingState" class="state-text is-hidden">正在加载账户...</div>
@@ -131,6 +134,54 @@
       </main>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="accountAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountAdjustmentTitle">
+        <div class="section-heading">
+          <h2 id="accountAdjustmentTitle">账户调整</h2>
+          <p class="section-note">用于人工修正账户余额，会自动写入账户调整记录和账户流水。</p>
+        </div>
+
+        <div id="accountAdjustmentError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-account-adjustment-field="adjustmentDate">
+          <span>调整日期</span>
+          <input id="accountAdjustmentDateInput" type="date">
+        </label>
+
+        <label class="field" data-account-adjustment-field="businessEntity">
+          <span>业务归属</span>
+          <select id="accountAdjustmentBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-account-adjustment-field="account">
+          <span>账户</span>
+          <select id="accountAdjustmentAccountSelect"></select>
+        </label>
+
+        <label class="field" data-account-adjustment-field="amount">
+          <span>调整金额</span>
+          <input id="accountAdjustmentAmountInput" type="number" step="0.01" inputmode="decimal" placeholder="正数增加，负数减少">
+        </label>
+
+        <div id="accountAdjustmentPreview" class="dialog-summary is-hidden"></div>
+
+        <label class="field" data-account-adjustment-field="reason">
+          <span>原因</span>
+          <input id="accountAdjustmentReasonInput" type="text" autocomplete="off" placeholder="例如：期初余额修正">
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="accountAdjustmentNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button" id="accountAdjustmentCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="accountAdjustmentSubmitButton" type="button">保存调整</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/account-app.js?v=v2.28.13-account-adjustment-frontend-20260606"></script>
   </body>
 </html>
