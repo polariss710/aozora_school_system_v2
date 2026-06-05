@@ -198,6 +198,25 @@ export async function reverseAccountAdjustment({ adjustmentId, reversalDate, rea
   return result;
 }
 
+export async function reverseAccountTransfer({ transferId, reversalDate, reason }) {
+  const { data, error } = await supabase.rpc("school_reverse_account_transfer", {
+    p_transfer_id: transferId,
+    p_reversal_date: reversalDate,
+    p_reason: reason,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("账户转账撤销失败。");
+  }
+
+  return result;
+}
+
 async function fetchAccountTransaction(transactionId) {
   const { data, error } = await supabase
     .from("school_account_transactions")

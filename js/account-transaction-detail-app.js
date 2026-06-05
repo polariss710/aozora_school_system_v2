@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountTransactionDetailPage } from "./pages/account-transaction-detail-page.js?v=v2.33.14-account-transfer-frontend-minimum-implementation-20260606";
+import { initAccountTransactionDetailPage } from "./pages/account-transaction-detail-page.js?v=v2.34.1-account-transfer-reversal-frontend-20260606";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

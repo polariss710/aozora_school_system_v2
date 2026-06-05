@@ -41,7 +41,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="accountTransactionDetailPageTitle">详情</h2>
-              <p class="section-note">本页展示账户流水审计明细。账户调整来源为 posted 时，可通过已验证 RPC 执行撤销。</p>
+              <p class="section-note">本页展示账户流水审计明细。账户调整或账户转账来源为 posted 时，可通过已验证 RPC 执行撤销。</p>
             </div>
             <a class="button" href="./account.html">返回账户管理</a>
           </div>
@@ -90,6 +90,7 @@
               </div>
               <div class="table-actions">
                 <button class="button button-danger is-hidden" id="openReverseAccountAdjustmentButton" type="button">撤销账户调整</button>
+                <button class="button button-danger is-hidden" id="openReverseAccountTransferButton" type="button">撤销账户转账</button>
               </div>
             </div>
             <div id="accountTransactionDetailSource" class="detail-list"></div>
@@ -130,6 +131,38 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-transaction-detail-app.js?v=v2.30.9-account-adjustment-reversal-frontend-20260606"></script>
+    <div id="reverseAccountTransferDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="reverseAccountTransferTitle">
+        <div class="section-heading">
+          <h2 id="reverseAccountTransferTitle">撤销账户转账</h2>
+          <p class="section-note">撤销后会反向更新转出/转入账户余额，并写入两条账户转账撤销流水。</p>
+        </div>
+
+        <div id="reverseAccountTransferSummary" class="dialog-summary"></div>
+        <div id="reverseAccountTransferError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-reverse-account-transfer-field="reversalDate">
+          <span>撤销日期</span>
+          <input id="reverseAccountTransferDateInput" type="date">
+        </label>
+
+        <label class="field" data-reverse-account-transfer-field="reason">
+          <span>撤销原因</span>
+          <textarea id="reverseAccountTransferReasonInput" rows="3" placeholder="请输入撤销原因"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-reverse-account-transfer-field="confirmCheck">
+          <input id="reverseAccountTransferConfirmCheck" type="checkbox">
+          <span>确认撤销该账户转账</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button" id="reverseAccountTransferCancelButton" type="button">取消</button>
+          <button class="button button-danger" id="reverseAccountTransferSubmitButton" type="button">确认撤销</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/account-transaction-detail-app.js?v=v2.34.1-account-transfer-reversal-frontend-20260606"></script>
   </body>
 </html>

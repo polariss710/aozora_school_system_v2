@@ -2,6 +2,7 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchAccountTransactionDetailPage,
   reverseAccountAdjustment,
+  reverseAccountTransfer,
 } from "../api/account-transaction-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -10,6 +11,8 @@ const TRANSACTION_TYPE_LABELS = {
   account_adjustment_reversal: "账户调整撤销",
   transfer_out: "转账转出",
   transfer_in: "转账转入",
+  transfer_reverse_in: "转账撤销入金",
+  transfer_reverse_out: "转账撤销出金",
   income_adjust: "收入调整",
   expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
@@ -46,6 +49,7 @@ const SOURCE_LINKS = {
 const dom = {};
 let detailData = null;
 let isReverseAccountAdjustmentSubmitting = false;
+let isReverseAccountTransferSubmitting = false;
 
 export function initAccountTransactionDetailPage() {
   cacheDom();
@@ -81,6 +85,7 @@ function cacheDom() {
   dom.noteBlock = document.querySelector("#accountTransactionDetailNoteBlock");
   dom.source = document.querySelector("#accountTransactionDetailSource");
   dom.openReverseAccountAdjustmentButton = document.querySelector("#openReverseAccountAdjustmentButton");
+  dom.openReverseAccountTransferButton = document.querySelector("#openReverseAccountTransferButton");
   dom.reverseAccountAdjustmentDialog = document.querySelector("#reverseAccountAdjustmentDialog");
   dom.reverseAccountAdjustmentSummary = document.querySelector("#reverseAccountAdjustmentSummary");
   dom.reverseAccountAdjustmentError = document.querySelector("#reverseAccountAdjustmentError");
@@ -89,6 +94,14 @@ function cacheDom() {
   dom.reverseAccountAdjustmentConfirmCheck = document.querySelector("#reverseAccountAdjustmentConfirmCheck");
   dom.reverseAccountAdjustmentCancelButton = document.querySelector("#reverseAccountAdjustmentCancelButton");
   dom.reverseAccountAdjustmentSubmitButton = document.querySelector("#reverseAccountAdjustmentSubmitButton");
+  dom.reverseAccountTransferDialog = document.querySelector("#reverseAccountTransferDialog");
+  dom.reverseAccountTransferSummary = document.querySelector("#reverseAccountTransferSummary");
+  dom.reverseAccountTransferError = document.querySelector("#reverseAccountTransferError");
+  dom.reverseAccountTransferDateInput = document.querySelector("#reverseAccountTransferDateInput");
+  dom.reverseAccountTransferReasonInput = document.querySelector("#reverseAccountTransferReasonInput");
+  dom.reverseAccountTransferConfirmCheck = document.querySelector("#reverseAccountTransferConfirmCheck");
+  dom.reverseAccountTransferCancelButton = document.querySelector("#reverseAccountTransferCancelButton");
+  dom.reverseAccountTransferSubmitButton = document.querySelector("#reverseAccountTransferSubmitButton");
   bindEvents();
 }
 
@@ -96,6 +109,9 @@ function bindEvents() {
   dom.openReverseAccountAdjustmentButton.addEventListener("click", openReverseAccountAdjustmentDialog);
   dom.reverseAccountAdjustmentCancelButton.addEventListener("click", closeReverseAccountAdjustmentDialog);
   dom.reverseAccountAdjustmentSubmitButton.addEventListener("click", submitReverseAccountAdjustment);
+  dom.openReverseAccountTransferButton.addEventListener("click", openReverseAccountTransferDialog);
+  dom.reverseAccountTransferCancelButton.addEventListener("click", closeReverseAccountTransferDialog);
+  dom.reverseAccountTransferSubmitButton.addEventListener("click", submitReverseAccountTransfer);
   dom.reverseAccountAdjustmentDateInput.addEventListener("input", () => {
     clearReverseAccountAdjustmentFieldInvalid("reversalDate");
     hideReverseAccountAdjustmentErrorIfClean();
@@ -107,6 +123,18 @@ function bindEvents() {
   dom.reverseAccountAdjustmentConfirmCheck.addEventListener("change", () => {
     clearReverseAccountAdjustmentFieldInvalid("confirmCheck");
     hideReverseAccountAdjustmentErrorIfClean();
+  });
+  dom.reverseAccountTransferDateInput.addEventListener("input", () => {
+    clearReverseAccountTransferFieldInvalid("reversalDate");
+    hideReverseAccountTransferErrorIfClean();
+  });
+  dom.reverseAccountTransferReasonInput.addEventListener("input", () => {
+    clearReverseAccountTransferFieldInvalid("reason");
+    hideReverseAccountTransferErrorIfClean();
+  });
+  dom.reverseAccountTransferConfirmCheck.addEventListener("change", () => {
+    clearReverseAccountTransferFieldInvalid("confirmCheck");
+    hideReverseAccountTransferErrorIfClean();
   });
 }
 
@@ -177,6 +205,7 @@ function renderTransactionDetail(data) {
   dom.noteBlock.textContent = noteText(transaction);
   renderSource(data.source, transaction);
   renderReverseAccountAdjustmentAction(data);
+  renderReverseAccountTransferAction(data);
 }
 
 function renderAccountInfo(transaction) {
@@ -219,6 +248,24 @@ function canReverseAccountAdjustment(data) {
     adjustment?.status === "posted" &&
     !adjustment?.reversed_at &&
     !adjustment?.reversal_account_transaction_id
+  );
+}
+
+function renderReverseAccountTransferAction(data) {
+  const canReverse = canReverseAccountTransfer(data);
+  dom.openReverseAccountTransferButton.classList.toggle("is-hidden", !canReverse);
+}
+
+function canReverseAccountTransfer(data) {
+  const transaction = data?.transaction;
+  const transfer = data?.source?.row;
+  return Boolean(
+    (transaction?.transaction_type === "transfer_out" || transaction?.transaction_type === "transfer_in") &&
+    transaction?.related_table === "school_account_transfers" &&
+    transfer?.status === "posted" &&
+    !transfer?.reversed_at &&
+    !transfer?.reversal_from_account_transaction_id &&
+    !transfer?.reversal_to_account_transaction_id
   );
 }
 
@@ -348,6 +395,139 @@ function setReverseAccountAdjustmentSubmitting(isSubmitting) {
 }
 
 function reverseAccountAdjustmentFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("date") || message.includes("日期")) return ["reversalDate"];
+  if (message.includes("reason") || message.includes("原因")) return ["reason"];
+  return [];
+}
+
+function openReverseAccountTransferDialog() {
+  if (!canReverseAccountTransfer(detailData)) {
+    showMessage("error", "当前账户流水不允许撤销账户转账。");
+    return;
+  }
+
+  const transfer = detailData.source.row;
+  dom.reverseAccountTransferSummary.innerHTML = renderDefinitionList([
+    ["转账 ID", shortId(transfer.id)],
+    ["转账日期", formatDateOnly(transfer.transfer_date)],
+    ["转出账户", accountNameById(transfer.from_account_id)],
+    ["转入账户", accountNameById(transfer.to_account_id)],
+    ["业务归属", businessNameById(transfer.business_entity_id)],
+    ["转账金额", formatCurrency(transfer.amount, transfer.currency)],
+    ["撤销后转出账户影响", formatCurrency(Number(transfer.amount || 0), transfer.currency)],
+    ["撤销后转入账户影响", formatCurrency(Number(transfer.amount || 0) * -1, transfer.currency)],
+  ]);
+  dom.reverseAccountTransferDateInput.value = currentLocalDate();
+  dom.reverseAccountTransferReasonInput.value = "";
+  dom.reverseAccountTransferConfirmCheck.checked = false;
+  clearReverseAccountTransferErrors();
+  setReverseAccountTransferSubmitting(false);
+  dom.reverseAccountTransferDialog.classList.remove("is-hidden");
+  dom.reverseAccountTransferDialog.setAttribute("aria-hidden", "false");
+  dom.reverseAccountTransferDateInput.focus();
+}
+
+function closeReverseAccountTransferDialog({ force = false } = {}) {
+  if (isReverseAccountTransferSubmitting && !force) {
+    return;
+  }
+
+  dom.reverseAccountTransferDialog.classList.add("is-hidden");
+  dom.reverseAccountTransferDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitReverseAccountTransfer() {
+  if (isReverseAccountTransferSubmitting) {
+    return;
+  }
+
+  clearReverseAccountTransferErrors();
+
+  if (!canReverseAccountTransfer(detailData)) {
+    showReverseAccountTransferError("当前账户转账状态不允许撤销。", ["confirmCheck"]);
+    return;
+  }
+
+  const transfer = detailData.source.row;
+  const reversalDate = dom.reverseAccountTransferDateInput.value;
+  const reason = dom.reverseAccountTransferReasonInput.value.trim();
+
+  if (!reversalDate) {
+    showReverseAccountTransferError("请选择撤销日期。", ["reversalDate"]);
+    return;
+  }
+
+  if (!reason) {
+    showReverseAccountTransferError("请输入撤销原因。", ["reason"]);
+    return;
+  }
+
+  if (!dom.reverseAccountTransferConfirmCheck.checked) {
+    showReverseAccountTransferError("请确认撤销该账户转账。", ["confirmCheck"]);
+    return;
+  }
+
+  setReverseAccountTransferSubmitting(true);
+
+  try {
+    const result = await reverseAccountTransfer({
+      transferId: transfer.id,
+      reversalDate,
+      reason,
+    });
+
+    closeReverseAccountTransferDialog({ force: true });
+    await loadTransactionDetail(detailData.transaction.id);
+    showMessage(
+      "success",
+      `账户转账已撤销。撤销流水：${shortId(result.reversal_from_account_transaction_id)} / ${shortId(result.reversal_to_account_transaction_id)}。`
+    );
+  } catch (error) {
+    showReverseAccountTransferError(error.message || String(error), reverseAccountTransferFieldIdsForError(error));
+  } finally {
+    setReverseAccountTransferSubmitting(false);
+  }
+}
+
+function showReverseAccountTransferError(message, fieldIds = []) {
+  dom.reverseAccountTransferError.textContent = message;
+  dom.reverseAccountTransferError.classList.remove("is-hidden");
+  fieldIds.forEach(setReverseAccountTransferFieldInvalid);
+}
+
+function clearReverseAccountTransferErrors() {
+  dom.reverseAccountTransferError.textContent = "";
+  dom.reverseAccountTransferError.classList.add("is-hidden");
+  ["reversalDate", "reason", "confirmCheck"].forEach(clearReverseAccountTransferFieldInvalid);
+}
+
+function hideReverseAccountTransferErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-reverse-account-transfer-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.reverseAccountTransferError.textContent = "";
+    dom.reverseAccountTransferError.classList.add("is-hidden");
+  }
+}
+
+function setReverseAccountTransferFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-reverse-account-transfer-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearReverseAccountTransferFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-reverse-account-transfer-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setReverseAccountTransferSubmitting(isSubmitting) {
+  isReverseAccountTransferSubmitting = isSubmitting;
+  dom.reverseAccountTransferSubmitButton.disabled = isSubmitting;
+  dom.reverseAccountTransferCancelButton.disabled = isSubmitting;
+  dom.reverseAccountTransferSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销";
+}
+
+function reverseAccountTransferFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("date") || message.includes("日期")) return ["reversalDate"];
   if (message.includes("reason") || message.includes("原因")) return ["reason"];
