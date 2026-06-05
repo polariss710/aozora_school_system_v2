@@ -137,6 +137,33 @@ const ACCOUNT_ADJUSTMENT_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const ACCOUNT_TRANSFER_COLUMNS = [
+  "id",
+  "business_entity_id",
+  "from_account_id",
+  "to_account_id",
+  "transfer_date",
+  "year_month",
+  "currency",
+  "amount",
+  "from_balance_before",
+  "from_balance_after",
+  "to_balance_before",
+  "to_balance_after",
+  "reason",
+  "note",
+  "status",
+  "from_account_transaction_id",
+  "to_account_transaction_id",
+  "reversed_at",
+  "reversal_reason",
+  "reversal_from_account_transaction_id",
+  "reversal_to_account_transaction_id",
+  "app_type",
+  "created_at",
+  "updated_at",
+].join(",");
+
 export async function fetchAccountTransactionDetailPage(transactionId) {
   const transaction = await fetchAccountTransaction(transactionId);
 
@@ -257,6 +284,10 @@ function relatedSourceConfig(table) {
     school_account_adjustments: {
       table,
       columns: ACCOUNT_ADJUSTMENT_COLUMNS,
+    },
+    school_account_transfers: {
+      table,
+      columns: ACCOUNT_TRANSFER_COLUMNS,
     },
     school_accounts: {
       table,

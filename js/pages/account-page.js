@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createAccountAdjustment,
+  createAccountTransfer,
   fetchAccountTransactions,
   fetchAccountTransactionTypes,
   fetchAccounts,
@@ -26,6 +27,8 @@ const DEFAULT_FILTERS = {
 const COMMON_TRANSACTION_TYPES = [
   "account_adjustment",
   "account_adjustment_reversal",
+  "transfer_out",
+  "transfer_in",
   "expense_adjust",
   "payment_reversal",
   "income",
@@ -37,6 +40,8 @@ const COMMON_TRANSACTION_TYPES = [
 const TRANSACTION_TYPE_LABELS = {
   account_adjustment: "账户调整",
   account_adjustment_reversal: "账户调整撤销",
+  transfer_out: "转账转出",
+  transfer_in: "转账转入",
   expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
   income: "收入",
@@ -58,6 +63,7 @@ let accounts = [];
 let businessEntities = [];
 let transactions = [];
 let isAdjustmentSubmitting = false;
+let isTransferSubmitting = false;
 
 export function initAccountPage() {
   cacheDom();
@@ -96,6 +102,19 @@ function cacheDom() {
   dom.transactionLoadingState = document.querySelector("#accountTransactionLoadingState");
   dom.transactionEmptyState = document.querySelector("#accountTransactionEmptyState");
   dom.transactionCount = document.querySelector("#accountTransactionCount");
+  dom.openAccountTransferButton = document.querySelector("#openAccountTransferButton");
+  dom.accountTransferDialog = document.querySelector("#accountTransferDialog");
+  dom.accountTransferError = document.querySelector("#accountTransferError");
+  dom.accountTransferDateInput = document.querySelector("#accountTransferDateInput");
+  dom.accountTransferBusinessEntitySelect = document.querySelector("#accountTransferBusinessEntitySelect");
+  dom.accountTransferFromAccountSelect = document.querySelector("#accountTransferFromAccountSelect");
+  dom.accountTransferToAccountSelect = document.querySelector("#accountTransferToAccountSelect");
+  dom.accountTransferAmountInput = document.querySelector("#accountTransferAmountInput");
+  dom.accountTransferPreview = document.querySelector("#accountTransferPreview");
+  dom.accountTransferReasonInput = document.querySelector("#accountTransferReasonInput");
+  dom.accountTransferNoteInput = document.querySelector("#accountTransferNoteInput");
+  dom.accountTransferCancelButton = document.querySelector("#accountTransferCancelButton");
+  dom.accountTransferSubmitButton = document.querySelector("#accountTransferSubmitButton");
   dom.openAccountAdjustmentButton = document.querySelector("#openAccountAdjustmentButton");
   dom.accountAdjustmentDialog = document.querySelector("#accountAdjustmentDialog");
   dom.accountAdjustmentError = document.querySelector("#accountAdjustmentError");
@@ -119,6 +138,40 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadAccountData();
+  });
+
+  dom.openAccountTransferButton.addEventListener("click", openAccountTransferDialog);
+  dom.accountTransferCancelButton.addEventListener("click", closeAccountTransferDialog);
+  dom.accountTransferSubmitButton.addEventListener("click", submitAccountTransfer);
+  dom.accountTransferBusinessEntitySelect.addEventListener("change", () => {
+    clearTransferFieldInvalid("businessEntity");
+    renderTransferAccountOptions();
+    updateTransferPreview();
+    hideTransferErrorIfClean();
+  });
+  dom.accountTransferFromAccountSelect.addEventListener("change", () => {
+    clearTransferFieldInvalid("fromAccount");
+    renderTransferToAccountOptions();
+    updateTransferPreview();
+    hideTransferErrorIfClean();
+  });
+  dom.accountTransferToAccountSelect.addEventListener("change", () => {
+    clearTransferFieldInvalid("toAccount");
+    updateTransferPreview();
+    hideTransferErrorIfClean();
+  });
+  dom.accountTransferAmountInput.addEventListener("input", () => {
+    clearTransferFieldInvalid("amount");
+    updateTransferPreview();
+    hideTransferErrorIfClean();
+  });
+  dom.accountTransferDateInput.addEventListener("input", () => {
+    clearTransferFieldInvalid("transferDate");
+    hideTransferErrorIfClean();
+  });
+  dom.accountTransferReasonInput.addEventListener("input", () => {
+    clearTransferFieldInvalid("reason");
+    hideTransferErrorIfClean();
   });
 
   dom.openAccountAdjustmentButton.addEventListener("click", openAccountAdjustmentDialog);
@@ -383,6 +436,359 @@ function renderTransactions(items) {
       </tr>
     `;
   }).join("");
+}
+
+function openAccountTransferDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  clearTransferErrors();
+  setTransferSubmitting(false);
+
+  const filters = readFilters();
+  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
+  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const defaultFromAccountId = filters?.accountId || "";
+
+  dom.accountTransferDateInput.value = currentDate();
+  dom.accountTransferAmountInput.value = "";
+  dom.accountTransferReasonInput.value = "";
+  dom.accountTransferNoteInput.value = "";
+
+  renderTransferBusinessEntityOptions(activeBusinessEntities);
+  dom.accountTransferBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
+    ? defaultBusinessEntityId
+    : "";
+
+  renderTransferAccountOptions();
+  dom.accountTransferFromAccountSelect.value = filteredTransferFromAccounts().some((account) => account.id === defaultFromAccountId)
+    ? defaultFromAccountId
+    : "";
+  renderTransferToAccountOptions();
+  updateTransferPreview();
+
+  dom.accountTransferDialog.classList.remove("is-hidden");
+  dom.accountTransferDialog.setAttribute("aria-hidden", "false");
+  dom.accountTransferDateInput.focus();
+}
+
+function closeAccountTransferDialog() {
+  if (isTransferSubmitting) {
+    return;
+  }
+
+  dom.accountTransferDialog.classList.add("is-hidden");
+  dom.accountTransferDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitAccountTransfer() {
+  if (isTransferSubmitting) {
+    return;
+  }
+
+  clearTransferErrors();
+
+  const payload = readAccountTransferPayload();
+  if (!payload) {
+    return;
+  }
+
+  setTransferSubmitting(true);
+
+  try {
+    const result = await createAccountTransfer(payload);
+    setTransferSubmitting(false);
+    closeAccountTransferDialog();
+    await refreshAfterAccountTransfer(result);
+    showAccountTransferSuccess(result);
+  } catch (error) {
+    console.error(error);
+    showTransferError(`账户转账失败：${error.message || error}`, transferFieldIdsForError(error.message || ""));
+  } finally {
+    setTransferSubmitting(false);
+  }
+}
+
+function readAccountTransferPayload() {
+  const transferDate = dom.accountTransferDateInput.value;
+  if (!transferDate) {
+    showTransferError("请选择转账日期。", ["transferDate"]);
+    return null;
+  }
+
+  const businessEntityId = dom.accountTransferBusinessEntitySelect.value;
+  if (!businessEntityId) {
+    showTransferError("请选择业务归属。", ["businessEntity"]);
+    return null;
+  }
+
+  const fromAccountId = dom.accountTransferFromAccountSelect.value;
+  if (!fromAccountId) {
+    showTransferError("请选择转出账户。", ["fromAccount"]);
+    return null;
+  }
+
+  const toAccountId = dom.accountTransferToAccountSelect.value;
+  if (!toAccountId) {
+    showTransferError("请选择转入账户。", ["toAccount"]);
+    return null;
+  }
+
+  if (fromAccountId === toAccountId) {
+    showTransferError("转出账户和转入账户不能相同。", ["fromAccount", "toAccount"]);
+    return null;
+  }
+
+  const fromAccount = accounts.find((item) => item.id === fromAccountId);
+  const toAccount = accounts.find((item) => item.id === toAccountId);
+  if (!isUsableTransferAccount(fromAccount)) {
+    showTransferError("转出账户不存在或不可用。", ["fromAccount"]);
+    return null;
+  }
+
+  if (!isUsableTransferAccount(toAccount)) {
+    showTransferError("转入账户不存在或不可用。", ["toAccount"]);
+    return null;
+  }
+
+  if (fromAccount.business_entity_id !== businessEntityId || toAccount.business_entity_id !== businessEntityId) {
+    showTransferError("转账账户必须属于同一业务归属。", ["fromAccount", "toAccount"]);
+    return null;
+  }
+
+  if (fromAccount.currency !== toAccount.currency) {
+    showTransferError("转出账户和转入账户币种必须一致。", ["toAccount"]);
+    return null;
+  }
+
+  const amount = Number(dom.accountTransferAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showTransferError("转账金额必须大于 0。", ["amount"]);
+    return null;
+  }
+
+  const reason = dom.accountTransferReasonInput.value.trim();
+  if (!reason) {
+    showTransferError("转账原因不能为空。", ["reason"]);
+    return null;
+  }
+
+  return {
+    transferDate,
+    businessEntityId,
+    fromAccountId,
+    toAccountId,
+    amount,
+    reason,
+    note: dom.accountTransferNoteInput.value.trim(),
+  };
+}
+
+async function refreshAfterAccountTransfer(result) {
+  if (result?.year_month) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, result.year_month);
+  }
+
+  if (result?.business_entity_id) {
+    dom.businessEntitySelect.value = result.business_entity_id;
+  }
+
+  dom.accountSelect.value = "";
+  dom.transactionTypeSelect.value = "";
+
+  await loadAccountData();
+}
+
+function showAccountTransferSuccess(result) {
+  const amountText = formatCurrency(result?.amount, result?.currency);
+  const fromBalanceText = formatCurrency(result?.from_account_new_balance, result?.currency);
+  const toBalanceText = formatCurrency(result?.to_account_new_balance, result?.currency);
+  const links = [
+    result?.from_account_transaction_id
+      ? `<a href="./account-transaction-detail.html?id=${encodeURIComponent(result.from_account_transaction_id)}">查看转出流水</a>`
+      : "",
+    result?.to_account_transaction_id
+      ? `<a href="./account-transaction-detail.html?id=${encodeURIComponent(result.to_account_transaction_id)}">查看转入流水</a>`
+      : "",
+  ].filter(Boolean).join(" / ");
+
+  dom.messageArea.className = "message message-success";
+  dom.messageArea.innerHTML = `账户转账已保存：${escapeHtml(amountText)}，转出后 ${escapeHtml(fromBalanceText)}，转入后 ${escapeHtml(toBalanceText)}。${links}`;
+}
+
+function renderTransferBusinessEntityOptions(items) {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of items) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
+  }
+  dom.accountTransferBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function renderTransferAccountOptions() {
+  const selectedFromValue = dom.accountTransferFromAccountSelect.value;
+  const options = ['<option value="">请选择转出账户</option>'];
+  for (const account of filteredTransferFromAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(transferAccountLabel(account))}</option>`);
+  }
+  dom.accountTransferFromAccountSelect.innerHTML = options.join("");
+  if (filteredTransferFromAccounts().some((account) => account.id === selectedFromValue)) {
+    dom.accountTransferFromAccountSelect.value = selectedFromValue;
+  }
+  renderTransferToAccountOptions();
+}
+
+function renderTransferToAccountOptions() {
+  const selectedToValue = dom.accountTransferToAccountSelect.value;
+  const options = ['<option value="">请选择转入账户</option>'];
+  for (const account of filteredTransferToAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(transferAccountLabel(account))}</option>`);
+  }
+  dom.accountTransferToAccountSelect.innerHTML = options.join("");
+  if (filteredTransferToAccounts().some((account) => account.id === selectedToValue)) {
+    dom.accountTransferToAccountSelect.value = selectedToValue;
+  }
+}
+
+function filteredTransferFromAccounts() {
+  const businessEntityId = dom.accountTransferBusinessEntitySelect.value;
+  return accounts.filter((account) => {
+    if (!isUsableTransferAccount(account)) {
+      return false;
+    }
+
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function filteredTransferToAccounts() {
+  const businessEntityId = dom.accountTransferBusinessEntitySelect.value;
+  const fromAccount = accounts.find((item) => item.id === dom.accountTransferFromAccountSelect.value);
+  return accounts.filter((account) => {
+    if (!isUsableTransferAccount(account)) {
+      return false;
+    }
+
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    if (fromAccount) {
+      if (account.id === fromAccount.id) {
+        return false;
+      }
+
+      if (account.currency !== fromAccount.currency) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+}
+
+function isUsableTransferAccount(account) {
+  return Boolean(account && account.is_active === true && account.app_type === "school");
+}
+
+function transferAccountLabel(account) {
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+  ].filter(Boolean).join(" / ");
+}
+
+function updateTransferPreview() {
+  const fromAccount = accounts.find((item) => item.id === dom.accountTransferFromAccountSelect.value);
+  const toAccount = accounts.find((item) => item.id === dom.accountTransferToAccountSelect.value);
+  const amount = Number(dom.accountTransferAmountInput.value);
+  if (!fromAccount || !toAccount || !Number.isFinite(amount) || amount <= 0) {
+    dom.accountTransferPreview.classList.add("is-hidden");
+    dom.accountTransferPreview.innerHTML = "";
+    return;
+  }
+
+  const fromCurrentBalance = Number(fromAccount.current_balance || 0);
+  const toCurrentBalance = Number(toAccount.current_balance || 0);
+  const fromNextBalance = fromCurrentBalance - amount;
+  const toNextBalance = toCurrentBalance + amount;
+  dom.accountTransferPreview.classList.remove("is-hidden");
+  dom.accountTransferPreview.innerHTML = `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">币种</span>
+      <span>${escapeHtml(fromAccount.currency || "-")}</span>
+    </div>
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">转出后</span>
+      <span>${escapeHtml(formatCurrency(fromNextBalance, fromAccount.currency))}</span>
+    </div>
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">转入后</span>
+      <span>${escapeHtml(formatCurrency(toNextBalance, toAccount.currency))}</span>
+    </div>
+  `;
+}
+
+function setTransferSubmitting(isSubmitting) {
+  isTransferSubmitting = isSubmitting;
+  dom.accountTransferSubmitButton.disabled = isSubmitting;
+  dom.accountTransferCancelButton.disabled = isSubmitting;
+  dom.accountTransferSubmitButton.textContent = isSubmitting ? "保存中..." : "保存转账";
+}
+
+function clearTransferErrors() {
+  dom.accountTransferError.textContent = "";
+  dom.accountTransferError.classList.add("is-hidden");
+  for (const fieldId of ["transferDate", "businessEntity", "fromAccount", "toAccount", "amount", "reason"]) {
+    clearTransferFieldInvalid(fieldId);
+  }
+}
+
+function showTransferError(message, fieldIds = []) {
+  dom.accountTransferError.textContent = message;
+  dom.accountTransferError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setTransferFieldInvalid(fieldId, true);
+  }
+  dom.accountTransferDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function transferFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("日期")) fields.push("transferDate");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("转出")) fields.push("fromAccount");
+  if (text.includes("转入")) fields.push("toAccount");
+  if (text.includes("账户") || text.includes("币种")) fields.push("fromAccount", "toAccount");
+  if (text.includes("金额")) fields.push("amount");
+  if (text.includes("原因")) fields.push("reason");
+  return Array.from(new Set(fields));
+}
+
+function setTransferFieldInvalid(fieldId, invalid) {
+  const field = dom.accountTransferDialog.querySelector(`[data-account-transfer-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearTransferFieldInvalid(fieldId) {
+  setTransferFieldInvalid(fieldId, false);
+}
+
+function hideTransferErrorIfClean() {
+  const hasInvalidField = Boolean(dom.accountTransferDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.accountTransferError.textContent = "";
+    dom.accountTransferError.classList.add("is-hidden");
+  }
 }
 
 function openAccountAdjustmentDialog() {
@@ -663,8 +1069,10 @@ function hideAdjustmentErrorIfClean() {
 
 function currentDate() {
   const now = new Date();
-  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
-  return local.toISOString().slice(0, 10);
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function findAccount(accountId) {

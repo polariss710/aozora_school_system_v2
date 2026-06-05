@@ -92,6 +92,7 @@
           <div class="section-heading section-heading-row">
             <h2 id="accountListTitle">账户列表</h2>
             <div class="table-actions">
+              <button class="button" id="openAccountTransferButton" type="button">账户转账/调拨</button>
               <button class="button button-primary" id="openAccountAdjustmentButton" type="button">账户调整</button>
             </div>
           </div>
@@ -132,6 +133,59 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="accountTransferDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountTransferTitle">
+        <div class="section-heading">
+          <h2 id="accountTransferTitle">账户转账/调拨</h2>
+          <p class="section-note">用于同一业务归属、同一币种的账户间资金调拨，会自动写入双边账户流水。</p>
+        </div>
+
+        <div id="accountTransferError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-account-transfer-field="transferDate">
+          <span>转账日期</span>
+          <input id="accountTransferDateInput" type="date">
+        </label>
+
+        <label class="field" data-account-transfer-field="businessEntity">
+          <span>业务归属</span>
+          <select id="accountTransferBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-account-transfer-field="fromAccount">
+          <span>转出账户</span>
+          <select id="accountTransferFromAccountSelect"></select>
+        </label>
+
+        <label class="field" data-account-transfer-field="toAccount">
+          <span>转入账户</span>
+          <select id="accountTransferToAccountSelect"></select>
+        </label>
+
+        <label class="field" data-account-transfer-field="amount">
+          <span>转账金额</span>
+          <input id="accountTransferAmountInput" type="number" step="0.01" inputmode="decimal" placeholder="请输入大于 0 的金额">
+        </label>
+
+        <div id="accountTransferPreview" class="dialog-summary is-hidden"></div>
+
+        <label class="field" data-account-transfer-field="reason">
+          <span>原因</span>
+          <input id="accountTransferReasonInput" type="text" autocomplete="off" placeholder="例如：账户间调拨">
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="accountTransferNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button" id="accountTransferCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="accountTransferSubmitButton" type="button">保存转账</button>
+        </div>
+      </section>
     </div>
 
     <div id="accountAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">

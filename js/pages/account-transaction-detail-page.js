@@ -8,6 +8,8 @@ import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/form
 const TRANSACTION_TYPE_LABELS = {
   account_adjustment: "账户调整",
   account_adjustment_reversal: "账户调整撤销",
+  transfer_out: "转账转出",
+  transfer_in: "转账转入",
   income_adjust: "收入调整",
   expense_adjust: "支出调整 / 支付扣款",
   payment_reversal: "支付撤销",
@@ -30,6 +32,7 @@ const RELATED_TABLE_LABELS = {
   school_payment_requests: "老师工资支付请求",
   school_reimbursements: "报销记录",
   school_account_adjustments: "账户调整",
+  school_account_transfers: "账户转账/调拨",
   school_accounts: "账户调整 / 初始账户来源",
 };
 
@@ -465,6 +468,31 @@ function sourceDefinitionItems(table, row) {
       ["撤销时间", formatDate(row.reversed_at)],
       ["撤销原因", displayValue(row.reversal_reason)],
       ["撤销流水", shortId(row.reversal_account_transaction_id)],
+      ["创建时间", formatDate(row.created_at)],
+    ];
+  }
+
+  if (table === "school_account_transfers") {
+    return [
+      ["转账日期", formatDateOnly(row.transfer_date)],
+      ["目标月份", formatMonth(row.year_month)],
+      ["业务归属", businessNameById(row.business_entity_id)],
+      ["转出账户", accountNameById(row.from_account_id)],
+      ["转入账户", accountNameById(row.to_account_id)],
+      ["金额", formatCurrency(row.amount, row.currency)],
+      ["转出前余额", formatCurrency(row.from_balance_before, row.currency)],
+      ["转出后余额", formatCurrency(row.from_balance_after, row.currency)],
+      ["转入前余额", formatCurrency(row.to_balance_before, row.currency)],
+      ["转入后余额", formatCurrency(row.to_balance_after, row.currency)],
+      ["原因", displayValue(row.reason)],
+      ["备注", displayValue(row.note)],
+      ["状态", displayValue(row.status)],
+      ["转出流水", shortId(row.from_account_transaction_id)],
+      ["转入流水", shortId(row.to_account_transaction_id)],
+      ["撤销时间", formatDate(row.reversed_at)],
+      ["撤销原因", displayValue(row.reversal_reason)],
+      ["撤销转出流水", shortId(row.reversal_from_account_transaction_id)],
+      ["撤销转入流水", shortId(row.reversal_to_account_transaction_id)],
       ["创建时间", formatDate(row.created_at)],
     ];
   }

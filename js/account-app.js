@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountPage } from "./pages/account-page.js?v=v2.30.9-account-adjustment-reversal-frontend-20260606";
+import { initAccountPage } from "./pages/account-page.js?v=v2.33.14-account-transfer-frontend-minimum-implementation-20260606";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

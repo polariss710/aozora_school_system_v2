@@ -89,6 +89,29 @@ export async function createAccountAdjustment(payload) {
   return result;
 }
 
+export async function createAccountTransfer(payload) {
+  const { data, error } = await supabase.rpc("school_create_account_transfer", {
+    p_transfer_date: payload.transferDate,
+    p_business_entity_id: payload.businessEntityId,
+    p_from_account_id: payload.fromAccountId,
+    p_to_account_id: payload.toAccountId,
+    p_amount: payload.amount,
+    p_reason: payload.reason,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("账户转账失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function fetchAccountTransactionTypes() {
   const { data, error } = await supabase
     .from("school_account_transactions")
