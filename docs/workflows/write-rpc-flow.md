@@ -384,6 +384,7 @@ Allowed only when explicitly requested:
 - Call the business RPC with controlled valid input.
 - Run read-only before/after verification.
 - Run failure cases that should not create additional writes.
+- Auto-run the commit test only when the candidate matches the test data whitelist below.
 
 Forbidden:
 
@@ -391,9 +392,12 @@ Forbidden:
 - Editing frontend/API modules.
 - Archiving or committing before verification is complete.
 - Printing secrets.
+- Auto-running commit tests against possible real business data.
+- Auto-running `delete`, `drop`, `truncate`, historical repair, real wage payment, real reimbursement, real payment request, or locked settlement cases.
 
 Required checks:
 
+- Before execution, prove by read-only queries that the candidate belongs to the test data whitelist.
 - Source/main table row count and values.
 - Account transaction row count and values.
 - Account balance change.
@@ -401,6 +405,7 @@ Required checks:
 - `related_table` / `related_id`.
 - Status, note, reason, date, and audit fields.
 - Residual test data impact.
+- After execution, prove writes affected only whitelisted test data scope.
 
 Output:
 
@@ -413,6 +418,33 @@ Output:
 - Whether verified SQL commit can proceed.
 
 Next phase gate: intended write is fully verified and residual impact is understood.
+
+### Commit Test Data Whitelist
+
+Commit tests may be auto-executed only when every target record is proven to be test data. If any check is inconclusive, stop at a human gate.
+
+Whitelist signals:
+
+- Test accounts: account name/code/note contains a clear test marker such as `test`, `codex`, `sandbox`, `commit test`, or the current phase id.
+- Test students: student name/code/note contains a clear test marker and is not tied to a locked settlement.
+- Test business entities: entity name/code/note contains a clear test marker, or the prompt names an approved test entity.
+- Test write markers: new `note`, `description`, or `reason` includes the current phase id and `commit test`.
+- Test source records: existing income, expense, reimbursement, payment, adjustment, or request candidates already contain clear test markers and have no real settlement/payment dependency.
+
+Required whitelist checks:
+
+- Run read-only before queries that show the candidate id, account, business entity, student/source record, status, balance/counts, and test markers.
+- Confirm the operation does not touch locked settlements, real wage payments, real reimbursements, or real payment requests unless the prompt explicitly names a test record and authorizes it.
+- Run read-only after queries that show new rows, status changes, balances, and related ids remain inside the whitelisted test scope.
+- Failure cases must also use test ids or impossible dummy ids and must prove no second write occurred.
+
+Human gate is mandatory when:
+
+- No test candidate exists.
+- Candidate ownership is ambiguous.
+- The only available candidate appears to be real production/business data.
+- The test would modify locked settlement data, real wage payment data, real reimbursement data, or a real payment request.
+- The action includes `delete`, `drop`, `truncate`, historical repair, broad backfill, or cleanup.
 
 ## 12. Verified SQL Commit
 
@@ -732,10 +764,14 @@ SQL 执行结果、测试候选、rollback 返回结果、事务内验证、roll
 对 [feature] RPC 做真实 commit test。
 
 重点：
+- 只允许使用测试数据白名单候选
+- 执行前只读证明候选属于测试数据
 - 执行前只读确认
 - 执行真实 RPC
 - 验证主表/流水/余额/状态/关联字段
+- 验证写入只影响测试数据范围
 - 验证失败用例不会产生二次写入
+- 找不到测试候选或候选可能是真实数据时必须 human gate
 
 输出：
 测试候选、执行前确认、RPC 返回结果、执行后验证、失败用例验证、git status、是否可以进入 verified SQL commit。
@@ -872,9 +908,15 @@ Use these checklists before reporting a phase complete.
 
 ### Commit Test Checklist
 
+- Candidate matches the commit test data whitelist.
+- Read-only before queries prove candidate account, student/source record, business entity, note/description/reason markers, and status are test-scope.
+- Human gate used if no whitelisted candidate exists or candidate may be real data.
 - Before-state counts and balances captured.
 - One controlled valid RPC call executed.
 - Main/source row, account transaction, balance, status, note/reason/date, and related fields verified.
+- After-state proves only whitelisted test data was affected.
+- Locked settlement, real wage payment, real reimbursement, and real payment request cases were not auto-executed.
+- No `delete`, `drop`, `truncate`, historical repair, broad backfill, or cleanup was auto-executed.
 - Failure cases do not create additional writes.
 - Residual test data impact is stated.
 - Next SQL commit phase is justified.
