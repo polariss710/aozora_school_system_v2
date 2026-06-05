@@ -1,22 +1,85 @@
 # Write RPC Flow
 
-Version: v2.29.3-write-rpc-prompt-template-checklist-20260606
+Version: v2.34.0-full-autopilot-workflow-reset-20260606
 
-This document is the project standard for write-operation RPC development. It does not grant permission to execute SQL, call business RPCs, write data, edit frontend files, commit, or push. Each task prompt must explicitly allow the current phase actions.
+This document is the project standard for write-operation RPC development. It now defines a full autopilot trial: Codex should continue through the whole feature workflow by default, summarize progress by phase, and stop only when a hard stop condition is hit.
 
 ## Core Rules
 
-- Keep one phase narrow. Do not mix design, SQL execution, RPC testing, frontend implementation, and git operations unless the task explicitly allows it.
+- Keep each phase internally narrow, but do not pause between phases for confirmation during full autopilot trial.
+- Continue automatically through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL archive, frontend implementation, frontend checkpoint/push, feature checkpoint, and `docs/current-status.md` update/push.
 - Page modules must not call Supabase `.rpc()` directly.
 - Page modules must not directly insert, update, delete, or upsert database rows.
 - Write operations must go through the API layer and verified RPCs.
 - Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
-- Start each phase by checking `git status --short`; SQL execution and commit phases must also confirm the latest commit.
-- Every phase report must state: files changed, SQL/RPC executed, database written, commit/push performed, current git status, and whether the next phase can proceed.
+- Start the workflow by checking `git status --short`; SQL execution and commit phases must also confirm the latest commit.
+- Progress reports should be concise phase summaries, not confirmation requests.
+- Final reports must state: files changed, SQL/RPC executed, database written, commit/push performed, test data used, current git status, remaining risks, and whether the workflow completed or stopped.
 - Read-only DB verification is limited to explicit `select` queries, including `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
 - Clearly read-only `select` verification commands may use "Yes, and don't ask again" in Codex CLI approval prompts.
 - Read-only approval does not apply to `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
-- Schema execution, RPC execution, rollback tests, commit tests, commit, and push remain human-gated. Do not enable full access or bypass approvals.
+- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are default-allowed in full autopilot when required checks pass.
+- Do not enable full access or bypass Codex CLI approvals.
+- If a task explicitly says no file changes, no SQL/RPC execution, no DB write, or no commit/push, that narrower instruction overrides full autopilot.
+
+## Full Autopilot Trial
+
+Default automatic sequence:
+
+1. Analysis
+2. Schema design
+3. Schema SQL draft
+4. Schema static review
+5. Schema execution
+6. Schema verified commit
+7. RPC design
+8. RPC SQL draft
+9. RPC static review
+10. RPC execution
+11. Rollback test
+12. Commit test
+13. Verified SQL commit
+14. Frontend analysis
+15. Frontend minimal implementation
+16. Frontend static checkpoint and push
+17. Feature checkpoint
+18. `docs/current-status.md` update and push
+
+Skip schema phases only when analysis proves no schema change is needed. Skip frontend phases only when the feature has no frontend surface.
+
+Default DB authorization:
+
+- Read-only `select` verification runs automatically.
+- Schema SQL execution runs automatically after static review passes.
+- RPC SQL execution runs automatically after static review passes.
+- Rollback tests run automatically after RPC execution succeeds.
+- Commit tests run automatically only when the candidate is proven to match the test data whitelist.
+- If no safe test data exists, Codex may create minimal test data with explicit whitelist markers and then continue.
+
+Default git authorization:
+
+- Document updates are committed and pushed automatically after `git diff --check` and scope checks pass.
+- Executed/verified SQL archives are committed and pushed automatically after logic-change checks pass.
+- Frontend static checkpoints are committed and pushed automatically after boundary scans and syntax checks pass.
+- Feature checkpoint and current-status updates are committed and pushed automatically.
+
+Hard stop conditions:
+
+- `SUPABASE_DB_URL` is missing or `psql` is unavailable.
+- `git status --short` shows unrelated or ambiguous changes that cannot be safely isolated.
+- Static review, `git diff --check`, `node --check`, page-boundary scans, rollback test, or commit test fails.
+- Commit test requires non-whitelisted real business data.
+- Test data ownership is uncertain and safe test data cannot be created.
+- The task requires `delete`, `truncate`, `drop`, historical repair, broad backfill, broad cleanup, or real production-data correction.
+- The implementation requires a large refactor or non-target module changes.
+- A secret would need to be printed, saved, or committed.
+
+When a hard stop occurs, stop immediately and report the completed phases, blocker, DB/write state, git state, and next safest action.
+
+Trial scope:
+
+- Use full autopilot trial for the next 2-3 small write-operation features.
+- If the trial causes unsafe behavior, repeated failed checks, or unclear review output, revert to the last stable workflow commit and restore conservative gates.
 
 ## Standard Sequence
 
@@ -29,15 +92,17 @@ This document is the project standard for write-operation RPC development. It do
 7. RPC design
 8. RPC SQL draft
 9. RPC static review
-10. RPC execution and rollback test
-11. RPC commit test
-12. Verified SQL commit
-13. Frontend analysis
-14. Frontend minimal implementation
-15. Frontend checkpoint and push
-16. Feature checkpoint
+10. RPC execution
+11. Rollback test
+12. Commit test
+13. Verified SQL commit
+14. Frontend analysis
+15. Frontend minimal implementation
+16. Frontend static checkpoint and push
+17. Feature checkpoint
+18. `docs/current-status.md` update and push
 
-Skip schema phases only when the analysis concludes no schema change is needed.
+Skip schema phases only when the analysis concludes no schema change is needed. The detailed phase sections below combine RPC execution and rollback testing as one operational block because they should run consecutively. In full autopilot, "Next phase gate" means an internal condition to continue automatically; it does not require asking the user unless a hard stop condition applies.
 
 ## Phase Template
 
@@ -57,7 +122,7 @@ Goal: decide the business scope, invariants, existing patterns, and whether sche
 Allowed:
 
 - Read project docs, SQL files, API modules, page modules, detail pages, and recent commits.
-- Use read-only DB queries only when the prompt explicitly allows them.
+- Use read-only DB queries for verification and existing-pattern discovery.
 - Identify source records, target records, account transaction effects, status transitions, audit fields, and reversal behavior.
 
 Forbidden:
@@ -182,7 +247,7 @@ Next phase gate: no blocking review findings remain.
 
 Goal: execute verified schema-only SQL and verify the DB state.
 
-Allowed only when explicitly requested:
+Allowed in full autopilot after schema static review passes:
 
 - Execute `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
 - Run read-only verification for created/changed schema objects.
@@ -193,7 +258,7 @@ Forbidden:
 - Calling business RPCs.
 - Editing frontend/API modules.
 - Writing business data beyond the schema migration itself.
-- Committing or pushing unless explicitly requested.
+- Committing or pushing before verification passes.
 
 Required checks:
 
@@ -219,7 +284,7 @@ Allowed:
 
 - Update the schema SQL file header/status only.
 - Run `git diff --check`.
-- Commit and push only when explicitly requested.
+- Commit and push after required checks pass.
 
 Forbidden:
 
@@ -252,7 +317,7 @@ Allowed:
 
 Forbidden:
 
-- Creating SQL files unless the task explicitly allows it.
+- Creating SQL files before the design is complete.
 - Executing SQL or calling business RPCs.
 - Editing frontend/API modules.
 
@@ -344,7 +409,7 @@ Next phase gate: no blocking SQL findings remain.
 
 Goal: install the RPC and prove failed/rolled-back writes leave no residue.
 
-Allowed only when explicitly requested:
+Allowed in full autopilot after RPC static review passes:
 
 - Execute the RPC SQL file with `psql`.
 - Smoke test function existence.
@@ -383,7 +448,7 @@ Next phase gate: rollback and failure cases prove no unintended persistence.
 
 Goal: perform one controlled real write and verify every intended effect.
 
-Allowed only when explicitly requested:
+Allowed in full autopilot when the candidate is proven to match the test data whitelist:
 
 - Call the business RPC with controlled valid input.
 - Run read-only before/after verification.
@@ -425,13 +490,13 @@ Next phase gate: intended write is fully verified and residual impact is underst
 
 ### Commit Test Data Whitelist
 
-Commit tests may be auto-executed only when every target record is proven to be test data. If any check is inconclusive, stop at a human gate.
+Commit tests may be auto-executed only when every target record is proven to be test data. If any check is inconclusive, trigger a hard stop.
 
 Whitelist signals:
 
-- Test accounts: account name/code/note contains a clear test marker such as `test`, `codex`, `sandbox`, `commit test`, or the current phase id.
-- Test students: student name/code/note contains a clear test marker and is not tied to a locked settlement.
-- Test business entities: entity name/code/note contains a clear test marker, or the prompt names an approved test entity.
+- Test accounts: account name/code/note contains a clear test marker such as `codex-test`, `v2-test`, `sandbox`, `test`, `commit test`, `测试账户`, or the current phase id.
+- Test students: student name/code/note contains a clear test marker such as `codex-test`, `v2-test`, `sandbox`, `测试学生`, or the current phase id, and is not tied to a locked settlement.
+- Test business entities: entity name/code/note contains a clear test marker such as `codex-test`, `v2-test`, `sandbox`, `测试业务归属`, or the current phase id, or the prompt names an approved test entity.
 - Test write markers: new `note`, `description`, or `reason` includes the current phase id and `commit test`.
 - Test source records: existing income, expense, reimbursement, payment, adjustment, or request candidates already contain clear test markers and have no real settlement/payment dependency.
 
@@ -442,7 +507,7 @@ Required whitelist checks:
 - Run read-only after queries that show new rows, status changes, balances, and related ids remain inside the whitelisted test scope.
 - Failure cases must also use test ids or impossible dummy ids and must prove no second write occurred.
 
-Human gate is mandatory when:
+Hard stop is mandatory when:
 
 - No test candidate exists.
 - Candidate ownership is ambiguous.
@@ -458,7 +523,7 @@ Allowed:
 
 - Update SQL file header/status only.
 - Run `git diff --check`.
-- Commit and push only when explicitly requested.
+- Commit and push after required checks pass.
 
 Forbidden:
 
@@ -518,7 +583,7 @@ Next phase gate: UI/API scope is minimal and file range is explicit.
 
 Goal: wire the verified RPC into the UI with minimal, testable behavior.
 
-Allowed only for explicitly named frontend/API files:
+Allowed for the minimal target frontend/API files identified during frontend analysis:
 
 - Add API-layer RPC wrappers.
 - Wire page modules to API functions.
@@ -556,14 +621,14 @@ Next phase gate: static checks pass, page/API boundary is clean, and no unintend
 
 Goal: run final static frontend checks, commit, and push.
 
-Allowed only when explicitly requested:
+Allowed in full autopilot after frontend implementation checks pass:
 
 - Run static checks and read-only online file checks.
 - Commit and push the frontend implementation.
 
 Forbidden:
 
-- Calling the business RPC unless explicitly requested as UI test.
+- Calling the business RPC from the UI unless running an approved UI test inside the same full autopilot scope.
 - Editing SQL/RPC files.
 - Committing unrelated changes.
 
@@ -599,10 +664,10 @@ Allowed:
 
 Forbidden:
 
-- Editing files unless the prompt explicitly includes documentation updates.
+- Editing business code or SQL logic.
 - Calling business RPCs.
 - Writing DB rows.
-- Committing or pushing.
+- Committing unrelated changes.
 
 Required checks:
 
@@ -624,9 +689,67 @@ Output:
 
 Next phase gate: worktree is clean and no blocking verification gap remains.
 
+## 17. Current Status Update And Push
+
+Goal: record the new stable checkpoint after the feature is complete.
+
+Allowed in full autopilot after feature checkpoint passes:
+
+- Update `docs/current-status.md` with the completed feature scope, latest stable commit context, test-data status, known remaining risks, and next candidate.
+- Run `git diff --check`.
+- Confirm only documentation files changed.
+- Commit and push the status update.
+
+Forbidden:
+
+- Editing business code, SQL logic, or frontend implementation during status update.
+- Executing SQL/RPC or writing DB rows.
+- Recording secrets or long phase history.
+
+Required checks:
+
+- `git status --short`.
+- Latest commit.
+- `git diff --check`.
+- Documentation-only diff scope.
+
+Output:
+
+- Status update summary.
+- Commit hash.
+- Push result.
+- Final git status.
+- Whether the next small feature can start.
+
+Next phase gate: worktree is clean and the stable checkpoint is documented.
+
 ## Short Prompt Templates
 
-Use these templates as the default shape for future write-operation tasks. Replace bracketed placeholders and keep the focus list short.
+Use the full autopilot template by default for future write-operation tasks. Use the individual phase templates only when intentionally narrowing scope, debugging, or reverting to conservative mode.
+
+### Full Autopilot Feature
+
+```text
+先阅读 AGENTS.md、docs/current-status.md 和 docs/workflows/write-rpc-flow.md。
+
+进入 [version-feature-full-autopilot-date]。
+
+目标：
+按 full autopilot trial 完成 [feature] 写操作端到端流程。
+
+重点：
+- 自动推进 analysis / schema / RPC / rollback test / commit test / SQL archive / frontend / checkpoint / current-status update
+- commit test 只使用测试数据白名单；没有安全测试数据时自动创建明确测试标记数据
+- 页面层不得直接 .rpc 或 insert/update/delete/upsert
+- 遇到 hard stop 条件立即停止报告
+
+输出：
+完成阶段、修改文件、SQL/RPC 执行、DB 写入、测试数据、commit hash、push 结果、剩余风险、最终 git status。
+```
+
+### Individual Phase Templates
+
+Replace bracketed placeholders and keep the focus list short.
 
 ### Analysis
 
@@ -775,7 +898,7 @@ SQL 执行结果、测试候选、rollback 返回结果、事务内验证、roll
 - 验证主表/流水/余额/状态/关联字段
 - 验证写入只影响测试数据范围
 - 验证失败用例不会产生二次写入
-- 找不到测试候选或候选可能是真实数据时必须 human gate
+- 找不到测试候选或候选可能是真实数据时必须 hard stop
 
 输出：
 测试候选、执行前确认、RPC 返回结果、执行后验证、失败用例验证、git status、是否可以进入 verified SQL commit。
