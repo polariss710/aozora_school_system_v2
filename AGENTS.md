@@ -14,9 +14,9 @@
 - Write-operation features now default to full autopilot trial for the next 2-3 small features.
 - Do not stop at every phase for user confirmation. Continue through the standard workflow until completion unless a hard stop condition is hit.
 - Automatically run read-only DB verification, schema SQL execution, RPC SQL execution, rollback tests, and commit tests when the commit test candidate is proven to match the test data whitelist.
-- If no safe test data exists, Codex may create narrowly scoped test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`.
+- If rollback or commit test candidates do not match the test data whitelist, Codex may create narrowly scoped test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`.
 - Automatically commit and push document updates, verified SQL archives, frontend static checkpoints, feature checkpoints, and `docs/current-status.md` updates after required checks pass.
-- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership, need for real business data, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, or historical data repair.
+- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for real business data, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, or historical data repair.
 - If full autopilot trial shows clear problems, revert to the last stable documented workflow and tighten the rules before continuing.
 
 ## Schema And RPC Execution Workflow
@@ -43,7 +43,7 @@
 - For write-operation feature work, default to the full autopilot trial workflow in `docs/workflows/write-rpc-flow.md`.
 - For non-write-operation tasks, keep the requested scope narrow and do not edit unrelated modules.
 - Never print, save, or commit `SUPABASE_DB_URL` or any other secret.
-- Do not use real business data for automatic commit tests. Commit tests must prove whitelisted test scope before writing.
+- Do not use real business data for automatic rollback or commit tests. Tests must prove whitelisted test scope before writing, or create clearly marked test data first.
 - Do not run `delete`, `truncate`, `drop`, historical data repair, broad backfill, or cleanup automatically.
 - Do not skip static review, rollback test, commit test, final checkpoint, or current-status update for a write-operation feature.
 - Page/API boundaries remain mandatory: page modules must not directly `.rpc()` or directly insert/update/delete/upsert rows.

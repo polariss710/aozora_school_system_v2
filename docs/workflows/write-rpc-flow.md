@@ -52,9 +52,10 @@ Default DB authorization:
 - Read-only `select` verification runs automatically.
 - Schema SQL execution runs automatically after static review passes.
 - RPC SQL execution runs automatically after static review passes.
-- Rollback tests run automatically after RPC execution succeeds.
+- Rollback tests run automatically after RPC execution succeeds when the candidate is proven to match the test data whitelist.
 - Commit tests run automatically only when the candidate is proven to match the test data whitelist.
-- If no safe test data exists, Codex may create minimal test data with explicit whitelist markers and then continue.
+- If rollback or commit test candidates do not match the whitelist, Codex may create minimal test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`, then use that data for the test.
+- Real business data must never be used as an automatic rollback or commit test candidate.
 
 Default git authorization:
 
@@ -490,7 +491,7 @@ Next phase gate: intended write is fully verified and residual impact is underst
 
 ### Commit Test Data Whitelist
 
-Commit tests may be auto-executed only when every target record is proven to be test data. If any check is inconclusive, trigger a hard stop.
+Rollback and commit tests may be auto-executed only when every target record is proven to be test data. If existing candidates do not match the whitelist, create clearly marked test data when safe. If any check is inconclusive and safe test data cannot be created, trigger a hard stop.
 
 Whitelist signals:
 
@@ -509,9 +510,9 @@ Required whitelist checks:
 
 Hard stop is mandatory when:
 
-- No test candidate exists.
+- No test candidate exists and safe marked test data cannot be created.
 - Candidate ownership is ambiguous.
-- The only available candidate appears to be real production/business data.
+- The only available existing candidate appears to be real production/business data.
 - The test would modify locked settlement data, real wage payment data, real reimbursement data, or a real payment request.
 - The action includes `delete`, `drop`, `truncate`, historical repair, broad backfill, or cleanup.
 
