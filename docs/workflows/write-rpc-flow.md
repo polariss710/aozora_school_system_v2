@@ -13,6 +13,10 @@ This document is the project standard for write-operation RPC development. It do
 - Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
 - Start each phase by checking `git status --short`; SQL execution and commit phases must also confirm the latest commit.
 - Every phase report must state: files changed, SQL/RPC executed, database written, commit/push performed, current git status, and whether the next phase can proceed.
+- Read-only DB verification is limited to explicit `select` queries, including `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
+- Clearly read-only `select` verification commands may use "Yes, and don't ask again" in Codex CLI approval prompts.
+- Read-only approval does not apply to `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
+- Schema execution, RPC execution, rollback tests, commit tests, commit, and push remain human-gated. Do not enable full access or bypass approvals.
 
 ## Standard Sequence
 
