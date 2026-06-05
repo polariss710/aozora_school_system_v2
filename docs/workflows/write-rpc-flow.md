@@ -1,83 +1,187 @@
 # Write RPC Flow
 
-Version: v2.27.0-write-rpc-flow-doc-20260606
+Version: v2.29.1-write-rpc-flow-standardization-20260606
 
-This workflow documents the standard development path for verified write-operation RPCs in this project. It is intended for future Codex task prompts and may later become the basis for a Codex skill. This document does not grant permission to execute SQL, write business data, edit frontend code, commit, or push; each task phase must explicitly allow its own actions.
+This document is the project standard for write-operation RPC development. It does not grant permission to execute SQL, call business RPCs, write data, edit frontend files, commit, or push. Each task prompt must explicitly allow the current phase actions.
 
 ## Core Rules
 
-- Keep each phase narrow. Do not mix analysis, SQL execution, RPC testing, frontend implementation, and git operations in one step unless the task explicitly allows it.
+- Keep one phase narrow. Do not mix design, SQL execution, RPC testing, frontend implementation, and git operations unless the task explicitly allows it.
 - Page modules must not call Supabase `.rpc()` directly.
-- Write operations must go through the API layer and verified RPCs.
 - Page modules must not directly insert, update, delete, or upsert database rows.
+- Write operations must go through the API layer and verified RPCs.
 - Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
-- Before SQL execution or commit work, check `git status --short`.
-- Reports must state whether files changed, whether SQL/RPC was executed, whether the database was written, whether commit/push happened, current git status, and whether the next step can proceed.
+- Start each phase by checking `git status --short`; SQL execution and commit phases must also confirm the latest commit.
+- Every phase report must state: files changed, SQL/RPC executed, database written, commit/push performed, current git status, and whether the next phase can proceed.
 
 ## Standard Sequence
 
 1. Analysis
 2. Schema design
-3. Schema execution
-4. RPC design
-5. SQL draft
-6. Static review
-7. Rollback test
-8. Commit test
-9. SQL archive
-10. Frontend minimal implementation
-11. Checkpoint
+3. Schema SQL draft
+4. Schema static review
+5. Schema execution
+6. Schema verified commit
+7. RPC design
+8. RPC SQL draft
+9. RPC static review
+10. RPC execution and rollback test
+11. RPC commit test
+12. Verified SQL commit
+13. Frontend analysis
+14. Frontend minimal implementation
+15. Frontend checkpoint and push
+16. Feature checkpoint
+
+Skip schema phases only when the analysis concludes no schema change is needed.
+
+## Phase Template
+
+Each phase should use this structure:
+
+- Goal: one concrete objective.
+- Allowed: what may be read, edited, executed, or written.
+- Forbidden: actions outside the phase.
+- Required checks: commands or verifications that must be done.
+- Output: concise report fields.
+- Next phase gate: the condition that must be true before proceeding.
 
 ## 1. Analysis
 
+Goal: decide the business scope, invariants, existing patterns, and whether schema/RPC/frontend work is needed.
+
 Allowed:
 
-- Read project docs, existing SQL, API modules, page modules, and relevant archived commits.
-- Inspect current behavior and data model with read-only queries when explicitly allowed.
-- Identify source records, target records, expected linkage, reversal behavior, status transitions, and audit fields.
+- Read project docs, SQL files, API modules, page modules, detail pages, and recent commits.
+- Use read-only DB queries only when the prompt explicitly allows them.
+- Identify source records, target records, account transaction effects, status transitions, audit fields, and reversal behavior.
 
 Forbidden:
 
-- Editing business code or SQL files unless the task explicitly moves into a draft phase.
-- Executing schema SQL, creating RPCs, calling business RPCs, or writing database rows.
+- Editing files.
+- Executing SQL files, creating RPCs, calling business RPCs, or writing DB rows.
 - Committing or pushing.
+
+Required checks:
+
+- `git status --short`
+- Latest commit when relevant to the phase history.
 
 Output:
 
-- Scope summary.
+- Git status and latest commit.
+- Business conclusion and recommended design direction.
 - Existing patterns to reuse.
-- Required tables, fields, constraints, and RPC contracts.
-- Open risks or assumptions.
-- Current git status and whether drafting can proceed.
+- Risks, assumptions, and open questions.
+- Whether schema design or RPC design can proceed.
+
+Next phase gate: scope is narrow, no blocking unknowns remain, and the required next phase is clear.
 
 ## 2. Schema Design
 
+Goal: define schema shape in prose before writing SQL.
+
 Allowed:
 
-- Draft the intended schema shape in prose.
-- Define required columns, nullable flags, indexes, foreign keys, check constraints, and historical-data expectations.
-- Compare with existing schema conventions and completed write flows.
+- Specify tables, columns, types, nullable flags, defaults, foreign keys, check constraints, indexes, comments, and historical-data expectations.
+- Decide whether reversal/status/audit fields are needed.
 
 Forbidden:
 
-- Creating or executing SQL unless the task explicitly allows draft SQL.
+- Creating or executing SQL.
 - Creating RPC/function definitions.
 - Editing frontend/API modules.
 - Writing business data.
 
+Required checks:
+
+- Compare with existing schema conventions.
+- Confirm whether historical data must remain unchanged.
+
 Output:
 
-- Schema change list.
-- Compatibility and historical-data notes.
-- Verification plan for columns, constraints, and unchanged existing rows.
-- Whether schema SQL drafting can proceed.
+- Schema design conclusion.
+- Proposed SQL draft filename.
+- Verification plan.
+- Risks.
+- Whether schema SQL draft can proceed.
 
-## 3. Schema Execution
+Next phase gate: column/constraint/index design is explicit enough to draft SQL without guessing.
+
+## 3. Schema SQL Draft
+
+Goal: create schema-only SQL that is not executed.
+
+Allowed:
+
+- Add or update the explicitly named schema SQL file.
+- Include table/column/index/constraint/comment definitions.
+- Mark file header as draft only / not executed.
+
+Forbidden:
+
+- Executing SQL.
+- Creating RPC/function definitions.
+- Updating historical data unless explicitly required.
+- Editing frontend/API modules.
+- Committing or pushing.
+
+Required checks:
+
+- Confirm the SQL file contains no `create function`, `create procedure`, or business data writes unless explicitly allowed.
+- Keep comments and names consistent with existing SQL files.
+
+Output:
+
+- SQL draft file path.
+- Schema summary.
+- Draft-only confirmation.
+- Current git status.
+- Whether static review can proceed.
+
+Next phase gate: SQL file is schema-only and complete enough for review.
+
+## 4. Schema Static Review
+
+Goal: review schema SQL without executing it.
+
+Allowed:
+
+- Read the schema SQL file.
+- Check object names, types, nullable flags, defaults, constraints, indexes, comments, and extension assumptions.
+
+Forbidden:
+
+- Executing SQL.
+- Editing frontend/API modules.
+- Calling business RPCs.
+- Committing or pushing.
+
+Required checks:
+
+- No RPC/function definitions.
+- No historical data updates unless explicitly intended.
+- No dangerous statements or secrets.
+- No likely table, constraint, or index name conflicts.
+
+Output:
+
+- Static review result.
+- Findings ordered by severity.
+- Read-only confirmation.
+- Risks.
+- Whether schema execution can proceed.
+
+Next phase gate: no blocking review findings remain.
+
+## 5. Schema Execution
+
+Goal: execute verified schema-only SQL and verify the DB state.
 
 Allowed only when explicitly requested:
 
-- Execute schema-only SQL with `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
-- Run read-only verification for columns, nullable flags, constraints, indexes, foreign keys, and unchanged historical data.
+- Execute `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
+- Run read-only verification for created/changed schema objects.
 
 Forbidden:
 
@@ -87,202 +191,419 @@ Forbidden:
 - Writing business data beyond the schema migration itself.
 - Committing or pushing unless explicitly requested.
 
+Required checks:
+
+- `git status --short` and latest commit before execution.
+- Confirm target SQL is schema-only.
+- Verify columns, nullable flags, defaults, constraints, indexes, comments, extension requirements, and unchanged historical data where relevant.
+- Verify no unexpected RPC/function was created.
+
 Output:
 
-- Confirmation that the SQL file was schema-only.
 - SQL execution result summary without secrets.
-- Read-only verification results.
-- Current git status and whether RPC design can proceed.
+- Verification results.
+- Current git status.
+- Whether schema verified commit can proceed.
 
-## 4. RPC Design
+Next phase gate: execution succeeded and read-only verification matches the design.
+
+## 6. Schema Verified Commit
+
+Goal: archive the executed schema SQL state in git.
 
 Allowed:
 
-- Define RPC name, parameters, return shape, validation rules, lock strategy, transaction boundaries, and error messages.
-- Map every write to the required business invariant.
-- Specify how account transactions, source links, reversal links, status fields, notes, and audit fields are handled.
+- Update the schema SQL file header/status only.
+- Run `git diff --check`.
+- Commit and push only when explicitly requested.
 
 Forbidden:
 
-- Creating SQL files unless the task explicitly allows SQL drafting.
+- Changing SQL logic after execution.
+- Editing business code.
 - Executing SQL or calling business RPCs.
-- Editing frontend/API modules.
+
+Required checks:
+
+- Confirm SQL logic did not change.
+- Confirm only intended files are staged.
 
 Output:
 
-- RPC contract.
-- Validation and error behavior.
-- Write set and rollback expectations.
-- Test cases for rollback and commit paths.
+- File header update summary.
+- Commit hash and push result when applicable.
+- Final git status.
+- Whether RPC design can proceed.
 
-## 5. SQL Draft
+Next phase gate: executed schema SQL is committed/pushed and worktree is clean.
+
+## 7. RPC Design
+
+Goal: define RPC contract and write behavior before drafting SQL.
 
 Allowed:
 
-- Create or update draft SQL files for RPC definitions and supporting comments.
-- Keep SQL idempotent where appropriate.
-- Use established project patterns for `security definer`, search path, validation, locking, and returned payloads.
+- Define RPC name, parameters, return columns, validation rules, lock order, account balance rules, source links, audit fields, and error behavior.
+- Plan rollback and commit tests.
+
+Forbidden:
+
+- Creating SQL files unless the task explicitly allows it.
+- Executing SQL or calling business RPCs.
+- Editing frontend/API modules.
+
+Required checks:
+
+- Map every write to a business invariant.
+- Confirm page/API boundary expectations.
+- Define positive/negative amount semantics where relevant.
+
+Output:
+
+- RPC signature and return value design.
+- Write set and validation rules.
+- Rollback/commit test plan.
+- Risks.
+- Whether RPC SQL draft can proceed.
+
+Next phase gate: contract and write behavior are precise enough to draft SQL.
+
+## 8. RPC SQL Draft
+
+Goal: create RPC SQL that is not executed.
+
+Allowed:
+
+- Add or update the explicitly named RPC SQL file.
+- Use established project patterns for `security definer`, `search_path`, validation, locking, writes, comments, and return payloads.
+- Mark file header as draft only / not executed.
 
 Forbidden:
 
 - Executing SQL.
 - Calling business RPCs.
 - Editing frontend/API modules.
-- Archiving SQL before tests pass.
 - Committing or pushing.
+
+Required checks:
+
+- Confirm parameters, return order, locks, balance calculations, `related_table` / `related_id`, status updates, and error messages match design.
+- Avoid ambiguous column references.
 
 Output:
 
-- Draft SQL file path.
-- Summary of function behavior.
+- SQL draft file path.
+- Implementation summary.
 - Known review points.
-- Current git status and whether static review can proceed.
+- Current git status.
+- Whether RPC static review can proceed.
 
-## 6. Static Review
+Next phase gate: SQL draft implements the agreed RPC design and is ready for review.
+
+## 9. RPC Static Review
+
+Goal: review RPC SQL without executing it.
 
 Allowed:
 
 - Read and review SQL draft files.
-- Check for syntax risks, unsafe writes, missing validations, missing locks, ambiguous joins, incorrect account balance effects, and inconsistent return shapes.
-- Confirm no secrets are present.
+- Suggest SQL fixes only when the task explicitly allows editing during review.
 
 Forbidden:
 
-- Executing SQL unless the task explicitly moves to test execution.
+- Executing SQL.
 - Calling business RPCs.
 - Editing frontend/API modules.
 - Committing or pushing.
 
+Required checks:
+
+- RPC signature and return order.
+- Parameter validation.
+- Lock order and concurrency behavior.
+- Account balance before/after consistency.
+- Source table writes and account transaction writes.
+- Reversal/status behavior where relevant.
+- Ambiguous column risks.
+- No dangerous statements or secrets.
+
 Output:
 
+- Static review result.
 - Findings ordered by severity.
-- Required fixes or confirmation that no blocking issues were found.
-- Current git status and whether rollback testing can proceed.
+- Risks.
+- Whether RPC execution and rollback test can proceed.
 
-## 7. Rollback Test
+Next phase gate: no blocking SQL findings remain.
+
+## 10. RPC Execution And Rollback Test
+
+Goal: install the RPC and prove failed/rolled-back writes leave no residue.
 
 Allowed only when explicitly requested:
 
-- Install or replace the RPC in the database if needed for the test phase.
-- Call the business RPC with intentionally invalid or controlled failure inputs.
-- Verify that partial writes do not persist and balances/statuses remain unchanged.
-- Use read-only verification queries after the attempted rollback.
+- Execute the RPC SQL file with `psql`.
+- Smoke test function existence.
+- Choose controlled test candidates.
+- Run `begin` / RPC / verification / `rollback` tests.
+- Run 1-2 expected failure cases.
+- Update SQL file header to executed / rollback-tested when requested.
 
 Forbidden:
 
-- Running uncontrolled test data writes.
+- Running uncontrolled writes.
 - Skipping before/after verification.
-- Archiving, committing, or pushing before commit tests pass.
+- Committing or pushing before commit tests pass.
 - Printing secrets.
 
+Required checks:
+
+- Transaction-internal expected rows and balance changes appear.
+- After rollback, source rows, account transactions, statuses, and balances have no residue.
+- Failure cases do not write rows.
+
 Output:
 
-- Test input summary.
-- Expected failure.
-- Verification that no unintended rows or balance changes persisted.
-- Current git status and whether commit testing can proceed.
+- SQL execution result.
+- Test candidate.
+- Rollback RPC result.
+- In-transaction verification.
+- After-rollback verification.
+- Failure case results.
+- Current git status.
+- Whether commit test can proceed.
 
-## 8. Commit Test
+Next phase gate: rollback and failure cases prove no unintended persistence.
+
+## 11. RPC Commit Test
+
+Goal: perform one controlled real write and verify every intended effect.
 
 Allowed only when explicitly requested:
 
-- Call the business RPC with a controlled valid input.
-- Verify every intended row, status, balance, link, note, and audit field.
-- Confirm detail-page source chains or related lookup surfaces when relevant.
+- Call the business RPC with controlled valid input.
+- Run read-only before/after verification.
+- Run failure cases that should not create additional writes.
 
 Forbidden:
 
-- Running broad or repeated writes without a clear cleanup or reversal plan.
-- Editing frontend/API modules during SQL validation.
+- Broad or repeated writes without an explicit plan.
+- Editing frontend/API modules.
 - Archiving or committing before verification is complete.
 - Printing secrets.
 
+Required checks:
+
+- Source/main table row count and values.
+- Account transaction row count and values.
+- Account balance change.
+- `balance_before` / `balance_after`.
+- `related_table` / `related_id`.
+- Status, note, reason, date, and audit fields.
+- Residual test data impact.
+
 Output:
 
-- Test input summary.
-- RPC result summary.
-- Verification results for all expected writes.
-- Residual test data impact, if any.
-- Current git status and whether SQL archive can proceed.
+- Test candidate.
+- Before state.
+- RPC result.
+- After verification.
+- Failure case verification.
+- Current git status.
+- Whether verified SQL commit can proceed.
 
-## 9. SQL Archive
+Next phase gate: intended write is fully verified and residual impact is understood.
+
+## 12. Verified SQL Commit
+
+Goal: commit and push the verified RPC SQL.
 
 Allowed:
 
-- Move or copy verified SQL into the project archive path used by the current feature.
-- Keep draft and archived filenames consistent with the version/tag convention.
-- Include only verified SQL, not exploratory notes or secrets.
+- Update SQL file header/status only.
+- Run `git diff --check`.
+- Commit and push only when explicitly requested.
 
 Forbidden:
 
-- Archiving untested SQL.
-- Editing business frontend/API modules unless the task explicitly moves to frontend implementation.
-- Committing or pushing unless explicitly requested.
+- Changing SQL logic after verification.
+- Editing frontend/API modules.
+- Executing SQL or calling business RPCs.
+
+Required checks:
+
+- Header says executed / rollback-tested / commit-tested.
+- SQL logic unchanged.
+- Only intended SQL files are staged.
 
 Output:
 
-- Archived SQL path.
-- Confirmation that rollback and commit tests passed before archive.
-- Current git status and whether frontend implementation can proceed.
+- File header update summary.
+- Commit hash.
+- Push result.
+- Final git status.
+- Whether frontend analysis can proceed.
 
-## 10. Frontend Minimal Implementation
+Next phase gate: verified SQL is committed/pushed and worktree is clean.
+
+## 13. Frontend Analysis
+
+Goal: decide the minimal frontend/API integration without editing files.
+
+Allowed:
+
+- Read HTML, page modules, API modules, detail pages, styles, and existing write-flow patterns.
+- Define entry points, dialog fields, validation, refresh behavior, error display, and detail/source-link behavior.
+
+Forbidden:
+
+- Editing files.
+- Calling business RPCs.
+- Writing DB rows.
+- Committing or pushing.
+
+Required checks:
+
+- Page modules must not directly `.rpc()`.
+- Writes must go through API wrappers.
+- Identify exact allowed file range for implementation.
+
+Output:
+
+- Git status and latest commit.
+- Analysis conclusion.
+- Suggested files.
+- Risks.
+- Whether frontend minimal implementation can proceed.
+
+Next phase gate: UI/API scope is minimal and file range is explicit.
+
+## 14. Frontend Minimal Implementation
+
+Goal: wire the verified RPC into the UI with minimal, testable behavior.
 
 Allowed only for explicitly named frontend/API files:
 
-- Add API-layer wrappers that call verified RPCs.
-- Wire page modules to API-layer functions.
-- Add minimal UI states, validation, loading, success, and error handling needed for the write flow.
-- Preserve existing design and module patterns.
+- Add API-layer RPC wrappers.
+- Wire page modules to API functions.
+- Add dialog/action entry, validation, loading state, success refresh, and in-dialog error handling.
+- Add account transaction labels and detail source summaries where needed.
 
 Forbidden:
 
 - Page modules calling Supabase `.rpc()` directly.
-- Page modules directly inserting, updating, deleting, or upserting database rows.
+- Page modules directly inserting, updating, deleting, or upserting rows.
+- Editing SQL/RPC files.
 - Editing unrelated modules.
-- Editing SQL/RPC files during frontend implementation unless explicitly requested.
-- Writing database data from exploratory browser actions unless explicitly allowed.
+- Writing DB data from exploratory UI actions unless explicitly allowed.
+
+Required checks:
+
+- `git diff --check`.
+- `node --check` for changed JS.
+- Scan page modules for `.rpc()`.
+- Scan page modules for `.insert()` / `.update()` / `.delete()` / `.upsert()`.
+- Browser or local server check when available; if unavailable, state the limitation.
 
 Output:
 
-- Changed frontend/API files.
+- Modified files.
 - Behavior summary.
-- Verification performed, including browser checks when applicable.
-- Current git status and whether checkpoint can proceed.
+- Check results.
+- SQL/RPC execution and DB write status.
+- Current git status.
+- Whether frontend checkpoint can proceed.
 
-## 11. Checkpoint
+Next phase gate: static checks pass, page/API boundary is clean, and no unintended DB write occurred.
 
-Allowed when explicitly requested:
+## 15. Frontend Checkpoint And Push
 
-- Run final static checks, targeted tests, and read-only verification.
-- Update status documentation if the task includes it.
-- Commit and push only after explicit permission and a clean review scope.
+Goal: run final static frontend checks, commit, and push.
+
+Allowed only when explicitly requested:
+
+- Run static checks and read-only online file checks.
+- Commit and push the frontend implementation.
 
 Forbidden:
 
-- Hiding unverified SQL or business-code changes inside a checkpoint.
-- Committing unrelated user changes.
-- Pushing without explicit permission.
-- Omitting database-write and SQL/RPC execution status from the report.
+- Calling the business RPC unless explicitly requested as UI test.
+- Editing SQL/RPC files.
+- Committing unrelated changes.
+
+Required checks:
+
+- `git diff --check`.
+- `node --check` for related JS.
+- Page-layer `.rpc()` scan.
+- Direct write-method scan.
+- Verify key online files return HTTP 200 after push when applicable.
+- Record whether real UI testing was performed.
 
 Output:
 
-- Final change summary.
-- Verification summary.
-- Files changed.
-- Whether SQL/RPC was executed.
-- Whether the database was written.
-- Whether commit/push was performed.
-- Current git status.
-- Whether review, commit, or push can proceed.
+- Check results.
+- Modified files.
+- Commit hash.
+- Push result.
+- Final git status.
+- Whether feature checkpoint can proceed.
 
-## Phase Prompt Template
+Next phase gate: push succeeded and worktree is clean.
+
+## 16. Feature Checkpoint
+
+Goal: close the feature with a no-edit verification pass.
+
+Allowed:
+
+- Read docs and code.
+- Run static scans and online file checks.
+- Summarize DB/RPC/frontend coverage.
+
+Forbidden:
+
+- Editing files unless the prompt explicitly includes documentation updates.
+- Calling business RPCs.
+- Writing DB rows.
+- Committing or pushing.
+
+Required checks:
+
+- `git status --short`.
+- Latest commit.
+- Page-layer `.rpc()` scan.
+- Direct write-method scan.
+- Account transaction labels and detail source coverage where relevant.
+- Online key file availability when frontend changed.
+- Record UI test status.
+
+Output:
+
+- Checkpoint result.
+- Completed scope.
+- Remaining risks or follow-up candidates.
+- Final git status.
+- Whether the feature stage can end.
+
+Next phase gate: worktree is clean and no blocking verification gap remains.
+
+## Documentation Placement Rules
+
+- `AGENTS.md`: long-lived guardrails that every future turn must obey, such as secrets, page/API write boundaries, approval guidance, and required report fields.
+- `docs/current-status.md`: short stable checkpoint only. Keep current completed scope, expected clean state, and next planned stage. Do not store long phase history.
+- `docs/workflows/write-rpc-flow.md`: reusable standard workflow, phase templates, gates, and checklists. Do not include feature-specific logs.
+- Current prompt: phase name, goal, focus points, explicit allowances for this phase, commit message when needed, and required output.
+
+## Prompt Template
 
 Use concise prompts with this shape:
 
-- Phase name.
-- Goal.
-- Focus points.
-- Explicit allowances for any exception to the default guardrails.
-- Required output.
+- Read: `AGENTS.md`, `docs/current-status.md`, and this workflow when relevant.
+- Phase: versioned phase name.
+- Goal: one objective.
+- Focus: phase-specific checks or design points.
+- Allowed exceptions: only what differs from default guardrails.
+- Output: required report fields.
 
-Do not repeat the full project background when `docs/current-status.md` already captures the stable checkpoint. Refer to `AGENTS.md` for default guardrails.
+Do not repeat stable background that belongs in `docs/current-status.md`. Do not create a Codex skill from this workflow unless a later task explicitly asks for it.
