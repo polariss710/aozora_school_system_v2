@@ -80,7 +80,10 @@
         <section class="panel" aria-labelledby="teacherListTitle">
           <div class="section-heading section-heading-row">
             <h2 id="teacherListTitle">老师列表</h2>
-            <span id="teacherCount" class="record-count">0 人</span>
+            <div class="header-meta">
+              <span id="teacherCount" class="record-count">0 人</span>
+              <button class="button button-primary" id="createTeacherButton" type="button">新增老师</button>
+            </div>
           </div>
 
           <div id="teacherLoadingState" class="state-text is-hidden">正在加载老师...</div>
@@ -88,6 +91,62 @@
           <div id="teacherGrid" class="teacher-grid"></div>
         </section>
       </main>
+    </div>
+
+    <div id="createTeacherProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createTeacherProfileTitle">
+        <div class="section-heading">
+          <h2 id="createTeacherProfileTitle">新增老师</h2>
+          <p class="section-note">仅新增未来使用的老师主数据；不会创建或修改工资规则、工资锁定、支付、支出或账户流水。</p>
+        </div>
+
+        <div id="createTeacherProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-create-teacher-field="teacherCode">
+          <span>老师编号</span>
+          <input id="createTeacherCodeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-teacher-field="displayName">
+          <span>显示名称</span>
+          <input id="createTeacherDisplayNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>系统姓名</span>
+          <input id="createTeacherNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>读音</span>
+          <input id="createTeacherKanaNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-teacher-field="status">
+          <span>状态</span>
+          <select id="createTeacherStatusSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>老师分类</span>
+          <input id="createTeacherDepartmentInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-teacher-field="businessEntity">
+          <span>业务归属</span>
+          <select id="createTeacherBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="createTeacherNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createTeacherSubmitButton" type="button">新增</button>
+          <button class="button" id="createTeacherCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="editTeacherProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -127,6 +186,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/teacher-app.js?v=v2.37.0-teacher-profile-update-full-autopilot-trial-20260607"></script>
+    <script type="module" src="./js/teacher-app.js?v=v2.45.0-teacher-student-create-full-autopilot-20260606"></script>
   </body>
 </html>

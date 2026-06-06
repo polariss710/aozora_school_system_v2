@@ -1,5 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createTeacherProfile,
   fetchBusinessEntitiesForTeachers,
   fetchTeacherFilterOptions,
   fetchTeachers,
@@ -24,12 +25,14 @@ const TEACHER_STATUS_LABELS = {
 };
 
 const EDITABLE_STATUS_OPTIONS = ["employed", "paused", "inactive", "resigned"];
+const CREATE_FIELD_IDS = ["teacherCode", "displayName", "status", "businessEntity"];
 
 const dom = {};
 let businessEntities = [];
 let teachers = [];
 let editingTeacher = null;
 let isEditSubmitting = false;
+let isCreateSubmitting = false;
 
 export function initTeacherPage() {
   cacheDom();
@@ -60,6 +63,19 @@ function cacheDom() {
   dom.teacherLoadingState = document.querySelector("#teacherLoadingState");
   dom.teacherEmptyState = document.querySelector("#teacherEmptyState");
   dom.teacherCount = document.querySelector("#teacherCount");
+  dom.createButton = document.querySelector("#createTeacherButton");
+  dom.createDialog = document.querySelector("#createTeacherProfileDialog");
+  dom.createError = document.querySelector("#createTeacherProfileError");
+  dom.createTeacherCodeInput = document.querySelector("#createTeacherCodeInput");
+  dom.createDisplayNameInput = document.querySelector("#createTeacherDisplayNameInput");
+  dom.createNameInput = document.querySelector("#createTeacherNameInput");
+  dom.createKanaNameInput = document.querySelector("#createTeacherKanaNameInput");
+  dom.createStatusSelect = document.querySelector("#createTeacherStatusSelect");
+  dom.createDepartmentInput = document.querySelector("#createTeacherDepartmentInput");
+  dom.createBusinessEntitySelect = document.querySelector("#createTeacherBusinessEntitySelect");
+  dom.createNoteInput = document.querySelector("#createTeacherNoteInput");
+  dom.createCancelButton = document.querySelector("#createTeacherCancelButton");
+  dom.createSubmitButton = document.querySelector("#createTeacherSubmitButton");
   dom.editDialog = document.querySelector("#editTeacherProfileDialog");
   dom.editSummary = document.querySelector("#editTeacherProfileSummary");
   dom.editError = document.querySelector("#editTeacherProfileError");
@@ -80,6 +96,26 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadTeacherData();
+  });
+
+  dom.createButton.addEventListener("click", openCreateDialog);
+  dom.createCancelButton.addEventListener("click", closeCreateDialog);
+  dom.createSubmitButton.addEventListener("click", submitCreateDialog);
+  dom.createTeacherCodeInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("teacherCode");
+    hideCreateErrorIfClean();
+  });
+  dom.createDisplayNameInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("displayName");
+    hideCreateErrorIfClean();
+  });
+  dom.createStatusSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("status");
+    hideCreateErrorIfClean();
+  });
+  dom.createBusinessEntitySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("businessEntity");
+    hideCreateErrorIfClean();
   });
 
   dom.teacherGrid.addEventListener("click", (event) => {
@@ -270,6 +306,78 @@ function renderTeachers(items) {
   `).join("");
 }
 
+function openCreateDialog() {
+  clearCreateErrors();
+  setCreateSubmitting(false);
+  dom.createTeacherCodeInput.value = "";
+  dom.createDisplayNameInput.value = "";
+  dom.createNameInput.value = "";
+  dom.createKanaNameInput.value = "";
+  renderCreateStatusOptions("employed");
+  dom.createDepartmentInput.value = "";
+  renderCreateBusinessEntityOptions("");
+  dom.createNoteInput.value = "";
+  dom.createDialog.classList.remove("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "false");
+  dom.createDisplayNameInput.focus();
+}
+
+function closeCreateDialog({ force = false } = {}) {
+  if (isCreateSubmitting && !force) {
+    return;
+  }
+
+  dom.createDialog.classList.add("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = {
+    teacherCode: dom.createTeacherCodeInput.value.trim(),
+    displayName: dom.createDisplayNameInput.value.trim(),
+    name: dom.createNameInput.value.trim(),
+    kanaName: dom.createKanaNameInput.value.trim(),
+    status: dom.createStatusSelect.value,
+    department: dom.createDepartmentInput.value.trim(),
+    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
+    note: dom.createNoteInput.value.trim(),
+  };
+
+  if (!payload.displayName) {
+    showCreateError("请输入老师显示名称。", ["displayName"]);
+    return;
+  }
+
+  if (!payload.status) {
+    showCreateError("请选择老师状态。", ["status"]);
+    return;
+  }
+
+  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
+    showCreateError("请选择有效老师状态。", ["status"]);
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    await createTeacherProfile(payload);
+    closeCreateDialog({ force: true });
+    await loadTeacherData();
+    showMessage("success", "老师已新增，可用于未来排课、筛选和工资规则配置。");
+  } catch (error) {
+    showCreateError(error.message || String(error), createFieldIdsForError(error));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
 function openEditDialog(teacherId) {
   const teacher = teachers.find((item) => item.id === teacherId);
   if (!teacher) {
@@ -376,6 +484,13 @@ function renderEditStatusOptions(selectedStatus) {
   dom.editStatusSelect.value = selectedStatus || "employed";
 }
 
+function renderCreateStatusOptions(selectedStatus) {
+  dom.createStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(teacherStatusLabel(status))}</option>`)
+    .join("");
+  dom.createStatusSelect.value = selectedStatus || "employed";
+}
+
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
   dom.editBusinessEntitySelect.innerHTML = [
     '<option value="">未设置</option>',
@@ -386,6 +501,64 @@ function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
       ),
   ].join("");
   dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
+function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
+  dom.createBusinessEntitySelect.innerHTML = [
+    '<option value="">未设置</option>',
+    ...businessEntities
+      .filter((entity) => entity.is_active !== false)
+      .map((entity) =>
+        `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
+      ),
+  ].join("");
+  dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createError.textContent = message;
+  dom.createError.classList.remove("is-hidden");
+  fieldIds.forEach(setCreateFieldInvalid);
+}
+
+function clearCreateErrors() {
+  dom.createError.textContent = "";
+  dom.createError.classList.add("is-hidden");
+  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-create-teacher-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.createError.textContent = "";
+    dom.createError.classList.add("is-hidden");
+  }
+}
+
+function setCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-teacher-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-teacher-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createSubmitButton.disabled = isSubmitting;
+  dom.createCancelButton.disabled = isSubmitting;
+  dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
+}
+
+function createFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("编号")) return ["teacherCode"];
+  if (message.includes("显示名称")) return ["displayName"];
+  if (message.includes("状态")) return ["status"];
+  if (message.includes("业务归属")) return ["businessEntity"];
+  return [];
 }
 
 function showEditError(message, fieldIds = []) {

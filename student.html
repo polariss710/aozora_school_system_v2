@@ -94,7 +94,10 @@
         <section class="panel" aria-labelledby="studentListTitle">
           <div class="section-heading section-heading-row">
             <h2 id="studentListTitle">学生列表</h2>
-            <span id="studentCount" class="record-count">0 人</span>
+            <div class="header-meta">
+              <span id="studentCount" class="record-count">0 人</span>
+              <button class="button button-primary" id="createStudentButton" type="button">新增学生</button>
+            </div>
           </div>
 
           <div id="studentLoadingState" class="state-text is-hidden">正在加载学生...</div>
@@ -102,6 +105,81 @@
           <div id="studentGrid" class="student-grid"></div>
         </section>
       </main>
+    </div>
+
+    <div id="createStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
+        <div class="section-heading">
+          <h2 id="createStudentProfileTitle">新增学生</h2>
+          <p class="section-note">仅新增未来使用的学生主数据；不会创建或修改月度结算、carryover、收入、课时、工资或账户流水。</p>
+        </div>
+
+        <div id="createStudentProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-create-student-field="studentCode">
+          <span>学生编号</span>
+          <input id="createStudentCodeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-student-field="displayName">
+          <span>显示名称</span>
+          <input id="createStudentDisplayNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>系统姓名</span>
+          <input id="createStudentNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>读音</span>
+          <input id="createStudentKanaNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-student-field="status">
+          <span>状态</span>
+          <select id="createStudentStatusSelect"></select>
+        </label>
+
+        <div class="dialog-subsection-heading">
+          <h3>课程/目标信息</h3>
+        </div>
+
+        <label class="field" data-create-student-field="courseTrack">
+          <span>课程方向</span>
+          <select id="createStudentCourseTrackSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>目标类型</span>
+          <input id="createStudentTargetTypeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>目标学校</span>
+          <input id="createStudentTargetSchoolsInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-student-field="defaultBusinessEntity">
+          <span>默认业务归属</span>
+          <select id="createStudentBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-create-student-field="defaultCurrency">
+          <span>默认币种</span>
+          <select id="createStudentDefaultCurrencySelect"></select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="createStudentNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createStudentSubmitButton" type="button">新增</button>
+          <button class="button" id="createStudentCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="editStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -160,6 +238,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v2.43.0-student-course-target-default-edit-20260606"></script>
+    <script type="module" src="./js/student-app.js?v=v2.45.0-teacher-student-create-full-autopilot-20260606"></script>
   </body>
 </html>

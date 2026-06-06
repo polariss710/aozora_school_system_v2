@@ -1,5 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createStudentProfile,
   fetchBusinessEntitiesForStudents,
   fetchStudentFilterOptions,
   fetchStudents,
@@ -33,12 +34,21 @@ const COURSE_TRACK_LABELS = {
 const EDITABLE_STATUS_OPTIONS = ["active", "paused", "inactive", "graduated"];
 const EDITABLE_COURSE_TRACK_OPTIONS = ["science", "humanities"];
 const EDITABLE_DEFAULT_CURRENCY_OPTIONS = ["CNY", "JPY"];
+const CREATE_FIELD_IDS = [
+  "studentCode",
+  "displayName",
+  "status",
+  "courseTrack",
+  "defaultBusinessEntity",
+  "defaultCurrency",
+];
 
 const dom = {};
 let businessEntities = [];
 let students = [];
 let editingStudent = null;
 let isEditSubmitting = false;
+let isCreateSubmitting = false;
 
 export function initStudentPage() {
   cacheDom();
@@ -71,6 +81,22 @@ function cacheDom() {
   dom.studentLoadingState = document.querySelector("#studentLoadingState");
   dom.studentEmptyState = document.querySelector("#studentEmptyState");
   dom.studentCount = document.querySelector("#studentCount");
+  dom.createButton = document.querySelector("#createStudentButton");
+  dom.createDialog = document.querySelector("#createStudentProfileDialog");
+  dom.createError = document.querySelector("#createStudentProfileError");
+  dom.createStudentCodeInput = document.querySelector("#createStudentCodeInput");
+  dom.createDisplayNameInput = document.querySelector("#createStudentDisplayNameInput");
+  dom.createNameInput = document.querySelector("#createStudentNameInput");
+  dom.createKanaNameInput = document.querySelector("#createStudentKanaNameInput");
+  dom.createStatusSelect = document.querySelector("#createStudentStatusSelect");
+  dom.createCourseTrackSelect = document.querySelector("#createStudentCourseTrackSelect");
+  dom.createTargetTypeInput = document.querySelector("#createStudentTargetTypeInput");
+  dom.createTargetSchoolsInput = document.querySelector("#createStudentTargetSchoolsInput");
+  dom.createBusinessEntitySelect = document.querySelector("#createStudentBusinessEntitySelect");
+  dom.createDefaultCurrencySelect = document.querySelector("#createStudentDefaultCurrencySelect");
+  dom.createNoteInput = document.querySelector("#createStudentNoteInput");
+  dom.createCancelButton = document.querySelector("#createStudentCancelButton");
+  dom.createSubmitButton = document.querySelector("#createStudentSubmitButton");
   dom.editDialog = document.querySelector("#editStudentProfileDialog");
   dom.editSummary = document.querySelector("#editStudentProfileSummary");
   dom.editError = document.querySelector("#editStudentProfileError");
@@ -94,6 +120,34 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadStudentData();
+  });
+
+  dom.createButton.addEventListener("click", openCreateDialog);
+  dom.createCancelButton.addEventListener("click", closeCreateDialog);
+  dom.createSubmitButton.addEventListener("click", submitCreateDialog);
+  dom.createStudentCodeInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("studentCode");
+    hideCreateErrorIfClean();
+  });
+  dom.createDisplayNameInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("displayName");
+    hideCreateErrorIfClean();
+  });
+  dom.createStatusSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("status");
+    hideCreateErrorIfClean();
+  });
+  dom.createCourseTrackSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("courseTrack");
+    hideCreateErrorIfClean();
+  });
+  dom.createBusinessEntitySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("defaultBusinessEntity");
+    hideCreateErrorIfClean();
+  });
+  dom.createDefaultCurrencySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("defaultCurrency");
+    hideCreateErrorIfClean();
   });
 
   dom.studentGrid.addEventListener("click", (event) => {
@@ -338,6 +392,94 @@ function renderStudents(items) {
   `).join("");
 }
 
+function openCreateDialog() {
+  clearCreateErrors();
+  setCreateSubmitting(false);
+  dom.createStudentCodeInput.value = "";
+  dom.createDisplayNameInput.value = "";
+  dom.createNameInput.value = "";
+  dom.createKanaNameInput.value = "";
+  renderCreateStatusOptions("active");
+  renderCreateCourseTrackOptions("science");
+  dom.createTargetTypeInput.value = "";
+  dom.createTargetSchoolsInput.value = "";
+  renderCreateBusinessEntityOptions("");
+  renderCreateDefaultCurrencyOptions("CNY");
+  dom.createNoteInput.value = "";
+  dom.createDialog.classList.remove("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "false");
+  dom.createDisplayNameInput.focus();
+}
+
+function closeCreateDialog({ force = false } = {}) {
+  if (isCreateSubmitting && !force) {
+    return;
+  }
+
+  dom.createDialog.classList.add("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = {
+    studentCode: dom.createStudentCodeInput.value.trim(),
+    displayName: dom.createDisplayNameInput.value.trim(),
+    name: dom.createNameInput.value.trim(),
+    kanaName: dom.createKanaNameInput.value.trim(),
+    status: dom.createStatusSelect.value,
+    courseTrack: dom.createCourseTrackSelect.value,
+    targetType: dom.createTargetTypeInput.value.trim(),
+    targetSchools: dom.createTargetSchoolsInput.value.trim(),
+    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
+    defaultCurrency: dom.createDefaultCurrencySelect.value,
+    note: dom.createNoteInput.value.trim(),
+  };
+
+  if (!payload.displayName) {
+    showCreateError("请输入学生显示名称。", ["displayName"]);
+    return;
+  }
+
+  if (!payload.status) {
+    showCreateError("请选择学生状态。", ["status"]);
+    return;
+  }
+
+  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
+    showCreateError("请选择有效学生状态。", ["status"]);
+    return;
+  }
+
+  if (payload.courseTrack && !EDITABLE_COURSE_TRACK_OPTIONS.includes(payload.courseTrack)) {
+    showCreateError("请选择有效课程方向。", ["courseTrack"]);
+    return;
+  }
+
+  if (!payload.defaultCurrency || !EDITABLE_DEFAULT_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
+    showCreateError("请选择有效默认币种。", ["defaultCurrency"]);
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    await createStudentProfile(payload);
+    closeCreateDialog({ force: true });
+    await loadStudentData();
+    showMessage("success", "学生已新增，可用于未来课时、筛选和结算默认值。");
+  } catch (error) {
+    showCreateError(error.message || String(error), createFieldIdsForError(error));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
 function openEditDialog(studentId) {
   const student = students.find((item) => item.id === studentId);
   if (!student) {
@@ -456,6 +598,13 @@ function renderEditStatusOptions(selectedStatus) {
   dom.editStatusSelect.value = selectedStatus || "active";
 }
 
+function renderCreateStatusOptions(selectedStatus) {
+  dom.createStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`)
+    .join("");
+  dom.createStatusSelect.value = selectedStatus || "active";
+}
+
 function renderEditCourseTrackOptions(selectedCourseTrack) {
   dom.editCourseTrackSelect.innerHTML = [
     '<option value="">未设置</option>',
@@ -464,6 +613,16 @@ function renderEditCourseTrackOptions(selectedCourseTrack) {
     ),
   ].join("");
   dom.editCourseTrackSelect.value = selectedCourseTrack || "";
+}
+
+function renderCreateCourseTrackOptions(selectedCourseTrack) {
+  dom.createCourseTrackSelect.innerHTML = [
+    '<option value="">未设置</option>',
+    ...EDITABLE_COURSE_TRACK_OPTIONS.map((courseTrack) =>
+      `<option value="${escapeAttribute(courseTrack)}">${escapeHtml(courseTrackLabel(courseTrack))}</option>`
+    ),
+  ].join("");
+  dom.createCourseTrackSelect.value = selectedCourseTrack || "";
 }
 
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
@@ -480,11 +639,80 @@ function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
   dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
+function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
+  const activeOptions = businessEntities
+    .filter((entity) => entity?.id && entity.is_active !== false)
+    .map((entity) =>
+      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
+    );
+
+  dom.createBusinessEntitySelect.innerHTML = [
+    '<option value="">未设置</option>',
+    ...activeOptions,
+  ].join("");
+  dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
 function renderEditDefaultCurrencyOptions(selectedDefaultCurrency) {
   dom.editDefaultCurrencySelect.innerHTML = EDITABLE_DEFAULT_CURRENCY_OPTIONS
     .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
     .join("");
   dom.editDefaultCurrencySelect.value = selectedDefaultCurrency || "CNY";
+}
+
+function renderCreateDefaultCurrencyOptions(selectedDefaultCurrency) {
+  dom.createDefaultCurrencySelect.innerHTML = EDITABLE_DEFAULT_CURRENCY_OPTIONS
+    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+    .join("");
+  dom.createDefaultCurrencySelect.value = selectedDefaultCurrency || "CNY";
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createError.textContent = message;
+  dom.createError.classList.remove("is-hidden");
+  fieldIds.forEach(setCreateFieldInvalid);
+}
+
+function clearCreateErrors() {
+  dom.createError.textContent = "";
+  dom.createError.classList.add("is-hidden");
+  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-create-student-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.createError.textContent = "";
+    dom.createError.classList.add("is-hidden");
+  }
+}
+
+function setCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-student-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-student-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createSubmitButton.disabled = isSubmitting;
+  dom.createCancelButton.disabled = isSubmitting;
+  dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
+}
+
+function createFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("编号")) return ["studentCode"];
+  if (message.includes("显示名称")) return ["displayName"];
+  if (message.includes("状态")) return ["status"];
+  if (message.includes("课程方向")) return ["courseTrack"];
+  if (message.includes("业务归属")) return ["defaultBusinessEntity"];
+  if (message.includes("默认币种")) return ["defaultCurrency"];
+  return [];
 }
 
 function showEditError(message, fieldIds = []) {

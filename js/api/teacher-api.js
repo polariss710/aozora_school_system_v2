@@ -84,6 +84,30 @@ export async function updateTeacherProfile(payload) {
   return result;
 }
 
+export async function createTeacherProfile(payload) {
+  const { data, error } = await supabase.rpc("school_create_teacher_profile", {
+    p_display_name: payload.displayName,
+    p_teacher_code: payload.teacherCode || null,
+    p_name: payload.name || null,
+    p_kana_name: payload.kanaName || null,
+    p_status: payload.status,
+    p_department: payload.department || null,
+    p_default_business_entity_id: payload.defaultBusinessEntityId || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("老师新增失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 function applyTeacherFilters(query, filters) {
   if (filters.status) {
     query = query.eq("status", filters.status);
