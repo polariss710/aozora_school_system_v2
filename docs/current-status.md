@@ -1,7 +1,7 @@
 # Current Status
 
 - Stable checkpoint: write-operation phase is complete through account transfer reversal frontend checkpoint; readonly profit summary minimum page is complete; full autopilot workflow trial is active.
-- Latest stable commit: `37153cc feat: add readonly profit summary page`.
+- Latest stable commit: `714a6f4 feat: add profit summary drilldown`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
@@ -14,8 +14,9 @@
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
 - Account transfer and account transfer reversal frontend have static and online file checks, but no real local browser interaction test yet.
 - Account transfer does not yet have a standalone detail page; the first version shows its source summary in account transaction detail.
-- Profit summary readonly page is available at `profit-summary.html`, with month and business-entity filters, API-layer read queries, and no page-layer writes.
-- Profit summary first-version policy: received income and paid expense drive operating profit by currency; reversed income/expense are excluded; teacher wage expense is included in expense and shown separately; reimbursement, account adjustment, and account transfer flows are audit references and do not affect operating profit.
+- Profit summary readonly page is available at `profit-summary.html`, with month, business-entity, and currency filters, API-layer read queries, and no page-layer writes.
+- Profit summary policy: received income and paid expense drive operating profit by currency; reversed income/expense are excluded; teacher wage expense is included in expense and marked in expense detail; reimbursement, account adjustment, and account transfer flows are audit references and do not affect operating profit.
+- Profit summary drilldown shows effective income and expense detail rows behind summary numbers, with links to `income-detail.html` and `expense-detail.html`.
 - Profit summary frontend has static and online file checks, but no real local browser interaction test yet.
 - The write RPC workflow has been standardized and reset to full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect the full autopilot trial while preserving secrets, test-data, and dangerous-operation hard stops.
