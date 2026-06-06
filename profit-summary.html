@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 利润分析</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.35.0-profit-summary-readonly-full-autopilot-trial-20260607">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>利润分析 / 收支汇总</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./profit-summary.html" class="is-active">利润分析</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="profitSummaryMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="profitSummaryFilterTitle">
+          <div class="section-heading">
+            <h2 id="profitSummaryFilterTitle">筛选</h2>
+          </div>
+
+          <form id="profitSummaryFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="profitSummaryYearFilter" name="year" aria-label="年份"></select>
+                <select id="profitSummaryMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>业务归属</span>
+              <select id="profitSummaryBusinessEntitySelect" name="businessEntityId">
+                <option value="">全部</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="profitSummaryResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <div id="profitSummaryLoadingState" class="state-text is-hidden">正在加载利润分析数据...</div>
+
+        <section class="panel" aria-labelledby="profitSummaryOverviewTitle">
+          <div class="section-heading">
+            <h2 id="profitSummaryOverviewTitle">经营利润摘要</h2>
+            <p class="section-note">第一版按原币种分别汇总，不做跨币种折算。经营利润 = posted 收入 - posted 支出。</p>
+          </div>
+          <div id="profitSummaryGrid" class="summary-grid"></div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="profitSummaryCurrencyTitle">
+          <div class="section-heading">
+            <h2 id="profitSummaryCurrencyTitle">按币种汇总</h2>
+          </div>
+          <div class="table-scroll">
+            <table class="payment-table">
+              <thead>
+                <tr>
+                  <th>币种</th>
+                  <th class="number-cell">收入笔数</th>
+                  <th class="number-cell">经营收入</th>
+                  <th class="number-cell">支出笔数</th>
+                  <th class="number-cell">经营支出</th>
+                  <th class="number-cell">其中老师工资</th>
+                  <th class="number-cell">经营利润</th>
+                </tr>
+              </thead>
+              <tbody id="profitSummaryCurrencyTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="profitSummaryAuditTitle">
+          <div class="section-heading">
+            <h2 id="profitSummaryAuditTitle">资金流 / 审计参考</h2>
+            <p class="section-note">以下项目用于解释账户资金流，不直接进入经营利润，避免重复计算。</p>
+          </div>
+          <div class="table-scroll">
+            <table class="payment-table">
+              <thead>
+                <tr>
+                  <th>项目</th>
+                  <th>利润口径</th>
+                  <th class="number-cell">笔数</th>
+                  <th class="number-cell">JPY 金额</th>
+                  <th class="number-cell">CNY 金额</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody id="profitSummaryAuditTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="profitSummaryPolicyTitle">
+          <div class="section-heading">
+            <h2 id="profitSummaryPolicyTitle">统计口径</h2>
+          </div>
+          <div class="table-scroll">
+            <table class="payment-table">
+              <thead>
+                <tr>
+                  <th>数据</th>
+                  <th>是否计入利润</th>
+                  <th>说明</th>
+                </tr>
+              </thead>
+              <tbody id="profitSummaryPolicyTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/profit-summary-app.js?v=v2.35.0-profit-summary-readonly-full-autopilot-trial-20260607"></script>
+  </body>
+</html>
