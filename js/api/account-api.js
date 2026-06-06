@@ -112,6 +112,28 @@ export async function createAccountTransfer(payload) {
   return result;
 }
 
+export async function updateAccountProfile(payload) {
+  const { data, error } = await supabase.rpc("school_update_account_profile", {
+    p_account_id: payload.accountId,
+    p_name: payload.name,
+    p_account_type: payload.accountType,
+    p_is_company_account: payload.isCompanyAccount,
+    p_is_active: payload.isActive,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("账户基础信息更新失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function fetchAccountTransactionTypes() {
   const { data, error } = await supabase
     .from("school_account_transactions")

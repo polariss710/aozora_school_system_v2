@@ -7,6 +7,7 @@ import {
   fetchAccountTransactionTypes,
   fetchAccounts,
   fetchBusinessEntitiesForAccounts,
+  updateAccountProfile,
 } from "../api/account-api.js";
 import {
   currentYearMonth,
@@ -60,12 +61,17 @@ const ACCOUNT_TYPE_LABELS = {
   wallet: "钱包",
   receivable: "应收",
   payable: "应付",
+  other: "其他",
 };
+
+const EDITABLE_ACCOUNT_TYPE_OPTIONS = ["cash", "bank", "wallet", "receivable", "payable", "other"];
 
 const dom = {};
 let accounts = [];
 let businessEntities = [];
 let transactions = [];
+let editingAccount = null;
+let isAccountProfileSubmitting = false;
 let isAdjustmentSubmitting = false;
 let isTransferSubmitting = false;
 
@@ -106,6 +112,16 @@ function cacheDom() {
   dom.transactionLoadingState = document.querySelector("#accountTransactionLoadingState");
   dom.transactionEmptyState = document.querySelector("#accountTransactionEmptyState");
   dom.transactionCount = document.querySelector("#accountTransactionCount");
+  dom.accountProfileDialog = document.querySelector("#accountProfileDialog");
+  dom.accountProfileSummary = document.querySelector("#accountProfileSummary");
+  dom.accountProfileError = document.querySelector("#accountProfileError");
+  dom.accountProfileNameInput = document.querySelector("#accountProfileNameInput");
+  dom.accountProfileTypeSelect = document.querySelector("#accountProfileTypeSelect");
+  dom.accountProfileCompanySelect = document.querySelector("#accountProfileCompanySelect");
+  dom.accountProfileActiveSelect = document.querySelector("#accountProfileActiveSelect");
+  dom.accountProfileNoteInput = document.querySelector("#accountProfileNoteInput");
+  dom.accountProfileCancelButton = document.querySelector("#accountProfileCancelButton");
+  dom.accountProfileSubmitButton = document.querySelector("#accountProfileSubmitButton");
   dom.openAccountTransferButton = document.querySelector("#openAccountTransferButton");
   dom.accountTransferDialog = document.querySelector("#accountTransferDialog");
   dom.accountTransferError = document.querySelector("#accountTransferError");
@@ -142,6 +158,34 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadAccountData();
+  });
+
+  dom.accountGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-account-id]");
+    if (!button) {
+      return;
+    }
+
+    openAccountProfileDialog(button.dataset.editAccountId);
+  });
+
+  dom.accountProfileCancelButton.addEventListener("click", closeAccountProfileDialog);
+  dom.accountProfileSubmitButton.addEventListener("click", submitAccountProfile);
+  dom.accountProfileNameInput.addEventListener("input", () => {
+    clearAccountProfileFieldInvalid("name");
+    hideAccountProfileErrorIfClean();
+  });
+  dom.accountProfileTypeSelect.addEventListener("change", () => {
+    clearAccountProfileFieldInvalid("accountType");
+    hideAccountProfileErrorIfClean();
+  });
+  dom.accountProfileCompanySelect.addEventListener("change", () => {
+    clearAccountProfileFieldInvalid("companyAccount");
+    hideAccountProfileErrorIfClean();
+  });
+  dom.accountProfileActiveSelect.addEventListener("change", () => {
+    clearAccountProfileFieldInvalid("active");
+    hideAccountProfileErrorIfClean();
   });
 
   dom.openAccountTransferButton.addEventListener("click", openAccountTransferDialog);
@@ -385,6 +429,9 @@ function renderAccounts(items) {
           ${account.is_active ? "启用" : "停用"}
         </span>
       </div>
+      <div class="table-actions">
+        <button class="button" type="button" data-edit-account-id="${escapeAttribute(account.id)}">编辑基础信息</button>
+      </div>
       <div class="account-balance">${escapeHtml(formatCurrency(account.current_balance, account.currency))}</div>
       <dl class="account-meta">
         <div>
@@ -406,6 +453,176 @@ function renderAccounts(items) {
       </dl>
     </article>
   `).join("");
+}
+
+function openAccountProfileDialog(accountId) {
+  const account = accounts.find((item) => item.id === accountId);
+  if (!account) {
+    showMessage("error", "没有找到要编辑的账户。");
+    return;
+  }
+
+  editingAccount = account;
+  dom.accountProfileSummary.innerHTML = renderAccountProfileSummary(account);
+  dom.accountProfileNameInput.value = account.name || "";
+  renderAccountProfileTypeOptions(account.account_type);
+  dom.accountProfileCompanySelect.value = account.is_company_account ? "true" : "false";
+  dom.accountProfileActiveSelect.value = account.is_active ? "true" : "false";
+  dom.accountProfileNoteInput.value = account.note || "";
+  clearAccountProfileErrors();
+  setAccountProfileSubmitting(false);
+  dom.accountProfileDialog.classList.remove("is-hidden");
+  dom.accountProfileDialog.setAttribute("aria-hidden", "false");
+  dom.accountProfileNameInput.focus();
+}
+
+function closeAccountProfileDialog() {
+  if (isAccountProfileSubmitting) {
+    return;
+  }
+
+  editingAccount = null;
+  dom.accountProfileDialog.classList.add("is-hidden");
+  dom.accountProfileDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitAccountProfile() {
+  if (isAccountProfileSubmitting) {
+    return;
+  }
+
+  clearAccountProfileErrors();
+
+  if (!editingAccount) {
+    showAccountProfileError("没有找到要编辑的账户。");
+    return;
+  }
+
+  const payload = {
+    accountId: editingAccount.id,
+    name: dom.accountProfileNameInput.value.trim(),
+    accountType: dom.accountProfileTypeSelect.value,
+    isCompanyAccount: dom.accountProfileCompanySelect.value === "true",
+    isActive: dom.accountProfileActiveSelect.value === "true",
+    note: dom.accountProfileNoteInput.value.trim(),
+  };
+
+  if (!payload.name) {
+    showAccountProfileError("请输入账户名称。", ["name"]);
+    return;
+  }
+
+  if (!EDITABLE_ACCOUNT_TYPE_OPTIONS.includes(payload.accountType)) {
+    showAccountProfileError("请选择有效账户类型。", ["accountType"]);
+    return;
+  }
+
+  if (!["true", "false"].includes(dom.accountProfileCompanySelect.value)) {
+    showAccountProfileError("请选择公司账户标记。", ["companyAccount"]);
+    return;
+  }
+
+  if (!["true", "false"].includes(dom.accountProfileActiveSelect.value)) {
+    showAccountProfileError("请选择启用状态。", ["active"]);
+    return;
+  }
+
+  setAccountProfileSubmitting(true);
+
+  try {
+    await updateAccountProfile(payload);
+    setAccountProfileSubmitting(false);
+    closeAccountProfileDialog();
+    await loadAccountData();
+    showMessage("success", "账户基础信息已更新。余额修正请继续使用账户调整流程。");
+  } catch (error) {
+    showAccountProfileError(`账户基础信息更新失败：${error.message || error}`, accountProfileFieldIdsForError(error.message || ""));
+  } finally {
+    setAccountProfileSubmitting(false);
+  }
+}
+
+function renderAccountProfileSummary(account) {
+  const businessEntity = findBusinessEntity(account.business_entity_id);
+  const rows = [
+    ["账户编码", account.account_code || "-"],
+    ["业务归属", businessEntity?.name || account.business_entity_id || "-"],
+    ["币种", account.currency || "-"],
+    ["期初余额", formatCurrency(account.opening_balance, account.currency)],
+    ["当前余额", formatCurrency(account.current_balance, account.currency)],
+    ["不可编辑字段", "账户编码、业务归属、币种、期初余额、当前余额、账户流水"],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function renderAccountProfileTypeOptions(selectedType) {
+  dom.accountProfileTypeSelect.innerHTML = EDITABLE_ACCOUNT_TYPE_OPTIONS
+    .map((type) => `<option value="${escapeAttribute(type)}">${escapeHtml(accountTypeLabel(type))}</option>`)
+    .join("");
+  dom.accountProfileTypeSelect.value = selectedType || "bank";
+}
+
+function setAccountProfileSubmitting(isSubmitting) {
+  isAccountProfileSubmitting = isSubmitting;
+  dom.accountProfileSubmitButton.disabled = isSubmitting;
+  dom.accountProfileCancelButton.disabled = isSubmitting;
+  dom.accountProfileSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
+}
+
+function clearAccountProfileErrors() {
+  dom.accountProfileError.textContent = "";
+  dom.accountProfileError.classList.add("is-hidden");
+  for (const fieldId of ["name", "accountType", "companyAccount", "active"]) {
+    clearAccountProfileFieldInvalid(fieldId);
+  }
+}
+
+function showAccountProfileError(message, fieldIds = []) {
+  dom.accountProfileError.textContent = message;
+  dom.accountProfileError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setAccountProfileFieldInvalid(fieldId, true);
+  }
+  dom.accountProfileDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function accountProfileFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("名称")) fields.push("name");
+  if (text.includes("类型")) fields.push("accountType");
+  if (text.includes("公司账户")) fields.push("companyAccount");
+  if (text.includes("启用状态")) fields.push("active");
+  return fields;
+}
+
+function setAccountProfileFieldInvalid(fieldId, invalid) {
+  const field = dom.accountProfileDialog.querySelector(`[data-account-profile-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearAccountProfileFieldInvalid(fieldId) {
+  setAccountProfileFieldInvalid(fieldId, false);
+}
+
+function hideAccountProfileErrorIfClean() {
+  const hasInvalidField = Boolean(dom.accountProfileDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.accountProfileError.textContent = "";
+    dom.accountProfileError.classList.add("is-hidden");
+  }
 }
 
 function renderTransactions(items) {
@@ -1093,6 +1310,10 @@ function transactionTypeLabel(type) {
 
 function accountTypeLabel(type) {
   return ACCOUNT_TYPE_LABELS[type] || safeText(type) || "-";
+}
+
+function displayValue(value) {
+  return safeText(value) || "-";
 }
 
 function setLoading(isLoading) {

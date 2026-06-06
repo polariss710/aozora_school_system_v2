@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">账户调整可用</span>
+          <span class="readonly-pill">账户资料可编辑</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -136,6 +136,54 @@
       </main>
     </div>
 
+    <div id="accountProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountProfileTitle">
+        <div class="section-heading">
+          <h2 id="accountProfileTitle">编辑账户基础信息</h2>
+          <p class="section-note">第一版仅允许编辑账户名称、账户类型、公司账户标记、启用状态和备注；不会修改余额、账户流水或任何历史业务数据。</p>
+        </div>
+
+        <div id="accountProfileSummary" class="dialog-summary"></div>
+        <div id="accountProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-account-profile-field="name">
+          <span>账户名称</span>
+          <input id="accountProfileNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-account-profile-field="accountType">
+          <span>账户类型</span>
+          <select id="accountProfileTypeSelect"></select>
+        </label>
+
+        <label class="field" data-account-profile-field="companyAccount">
+          <span>公司账户</span>
+          <select id="accountProfileCompanySelect">
+            <option value="false">否</option>
+            <option value="true">是</option>
+          </select>
+        </label>
+
+        <label class="field" data-account-profile-field="active">
+          <span>启用状态</span>
+          <select id="accountProfileActiveSelect">
+            <option value="true">启用</option>
+            <option value="false">停用</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="accountProfileNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button" id="accountProfileCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="accountProfileSubmitButton" type="button">保存</button>
+        </div>
+      </section>
+    </div>
+
     <div id="accountTransferDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountTransferTitle">
         <div class="section-heading">
@@ -237,6 +285,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.34.1-account-transfer-reversal-frontend-20260606"></script>
+    <script type="module" src="./js/account-app.js?v=v2.40.0-account-profile-update-full-autopilot-20260607"></script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountPage } from "./pages/account-page.js?v=v2.34.1-account-transfer-reversal-frontend-20260606";
+import { initAccountPage } from "./pages/account-page.js?v=v2.40.0-account-profile-update-full-autopilot-20260607";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
