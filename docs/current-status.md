@@ -1,7 +1,7 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through account profile update frontend checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
-- Latest stable commit: `26c26c1 feat: add account profile editor`.
+- Stable checkpoint: write-operation phase is complete through account profile update local browser checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
+- Latest stable commit: `79affa8 docs: update current status after account profile editor`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, account profile update, student profile update, teacher profile update, subject profile update, business entity profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
@@ -25,6 +25,7 @@
 - Account profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, APP_VERSION/cache bust update, and feature checkpoint.
 - Account profile update is limited to `name`, `account_type`, `is_company_account`, `is_active`, and `note`; it does not edit account code, business ownership, currency, opening balance, current balance, account transactions, historical income, expense, reimbursement, payment, transfer, adjustment, settlement, or wage data.
 - Account profile update commit test used whitelisted test account `ac4150b1-658a-44ce-b1f6-f27e005e267b` with `codex-test / v2.33.10 / 账户转账测试` markers; balance correction remains under the verified account adjustment flow only.
+- Account profile update has completed local browser interaction test on `account.html`: edited whitelisted test account fields `name`, `account_type`, `is_company_account`, `is_active`, and `note`; the account list refreshed, `opening_balance` and `current_balance` stayed unchanged, account transaction count stayed unchanged, and balance correction still uses the verified account adjustment entry.
 - Write RPC run-until-gate workflow was validated through the account transfer stage, then replaced by full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Full autopilot trial default: Codex should continue through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL/frontend commits, feature checkpoint, and current-status update unless a hard stop condition is hit.
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
