@@ -3,6 +3,7 @@ import {
   fetchBusinessEntitiesForTeachers,
   fetchTeacherFilterOptions,
   fetchTeachers,
+  updateTeacherProfile,
 } from "../api/teacher-api.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
@@ -17,10 +18,18 @@ const UNSET_BUSINESS_ENTITY_VALUE = "__unset__";
 
 const TEACHER_STATUS_LABELS = {
   employed: "在职",
+  inactive: "停用",
+  paused: "暂停",
+  resigned: "离职",
 };
+
+const EDITABLE_STATUS_OPTIONS = ["employed", "paused", "inactive", "resigned"];
 
 const dom = {};
 let businessEntities = [];
+let teachers = [];
+let editingTeacher = null;
+let isEditSubmitting = false;
 
 export function initTeacherPage() {
   cacheDom();
@@ -51,6 +60,15 @@ function cacheDom() {
   dom.teacherLoadingState = document.querySelector("#teacherLoadingState");
   dom.teacherEmptyState = document.querySelector("#teacherEmptyState");
   dom.teacherCount = document.querySelector("#teacherCount");
+  dom.editDialog = document.querySelector("#editTeacherProfileDialog");
+  dom.editSummary = document.querySelector("#editTeacherProfileSummary");
+  dom.editError = document.querySelector("#editTeacherProfileError");
+  dom.editDisplayNameInput = document.querySelector("#editTeacherDisplayNameInput");
+  dom.editStatusSelect = document.querySelector("#editTeacherStatusSelect");
+  dom.editBusinessEntitySelect = document.querySelector("#editTeacherBusinessEntitySelect");
+  dom.editNoteInput = document.querySelector("#editTeacherNoteInput");
+  dom.editCancelButton = document.querySelector("#editTeacherCancelButton");
+  dom.editSubmitButton = document.querySelector("#editTeacherSubmitButton");
 }
 
 function bindEvents() {
@@ -62,6 +80,30 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadTeacherData();
+  });
+
+  dom.teacherGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-teacher-id]");
+    if (!button) {
+      return;
+    }
+
+    openEditDialog(button.dataset.editTeacherId);
+  });
+
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditDialog);
+  dom.editDisplayNameInput.addEventListener("input", () => {
+    clearEditFieldInvalid("displayName");
+    hideEditErrorIfClean();
+  });
+  dom.editStatusSelect.addEventListener("change", () => {
+    clearEditFieldInvalid("status");
+    hideEditErrorIfClean();
+  });
+  dom.editBusinessEntitySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("businessEntity");
+    hideEditErrorIfClean();
   });
 }
 
@@ -93,10 +135,12 @@ async function loadTeacherData() {
     renderDepartmentOptions(filterRows);
     renderBusinessEntityOptions(businessEntities, filterRows);
     restoreFilterSelections(filters);
+    teachers = teacherRows;
     renderTeachers(filterTeachersByKeyword(teacherRows, filters.keyword));
     showMessage("success", "老师管理数据已加载。");
   } catch (error) {
     businessEntities = [];
+    teachers = [];
     renderStatusOptions([]);
     renderDepartmentOptions([]);
     renderBusinessEntityOptions([], []);
@@ -184,6 +228,10 @@ function renderTeachers(items) {
         </span>
       </div>
 
+      <div class="table-actions">
+        <button class="button" type="button" data-edit-teacher-id="${escapeAttribute(teacher.id)}">编辑基础信息</button>
+      </div>
+
       <dl class="teacher-meta">
         <div>
           <dt>分类</dt>
@@ -220,6 +268,169 @@ function renderTeachers(items) {
       </dl>
     </article>
   `).join("");
+}
+
+function openEditDialog(teacherId) {
+  const teacher = teachers.find((item) => item.id === teacherId);
+  if (!teacher) {
+    showMessage("error", "没有找到要编辑的老师。");
+    return;
+  }
+
+  editingTeacher = teacher;
+  dom.editSummary.innerHTML = renderEditSummary(teacher);
+  dom.editDisplayNameInput.value = teacher.display_name || teacher.name || "";
+  renderEditStatusOptions(teacher.status);
+  renderEditBusinessEntityOptions(teacher.default_business_entity_id);
+  dom.editNoteInput.value = teacher.note || "";
+  clearEditErrors();
+  setEditSubmitting(false);
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+  dom.editDisplayNameInput.focus();
+}
+
+function closeEditDialog({ force = false } = {}) {
+  if (isEditSubmitting && !force) {
+    return;
+  }
+
+  editingTeacher = null;
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+
+  if (!editingTeacher) {
+    showEditError("没有找到要编辑的老师。");
+    return;
+  }
+
+  const payload = {
+    teacherId: editingTeacher.id,
+    displayName: dom.editDisplayNameInput.value.trim(),
+    status: dom.editStatusSelect.value,
+    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    note: dom.editNoteInput.value.trim(),
+  };
+
+  if (!payload.displayName) {
+    showEditError("请输入老师显示名称。", ["displayName"]);
+    return;
+  }
+
+  if (!payload.status) {
+    showEditError("请选择老师状态。", ["status"]);
+    return;
+  }
+
+  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
+    showEditError("请选择有效老师状态。", ["status"]);
+    return;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateTeacherProfile(payload);
+    closeEditDialog({ force: true });
+    await loadTeacherData();
+    showMessage("success", "老师基础信息已更新。");
+  } catch (error) {
+    showEditError(error.message || String(error), editFieldIdsForError(error));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function renderEditSummary(teacher) {
+  const rows = [
+    ["老师编号", teacher.teacher_code || shortId(teacher.id)],
+    ["系统姓名", teacher.name],
+    ["老师分类", displayValue(teacher.department)],
+    ["不可编辑字段", "工资规则、结算、支付、课时、联系方式、收款账户"],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function renderEditStatusOptions(selectedStatus) {
+  dom.editStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(teacherStatusLabel(status))}</option>`)
+    .join("");
+  dom.editStatusSelect.value = selectedStatus || "employed";
+}
+
+function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
+  dom.editBusinessEntitySelect.innerHTML = [
+    '<option value="">未设置</option>',
+    ...businessEntities
+      .filter((entity) => entity.is_active !== false)
+      .map((entity) =>
+        `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
+      ),
+  ].join("");
+  dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  fieldIds.forEach(setEditFieldInvalid);
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  ["displayName", "status", "businessEntity"].forEach(clearEditFieldInvalid);
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-edit-teacher-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
+}
+
+function setEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-teacher-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-teacher-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
+}
+
+function editFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("显示名称")) return ["displayName"];
+  if (message.includes("状态")) return ["status"];
+  if (message.includes("业务归属")) return ["businessEntity"];
+  return [];
 }
 
 function filterTeachersByKeyword(items, keyword) {

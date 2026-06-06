@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">基础信息可编辑</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -90,6 +90,43 @@
       </main>
     </div>
 
-    <script type="module" src="./js/teacher-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="editTeacherProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editTeacherProfileTitle">
+        <div class="section-heading">
+          <h2 id="editTeacherProfileTitle">编辑老师基础信息</h2>
+          <p class="section-note">第一版仅允许编辑显示名称、状态、业务归属和备注；不会修改工资规则、结算、支付、课时或联系方式。</p>
+        </div>
+
+        <div id="editTeacherProfileSummary" class="dialog-summary"></div>
+        <div id="editTeacherProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-edit-teacher-field="displayName">
+          <span>显示名称</span>
+          <input id="editTeacherDisplayNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-edit-teacher-field="status">
+          <span>状态</span>
+          <select id="editTeacherStatusSelect"></select>
+        </label>
+
+        <label class="field" data-edit-teacher-field="businessEntity">
+          <span>业务归属</span>
+          <select id="editTeacherBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="editTeacherNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editTeacherSubmitButton" type="button">保存</button>
+          <button class="button" id="editTeacherCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/teacher-app.js?v=v2.37.0-teacher-profile-update-full-autopilot-trial-20260607"></script>
   </body>
 </html>
