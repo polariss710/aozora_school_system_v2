@@ -1,14 +1,17 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through account transfer reversal frontend checkpoint; readonly profit summary minimum page is complete; full autopilot workflow trial is active.
-- Latest stable commit: `714a6f4 feat: add profit summary drilldown`.
-- Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, teacher wage payment confirmation, and teacher wage payment reversal.
+- Stable checkpoint: write-operation phase is complete through student profile update frontend checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
+- Latest stable commit: `b99a66b feat: add student profile editor`.
+- Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, student profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
 - Account transfer completed schema, RPC SQL draft/static review, schema/RPC execution, rollback test, commit test, verified SQL archive, frontend minimum implementation, frontend static checkpoint/push, and feature checkpoint.
 - Account transfer commit test used whitelisted test data only: dedicated `codex-test / v2.33.10 / 账户转账测试` accounts.
 - Account transfer reversal completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
 - Account transfer reversal commit test used whitelisted test data only: transfer `372fe08d-0c9e-4b96-8e76-31a4e09ca9ac` on dedicated `codex-test / v2.33.10 / 账户转账测试` accounts.
+- Student profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
+- Student profile update is limited to `display_name`, `status`, `course_track`, `target_type`, and `note`; it does not edit balances, settlement fields, tuition rules, contact fields, parent fields, birthday, lessons, income, settlements, or payments.
+- Student profile update commit test used whitelisted test student `b48cd784-62e2-4232-a07c-65414e842b89` with `codex-test / v2-test / sandbox / v2.36.0 / 测试学生` markers.
 - Write RPC run-until-gate workflow was validated through the account transfer stage, then replaced by full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Full autopilot trial default: Codex should continue through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL/frontend commits, feature checkpoint, and current-status update unless a hard stop condition is hit.
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
