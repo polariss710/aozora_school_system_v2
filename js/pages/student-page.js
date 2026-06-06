@@ -3,6 +3,7 @@ import {
   fetchBusinessEntitiesForStudents,
   fetchStudentFilterOptions,
   fetchStudents,
+  updateStudentProfile,
 } from "../api/student-api.js";
 import { formatDate, safeText } from "../utils/format.js";
 
@@ -19,14 +20,24 @@ const UNSET_VALUE = "__unset__";
 
 const STUDENT_STATUS_LABELS = {
   active: "在籍",
+  inactive: "停用",
+  paused: "暂停",
+  graduated: "毕业",
 };
 
 const COURSE_TRACK_LABELS = {
   humanities: "文科",
+  science: "理科",
 };
+
+const EDITABLE_STATUS_OPTIONS = ["active", "paused", "inactive", "graduated"];
+const EDITABLE_COURSE_TRACK_OPTIONS = ["science", "humanities"];
 
 const dom = {};
 let businessEntities = [];
+let students = [];
+let editingStudent = null;
+let isEditSubmitting = false;
 
 export function initStudentPage() {
   cacheDom();
@@ -59,6 +70,16 @@ function cacheDom() {
   dom.studentLoadingState = document.querySelector("#studentLoadingState");
   dom.studentEmptyState = document.querySelector("#studentEmptyState");
   dom.studentCount = document.querySelector("#studentCount");
+  dom.editDialog = document.querySelector("#editStudentProfileDialog");
+  dom.editSummary = document.querySelector("#editStudentProfileSummary");
+  dom.editError = document.querySelector("#editStudentProfileError");
+  dom.editDisplayNameInput = document.querySelector("#editStudentDisplayNameInput");
+  dom.editStatusSelect = document.querySelector("#editStudentStatusSelect");
+  dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
+  dom.editTargetTypeInput = document.querySelector("#editStudentTargetTypeInput");
+  dom.editNoteInput = document.querySelector("#editStudentNoteInput");
+  dom.editCancelButton = document.querySelector("#editStudentCancelButton");
+  dom.editSubmitButton = document.querySelector("#editStudentSubmitButton");
 }
 
 function bindEvents() {
@@ -70,6 +91,30 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadStudentData();
+  });
+
+  dom.studentGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-student-id]");
+    if (!button) {
+      return;
+    }
+
+    openEditDialog(button.dataset.editStudentId);
+  });
+
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditDialog);
+  dom.editDisplayNameInput.addEventListener("input", () => {
+    clearEditFieldInvalid("displayName");
+    hideEditErrorIfClean();
+  });
+  dom.editStatusSelect.addEventListener("change", () => {
+    clearEditFieldInvalid("status");
+    hideEditErrorIfClean();
+  });
+  dom.editCourseTrackSelect.addEventListener("change", () => {
+    clearEditFieldInvalid("courseTrack");
+    hideEditErrorIfClean();
   });
 }
 
@@ -105,10 +150,12 @@ async function loadStudentData() {
     renderBusinessEntityOptions(businessEntities, filterRows);
     renderDefaultCurrencyOptions(filterRows);
     restoreFilterSelections(filters);
+    students = studentRows;
     renderStudents(filterStudentsByKeyword(studentRows, filters.keyword));
     showMessage("success", "学生管理数据已加载。");
   } catch (error) {
     businessEntities = [];
+    students = [];
     renderStatusOptions([]);
     renderCourseTrackOptions([]);
     renderTargetTypeOptions([]);
@@ -230,6 +277,10 @@ function renderStudents(items) {
         </span>
       </div>
 
+      <div class="table-actions">
+        <button class="button" type="button" data-edit-student-id="${escapeAttribute(student.id)}">编辑基础信息</button>
+      </div>
+
       <dl class="student-meta">
         <div>
           <dt>读音</dt>
@@ -270,6 +321,169 @@ function renderStudents(items) {
       </dl>
     </article>
   `).join("");
+}
+
+function openEditDialog(studentId) {
+  const student = students.find((item) => item.id === studentId);
+  if (!student) {
+    showMessage("error", "没有找到要编辑的学生。");
+    return;
+  }
+
+  editingStudent = student;
+  dom.editSummary.innerHTML = renderEditSummary(student);
+  dom.editDisplayNameInput.value = student.display_name || student.name || "";
+  renderEditStatusOptions(student.status);
+  renderEditCourseTrackOptions(student.course_track);
+  dom.editTargetTypeInput.value = student.target_type || "";
+  dom.editNoteInput.value = student.note || "";
+  clearEditErrors();
+  setEditSubmitting(false);
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+  dom.editDisplayNameInput.focus();
+}
+
+function closeEditDialog({ force = false } = {}) {
+  if (isEditSubmitting && !force) {
+    return;
+  }
+
+  editingStudent = null;
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+
+  if (!editingStudent) {
+    showEditError("没有找到要编辑的学生。");
+    return;
+  }
+
+  const payload = {
+    studentId: editingStudent.id,
+    displayName: dom.editDisplayNameInput.value.trim(),
+    status: dom.editStatusSelect.value,
+    courseTrack: dom.editCourseTrackSelect.value,
+    targetType: dom.editTargetTypeInput.value.trim(),
+    note: dom.editNoteInput.value.trim(),
+  };
+
+  if (!payload.displayName) {
+    showEditError("请输入学生显示名称。", ["displayName"]);
+    return;
+  }
+
+  if (!payload.status) {
+    showEditError("请选择学生状态。", ["status"]);
+    return;
+  }
+
+  if (payload.courseTrack && !EDITABLE_COURSE_TRACK_OPTIONS.includes(payload.courseTrack)) {
+    showEditError("请选择有效课程方向。", ["courseTrack"]);
+    return;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateStudentProfile(payload);
+    closeEditDialog({ force: true });
+    await loadStudentData();
+    showMessage("success", "学生基础信息已更新。");
+  } catch (error) {
+    showEditError(error.message || String(error), editFieldIdsForError(error));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function renderEditSummary(student) {
+  const rows = [
+    ["学生编号", student.student_code || shortId(student.id)],
+    ["系统姓名", student.name],
+    ["业务归属", businessEntityName(student.business_entity_id)],
+    ["不可编辑字段", "余额、结算、学费规则、联系方式、家长信息、生日"],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function renderEditStatusOptions(selectedStatus) {
+  dom.editStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`)
+    .join("");
+  dom.editStatusSelect.value = selectedStatus || "active";
+}
+
+function renderEditCourseTrackOptions(selectedCourseTrack) {
+  dom.editCourseTrackSelect.innerHTML = [
+    '<option value="">未设置</option>',
+    ...EDITABLE_COURSE_TRACK_OPTIONS.map((courseTrack) =>
+      `<option value="${escapeAttribute(courseTrack)}">${escapeHtml(courseTrackLabel(courseTrack))}</option>`
+    ),
+  ].join("");
+  dom.editCourseTrackSelect.value = selectedCourseTrack || "";
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  fieldIds.forEach(setEditFieldInvalid);
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  ["displayName", "status", "courseTrack"].forEach(clearEditFieldInvalid);
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-edit-student-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
+}
+
+function setEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-student-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-student-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
+}
+
+function editFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("显示名称")) return ["displayName"];
+  if (message.includes("状态")) return ["status"];
+  if (message.includes("课程方向")) return ["courseTrack"];
+  return [];
 }
 
 function filterStudentsByKeyword(items, keyword) {

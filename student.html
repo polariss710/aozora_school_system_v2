@@ -14,8 +14,8 @@
           <h1>学生管理</h1>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
-                        <a href="./profit-summary.html">利润分析</a>
-<a href="./account.html">账户管理</a>
+            <a href="./profit-summary.html">利润分析</a>
+            <a href="./account.html">账户管理</a>
             <a href="./income.html">收入记录</a>
             <a href="./expense.html">支出记录</a>
             <a href="./reimbursement.html">报销管理</a>
@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">基础信息可编辑</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -104,6 +104,48 @@
       </main>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="editStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editStudentProfileTitle">
+        <div class="section-heading">
+          <h2 id="editStudentProfileTitle">编辑学生基础信息</h2>
+          <p class="section-note">第一版仅允许编辑显示名称、状态、课程方向、目标类型和备注；不会修改余额、结算、学费规则或联系方式。</p>
+        </div>
+
+        <div id="editStudentProfileSummary" class="dialog-summary"></div>
+        <div id="editStudentProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-edit-student-field="displayName">
+          <span>显示名称</span>
+          <input id="editStudentDisplayNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-edit-student-field="status">
+          <span>状态</span>
+          <select id="editStudentStatusSelect"></select>
+        </label>
+
+        <label class="field" data-edit-student-field="courseTrack">
+          <span>课程方向</span>
+          <select id="editStudentCourseTrackSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>目标类型</span>
+          <input id="editStudentTargetTypeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="editStudentNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editStudentSubmitButton" type="button">保存</button>
+          <button class="button" id="editStudentCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/student-app.js?v=v2.36.0-student-profile-update-full-autopilot-trial-20260607"></script>
   </body>
 </html>

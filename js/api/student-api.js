@@ -64,6 +64,28 @@ export async function fetchBusinessEntitiesForStudents() {
   return data || [];
 }
 
+export async function updateStudentProfile(payload) {
+  const { data, error } = await supabase.rpc("school_update_student_profile", {
+    p_student_id: payload.studentId,
+    p_display_name: payload.displayName,
+    p_status: payload.status,
+    p_course_track: payload.courseTrack || null,
+    p_target_type: payload.targetType || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("学生基础信息更新失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 function applyStudentFilters(query, filters) {
   if (filters.status) {
     query = query.eq("status", filters.status);

@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initStudentPage } from "./pages/student-page.js";
+import { initStudentPage } from "./pages/student-page.js?v=v2.36.0-student-profile-update-full-autopilot-trial-20260607";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
