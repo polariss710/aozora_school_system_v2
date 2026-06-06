@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.43.0-student-course-target-default-edit-20260606";
+export const APP_VERSION = "v2.44.0-subject-create-full-autopilot-20260606";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,

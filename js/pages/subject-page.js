@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchSubjects, updateSubjectProfile } from "../api/subject-api.js";
+import { createSubjectProfile, fetchSubjects, updateSubjectProfile } from "../api/subject-api.js";
 import { formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
@@ -13,11 +13,13 @@ const DEFAULT_FILTERS = {
 const UNSET_VALUE = "__unset__";
 const VALID_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const EDITABLE_STATUS_OPTIONS = ["active", "inactive"];
+const CREATE_FIELD_IDS = ["name", "status", "color", "sortOrder"];
 
 const dom = {};
 let allSubjects = [];
 let editingSubject = null;
 let isEditSubmitting = false;
+let isCreateSubmitting = false;
 
 export function initSubjectPage() {
   cacheDom();
@@ -49,6 +51,19 @@ function cacheDom() {
   dom.subjectLoadingState = document.querySelector("#subjectLoadingState");
   dom.subjectEmptyState = document.querySelector("#subjectEmptyState");
   dom.subjectCount = document.querySelector("#subjectCount");
+  dom.createButton = document.querySelector("#createSubjectButton");
+  dom.createDialog = document.querySelector("#createSubjectProfileDialog");
+  dom.createError = document.querySelector("#createSubjectProfileError");
+  dom.createNameInput = document.querySelector("#createSubjectNameInput");
+  dom.createStatusSelect = document.querySelector("#createSubjectStatusSelect");
+  dom.createPrimaryCategoryInput = document.querySelector("#createSubjectPrimaryCategoryInput");
+  dom.createCategoryInput = document.querySelector("#createSubjectCategoryInput");
+  dom.createTertiaryCategoryInput = document.querySelector("#createSubjectTertiaryCategoryInput");
+  dom.createColorInput = document.querySelector("#createSubjectColorInput");
+  dom.createSortOrderInput = document.querySelector("#createSubjectSortOrderInput");
+  dom.createNoteInput = document.querySelector("#createSubjectNoteInput");
+  dom.createCancelButton = document.querySelector("#createSubjectCancelButton");
+  dom.createSubmitButton = document.querySelector("#createSubjectSubmitButton");
   dom.editDialog = document.querySelector("#editSubjectProfileDialog");
   dom.editSummary = document.querySelector("#editSubjectProfileSummary");
   dom.editError = document.querySelector("#editSubjectProfileError");
@@ -68,6 +83,26 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyCurrentFilters();
+  });
+
+  dom.createButton.addEventListener("click", openCreateDialog);
+  dom.createCancelButton.addEventListener("click", closeCreateDialog);
+  dom.createSubmitButton.addEventListener("click", submitCreateDialog);
+  dom.createNameInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("name");
+    hideCreateErrorIfClean();
+  });
+  dom.createStatusSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("status");
+    hideCreateErrorIfClean();
+  });
+  dom.createColorInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("color");
+    hideCreateErrorIfClean();
+  });
+  dom.createSortOrderInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("sortOrder");
+    hideCreateErrorIfClean();
   });
 
   dom.subjectGrid.addEventListener("click", (event) => {
@@ -232,6 +267,88 @@ function renderSubjects(subjects) {
   }).join("");
 }
 
+function openCreateDialog() {
+  clearCreateErrors();
+  setCreateSubmitting(false);
+  dom.createNameInput.value = "";
+  renderCreateStatusOptions("active");
+  dom.createPrimaryCategoryInput.value = "班课";
+  dom.createCategoryInput.value = "";
+  dom.createTertiaryCategoryInput.value = "";
+  dom.createColorInput.value = "";
+  dom.createSortOrderInput.value = "0";
+  dom.createNoteInput.value = "";
+  dom.createDialog.classList.remove("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "false");
+  dom.createNameInput.focus();
+}
+
+function closeCreateDialog({ force = false } = {}) {
+  if (isCreateSubmitting && !force) {
+    return;
+  }
+
+  dom.createDialog.classList.add("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = {
+    name: dom.createNameInput.value.trim(),
+    status: dom.createStatusSelect.value,
+    primaryCategory: dom.createPrimaryCategoryInput.value.trim(),
+    category: dom.createCategoryInput.value.trim(),
+    tertiaryCategory: dom.createTertiaryCategoryInput.value.trim(),
+    color: dom.createColorInput.value.trim(),
+    sortOrder: parseOptionalInteger(dom.createSortOrderInput.value),
+    note: dom.createNoteInput.value.trim(),
+  };
+
+  if (!payload.name) {
+    showCreateError("请输入科目名称。", ["name"]);
+    return;
+  }
+
+  if (!payload.status) {
+    showCreateError("请选择科目状态。", ["status"]);
+    return;
+  }
+
+  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
+    showCreateError("请选择有效科目状态。", ["status"]);
+    return;
+  }
+
+  if (payload.color && !VALID_COLOR_PATTERN.test(payload.color)) {
+    showCreateError("颜色格式需为 #RRGGBB。", ["color"]);
+    return;
+  }
+
+  if (payload.sortOrder === null) {
+    showCreateError("排序需为 0 或正整数。", ["sortOrder"]);
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    await createSubjectProfile(payload);
+    closeCreateDialog({ force: true });
+    await loadSubjectData();
+    showMessage("success", "科目已新增，可用于未来录入和筛选。");
+  } catch (error) {
+    showCreateError(error.message || String(error), createFieldIdsForError(error));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
 function openEditDialog(subjectId) {
   const subject = allSubjects.find((item) => item.id === subjectId);
   if (!subject) {
@@ -336,6 +453,59 @@ function renderEditStatusOptions(selectedStatus) {
   dom.editStatusSelect.value = selectedStatus || "active";
 }
 
+function renderCreateStatusOptions(selectedStatus) {
+  dom.createStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(subjectStatusLabel(status))}</option>`)
+    .join("");
+  dom.createStatusSelect.value = selectedStatus || "active";
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createError.textContent = message;
+  dom.createError.classList.remove("is-hidden");
+  fieldIds.forEach(setCreateFieldInvalid);
+}
+
+function clearCreateErrors() {
+  dom.createError.textContent = "";
+  dom.createError.classList.add("is-hidden");
+  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-create-subject-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.createError.textContent = "";
+    dom.createError.classList.add("is-hidden");
+  }
+}
+
+function setCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-subject-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-subject-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createSubmitButton.disabled = isSubmitting;
+  dom.createCancelButton.disabled = isSubmitting;
+  dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
+}
+
+function createFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("名称")) return ["name"];
+  if (message.includes("状态")) return ["status"];
+  if (message.includes("颜色")) return ["color"];
+  if (message.includes("排序")) return ["sortOrder"];
+  return [];
+}
+
 function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
@@ -378,6 +548,19 @@ function editFieldIdsForError(error) {
   if (message.includes("名称")) return ["name"];
   if (message.includes("状态")) return ["status"];
   return [];
+}
+
+function parseOptionalInteger(value) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return 0;
+  }
+
+  if (!/^[0-9]+$/.test(text)) {
+    return null;
+  }
+
+  return Number.parseInt(text, 10);
 }
 
 function filterSubjects(subjects, filters) {

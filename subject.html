@@ -89,7 +89,10 @@
         <section class="panel" aria-labelledby="subjectListTitle">
           <div class="section-heading section-heading-row">
             <h2 id="subjectListTitle">科目列表</h2>
-            <span id="subjectCount" class="record-count">0 个</span>
+            <div class="header-meta">
+              <span id="subjectCount" class="record-count">0 个</span>
+              <button class="button button-primary" id="createSubjectButton" type="button">新增科目</button>
+            </div>
           </div>
 
           <div id="subjectLoadingState" class="state-text is-hidden">正在加载科目...</div>
@@ -97,6 +100,62 @@
           <div id="subjectGrid" class="subject-grid"></div>
         </section>
       </main>
+    </div>
+
+    <div id="createSubjectProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createSubjectProfileTitle">
+        <div class="section-heading">
+          <h2 id="createSubjectProfileTitle">新增科目</h2>
+          <p class="section-note">仅新增未来录入和筛选可用的科目主数据；不会删除科目，也不会修改历史课时、工资、结算、支付、收支或账户流水。</p>
+        </div>
+
+        <div id="createSubjectProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-create-subject-field="name">
+          <span>科目名称</span>
+          <input id="createSubjectNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-subject-field="status">
+          <span>状态</span>
+          <select id="createSubjectStatusSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>一级分类</span>
+          <input id="createSubjectPrimaryCategoryInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>分类</span>
+          <input id="createSubjectCategoryInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>三级分类</span>
+          <input id="createSubjectTertiaryCategoryInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-subject-field="color">
+          <span>颜色</span>
+          <input id="createSubjectColorInput" type="text" autocomplete="off" placeholder="#0f766e">
+        </label>
+
+        <label class="field" data-create-subject-field="sortOrder">
+          <span>排序</span>
+          <input id="createSubjectSortOrderInput" type="number" min="0" step="1" inputmode="numeric">
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="createSubjectNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createSubjectSubmitButton" type="button">新增</button>
+          <button class="button" id="createSubjectCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="editSubjectProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -131,6 +190,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/subject-app.js?v=v2.38.0-subject-profile-update-full-autopilot-trial-20260607"></script>
+    <script type="module" src="./js/subject-app.js?v=v2.44.0-subject-create-full-autopilot-20260606"></script>
   </body>
 </html>
