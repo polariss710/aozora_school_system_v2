@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchWageRuleLookups, fetchWageRules } from "../api/wage-rule-api.js";
+import { fetchWageRuleLookups, fetchWageRules, updateWageRuleConfig } from "../api/wage-rule-api.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
@@ -18,6 +18,8 @@ const SETTLEMENT_TYPE_LABELS = {
   no_wage: "无工资",
 };
 
+const EDITABLE_SETTLEMENT_TYPES = ["jpy_hourly", "no_wage"];
+
 const TEACHER_STATUS_LABELS = {
   employed: "在职",
   inactive: "停用",
@@ -30,6 +32,8 @@ let teachers = [];
 let students = [];
 let subjects = [];
 let businessEntities = [];
+let editingWageRule = null;
+let isEditSubmitting = false;
 
 export function initWageRulePage() {
   cacheDom();
@@ -64,6 +68,19 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageRuleLoadingState");
   dom.emptyState = document.querySelector("#wageRuleEmptyState");
   dom.ruleCount = document.querySelector("#wageRuleCount");
+  dom.editDialog = document.querySelector("#editWageRuleConfigDialog");
+  dom.editSummary = document.querySelector("#editWageRuleConfigSummary");
+  dom.editError = document.querySelector("#editWageRuleConfigError");
+  dom.editSettlementTypeSelect = document.querySelector("#editWageRuleSettlementTypeSelect");
+  dom.editHourlyRateJpyInput = document.querySelector("#editWageRuleHourlyRateJpyInput");
+  dom.editHourlyRateCnyInput = document.querySelector("#editWageRuleHourlyRateCnyInput");
+  dom.editExchangeRateInput = document.querySelector("#editWageRuleExchangeRateInput");
+  dom.editTransportFeeJpyInput = document.querySelector("#editWageRuleTransportFeeJpyInput");
+  dom.editClassroomFeeJpyInput = document.querySelector("#editWageRuleClassroomFeeJpyInput");
+  dom.editActiveSelect = document.querySelector("#editWageRuleActiveSelect");
+  dom.editNoteInput = document.querySelector("#editWageRuleNoteInput");
+  dom.editSubmitButton = document.querySelector("#editWageRuleSubmitButton");
+  dom.editCancelButton = document.querySelector("#editWageRuleCancelButton");
 }
 
 function bindEvents() {
@@ -75,6 +92,31 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyCurrentFilters();
+  });
+
+  dom.tableBody.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-wage-rule-id]");
+    if (!button) {
+      return;
+    }
+
+    openEditDialog(button.dataset.editWageRuleId);
+  });
+
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditDialog);
+
+  [
+    dom.editSettlementTypeSelect,
+    dom.editHourlyRateJpyInput,
+    dom.editHourlyRateCnyInput,
+    dom.editExchangeRateInput,
+    dom.editTransportFeeJpyInput,
+    dom.editClassroomFeeJpyInput,
+    dom.editActiveSelect,
+  ].forEach((field) => {
+    field.addEventListener("input", hideEditErrorIfClean);
+    field.addEventListener("change", handleEditFieldChange);
   });
 }
 
@@ -201,6 +243,7 @@ function renderWageRules(rows) {
     return `
       <tr>
         <td class="wage-rule-nowrap"><a class="table-action-button" href="./wage-rule-detail.html?id=${encodeURIComponent(rule.id)}">详情</a></td>
+        <td class="wage-rule-nowrap"><button class="button table-action-button" type="button" data-edit-wage-rule-id="${escapeAttribute(rule.id)}">编辑</button></td>
         <td>${escapeHtml(teacherNameById(rule.teacher_id))}</td>
         <td>${escapeHtml(displayValue(teacher?.department))}</td>
         <td><span class="status-badge status-neutral">${escapeHtml(teacherStatusLabel(teacher?.status))}</span></td>
@@ -220,6 +263,238 @@ function renderWageRules(rows) {
       </tr>
     `;
   }).join("");
+}
+
+function openEditDialog(wageRuleId) {
+  const rule = wageRules.find((item) => item.id === wageRuleId);
+  if (!rule) {
+    showMessage("error", "没有找到要编辑的老师工资规则。");
+    return;
+  }
+
+  editingWageRule = rule;
+  dom.editSummary.innerHTML = renderEditSummary(rule);
+  dom.editSettlementTypeSelect.value = rule.settlement_type || "jpy_hourly";
+  dom.editHourlyRateJpyInput.value = displayNumberInput(rule.hourly_rate_jpy);
+  dom.editHourlyRateCnyInput.value = displayNumberInput(rule.hourly_rate_cny);
+  dom.editExchangeRateInput.value = displayNumberInput(rule.exchange_rate);
+  dom.editTransportFeeJpyInput.value = displayNumberInput(rule.transport_fee_jpy);
+  dom.editClassroomFeeJpyInput.value = displayNumberInput(rule.classroom_fee_jpy);
+  dom.editActiveSelect.value = rule.is_active === false ? "inactive" : "active";
+  dom.editNoteInput.value = rule.note || "";
+  clearEditErrors();
+  setEditSubmitting(false);
+  syncNoWageFields();
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+  dom.editSettlementTypeSelect.focus();
+}
+
+function closeEditDialog({ force = false } = {}) {
+  if (isEditSubmitting && !force) {
+    return;
+  }
+
+  editingWageRule = null;
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+
+  if (!editingWageRule) {
+    showEditError("没有找到要编辑的老师工资规则。");
+    return;
+  }
+
+  const payload = {
+    wageRuleId: editingWageRule.id,
+    settlementType: dom.editSettlementTypeSelect.value,
+    hourlyRateJpy: readNonNegativeNumber(dom.editHourlyRateJpyInput.value),
+    hourlyRateCny: readNonNegativeNumber(dom.editHourlyRateCnyInput.value),
+    exchangeRate: readNonNegativeNumber(dom.editExchangeRateInput.value),
+    transportFeeJpy: readNonNegativeNumber(dom.editTransportFeeJpyInput.value),
+    classroomFeeJpy: readNonNegativeNumber(dom.editClassroomFeeJpyInput.value),
+    isActive: dom.editActiveSelect.value === "active",
+    note: dom.editNoteInput.value.trim(),
+  };
+
+  const invalidFields = validateEditPayload(payload);
+  if (invalidFields.length > 0) {
+    showEditError("请检查结算类型、费率、汇率、费用和启用状态。", invalidFields);
+    return;
+  }
+
+  if (payload.settlementType === "no_wage") {
+    payload.hourlyRateJpy = 0;
+    payload.hourlyRateCny = 0;
+    payload.exchangeRate = 0;
+    payload.transportFeeJpy = 0;
+    payload.classroomFeeJpy = 0;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateWageRuleConfig(payload);
+    closeEditDialog({ force: true });
+    await loadWageRuleData();
+    showMessage("success", "老师工资规则配置已更新；仅影响未来工资锁定。");
+  } catch (error) {
+    showEditError(error.message || String(error), editFieldIdsForError(error));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function validateEditPayload(payload) {
+  const invalidFields = [];
+
+  if (!EDITABLE_SETTLEMENT_TYPES.includes(payload.settlementType)) {
+    invalidFields.push("settlementType");
+  }
+
+  [
+    ["hourlyRateJpy", payload.hourlyRateJpy],
+    ["hourlyRateCny", payload.hourlyRateCny],
+    ["exchangeRate", payload.exchangeRate],
+    ["transportFeeJpy", payload.transportFeeJpy],
+    ["classroomFeeJpy", payload.classroomFeeJpy],
+  ].forEach(([fieldId, value]) => {
+    if (!Number.isFinite(value) || value < 0) {
+      invalidFields.push(fieldId);
+    }
+  });
+
+  if (!["active", "inactive"].includes(dom.editActiveSelect.value)) {
+    invalidFields.push("activeState");
+  }
+
+  return invalidFields;
+}
+
+function renderEditSummary(rule) {
+  const rows = [
+    ["老师", teacherNameById(rule.teacher_id)],
+    ["学生", studentNameById(rule.student_id)],
+    ["科目", subjectNameById(rule.subject_id)],
+    ["业务归属", businessNameById(rule.business_entity_id)],
+    ["不可编辑字段", "老师、学生、科目、业务归属、历史工资锁定、支付请求、支出、账户流水"],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function handleEditFieldChange(event) {
+  if (event.currentTarget === dom.editSettlementTypeSelect) {
+    syncNoWageFields();
+  }
+
+  hideEditErrorIfClean();
+}
+
+function syncNoWageFields() {
+  const isNoWage = dom.editSettlementTypeSelect.value === "no_wage";
+  const amountFields = [
+    dom.editHourlyRateJpyInput,
+    dom.editHourlyRateCnyInput,
+    dom.editExchangeRateInput,
+    dom.editTransportFeeJpyInput,
+    dom.editClassroomFeeJpyInput,
+  ];
+
+  amountFields.forEach((field) => {
+    if (isNoWage) {
+      field.value = "0";
+    }
+    field.disabled = isNoWage;
+  });
+}
+
+function readNonNegativeNumber(value) {
+  const trimmed = safeText(value).trim();
+  if (!trimmed) {
+    return NaN;
+  }
+
+  return Number(trimmed);
+}
+
+function displayNumberInput(value) {
+  const text = safeText(value);
+  return text || "0";
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  fieldIds.forEach(setEditFieldInvalid);
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  [
+    "settlementType",
+    "hourlyRateJpy",
+    "hourlyRateCny",
+    "exchangeRate",
+    "transportFeeJpy",
+    "classroomFeeJpy",
+    "activeState",
+  ].forEach(clearEditFieldInvalid);
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-edit-wage-rule-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
+}
+
+function setEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-wage-rule-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-wage-rule-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
+}
+
+function editFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("结算类型")) return ["settlementType"];
+  if (message.includes("负数")) {
+    return ["hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
+  }
+  if (message.includes("无工资规则")) {
+    return ["settlementType", "hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
+  }
+  if (message.includes("启用状态")) return ["activeState"];
+  return [];
 }
 
 function filterWageRules(rows, filters) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资规则</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.41.0-wage-rule-detail-readonly-20260607">
+    <link rel="stylesheet" href="./css/app.css?v=v2.42.0-wage-rule-config-edit-20260606">
   </head>
   <body>
     <div class="app-shell">
@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">基础编辑</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -111,7 +111,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageRuleListTitle">规则列表</h2>
-              <p class="section-note">本页显示老师工资规则配置，只读查看；不重新计算已锁定工资，也不影响老师工资支付或支出记录。规则按老师、学生、科目、业务归属和结算类型区分，表格可横向滚动查看更多列。</p>
+              <p class="section-note">本页显示并编辑老师工资规则基础配置；只影响未来工资锁定，不重新计算已锁定工资，也不影响老师工资支付、支出记录或账户流水。规则匹配键不可编辑。</p>
             </div>
             <span id="wageRuleCount" class="record-count">0 条</span>
           </div>
@@ -123,6 +123,7 @@
               <thead>
                 <tr>
                   <th>详情</th>
+                  <th>编辑</th>
                   <th>老师</th>
                   <th>老师分类</th>
                   <th>老师状态</th>
@@ -148,6 +149,71 @@
       </main>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=v2.41.0-wage-rule-detail-readonly-20260607"></script>
+    <div id="editWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
+        <div class="section-heading">
+          <h2 id="editWageRuleConfigTitle">编辑工资规则基础配置</h2>
+          <p class="section-note">仅允许编辑结算类型、费率、汇率、费用、启用状态和备注；老师、学生、科目、业务归属不可编辑。修改只影响未来工资锁定，不重算历史工资。</p>
+        </div>
+
+        <div id="editWageRuleConfigSummary" class="dialog-summary"></div>
+        <div id="editWageRuleConfigError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-edit-wage-rule-field="settlementType">
+          <span>结算类型</span>
+          <select id="editWageRuleSettlementTypeSelect">
+            <option value="jpy_hourly">日元时给</option>
+            <option value="no_wage">无工资</option>
+          </select>
+        </label>
+
+        <label class="field" data-edit-wage-rule-field="hourlyRateJpy">
+          <span>日元时薪</span>
+          <input id="editWageRuleHourlyRateJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-edit-wage-rule-field="hourlyRateCny">
+          <span>人民币时薪</span>
+          <input id="editWageRuleHourlyRateCnyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-edit-wage-rule-field="exchangeRate">
+          <span>汇率</span>
+          <input id="editWageRuleExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
+        </label>
+
+        <label class="field" data-edit-wage-rule-field="transportFeeJpy">
+          <span>交通费 JPY</span>
+          <input id="editWageRuleTransportFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-edit-wage-rule-field="classroomFeeJpy">
+          <span>教室费 JPY</span>
+          <input id="editWageRuleClassroomFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-edit-wage-rule-field="activeState">
+          <span>启用状态</span>
+          <select id="editWageRuleActiveSelect">
+            <option value="active">启用</option>
+            <option value="inactive">停用</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="editWageRuleNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-warning">保存后不会重算历史工资锁定，也不会修改支付请求、支出或账户流水。</div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editWageRuleSubmitButton" type="button">保存</button>
+          <button class="button" id="editWageRuleCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/wage-rule-app.js?v=v2.42.0-wage-rule-config-edit-20260606"></script>
   </body>
 </html>
