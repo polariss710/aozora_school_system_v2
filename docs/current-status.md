@@ -15,7 +15,7 @@
 - Account transfer and account transfer reversal frontend have static and online file checks, but no real local browser interaction test yet.
 - Account transfer does not yet have a standalone detail page; the first version shows its source summary in account transaction detail.
 - Profit summary readonly page is available at `profit-summary.html`, with month and business-entity filters, API-layer read queries, and no page-layer writes.
-- Profit summary first-version policy: posted income and posted expense drive operating profit by currency; teacher wage expense is included in expense and shown separately; reimbursement, account adjustment, and account transfer flows are audit references and do not affect operating profit.
+- Profit summary first-version policy: received income and paid expense drive operating profit by currency; reversed income/expense are excluded; teacher wage expense is included in expense and shown separately; reimbursement, account adjustment, and account transfer flows are audit references and do not affect operating profit.
 - Profit summary frontend has static and online file checks, but no real local browser interaction test yet.
 - The write RPC workflow has been standardized and reset to full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect the full autopilot trial while preserving secrets, test-data, and dangerous-operation hard stops.

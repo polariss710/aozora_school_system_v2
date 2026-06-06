@@ -13,8 +13,8 @@ import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
 const CURRENCIES = ["JPY", "CNY"];
 
 const PROFIT_POLICY_ROWS = [
-  ["收入", "计入经营收入", "使用 posted 收入记录；reversed / void / cancelled 不计入。"],
-  ["支出", "计入经营支出", "使用 posted 支出记录；老师工资支出单列展示但仍属于支出。"],
+  ["收入", "计入经营收入", "使用 received 收入记录；reversed / void / cancelled 不计入。"],
+  ["支出", "计入经营支出", "使用 paid 支出记录；老师工资支出单列展示但仍属于支出。"],
   ["报销", "不重复计入利润", "报销只是账户间资金流，原始支出已计入经营支出。"],
   ["老师工资支付请求", "不重复计入利润", "已支付工资通过 paid expense / teacher_wage 支出体现，支付请求只做状态参考。"],
   ["账户调整", "不计入经营利润", "属于账户余额校正，单列为非经营调整。"],
@@ -179,8 +179,8 @@ function renderEmptyState() {
 
 function buildCurrencyRows(data) {
   return CURRENCIES.map((currency) => {
-    const incomeRecords = data.incomeRecords.filter((row) => isPosted(row.status) && row.currency === currency);
-    const expenseRecords = data.expenseRecords.filter((row) => isPosted(row.status) && row.currency === currency);
+    const incomeRecords = data.incomeRecords.filter((row) => isEffectiveIncome(row.status) && row.currency === currency);
+    const expenseRecords = data.expenseRecords.filter((row) => isEffectiveExpense(row.status) && row.currency === currency);
     const teacherWageRecords = expenseRecords.filter((row) => row.expense_category === "teacher_wage");
     const incomeAmount = sumAmount(incomeRecords, currency);
     const expenseAmount = sumAmount(expenseRecords, currency);
@@ -301,8 +301,12 @@ function businessEntityLabel(id) {
   return code ? `${name} / ${code}` : name;
 }
 
-function isPosted(status) {
-  return status === "posted" || status === "paid";
+function isEffectiveIncome(status) {
+  return status === "received";
+}
+
+function isEffectiveExpense(status) {
+  return status === "paid";
 }
 
 function setLoading(isLoading) {
