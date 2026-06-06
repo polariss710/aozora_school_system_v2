@@ -1,5 +1,6 @@
 # Current Status
 
+- System map checkpoint: `docs/system-map.md` added on 2026-06-06 to record completed v2 modules, page/API boundaries, main data source tables, allowed write RPCs, protected historical links, cross-module relationships, and remaining boundary risks. This documentation-only task did not execute SQL/RPC or write DB.
 - Stable checkpoint: write-operation phase is complete through teacher/student create final checkpoint; wage rule readonly detail page, wage rule config edit, student course/target/default edit, subject create, teacher create, student create, and readonly profit summary drilldown are complete; full autopilot workflow is active and ordinary phase-transition confirmation is no longer required.
 - Latest stable commit: `a94c319 fix: refresh student create page cache bust`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, account profile update, student profile update, student creation, teacher profile update, teacher creation, subject profile update, subject creation, business entity profile update, teacher wage payment confirmation, and teacher wage payment reversal.
