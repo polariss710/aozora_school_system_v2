@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">基础信息可编辑</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -92,7 +92,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="businessEntityListTitle">业务归属列表</h2>
-              <p class="section-note">本页为业务归属基础主数据只读一览，用于确认收入、支出、报销、账户、老师、学生、课时、工资和结算等模块的归属口径。第一版不提供新增、编辑、删除、启用或停用操作。</p>
+              <p class="section-note">本页用于维护业务归属基础显示信息；不会删除业务归属，也不会重算或修改历史收入、支出、账户、结算、工资、支付、账户余额或账户流水。</p>
             </div>
             <span id="businessEntityCount" class="record-count">0 个</span>
           </div>
@@ -104,6 +104,51 @@
       </main>
     </div>
 
-    <script type="module" src="./js/business-entity-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="editBusinessEntityProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editBusinessEntityProfileTitle">
+        <div class="section-heading">
+          <h2 id="editBusinessEntityProfileTitle">编辑业务归属基础信息</h2>
+          <p class="section-note">第一版仅允许编辑名称、类型、默认币种、启用状态和备注；不会修改编码、公司报表设置或任何历史业务数据。</p>
+        </div>
+
+        <div id="editBusinessEntityProfileSummary" class="dialog-summary"></div>
+        <div id="editBusinessEntityProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-edit-business-entity-field="name">
+          <span>名称</span>
+          <input id="editBusinessEntityNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-edit-business-entity-field="entityType">
+          <span>类型</span>
+          <select id="editBusinessEntityTypeSelect"></select>
+        </label>
+
+        <label class="field" data-edit-business-entity-field="defaultCurrency">
+          <span>默认币种</span>
+          <select id="editBusinessEntityDefaultCurrencySelect"></select>
+        </label>
+
+        <label class="field" data-edit-business-entity-field="active">
+          <span>启用状态</span>
+          <select id="editBusinessEntityActiveSelect">
+            <option value="true">启用</option>
+            <option value="false">停用</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="editBusinessEntityNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editBusinessEntitySubmitButton" type="button">保存</button>
+          <button class="button" id="editBusinessEntityCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/business-entity-app.js?v=v2.39.0-business-entity-profile-update-full-autopilot-20260607"></script>
   </body>
 </html>

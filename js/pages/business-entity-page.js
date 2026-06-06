@@ -1,5 +1,8 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchBusinessEntities } from "../api/business-entity-api.js";
+import {
+  fetchBusinessEntities,
+  updateBusinessEntityProfile,
+} from "../api/business-entity-api.js";
 import { formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
@@ -15,8 +18,13 @@ const ENTITY_TYPE_LABELS = {
   personal: "个人",
 };
 
+const EDITABLE_ENTITY_TYPE_OPTIONS = ["company", "personal"];
+const EDITABLE_CURRENCY_OPTIONS = ["JPY", "CNY"];
+
 const dom = {};
 let allBusinessEntities = [];
+let editingEntity = null;
+let isEditSubmitting = false;
 
 export function initBusinessEntityPage() {
   cacheDom();
@@ -48,6 +56,16 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#businessEntityLoadingState");
   dom.emptyState = document.querySelector("#businessEntityEmptyState");
   dom.entityCount = document.querySelector("#businessEntityCount");
+  dom.editDialog = document.querySelector("#editBusinessEntityProfileDialog");
+  dom.editSummary = document.querySelector("#editBusinessEntityProfileSummary");
+  dom.editError = document.querySelector("#editBusinessEntityProfileError");
+  dom.editNameInput = document.querySelector("#editBusinessEntityNameInput");
+  dom.editEntityTypeSelect = document.querySelector("#editBusinessEntityTypeSelect");
+  dom.editDefaultCurrencySelect = document.querySelector("#editBusinessEntityDefaultCurrencySelect");
+  dom.editActiveSelect = document.querySelector("#editBusinessEntityActiveSelect");
+  dom.editNoteInput = document.querySelector("#editBusinessEntityNoteInput");
+  dom.editCancelButton = document.querySelector("#editBusinessEntityCancelButton");
+  dom.editSubmitButton = document.querySelector("#editBusinessEntitySubmitButton");
 }
 
 function bindEvents() {
@@ -59,6 +77,34 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyCurrentFilters();
+  });
+
+  dom.entityGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-business-entity-id]");
+    if (!button) {
+      return;
+    }
+
+    openEditDialog(button.dataset.editBusinessEntityId);
+  });
+
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditDialog);
+  dom.editNameInput.addEventListener("input", () => {
+    clearEditFieldInvalid("name");
+    hideEditErrorIfClean();
+  });
+  dom.editEntityTypeSelect.addEventListener("change", () => {
+    clearEditFieldInvalid("entityType");
+    hideEditErrorIfClean();
+  });
+  dom.editDefaultCurrencySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("defaultCurrency");
+    hideEditErrorIfClean();
+  });
+  dom.editActiveSelect.addEventListener("change", () => {
+    clearEditFieldInvalid("active");
+    hideEditErrorIfClean();
   });
 }
 
@@ -152,6 +198,10 @@ function renderBusinessEntities(entities) {
         </span>
       </div>
 
+      <div class="table-actions">
+        <button class="button" type="button" data-edit-business-entity-id="${escapeAttribute(entity.id)}">编辑基础信息</button>
+      </div>
+
       <dl class="business-entity-meta">
         <div>
           <dt>类型</dt>
@@ -180,6 +230,171 @@ function renderBusinessEntities(entities) {
       </dl>
     </article>
   `).join("");
+}
+
+function openEditDialog(entityId) {
+  const entity = allBusinessEntities.find((item) => item.id === entityId);
+  if (!entity) {
+    showMessage("error", "没有找到要编辑的业务归属。");
+    return;
+  }
+
+  editingEntity = entity;
+  dom.editSummary.innerHTML = renderEditSummary(entity);
+  dom.editNameInput.value = entity.name || "";
+  renderEditEntityTypeOptions(entity.entity_type);
+  renderEditCurrencyOptions(entity.default_currency);
+  dom.editActiveSelect.value = entity.is_active === false ? "false" : "true";
+  dom.editNoteInput.value = entity.note || "";
+  clearEditErrors();
+  setEditSubmitting(false);
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+  dom.editNameInput.focus();
+}
+
+function closeEditDialog({ force = false } = {}) {
+  if (isEditSubmitting && !force) {
+    return;
+  }
+
+  editingEntity = null;
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+
+  if (!editingEntity) {
+    showEditError("没有找到要编辑的业务归属。");
+    return;
+  }
+
+  const payload = {
+    businessEntityId: editingEntity.id,
+    name: dom.editNameInput.value.trim(),
+    entityType: dom.editEntityTypeSelect.value,
+    defaultCurrency: dom.editDefaultCurrencySelect.value,
+    isActive: dom.editActiveSelect.value === "true",
+    note: dom.editNoteInput.value.trim(),
+  };
+
+  if (!payload.name) {
+    showEditError("请输入业务归属名称。", ["name"]);
+    return;
+  }
+
+  if (!EDITABLE_ENTITY_TYPE_OPTIONS.includes(payload.entityType)) {
+    showEditError("请选择有效业务归属类型。", ["entityType"]);
+    return;
+  }
+
+  if (!EDITABLE_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
+    showEditError("请选择有效默认币种。", ["defaultCurrency"]);
+    return;
+  }
+
+  if (!["true", "false"].includes(dom.editActiveSelect.value)) {
+    showEditError("请选择启用状态。", ["active"]);
+    return;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateBusinessEntityProfile(payload);
+    closeEditDialog({ force: true });
+    await loadBusinessEntityData();
+    showMessage("success", "业务归属基础信息已更新。");
+  } catch (error) {
+    showEditError(error.message || String(error), editFieldIdsForError(error));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function renderEditSummary(entity) {
+  const rows = [
+    ["编码", entity.code],
+    ["公司报表", booleanLabel(entity.is_company_report)],
+    ["不可编辑字段", "编码、公司报表设置、历史收入、支出、账户、结算、工资、支付"],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function renderEditEntityTypeOptions(selectedEntityType) {
+  dom.editEntityTypeSelect.innerHTML = EDITABLE_ENTITY_TYPE_OPTIONS
+    .map((entityType) => `<option value="${escapeAttribute(entityType)}">${escapeHtml(entityTypeLabel(entityType))}</option>`)
+    .join("");
+  dom.editEntityTypeSelect.value = selectedEntityType || "company";
+}
+
+function renderEditCurrencyOptions(selectedCurrency) {
+  dom.editDefaultCurrencySelect.innerHTML = EDITABLE_CURRENCY_OPTIONS
+    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+    .join("");
+  dom.editDefaultCurrencySelect.value = selectedCurrency || "JPY";
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  fieldIds.forEach(setEditFieldInvalid);
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  ["name", "entityType", "defaultCurrency", "active"].forEach(clearEditFieldInvalid);
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-edit-business-entity-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
+}
+
+function setEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-business-entity-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-business-entity-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
+}
+
+function editFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("名称")) return ["name"];
+  if (message.includes("类型")) return ["entityType"];
+  if (message.includes("币种")) return ["defaultCurrency"];
+  if (message.includes("启用状态")) return ["active"];
+  return [];
 }
 
 function filterBusinessEntities(entities, filters) {
