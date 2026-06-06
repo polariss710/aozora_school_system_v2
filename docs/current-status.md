@@ -1,7 +1,7 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through account transfer reversal frontend checkpoint; full autopilot workflow trial is active.
-- Latest stable commit: `b9c4cd4 feat: add account transfer reversal frontend`.
+- Stable checkpoint: write-operation phase is complete through account transfer reversal frontend checkpoint; readonly profit summary minimum page is complete; full autopilot workflow trial is active.
+- Latest stable commit: `37153cc feat: add readonly profit summary page`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
@@ -14,7 +14,10 @@
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
 - Account transfer and account transfer reversal frontend have static and online file checks, but no real local browser interaction test yet.
 - Account transfer does not yet have a standalone detail page; the first version shows its source summary in account transaction detail.
+- Profit summary readonly page is available at `profit-summary.html`, with month and business-entity filters, API-layer read queries, and no page-layer writes.
+- Profit summary first-version policy: posted income and posted expense drive operating profit by currency; teacher wage expense is included in expense and shown separately; reimbursement, account adjustment, and account transfer flows are audit references and do not affect operating profit.
+- Profit summary frontend has static and online file checks, but no real local browser interaction test yet.
 - The write RPC workflow has been standardized and reset to full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect the full autopilot trial while preserving secrets, test-data, and dangerous-operation hard stops.
 - Expected repository state at the start of the next task: clean worktree.
-- Next planned stage: use the next small write-operation candidate to test full autopilot end to end.
+- Next planned stage: review profit summary in a browser with real filters, then decide whether to add detail drilldowns or export.
