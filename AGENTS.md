@@ -3,21 +3,22 @@
 - Default to Chinese for progress updates and final reports.
 - Keep prompts, plans, and outputs concise. Prefer high-signal summaries over long history.
 - Start each work turn by checking `git status --short`.
-- For write-operation SQL/RPC work, use the full autopilot trial workflow by default: analysis, schema/RPC design, SQL draft, static review, SQL/RPC execution, rollback test, whitelist commit test, verified SQL commit, frontend implementation, checkpoint, and status update.
+- For write-operation SQL/RPC work, use the full autopilot workflow by default: analysis, DB verification, schema/RPC design, SQL draft, static review, SQL/RPC execution, rollback test, whitelist commit test, verified SQL commit, frontend implementation, checkpoint, current-status update, commit, and push.
 - Page modules must not call Supabase `.rpc()` directly.
 - Write operations must go through the API layer and/or verified RPCs. Page modules must not directly insert, update, delete, or upsert database rows.
 - Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
 - Each turn report must state whether files were changed, executed SQL files and called RPCs if any, whether the database was written, whether writes were limited to test whitelist data, test record ids when relevant, whether commit/push happened, commit hashes when relevant, the current git status, and whether the workflow completed or stopped.
 
-## Full Autopilot Trial
+## Full Autopilot
 
-- Write-operation features now default to full autopilot trial for the next 2-3 small features.
-- Do not stop at every phase for user confirmation. Continue through the standard workflow until completion unless a hard stop condition is hit.
+- Write-operation features default to full autopilot.
+- The initial task prompt is the phase-level authorization for the requested feature. Do not stop at ordinary phase transitions for user confirmation. Continue through the standard workflow until completion unless a hard stop condition is hit.
+- Do not ask for confirmation only because the next step is schema execution, RPC execution, rollback test, whitelisted commit test, frontend implementation, checkpoint commit, current-status update, or push, when required checks have passed and the action is inside the requested feature scope.
 - Automatically run read-only DB verification, schema SQL execution, RPC SQL execution, rollback tests, and commit tests when the commit test candidate is proven to match the test data whitelist.
 - If rollback or commit test candidates do not match the test data whitelist, Codex may create narrowly scoped test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`.
 - Automatically commit and push document updates, verified SQL archives, frontend static checkpoints, feature checkpoints, and `docs/current-status.md` updates after required checks pass.
-- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for real business data, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, or historical data repair.
-- If full autopilot trial shows clear problems, revert to the last stable documented workflow and tighten the rules before continuing.
+- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for non-whitelisted real business data, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical data repair, broad backfill, secrets exposure, broad permission changes, production irreversible action, or a request/documentation conflict that cannot be safely interpreted.
+- If full autopilot shows clear problems, stop at the hard stop and tighten the documented workflow before continuing.
 
 ## Schema And RPC Execution Workflow
 
@@ -35,14 +36,14 @@
 - Do not rely on the user to inspect each `psql` command for business safety. If the command fits the current workflow phase and required checks have passed, continue; if it exceeds the current phase authorization, hard stop.
 - Read-only DB verification commands may use "Yes, and don't ask again" when the command is clearly a `select` query only. Examples include `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
 - This read-only approval guidance is limited to explicit `select` queries. It does not include `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
-- During full autopilot trial, schema execution, RPC execution, rollback tests, whitelisted commit tests, `commit`, and `push` are phase-authorized when the workflow phase requires them and all required checks have passed.
+- During full autopilot, schema execution, RPC execution, rollback tests, whitelisted commit tests, `commit`, and `push` are phase-authorized by the initial prompt when the workflow phase requires them and all required checks have passed.
 - Approval prompts should still be scoped narrowly. Do not permanently approve all `psql` commands or broad shell access.
 - Do not use a fully approval-free mode for this project.
 - Do not bypass Codex CLI approvals. If the CLI asks, approve only the specific safe action or the existing narrow read-only verification class.
 
 ## Default Guardrails
 
-- For write-operation feature work, default to the full autopilot trial workflow in `docs/workflows/write-rpc-flow.md`.
+- For write-operation feature work, default to the full autopilot workflow in `docs/workflows/write-rpc-flow.md`.
 - For non-write-operation tasks, keep the requested scope narrow and do not edit unrelated modules.
 - Never print, save, or commit `SUPABASE_DB_URL` or any other secret.
 - Do not use real business data for automatic rollback or commit tests. Tests must prove whitelisted test scope before writing, or create clearly marked test data first.

@@ -1,12 +1,14 @@
 # Write RPC Flow
 
-Version: v2.37.1-phase-level-db-authorization-workflow-update-20260607
+Version: v2.43.0-full-autopilot-no-phase-confirmation-20260606
 
-This document is the project standard for write-operation RPC development. It now defines a full autopilot trial: Codex should continue through the whole feature workflow by default, summarize progress by phase, and stop only when a hard stop condition is hit.
+This document is the project standard for write-operation RPC development. It defines full autopilot as the default: the user's initial task prompt is the phase-level authorization for the whole requested feature, so Codex should continue through ordinary phase transitions without asking for human confirmation and stop only when a hard stop condition is hit.
 
 ## Core Rules
 
-- Keep each phase internally narrow, but do not pause between phases for confirmation during full autopilot trial.
+- Keep each phase internally narrow, but do not pause between phases for confirmation during full autopilot.
+- Treat the initial task prompt as this run's phase-level authorization. If the requested feature fits this workflow and no hard stop condition is present, continue automatically across analysis, DB verification, schema/RPC work, tests, frontend work, checkpoints, current-status updates, commit, and push.
+- Do not ask for confirmation only because a normal phase is complete, the next phase begins, or the next step is schema execution, RPC execution, rollback test, whitelist commit test, frontend implementation, checkpoint commit, or push. These are authorized by the initial prompt when the workflow conditions are satisfied.
 - Continue automatically through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL archive, frontend implementation, frontend checkpoint/push, feature checkpoint, and `docs/current-status.md` update/push.
 - Page modules must not call Supabase `.rpc()` directly.
 - Page modules must not directly insert, update, delete, or upsert database rows.
@@ -18,13 +20,13 @@ This document is the project standard for write-operation RPC development. It no
 - Read-only DB verification is limited to explicit `select` queries, including `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
 - Clearly read-only `select` verification commands may use "Yes, and don't ask again" in Codex CLI approval prompts.
 - Read-only approval does not apply to `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
-- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are phase-authorized in full autopilot when required checks pass.
+- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are phase-authorized in full autopilot when required checks pass; do not request ordinary phase-transition confirmation for them.
 - Do not enable full access or bypass Codex CLI approvals.
 - If a task explicitly says no file changes, no SQL/RPC execution, no DB write, or no commit/push, that narrower instruction overrides full autopilot.
 
 ## Phase-Level DB Authorization
 
-DB safety is decided by workflow phase, not by asking the user to approve or inspect each individual `psql` command. Codex must classify every DB command before running it and continue only when the command fits the current phase authorization and all required checks have passed.
+DB safety is decided by workflow phase, not by asking the user to approve or inspect each individual `psql` command. The initial user prompt authorizes the normal phases required to complete the requested feature. Codex must classify every DB command before running it and continue only when the command fits the current phase authorization and all required checks have passed.
 
 Command classes:
 
@@ -37,13 +39,13 @@ Command classes:
 Execution rules:
 
 - Do not rely on the user to catch unsafe SQL by reading each prompt or CLI approval dialog.
-- If a command is inside the current phase authorization, Codex may run the necessary sequence continuously.
+- If a command is inside the current phase authorization, Codex should run the necessary sequence continuously without asking for ordinary confirmation.
 - If a command exceeds the current phase authorization, Codex must hard stop before running it and report the exact mismatch.
 - `psql -f`, business RPC calls, rollback tests, and commit tests must be judged by workflow phase and test-data proof, not mechanically by the single command text.
 - Commit tests may auto-run only with test whitelist records. If no candidate exists, Codex may create minimal clearly marked test data when the workflow permits it.
 - Real business data must not be used as an automatic commit test candidate.
 
-## Full Autopilot Trial
+## Full Autopilot
 
 Default automatic sequence:
 
@@ -66,7 +68,7 @@ Default automatic sequence:
 17. Feature checkpoint
 18. `docs/current-status.md` update and push
 
-Skip schema phases only when analysis proves no schema change is needed. Skip frontend phases only when the feature has no frontend surface.
+Skip schema phases only when analysis proves no schema change is needed. Skip frontend phases only when the feature has no frontend surface. Otherwise, continue through the sequence automatically.
 
 Default DB authorization:
 
@@ -77,6 +79,16 @@ Default DB authorization:
 - Commit tests run automatically only during commit test phases when the candidate is proven to match the test data whitelist.
 - If rollback or commit test candidates do not match the whitelist, Codex may create minimal test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`, then use that data for the test.
 - Real business data must never be used as an automatic rollback or commit test candidate.
+
+Ordinary confirmations that must not be requested:
+
+- "Proceed to schema design/draft/static review/execution?"
+- "Proceed to RPC draft/static review/execution?"
+- "Proceed to rollback test or whitelist commit test?"
+- "Proceed to frontend implementation/checkpoint?"
+- "Proceed to update `docs/current-status.md`, commit, or push?"
+
+These transitions are already authorized by the initial prompt when the run is inside the documented workflow, required checks pass, and no hard stop condition is present.
 
 Default git authorization:
 
@@ -93,16 +105,19 @@ Hard stop conditions:
 - A DB command does not fit the current phase-level authorization.
 - Commit test requires non-whitelisted real business data.
 - Test data ownership is uncertain and safe test data cannot be created.
-- The task requires `delete`, `truncate`, `drop`, historical repair, broad backfill, broad cleanup, or real production-data correction.
+- The task requires or risks `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical repair, broad backfill, or real production-data correction.
+- The operation may break, overwrite, delete, or batch-modify historical business data outside the explicitly requested and verified scope.
+- The operation involves secrets, credential exposure, broad permission changes, production irreversible actions, or unsafe approval scope.
+- The request conflicts with current project documentation or workflow rules and Codex cannot make a safe, narrow interpretation.
 - The implementation requires a large refactor or non-target module changes.
 - A secret would need to be printed, saved, or committed.
 
 When a hard stop occurs, stop immediately and report the completed phases, blocker, DB/write state, git state, and next safest action.
 
-Trial scope:
+Scope:
 
-- Use full autopilot trial for the next 2-3 small write-operation features.
-- If the trial causes unsafe behavior, repeated failed checks, or unclear review output, revert to the last stable workflow commit and restore conservative gates.
+- Use full autopilot by default for write-operation features unless the user explicitly narrows the task.
+- If full autopilot causes unsafe behavior, repeated failed checks, or unclear review output, stop at the hard stop, report the issue, and tighten the documented workflow before continuing.
 
 ## Standard Sequence
 
@@ -125,7 +140,7 @@ Trial scope:
 17. Feature checkpoint
 18. `docs/current-status.md` update and push
 
-Skip schema phases only when the analysis concludes no schema change is needed. The detailed phase sections below combine RPC execution and rollback testing as one operational block because they should run consecutively. In full autopilot, "Next phase gate" means an internal condition to continue automatically; it does not require asking the user unless a hard stop condition applies.
+Skip schema phases only when the analysis concludes no schema change is needed. The detailed phase sections below combine RPC execution and rollback testing as one operational block because they should run consecutively. In full autopilot, "Next phase gate" means an internal condition to continue automatically; it is not a request for user confirmation unless a hard stop condition applies.
 
 ## Phase Template
 
@@ -167,7 +182,7 @@ Output:
 - Risks, assumptions, and open questions.
 - Whether schema design or RPC design can proceed.
 
-Next phase gate: scope is narrow, no blocking unknowns remain, and the required next phase is clear.
+Next phase gate: scope is narrow, no blocking unknowns remain, and the required next phase is clear. Continue automatically when this gate passes.
 
 ## 2. Schema Design
 
@@ -198,7 +213,7 @@ Output:
 - Risks.
 - Whether schema SQL draft can proceed.
 
-Next phase gate: column/constraint/index design is explicit enough to draft SQL without guessing.
+Next phase gate: column/constraint/index design is explicit enough to draft SQL without guessing. Continue automatically when this gate passes.
 
 ## 3. Schema SQL Draft
 
@@ -231,7 +246,7 @@ Output:
 - Current git status.
 - Whether static review can proceed.
 
-Next phase gate: SQL file is schema-only and complete enough for review.
+Next phase gate: SQL file is schema-only and complete enough for review. Continue automatically when this gate passes.
 
 ## 4. Schema Static Review
 
@@ -264,7 +279,7 @@ Output:
 - Risks.
 - Whether schema execution can proceed.
 
-Next phase gate: no blocking review findings remain.
+Next phase gate: no blocking review findings remain. Continue automatically when this gate passes.
 
 ## 5. Schema Execution
 
@@ -297,7 +312,7 @@ Output:
 - Current git status.
 - Whether schema verified commit can proceed.
 
-Next phase gate: execution succeeded and read-only verification matches the design.
+Next phase gate: execution succeeded and read-only verification matches the design. Continue automatically when this gate passes.
 
 ## 6. Schema Verified Commit
 
@@ -758,7 +773,7 @@ Use the full autopilot template by default for future write-operation tasks. Use
 进入 [version-feature-full-autopilot-date]。
 
 目标：
-按 full autopilot trial 完成 [feature] 写操作端到端流程。
+按 full autopilot 完成 [feature] 写操作端到端流程。
 
 重点：
 - 自动推进 analysis / schema / RPC / rollback test / commit test / SQL archive / frontend / checkpoint / current-status update
@@ -916,7 +931,7 @@ SQL 执行结果、测试候选、rollback 返回结果、事务内验证、roll
 重点：
 - 只允许使用测试数据白名单候选
 - 执行前只读证明候选属于测试数据
-- 执行前只读确认
+- 执行前只读记录基线
 - 执行真实 RPC
 - 验证主表/流水/余额/状态/关联字段
 - 验证写入只影响测试数据范围
@@ -924,7 +939,7 @@ SQL 执行结果、测试候选、rollback 返回结果、事务内验证、roll
 - 找不到测试候选或候选可能是真实数据时必须 hard stop
 
 输出：
-测试候选、执行前确认、RPC 返回结果、执行后验证、失败用例验证、git status、是否可以进入 verified SQL commit。
+测试候选、执行前基线、RPC 返回结果、执行后验证、失败用例验证、git status、是否可以进入 verified SQL commit。
 ```
 
 ### SQL Commit

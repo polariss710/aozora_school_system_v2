@@ -1,6 +1,6 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through teacher wage rule config edit final checkpoint; wage rule readonly detail page, wage rule config edit, and readonly profit summary drilldown are complete; full autopilot workflow trial is active.
+- Stable checkpoint: write-operation phase is complete through teacher wage rule config edit final checkpoint; wage rule readonly detail page, wage rule config edit, and readonly profit summary drilldown are complete; full autopilot workflow is active and ordinary phase-transition confirmation is no longer required.
 - Latest stable commit: `a9d254a docs: update wage rule config edit status`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, account profile update, student profile update, teacher profile update, subject profile update, business entity profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
@@ -32,8 +32,8 @@
 - Wage rule config edit completed with schema constraints, verified RPC `school_update_teacher_wage_rule_config`, frontend/API-layer implementation, rollback test, whitelisted commit test, local Chrome frontend test, SQL checkpoint `a34a6ea`, and frontend checkpoint `00621a0`.
 - Wage rule config edit is limited to `settlement_type`, `hourly_rate_jpy`, `hourly_rate_cny`, `exchange_rate`, `transport_fee_jpy`, `classroom_fee_jpy`, `is_active`, and `note`; it does not edit `teacher_id`, `student_id`, `subject_id`, `business_entity_id`, wage locks, wage lock details, payment requests, expenses, account balances, or account transactions, and it does not recalculate historical wages.
 - Wage rule config edit tests used whitelisted test rule `c5a7836b-538e-45ea-9e4a-a1494c5698bb` with `codex-test / v2-test / sandbox / v2.42.0` markers; historical counts stayed unchanged at wage locks `70`, wage lock details `388`, payment requests `63`, expenses `44`, and account transactions `231`.
-- Write RPC run-until-gate workflow was validated through the account transfer stage, then replaced by full autopilot trial in `docs/workflows/write-rpc-flow.md`.
-- Full autopilot trial default: Codex should continue through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL/frontend commits, feature checkpoint, and current-status update unless a hard stop condition is hit.
+- Write RPC run-until-gate workflow was validated through the account transfer stage, then replaced by full autopilot in `docs/workflows/write-rpc-flow.md`.
+- Full autopilot default: the initial task prompt is phase-level authorization; Codex should continue through analysis, DB verification, schema/RPC work, DB execution, rollback test, whitelisted commit test, frontend work, SQL/frontend commits, feature checkpoint, current-status update, commit, and push unless a hard stop condition is hit.
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
 - Account transfer and account transfer reversal frontend have static and online file checks, but no real local browser interaction test yet.
 - Account transfer does not yet have a standalone detail page; the first version shows its source summary in account transaction detail.
@@ -41,7 +41,7 @@
 - Profit summary policy: received income and paid expense drive operating profit by currency; reversed income/expense are excluded; teacher wage expense is included in expense and marked in expense detail; reimbursement, account adjustment, and account transfer flows are audit references and do not affect operating profit.
 - Profit summary drilldown shows effective income and expense detail rows behind summary numbers, with links to `income-detail.html` and `expense-detail.html`.
 - Profit summary frontend has static and online file checks, but no real local browser interaction test yet.
-- The write RPC workflow has been standardized and reset to full autopilot trial in `docs/workflows/write-rpc-flow.md`.
-- Default Codex guardrails and approval guidance in AGENTS.md now reflect the full autopilot trial while preserving secrets, test-data, and dangerous-operation hard stops.
+- The write RPC workflow has been standardized as full autopilot in `docs/workflows/write-rpc-flow.md`; ordinary phase switching no longer triggers user confirmation.
+- Default Codex guardrails and approval guidance in AGENTS.md now reflect full autopilot while preserving secrets, test-data, destructive-operation, non-whitelisted real-data, ambiguous-git-state, and documentation-conflict hard stops.
 - Expected repository state at the start of the next task: clean worktree.
 - Next planned stage: review account, business entity, teacher, student, subject profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
