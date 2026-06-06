@@ -7,7 +7,7 @@
 - Page modules must not call Supabase `.rpc()` directly.
 - Write operations must go through the API layer and/or verified RPCs. Page modules must not directly insert, update, delete, or upsert database rows.
 - Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
-- Each turn report must state whether files were changed, whether SQL/RPC was executed, whether the database was written, and whether commit/push was performed.
+- Each turn report must state whether files were changed, executed SQL files and called RPCs if any, whether the database was written, whether writes were limited to test whitelist data, test record ids when relevant, whether commit/push happened, commit hashes when relevant, the current git status, and whether the workflow completed or stopped.
 
 ## Full Autopilot Trial
 
@@ -31,9 +31,11 @@
 
 ## Codex CLI Approval Guidance
 
+- DB safety is phase-based, not command-by-command. Codex must classify each DB command before running it as `read-only verification`, `schema/RPC execution`, `rollback test`, `whitelist commit test`, or `prohibited real-data/destructive operation`.
+- Do not rely on the user to inspect each `psql` command for business safety. If the command fits the current workflow phase and required checks have passed, continue; if it exceeds the current phase authorization, hard stop.
 - Read-only DB verification commands may use "Yes, and don't ask again" when the command is clearly a `select` query only. Examples include `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
 - This read-only approval guidance is limited to explicit `select` queries. It does not include `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
-- During full autopilot trial, schema execution, RPC execution, rollback tests, whitelisted commit tests, `commit`, and `push` are default-allowed when the workflow phase requires them and all required checks have passed.
+- During full autopilot trial, schema execution, RPC execution, rollback tests, whitelisted commit tests, `commit`, and `push` are phase-authorized when the workflow phase requires them and all required checks have passed.
 - Approval prompts should still be scoped narrowly. Do not permanently approve all `psql` commands or broad shell access.
 - Do not use a fully approval-free mode for this project.
 - Do not bypass Codex CLI approvals. If the CLI asks, approve only the specific safe action or the existing narrow read-only verification class.
@@ -47,7 +49,7 @@
 - Do not run `delete`, `truncate`, `drop`, historical data repair, broad backfill, or cleanup automatically.
 - Do not skip static review, rollback test, commit test, final checkpoint, or current-status update for a write-operation feature.
 - Page/API boundaries remain mandatory: page modules must not directly `.rpc()` or directly insert/update/delete/upsert rows.
-- Every turn output must state whether files changed, whether SQL/RPC was executed, whether the database was written, whether commit/push happened, the current git status, and whether the workflow completed or stopped.
+- Every turn output must state whether files changed, executed SQL files and called RPCs if any, whether the database was written, whether writes were limited to test whitelist data, test record ids when relevant, whether commit/push happened, commit hashes when relevant, the current git status, and whether the workflow completed or stopped.
 
 ## Prompt Style
 

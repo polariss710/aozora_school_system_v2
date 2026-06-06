@@ -1,6 +1,6 @@
 # Write RPC Flow
 
-Version: v2.34.0-full-autopilot-workflow-reset-20260606
+Version: v2.37.1-phase-level-db-authorization-workflow-update-20260607
 
 This document is the project standard for write-operation RPC development. It now defines a full autopilot trial: Codex should continue through the whole feature workflow by default, summarize progress by phase, and stop only when a hard stop condition is hit.
 
@@ -14,13 +14,34 @@ This document is the project standard for write-operation RPC development. It no
 - Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
 - Start the workflow by checking `git status --short`; SQL execution and commit phases must also confirm the latest commit.
 - Progress reports should be concise phase summaries, not confirmation requests.
-- Final reports must state: files changed, SQL/RPC executed, database written, commit/push performed, test data used, current git status, remaining risks, and whether the workflow completed or stopped.
+- Final reports must state: files changed, executed SQL files, called RPCs, whether DB was written, whether writes were limited to test whitelist data, test record ids, commit hashes, push results, current git status, remaining risks, and whether the workflow completed or stopped.
 - Read-only DB verification is limited to explicit `select` queries, including `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
 - Clearly read-only `select` verification commands may use "Yes, and don't ask again" in Codex CLI approval prompts.
 - Read-only approval does not apply to `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
-- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are default-allowed in full autopilot when required checks pass.
+- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are phase-authorized in full autopilot when required checks pass.
 - Do not enable full access or bypass Codex CLI approvals.
 - If a task explicitly says no file changes, no SQL/RPC execution, no DB write, or no commit/push, that narrower instruction overrides full autopilot.
+
+## Phase-Level DB Authorization
+
+DB safety is decided by workflow phase, not by asking the user to approve or inspect each individual `psql` command. Codex must classify every DB command before running it and continue only when the command fits the current phase authorization and all required checks have passed.
+
+Command classes:
+
+- `read-only verification`: explicit `select` queries only, including `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks. These may run during analysis, review, execution verification, rollback/commit verification, and checkpoint phases.
+- `schema/RPC execution`: `psql -f <file>` for the current reviewed schema or RPC SQL file. These may run only during schema execution or RPC execution phases after static review passes.
+- `rollback test`: `begin` / business RPC or controlled write / read-only verification / `rollback`. These may run only during rollback test phases and must leave no persistent business data.
+- `whitelist commit test`: one controlled real write plus read-only before/after verification. This may run only during commit test phases and only against proven test whitelist data.
+- `prohibited real-data/destructive operation`: non-whitelisted real business writes, `delete`, `drop`, `truncate`, historical repair, broad backfill, broad cleanup, or real production-data correction. These always trigger a hard stop unless a future task explicitly defines a separate guarded workflow for that class.
+
+Execution rules:
+
+- Do not rely on the user to catch unsafe SQL by reading each prompt or CLI approval dialog.
+- If a command is inside the current phase authorization, Codex may run the necessary sequence continuously.
+- If a command exceeds the current phase authorization, Codex must hard stop before running it and report the exact mismatch.
+- `psql -f`, business RPC calls, rollback tests, and commit tests must be judged by workflow phase and test-data proof, not mechanically by the single command text.
+- Commit tests may auto-run only with test whitelist records. If no candidate exists, Codex may create minimal clearly marked test data when the workflow permits it.
+- Real business data must not be used as an automatic commit test candidate.
 
 ## Full Autopilot Trial
 
@@ -49,11 +70,11 @@ Skip schema phases only when analysis proves no schema change is needed. Skip fr
 
 Default DB authorization:
 
-- Read-only `select` verification runs automatically.
-- Schema SQL execution runs automatically after static review passes.
-- RPC SQL execution runs automatically after static review passes.
-- Rollback tests run automatically after RPC execution succeeds when the candidate is proven to match the test data whitelist.
-- Commit tests run automatically only when the candidate is proven to match the test data whitelist.
+- Read-only verification runs automatically when the command class is explicit `select`.
+- Schema SQL execution runs automatically only during schema execution after static review passes.
+- RPC SQL execution runs automatically only during RPC execution after static review passes.
+- Rollback tests run automatically only during rollback test phases after RPC execution succeeds and the candidate is controlled.
+- Commit tests run automatically only during commit test phases when the candidate is proven to match the test data whitelist.
 - If rollback or commit test candidates do not match the whitelist, Codex may create minimal test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`, then use that data for the test.
 - Real business data must never be used as an automatic rollback or commit test candidate.
 
@@ -69,6 +90,7 @@ Hard stop conditions:
 - `SUPABASE_DB_URL` is missing or `psql` is unavailable.
 - `git status --short` shows unrelated or ambiguous changes that cannot be safely isolated.
 - Static review, `git diff --check`, `node --check`, page-boundary scans, rollback test, or commit test fails.
+- A DB command does not fit the current phase-level authorization.
 - Commit test requires non-whitelisted real business data.
 - Test data ownership is uncertain and safe test data cannot be created.
 - The task requires `delete`, `truncate`, `drop`, historical repair, broad backfill, broad cleanup, or real production-data correction.
@@ -1038,7 +1060,8 @@ Use these checklists before reporting a phase complete.
 
 - Candidate matches the commit test data whitelist.
 - Read-only before queries prove candidate account, student/source record, business entity, note/description/reason markers, and status are test-scope.
-- Human gate used if no whitelisted candidate exists or candidate may be real data.
+- Clearly marked test data created when no whitelisted candidate exists and safe creation is possible.
+- Hard stop used if candidate may be real data or safe test data cannot be created.
 - Before-state counts and balances captured.
 - One controlled valid RPC call executed.
 - Main/source row, account transaction, balance, status, note/reason/date, and related fields verified.
@@ -1077,7 +1100,7 @@ Use these checklists before reporting a phase complete.
 - Account transaction and source detail chain verified.
 - Online key files return HTTP 200 when frontend changed.
 - Real UI test status recorded.
-- Files changed / SQL-RPC executed / DB written / commit-push status reported.
+- Files changed, executed SQL files, called RPCs, DB write status, test whitelist status, test record ids, commit hashes, push results, remaining risks, and final git status reported.
 
 ## Documentation Placement Rules
 
@@ -1095,6 +1118,6 @@ Use concise prompts with this shape:
 - Goal: one objective.
 - Focus: phase-specific checks or design points.
 - Allowed exceptions: only what differs from default guardrails.
-- Output: required report fields.
+- Output: required report fields, including executed SQL files, called RPCs, DB write status, test whitelist status, test record ids, commit hashes, push results, remaining risks, and final git status.
 
 Do not repeat stable background that belongs in `docs/current-status.md`. Do not create a Codex skill from this workflow unless a later task explicitly asks for it.
