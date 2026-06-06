@@ -1,8 +1,8 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through teacher profile update frontend checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
-- Latest stable commit: `66c59b3 feat: add teacher profile editor`.
-- Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, student profile update, teacher profile update, teacher wage payment confirmation, and teacher wage payment reversal.
+- Stable checkpoint: write-operation phase is complete through subject profile update frontend checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
+- Latest stable commit: `b3eeef6 feat: add subject profile editor`.
+- Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, student profile update, teacher profile update, subject profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
 - Account transfer completed schema, RPC SQL draft/static review, schema/RPC execution, rollback test, commit test, verified SQL archive, frontend minimum implementation, frontend static checkpoint/push, and feature checkpoint.
@@ -15,6 +15,10 @@
 - Teacher profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
 - Teacher profile update is limited to `display_name`, `status`, `default_business_entity_id`, and `note`; it does not edit wage rules, wage locks, payment data, lesson data, rates, currencies, payment method, bank fields, phone, email, wechat, department, subject, teacher code, or system name.
 - Teacher profile update commit test used whitelisted test teacher `12f6d142-b90b-4da2-be88-310414000bd1` with `codex-test / v2-test / sandbox / v2.37.0 / 测试老师` markers.
+- Subject profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
+- Subject profile update is limited to `name`, `is_active` via status, and `note`; `school_subjects` has no `display_name/status` columns, so the first version maps UI status to `is_active` and does not add schema.
+- Subject profile update does not delete subjects or edit category, color, sort order, historical lesson, wage, settlement, or payment data.
+- Subject profile update commit test used whitelisted test subject `e87e4acf-d161-4d44-b1f1-f0e7e2253023` with `codex-test / v2-test / sandbox / v2.38.0 / 测试科目` markers.
 - Write RPC run-until-gate workflow was validated through the account transfer stage, then replaced by full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Full autopilot trial default: Codex should continue through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL/frontend commits, feature checkpoint, and current-status update unless a hard stop condition is hit.
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
@@ -27,4 +31,4 @@
 - The write RPC workflow has been standardized and reset to full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect the full autopilot trial while preserving secrets, test-data, and dangerous-operation hard stops.
 - Expected repository state at the start of the next task: clean worktree.
-- Next planned stage: review teacher/student profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
+- Next planned stage: review teacher/student/subject profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
