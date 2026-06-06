@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initStudentPage } from "./pages/student-page.js?v=v2.43.0-student-course-target-default-edit-20260606";
+import { initStudentPage } from "./pages/student-page.js?v=v2.45.0-teacher-student-create-full-autopilot-20260606";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
