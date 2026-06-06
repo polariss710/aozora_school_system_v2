@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchSubjects } from "../api/subject-api.js";
+import { fetchSubjects, updateSubjectProfile } from "../api/subject-api.js";
 import { formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
@@ -12,9 +12,12 @@ const DEFAULT_FILTERS = {
 
 const UNSET_VALUE = "__unset__";
 const VALID_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const EDITABLE_STATUS_OPTIONS = ["active", "inactive"];
 
 const dom = {};
 let allSubjects = [];
+let editingSubject = null;
+let isEditSubmitting = false;
 
 export function initSubjectPage() {
   cacheDom();
@@ -46,6 +49,14 @@ function cacheDom() {
   dom.subjectLoadingState = document.querySelector("#subjectLoadingState");
   dom.subjectEmptyState = document.querySelector("#subjectEmptyState");
   dom.subjectCount = document.querySelector("#subjectCount");
+  dom.editDialog = document.querySelector("#editSubjectProfileDialog");
+  dom.editSummary = document.querySelector("#editSubjectProfileSummary");
+  dom.editError = document.querySelector("#editSubjectProfileError");
+  dom.editNameInput = document.querySelector("#editSubjectNameInput");
+  dom.editStatusSelect = document.querySelector("#editSubjectStatusSelect");
+  dom.editNoteInput = document.querySelector("#editSubjectNoteInput");
+  dom.editCancelButton = document.querySelector("#editSubjectCancelButton");
+  dom.editSubmitButton = document.querySelector("#editSubjectSubmitButton");
 }
 
 function bindEvents() {
@@ -57,6 +68,26 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyCurrentFilters();
+  });
+
+  dom.subjectGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-edit-subject-id]");
+    if (!button) {
+      return;
+    }
+
+    openEditDialog(button.dataset.editSubjectId);
+  });
+
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditDialog);
+  dom.editNameInput.addEventListener("input", () => {
+    clearEditFieldInvalid("name");
+    hideEditErrorIfClean();
+  });
+  dom.editStatusSelect.addEventListener("change", () => {
+    clearEditFieldInvalid("status");
+    hideEditErrorIfClean();
   });
 }
 
@@ -166,6 +197,10 @@ function renderSubjects(subjects) {
           </span>
         </div>
 
+        <div class="table-actions">
+          <button class="button" type="button" data-edit-subject-id="${escapeAttribute(subject.id)}">编辑基础信息</button>
+        </div>
+
         <dl class="subject-meta">
           <div>
             <dt>一级分类</dt>
@@ -195,6 +230,154 @@ function renderSubjects(subjects) {
       </article>
     `;
   }).join("");
+}
+
+function openEditDialog(subjectId) {
+  const subject = allSubjects.find((item) => item.id === subjectId);
+  if (!subject) {
+    showMessage("error", "没有找到要编辑的科目。");
+    return;
+  }
+
+  editingSubject = subject;
+  dom.editSummary.innerHTML = renderEditSummary(subject);
+  dom.editNameInput.value = subject.name || "";
+  renderEditStatusOptions(subject.is_active === false ? "inactive" : "active");
+  dom.editNoteInput.value = subject.note || "";
+  clearEditErrors();
+  setEditSubmitting(false);
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+  dom.editNameInput.focus();
+}
+
+function closeEditDialog({ force = false } = {}) {
+  if (isEditSubmitting && !force) {
+    return;
+  }
+
+  editingSubject = null;
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+
+  if (!editingSubject) {
+    showEditError("没有找到要编辑的科目。");
+    return;
+  }
+
+  const payload = {
+    subjectId: editingSubject.id,
+    name: dom.editNameInput.value.trim(),
+    status: dom.editStatusSelect.value,
+    note: dom.editNoteInput.value.trim(),
+  };
+
+  if (!payload.name) {
+    showEditError("请输入科目名称。", ["name"]);
+    return;
+  }
+
+  if (!payload.status) {
+    showEditError("请选择科目状态。", ["status"]);
+    return;
+  }
+
+  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
+    showEditError("请选择有效科目状态。", ["status"]);
+    return;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateSubjectProfile(payload);
+    closeEditDialog({ force: true });
+    await loadSubjectData();
+    showMessage("success", "科目基础信息已更新。");
+  } catch (error) {
+    showEditError(error.message || String(error), editFieldIdsForError(error));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function renderEditSummary(subject) {
+  const rows = [
+    ["一级分类", displayValue(subject.primary_category)],
+    ["分类", displayValue(subject.category)],
+    ["三级分类", displayValue(subject.tertiary_category)],
+    ["不可编辑字段", "分类、颜色、排序、历史课时、工资、结算、支付"],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function renderEditStatusOptions(selectedStatus) {
+  dom.editStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(subjectStatusLabel(status))}</option>`)
+    .join("");
+  dom.editStatusSelect.value = selectedStatus || "active";
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  fieldIds.forEach(setEditFieldInvalid);
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  ["name", "status"].forEach(clearEditFieldInvalid);
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-edit-subject-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
+}
+
+function setEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-subject-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearEditFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-edit-subject-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
+}
+
+function editFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("名称")) return ["name"];
+  if (message.includes("状态")) return ["status"];
+  return [];
 }
 
 function filterSubjects(subjects, filters) {
@@ -294,6 +477,14 @@ function normalizedColor(value) {
 
 function displayValue(value) {
   return safeText(value) || "未设置";
+}
+
+function subjectStatusLabel(status) {
+  if (status === "inactive") {
+    return "停用";
+  }
+
+  return "启用";
 }
 
 function setLoading(isLoading) {

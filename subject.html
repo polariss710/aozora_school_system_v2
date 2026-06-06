@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">基础信息可编辑</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -99,6 +99,38 @@
       </main>
     </div>
 
-    <script type="module" src="./js/subject-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="editSubjectProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editSubjectProfileTitle">
+        <div class="section-heading">
+          <h2 id="editSubjectProfileTitle">编辑科目基础信息</h2>
+          <p class="section-note">第一版仅允许编辑科目名称、启用状态和备注；不会删除科目，也不会修改历史课时、工资、结算或支付数据。</p>
+        </div>
+
+        <div id="editSubjectProfileSummary" class="dialog-summary"></div>
+        <div id="editSubjectProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-edit-subject-field="name">
+          <span>科目名称</span>
+          <input id="editSubjectNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-edit-subject-field="status">
+          <span>状态</span>
+          <select id="editSubjectStatusSelect"></select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="editSubjectNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editSubjectSubmitButton" type="button">保存</button>
+          <button class="button" id="editSubjectCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/subject-app.js?v=v2.38.0-subject-profile-update-full-autopilot-trial-20260607"></script>
   </body>
 </html>
