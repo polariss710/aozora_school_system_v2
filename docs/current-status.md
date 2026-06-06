@@ -58,6 +58,6 @@
 - Profit summary frontend has static and online file checks, but no real local browser interaction test yet.
 - The write RPC workflow has been standardized as full autopilot in `docs/workflows/write-rpc-flow.md`; ordinary phase switching no longer triggers user confirmation.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect full autopilot while preserving secrets, test-data, destructive-operation, non-whitelisted real-data, ambiguous-git-state, and documentation-conflict hard stops.
-- Latest fallback backup for v2.45.0 teacher/student creation is outside the repository at `/Users/polariss710/Documents/aozora_school_system_v2_backups/20260606_233159_v2.45.0_teacher_student_create`; it contains `school_db_20260606_233159.dump` and a timestamped code copy.
+- Latest fallback backup for v2.45.0 teacher/student creation is outside the repository at `/Users/polariss710/Documents/aozora_school_system_v2_backups/20260606_233532_v2.45.0_teacher_student_create_final`; it contains `school_db_20260606_233532.dump` and a timestamped code copy.
 - Expected repository state at the start of the next task: clean worktree.
 - Next planned stage: review remaining profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
