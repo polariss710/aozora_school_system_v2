@@ -1,7 +1,7 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through teacher wage rule config edit final checkpoint; wage rule readonly detail page, wage rule config edit, and readonly profit summary drilldown are complete; full autopilot workflow is active and ordinary phase-transition confirmation is no longer required.
-- Latest stable commit: `a9d254a docs: update wage rule config edit status`.
+- Stable checkpoint: write-operation phase is complete through student course/target/default edit final checkpoint; wage rule readonly detail page, wage rule config edit, student course/target/default edit, and readonly profit summary drilldown are complete; full autopilot workflow is active and ordinary phase-transition confirmation is no longer required.
+- Latest stable commit: `db02d4a feat: extend student course target editing`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, account profile update, student profile update, teacher profile update, subject profile update, business entity profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
@@ -12,6 +12,9 @@
 - Student profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
 - Student profile update is limited to `display_name`, `status`, `course_track`, `target_type`, and `note`; it does not edit balances, settlement fields, tuition rules, contact fields, parent fields, birthday, lessons, income, settlements, or payments.
 - Student profile update commit test used whitelisted test student `b48cd784-62e2-4232-a07c-65414e842b89` with `codex-test / v2-test / sandbox / v2.36.0 / 测试学生` markers.
+- Student course/target/default edit completed with no schema change, verified RPC SQL `school_update_student_profile`, rollback test, whitelisted commit test, frontend existing-dialog implementation, local Chrome browser test, SQL checkpoint `a19ea9f`, and frontend checkpoint `db02d4a`.
+- Student course/target/default edit extends the existing student edit dialog with a `课程/目标信息` section and is limited to `course_track`, `target_type`, `business_entity_id` as default business entity, `default_currency`, and `note` in addition to the existing `display_name/status` fields; it does not edit monthly settlements, carryovers, income records, payment requests, lessons, wages, account transactions, balances, tuition rules, contact fields, parent fields, birthday, or historical financial data.
+- Student course/target/default edit tests used whitelisted test student `b48cd784-62e2-4232-a07c-65414e842b89` with `codex-test / v2-test / sandbox / v2.43.0` markers; rollback left no residue, commit/browser tests changed only the test student's main-data fields, and historical counts stayed unchanged at settlements `0`, carryovers `0`, incomes `0`, payment requests `0`, lesson records `0`, wage details `0`, and account transactions `231`.
 - Teacher profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
 - Teacher profile update is limited to `display_name`, `status`, `default_business_entity_id`, and `note`; it does not edit wage rules, wage locks, payment data, lesson data, rates, currencies, payment method, bank fields, phone, email, wechat, department, subject, teacher code, or system name.
 - Teacher profile update commit test used whitelisted test teacher `12f6d142-b90b-4da2-be88-310414000bd1` with `codex-test / v2-test / sandbox / v2.37.0 / 测试老师` markers.
@@ -44,4 +47,4 @@
 - The write RPC workflow has been standardized as full autopilot in `docs/workflows/write-rpc-flow.md`; ordinary phase switching no longer triggers user confirmation.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect full autopilot while preserving secrets, test-data, destructive-operation, non-whitelisted real-data, ambiguous-git-state, and documentation-conflict hard stops.
 - Expected repository state at the start of the next task: clean worktree.
-- Next planned stage: review account, business entity, teacher, student, subject profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
+- Next planned stage: review remaining profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
