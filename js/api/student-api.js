@@ -71,6 +71,8 @@ export async function updateStudentProfile(payload) {
     p_status: payload.status,
     p_course_track: payload.courseTrack || null,
     p_target_type: payload.targetType || null,
+    p_default_business_entity_id: payload.defaultBusinessEntityId || null,
+    p_default_currency: payload.defaultCurrency || null,
     p_note: payload.note || null,
   });
 

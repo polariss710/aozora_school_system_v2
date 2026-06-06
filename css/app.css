@@ -1100,6 +1100,18 @@ h2 {
   margin-top: 12px;
 }
 
+.dialog-subsection-heading {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.dialog-subsection-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
 .income-create-dialog-panel,
 .expense-create-dialog-panel,
 .reimbursement-create-dialog-panel {

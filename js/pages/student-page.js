@@ -32,6 +32,7 @@ const COURSE_TRACK_LABELS = {
 
 const EDITABLE_STATUS_OPTIONS = ["active", "paused", "inactive", "graduated"];
 const EDITABLE_COURSE_TRACK_OPTIONS = ["science", "humanities"];
+const EDITABLE_DEFAULT_CURRENCY_OPTIONS = ["CNY", "JPY"];
 
 const dom = {};
 let businessEntities = [];
@@ -77,6 +78,8 @@ function cacheDom() {
   dom.editStatusSelect = document.querySelector("#editStudentStatusSelect");
   dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
   dom.editTargetTypeInput = document.querySelector("#editStudentTargetTypeInput");
+  dom.editBusinessEntitySelect = document.querySelector("#editStudentBusinessEntitySelect");
+  dom.editDefaultCurrencySelect = document.querySelector("#editStudentDefaultCurrencySelect");
   dom.editNoteInput = document.querySelector("#editStudentNoteInput");
   dom.editCancelButton = document.querySelector("#editStudentCancelButton");
   dom.editSubmitButton = document.querySelector("#editStudentSubmitButton");
@@ -114,6 +117,18 @@ function bindEvents() {
   });
   dom.editCourseTrackSelect.addEventListener("change", () => {
     clearEditFieldInvalid("courseTrack");
+    hideEditErrorIfClean();
+  });
+  dom.editTargetTypeInput.addEventListener("input", () => {
+    clearEditFieldInvalid("targetType");
+    hideEditErrorIfClean();
+  });
+  dom.editBusinessEntitySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("defaultBusinessEntity");
+    hideEditErrorIfClean();
+  });
+  dom.editDefaultCurrencySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("defaultCurrency");
     hideEditErrorIfClean();
   });
 }
@@ -336,6 +351,8 @@ function openEditDialog(studentId) {
   renderEditStatusOptions(student.status);
   renderEditCourseTrackOptions(student.course_track);
   dom.editTargetTypeInput.value = student.target_type || "";
+  renderEditBusinessEntityOptions(student.business_entity_id);
+  renderEditDefaultCurrencyOptions(student.default_currency);
   dom.editNoteInput.value = student.note || "";
   clearEditErrors();
   setEditSubmitting(false);
@@ -372,6 +389,8 @@ async function submitEditDialog() {
     status: dom.editStatusSelect.value,
     courseTrack: dom.editCourseTrackSelect.value,
     targetType: dom.editTargetTypeInput.value.trim(),
+    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    defaultCurrency: dom.editDefaultCurrencySelect.value,
     note: dom.editNoteInput.value.trim(),
   };
 
@@ -390,13 +409,18 @@ async function submitEditDialog() {
     return;
   }
 
+  if (!payload.defaultCurrency || !EDITABLE_DEFAULT_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
+    showEditError("请选择有效默认币种。", ["defaultCurrency"]);
+    return;
+  }
+
   setEditSubmitting(true);
 
   try {
     await updateStudentProfile(payload);
     closeEditDialog({ force: true });
     await loadStudentData();
-    showMessage("success", "学生基础信息已更新。");
+    showMessage("success", "学生基础信息和课程/目标信息已更新。");
   } catch (error) {
     showEditError(error.message || String(error), editFieldIdsForError(error));
   } finally {
@@ -408,8 +432,9 @@ function renderEditSummary(student) {
   const rows = [
     ["学生编号", student.student_code || shortId(student.id)],
     ["系统姓名", student.name],
-    ["业务归属", businessEntityName(student.business_entity_id)],
-    ["不可编辑字段", "余额、结算、学费规则、联系方式、家长信息、生日"],
+    ["当前业务归属", businessEntityName(student.business_entity_id)],
+    ["当前默认币种", student.default_currency],
+    ["不可编辑字段", "余额、结算、学费规则、联系方式、家长信息、生日、历史财务链路"],
   ];
 
   return `
@@ -441,6 +466,27 @@ function renderEditCourseTrackOptions(selectedCourseTrack) {
   dom.editCourseTrackSelect.value = selectedCourseTrack || "";
 }
 
+function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
+  const activeOptions = businessEntities
+    .filter((entity) => entity?.id && entity.is_active !== false)
+    .map((entity) =>
+      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
+    );
+
+  dom.editBusinessEntitySelect.innerHTML = [
+    '<option value="">未设置</option>',
+    ...activeOptions,
+  ].join("");
+  dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
+function renderEditDefaultCurrencyOptions(selectedDefaultCurrency) {
+  dom.editDefaultCurrencySelect.innerHTML = EDITABLE_DEFAULT_CURRENCY_OPTIONS
+    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+    .join("");
+  dom.editDefaultCurrencySelect.value = selectedDefaultCurrency || "CNY";
+}
+
 function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
@@ -450,7 +496,14 @@ function showEditError(message, fieldIds = []) {
 function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
-  ["displayName", "status", "courseTrack"].forEach(clearEditFieldInvalid);
+  [
+    "displayName",
+    "status",
+    "courseTrack",
+    "targetType",
+    "defaultBusinessEntity",
+    "defaultCurrency",
+  ].forEach(clearEditFieldInvalid);
 }
 
 function hideEditErrorIfClean() {
@@ -483,6 +536,9 @@ function editFieldIdsForError(error) {
   if (message.includes("显示名称")) return ["displayName"];
   if (message.includes("状态")) return ["status"];
   if (message.includes("课程方向")) return ["courseTrack"];
+  if (message.includes("目标类型")) return ["targetType"];
+  if (message.includes("业务归属")) return ["defaultBusinessEntity"];
+  if (message.includes("默认币种")) return ["defaultCurrency"];
   return [];
 }
 
