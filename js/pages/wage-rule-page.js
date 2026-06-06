@@ -200,6 +200,7 @@ function renderWageRules(rows) {
 
     return `
       <tr>
+        <td class="wage-rule-nowrap"><a class="table-action-button" href="./wage-rule-detail.html?id=${encodeURIComponent(rule.id)}">详情</a></td>
         <td>${escapeHtml(teacherNameById(rule.teacher_id))}</td>
         <td>${escapeHtml(displayValue(teacher?.department))}</td>
         <td><span class="status-badge status-neutral">${escapeHtml(teacherStatusLabel(teacher?.status))}</span></td>

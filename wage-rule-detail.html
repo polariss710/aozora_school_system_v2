@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 老师工资规则详情</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.41.0-wage-rule-detail-readonly-20260607">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>老师工资规则详情</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./profit-summary.html">利润分析</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a class="is-active" href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">只读版</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="wageRuleDetailMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel" aria-labelledby="wageRuleDetailPageTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="wageRuleDetailPageTitle">详情</h2>
+              <p class="section-note">本页只读展示老师工资规则配置。当前规则只影响未来工资锁定，不重算历史锁定工资，也不修改工资锁定、支付请求、支出记录或账户流水。</p>
+            </div>
+            <a class="button" href="./wage-rule.html">返回老师工资规则</a>
+          </div>
+        </section>
+
+        <div id="wageRuleDetailLoadingState" class="state-text is-hidden">正在加载老师工资规则详情...</div>
+
+        <section id="wageRuleDetailContent" class="page-main is-hidden">
+          <section class="panel" aria-labelledby="wageRuleDetailTitle">
+            <div class="section-heading">
+              <h2 id="wageRuleDetailTitle">规则摘要</h2>
+              <p id="wageRuleDetailTitleText" class="section-note"></p>
+            </div>
+            <div class="detail-grid">
+              <article class="detail-card">
+                <h3>基础信息</h3>
+                <div id="wageRuleDetailBasicInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>匹配条件</h3>
+                <div id="wageRuleDetailMatchInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>费率与费用</h3>
+                <div id="wageRuleDetailRateInfo"></div>
+              </article>
+              <article class="detail-card">
+                <h3>系统信息</h3>
+                <div id="wageRuleDetailSystemInfo"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="wageRuleDetailNoteTitle">
+            <div class="section-heading">
+              <h2 id="wageRuleDetailNoteTitle">备注</h2>
+            </div>
+            <p id="wageRuleDetailNoteBlock" class="section-note"></p>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/wage-rule-detail-app.js?v=v2.41.0-wage-rule-detail-readonly-20260607"></script>
+  </body>
+</html>

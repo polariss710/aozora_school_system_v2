@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.40.0-account-profile-update-full-autopilot-20260607";
+export const APP_VERSION = "v2.41.0-wage-rule-detail-readonly-20260607";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,
