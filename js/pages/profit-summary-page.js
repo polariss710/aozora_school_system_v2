@@ -60,12 +60,17 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#profitSummaryYearFilter");
   dom.monthFilter = document.querySelector("#profitSummaryMonthFilter");
   dom.businessEntitySelect = document.querySelector("#profitSummaryBusinessEntitySelect");
+  dom.currencySelect = document.querySelector("#profitSummaryCurrencySelect");
   dom.resetButton = document.querySelector("#profitSummaryResetButton");
   dom.loadingState = document.querySelector("#profitSummaryLoadingState");
   dom.summaryGrid = document.querySelector("#profitSummaryGrid");
   dom.policyTableBody = document.querySelector("#profitSummaryPolicyTableBody");
   dom.currencyTableBody = document.querySelector("#profitSummaryCurrencyTableBody");
   dom.auditTableBody = document.querySelector("#profitSummaryAuditTableBody");
+  dom.incomeDetailCount = document.querySelector("#profitSummaryIncomeDetailCount");
+  dom.incomeDetailTableBody = document.querySelector("#profitSummaryIncomeDetailTableBody");
+  dom.expenseDetailCount = document.querySelector("#profitSummaryExpenseDetailCount");
+  dom.expenseDetailTableBody = document.querySelector("#profitSummaryExpenseDetailTableBody");
 }
 
 function bindEvents() {
@@ -77,6 +82,7 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
     dom.businessEntitySelect.value = "";
+    dom.currencySelect.value = "";
     loadProfitSummary();
   });
 }
@@ -109,6 +115,7 @@ function readFilters() {
   return {
     month: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
     businessEntityId: dom.businessEntitySelect.value || "",
+    currency: dom.currencySelect.value || "",
   };
 }
 
@@ -128,13 +135,16 @@ function renderBusinessEntityOptions(entities, selectedId = "") {
 }
 
 function renderSummary(data, filters) {
-  const rows = buildCurrencyRows(data);
+  const rows = buildCurrencyRows(data, filters);
   const totals = buildOverallTotals(rows);
   const auditRows = buildAuditRows(data);
+  const incomeDetails = effectiveIncomeRecords(data);
+  const expenseDetails = effectiveExpenseRecords(data);
 
   dom.summaryGrid.innerHTML = [
     renderSummaryCard("月份", formatMonth(filters.month)),
     renderSummaryCard("业务归属", businessEntityLabel(filters.businessEntityId)),
+    renderSummaryCard("币种筛选", filters.currency || "全部"),
     renderSummaryCard("经营收入 JPY", formatCurrency(totals.JPY.income, "JPY")),
     renderSummaryCard("经营支出 JPY", formatCurrency(totals.JPY.expense, "JPY")),
     renderSummaryCard("经营利润 JPY", formatCurrency(totals.JPY.profit, "JPY")),
@@ -169,18 +179,26 @@ function renderSummary(data, filters) {
       </tr>
     `)
     .join("");
+
+  renderIncomeDetails(incomeDetails);
+  renderExpenseDetails(expenseDetails);
 }
 
 function renderEmptyState() {
   dom.summaryGrid.innerHTML = "";
   dom.currencyTableBody.innerHTML = "";
   dom.auditTableBody.innerHTML = "";
+  dom.incomeDetailCount.textContent = "0 条";
+  dom.incomeDetailTableBody.innerHTML = "";
+  dom.expenseDetailCount.textContent = "0 条";
+  dom.expenseDetailTableBody.innerHTML = "";
 }
 
-function buildCurrencyRows(data) {
-  return CURRENCIES.map((currency) => {
-    const incomeRecords = data.incomeRecords.filter((row) => isEffectiveIncome(row.status) && row.currency === currency);
-    const expenseRecords = data.expenseRecords.filter((row) => isEffectiveExpense(row.status) && row.currency === currency);
+function buildCurrencyRows(data, filters) {
+  const currencies = activeCurrencies(filters);
+  return currencies.map((currency) => {
+    const incomeRecords = effectiveIncomeRecords(data).filter((row) => row.currency === currency);
+    const expenseRecords = effectiveExpenseRecords(data).filter((row) => row.currency === currency);
     const teacherWageRecords = expenseRecords.filter((row) => row.expense_category === "teacher_wage");
     const incomeAmount = sumAmount(incomeRecords, currency);
     const expenseAmount = sumAmount(expenseRecords, currency);
@@ -195,6 +213,10 @@ function buildCurrencyRows(data) {
       profitAmount: incomeAmount - expenseAmount,
     };
   });
+}
+
+function activeCurrencies(filters) {
+  return filters.currency ? [filters.currency] : CURRENCIES;
 }
 
 function buildOverallTotals(rows) {
@@ -238,6 +260,69 @@ function buildAuditRows(data) {
     buildAuditRow("账户转账/调拨流水", "不计入经营利润", transferTransactions, "账户间资金移动只做审计。"),
     buildAuditRow("其他账户流水", "仅参考", otherAuditTransactions, "用于发现未归类流水；利润以业务事实表为准。"),
   ];
+}
+
+function effectiveIncomeRecords(data) {
+  return data.incomeRecords.filter((row) => isEffectiveIncome(row.status));
+}
+
+function effectiveExpenseRecords(data) {
+  return data.expenseRecords.filter((row) => isEffectiveExpense(row.status));
+}
+
+function renderIncomeDetails(rows) {
+  dom.incomeDetailCount.textContent = `${rows.length} 条`;
+
+  if (!rows.length) {
+    dom.incomeDetailTableBody.innerHTML = emptyRow(11, "暂无符合条件的收入明细。");
+    return;
+  }
+
+  dom.incomeDetailTableBody.innerHTML = rows
+    .map((row) => `
+      <tr>
+        <td><a class="table-action-button" href="./income-detail.html?id=${escapeAttribute(row.id)}">查看</a></td>
+        <td>${escapeHtml(formatDateOnly(row.income_date))}</td>
+        <td>${escapeHtml(businessEntityLabel(row.business_entity_id))}</td>
+        <td>${escapeHtml(displayValue(row.income_category))}</td>
+        <td>${escapeHtml(displayValue(row.description))}</td>
+        <td>${escapeHtml(displayValue(row.currency))}</td>
+        <td class="number-cell">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
+        <td class="number-cell">${escapeHtml(formatCurrency(row.amount_jpy, "JPY"))}</td>
+        <td class="number-cell">${escapeHtml(formatCurrency(row.amount_cny, "CNY"))}</td>
+        <td>${escapeHtml(displayValue(row.status))}</td>
+        <td>${escapeHtml(displayValue(row.note))}</td>
+      </tr>
+    `)
+    .join("");
+}
+
+function renderExpenseDetails(rows) {
+  dom.expenseDetailCount.textContent = `${rows.length} 条`;
+
+  if (!rows.length) {
+    dom.expenseDetailTableBody.innerHTML = emptyRow(12, "暂无符合条件的支出明细。");
+    return;
+  }
+
+  dom.expenseDetailTableBody.innerHTML = rows
+    .map((row) => `
+      <tr>
+        <td><a class="table-action-button" href="./expense-detail.html?id=${escapeAttribute(row.id)}">查看</a></td>
+        <td>${escapeHtml(formatDateOnly(row.expense_date))}</td>
+        <td>${escapeHtml(businessEntityLabel(row.business_entity_id))}</td>
+        <td>${escapeHtml(expenseCategoryLabel(row.expense_category))}</td>
+        <td>${escapeHtml(displayValue(row.description))}</td>
+        <td>${escapeHtml(displayValue(row.currency))}</td>
+        <td class="number-cell">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
+        <td class="number-cell">${escapeHtml(formatCurrency(row.amount_jpy, "JPY"))}</td>
+        <td class="number-cell">${escapeHtml(formatCurrency(row.amount_cny, "CNY"))}</td>
+        <td>${escapeHtml(displayValue(row.status))}</td>
+        <td>${escapeHtml(displayValue(row.reimbursement_status))}</td>
+        <td>${escapeHtml(displayValue(row.note))}</td>
+      </tr>
+    `)
+    .join("");
 }
 
 function buildAuditRow(name, profitPolicy, rows, note) {
@@ -286,6 +371,10 @@ function renderSummaryCard(title, value) {
   `;
 }
 
+function emptyRow(colspan, message) {
+  return `<tr><td colspan="${colspan}" class="state-text">${escapeHtml(message)}</td></tr>`;
+}
+
 function businessEntityLabel(id) {
   if (!id) {
     return "全部";
@@ -307,6 +396,22 @@ function isEffectiveIncome(status) {
 
 function isEffectiveExpense(status) {
   return status === "paid";
+}
+
+function expenseCategoryLabel(category) {
+  if (category === "teacher_wage") {
+    return "老师工资 / teacher_wage";
+  }
+
+  return displayValue(category);
+}
+
+function formatDateOnly(value) {
+  return safeText(value) || "-";
+}
+
+function displayValue(value) {
+  return safeText(value) || "-";
 }
 
 function setLoading(isLoading) {

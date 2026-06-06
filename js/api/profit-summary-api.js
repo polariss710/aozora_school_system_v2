@@ -6,6 +6,7 @@ const INCOME_COLUMNS = [
   "income_date",
   "year_month",
   "income_category",
+  "description",
   "currency",
   "amount",
   "amount_jpy",
@@ -140,6 +141,10 @@ function buildMonthEntityQuery(table, columns, monthColumn, filters, options = {
 
   if (filters.businessEntityId) {
     query = query.eq("business_entity_id", filters.businessEntityId);
+  }
+
+  if (filters.currency) {
+    query = query.eq("currency", filters.currency);
   }
 
   return query;

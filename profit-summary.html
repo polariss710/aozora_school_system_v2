@@ -59,6 +59,15 @@
               </select>
             </label>
 
+            <label class="field">
+              <span>币种</span>
+              <select id="profitSummaryCurrencySelect" name="currency">
+                <option value="">全部</option>
+                <option value="JPY">JPY</option>
+                <option value="CNY">CNY</option>
+              </select>
+            </label>
+
             <div class="filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="profitSummaryResetButton" type="button">重置</button>
@@ -116,6 +125,67 @@
                 </tr>
               </thead>
               <tbody id="profitSummaryAuditTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="profitSummaryIncomeDetailTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="profitSummaryIncomeDetailTitle">收入明细</h2>
+              <p class="section-note">仅显示计入经营收入的 received income；reversed income 不显示。</p>
+            </div>
+            <span id="profitSummaryIncomeDetailCount" class="record-count">0 条</span>
+          </div>
+          <div class="table-scroll">
+            <table class="payment-table">
+              <thead>
+                <tr>
+                  <th>详情</th>
+                  <th>日期</th>
+                  <th>业务归属</th>
+                  <th>分类</th>
+                  <th>说明</th>
+                  <th>币种</th>
+                  <th class="number-cell">金额</th>
+                  <th class="number-cell">JPY</th>
+                  <th class="number-cell">CNY</th>
+                  <th>状态</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody id="profitSummaryIncomeDetailTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="profitSummaryExpenseDetailTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="profitSummaryExpenseDetailTitle">支出明细</h2>
+              <p class="section-note">仅显示计入经营支出的 paid expense；reversed expense 不显示。</p>
+            </div>
+            <span id="profitSummaryExpenseDetailCount" class="record-count">0 条</span>
+          </div>
+          <div class="table-scroll">
+            <table class="payment-table">
+              <thead>
+                <tr>
+                  <th>详情</th>
+                  <th>日期</th>
+                  <th>业务归属</th>
+                  <th>分类</th>
+                  <th>说明</th>
+                  <th>币种</th>
+                  <th class="number-cell">金额</th>
+                  <th class="number-cell">JPY</th>
+                  <th class="number-cell">CNY</th>
+                  <th>状态</th>
+                  <th>报销状态</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody id="profitSummaryExpenseDetailTableBody"></tbody>
             </table>
           </div>
         </section>
