@@ -1,7 +1,7 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through account profile update local browser checkpoint; wage rule readonly detail page and readonly profit summary drilldown are complete; full autopilot workflow trial is active.
-- Latest stable commit: `00621a0 feat: add wage rule config editing`.
+- Stable checkpoint: write-operation phase is complete through teacher wage rule config edit final checkpoint; wage rule readonly detail page, wage rule config edit, and readonly profit summary drilldown are complete; full autopilot workflow trial is active.
+- Latest stable commit: `a9d254a docs: update wage rule config edit status`.
 - Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, account profile update, student profile update, teacher profile update, subject profile update, business entity profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
