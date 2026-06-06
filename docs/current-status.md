@@ -1,8 +1,8 @@
 # Current Status
 
-- Stable checkpoint: write-operation phase is complete through student profile update frontend checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
-- Latest stable commit: `b99a66b feat: add student profile editor`.
-- Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, student profile update, teacher wage payment confirmation, and teacher wage payment reversal.
+- Stable checkpoint: write-operation phase is complete through teacher profile update frontend checkpoint; readonly profit summary drilldown is complete; full autopilot workflow trial is active.
+- Latest stable commit: `66c59b3 feat: add teacher profile editor`.
+- Completed write flows: income creation, income reversal, expense creation, expense reversal, reimbursement confirmation, reimbursement reversal, account adjustment, account adjustment reversal, account transfer, account transfer reversal, student profile update, teacher profile update, teacher wage payment confirmation, and teacher wage payment reversal.
 - Write flows use API-layer wrappers and verified RPCs; page modules must not call Supabase `.rpc()` directly or directly insert, update, delete, or upsert rows.
 - Account transaction linkage and account transaction detail source summaries cover income, expense, reimbursement, payment request, account adjustment, account adjustment reversal, account transfer, and account transfer reversal sources.
 - Account transfer completed schema, RPC SQL draft/static review, schema/RPC execution, rollback test, commit test, verified SQL archive, frontend minimum implementation, frontend static checkpoint/push, and feature checkpoint.
@@ -12,6 +12,9 @@
 - Student profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
 - Student profile update is limited to `display_name`, `status`, `course_track`, `target_type`, and `note`; it does not edit balances, settlement fields, tuition rules, contact fields, parent fields, birthday, lessons, income, settlements, or payments.
 - Student profile update commit test used whitelisted test student `b48cd784-62e2-4232-a07c-65414e842b89` with `codex-test / v2-test / sandbox / v2.36.0 / 测试学生` markers.
+- Teacher profile update completed with no schema change, verified RPC SQL, rollback test, whitelisted commit test, frontend minimum implementation, static checkpoint, online file checks, and feature checkpoint.
+- Teacher profile update is limited to `display_name`, `status`, `default_business_entity_id`, and `note`; it does not edit wage rules, wage locks, payment data, lesson data, rates, currencies, payment method, bank fields, phone, email, wechat, department, subject, teacher code, or system name.
+- Teacher profile update commit test used whitelisted test teacher `12f6d142-b90b-4da2-be88-310414000bd1` with `codex-test / v2-test / sandbox / v2.37.0 / 测试老师` markers.
 - Write RPC run-until-gate workflow was validated through the account transfer stage, then replaced by full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Full autopilot trial default: Codex should continue through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL/frontend commits, feature checkpoint, and current-status update unless a hard stop condition is hit.
 - If rollback/commit test candidates do not match the test data whitelist, Codex may create clearly marked test data; real business data must not be used as an automatic test candidate.
@@ -24,4 +27,4 @@
 - The write RPC workflow has been standardized and reset to full autopilot trial in `docs/workflows/write-rpc-flow.md`.
 - Default Codex guardrails and approval guidance in AGENTS.md now reflect the full autopilot trial while preserving secrets, test-data, and dangerous-operation hard stops.
 - Expected repository state at the start of the next task: clean worktree.
-- Next planned stage: review profit summary in a browser with real filters, then decide whether to add detail drilldowns or export.
+- Next planned stage: review teacher/student profile editors and profit summary drilldown in a browser with real filters, then choose the next small full-autopilot write operation.
