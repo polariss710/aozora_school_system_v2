@@ -1,0 +1,150 @@
+-- school_create_business_entity_profile_rpc.sql
+-- RPC: public.school_create_business_entity_profile
+-- Purpose: Create future-use business entity master data only.
+-- Status: EXECUTED ON SUPABASE. Rollback-tested and commit-tested.
+-- Version: v2.47.0-business-entity-create-full-autopilot-20260607
+--
+-- Scope:
+-- - Insert one row into public.school_business_entities.
+-- - Allowed fields: code, name, entity_type, default_currency, is_active, note.
+-- - Use existing table defaults for id, is_company_report, created_at, and
+--   updated_at.
+--
+-- Not supported:
+-- - Automatically creating accounts.
+-- - Editing company-report inclusion after creation.
+-- - Reassigning, recalculating, or repairing historical income, expense,
+--   settlement, wage, payment request, account, balance, or account transaction
+--   records.
+-- - Deleting, merging, or replacing business entities.
+--
+-- Verification:
+-- - Function exists in public schema with expected signature and return columns.
+-- - public.school_business_entities.code has unique constraint
+--   school_business_entities_code_key.
+-- - Rollback test inserted one codex-test business entity and left no residue.
+-- - Commit test inserted only whitelisted codex-test / v2-test / sandbox
+--   business entity.
+-- - Duplicate business entity code is rejected.
+-- - Historical account, teacher, student, income, expense, settlement, wage,
+--   payment, and account transaction counts stayed unchanged.
+
+create or replace function public.school_create_business_entity_profile(
+  p_code text,
+  p_name text,
+  p_entity_type text default 'company',
+  p_default_currency text default 'JPY',
+  p_is_active boolean default true,
+  p_note text default null
+)
+returns table (
+  business_entity_id uuid,
+  code text,
+  name text,
+  entity_type text,
+  default_currency text,
+  is_company_report boolean,
+  is_active boolean,
+  note text,
+  created_at timestamptz,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text := nullif(trim(coalesce(p_code, '')), '');
+  v_name text := nullif(trim(coalesce(p_name, '')), '');
+  v_entity_type text := nullif(trim(coalesce(p_entity_type, 'company')), '');
+  v_default_currency text := upper(nullif(trim(coalesce(p_default_currency, 'JPY')), ''));
+  v_note text := nullif(trim(coalesce(p_note, '')), '');
+  v_business_entity_id uuid;
+begin
+  if v_code is null then
+    raise exception '业务归属编码不能为空。';
+  end if;
+
+  if v_name is null then
+    raise exception '业务归属名称不能为空。';
+  end if;
+
+  if v_entity_type is null then
+    raise exception '业务归属类型不能为空。';
+  end if;
+
+  if v_entity_type not in ('company', 'personal') then
+    raise exception '业务归属类型无效：%。', v_entity_type;
+  end if;
+
+  if v_default_currency is null then
+    raise exception '默认币种不能为空。';
+  end if;
+
+  if v_default_currency not in ('JPY', 'CNY') then
+    raise exception '默认币种无效：%。', v_default_currency;
+  end if;
+
+  if p_is_active is null then
+    raise exception '启用状态不能为空。';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_business_entities b
+    where b.code = v_code
+  ) then
+    raise exception '业务归属编码已存在：%。', v_code;
+  end if;
+
+  insert into public.school_business_entities (
+    code,
+    name,
+    entity_type,
+    default_currency,
+    is_active,
+    note
+  )
+  values (
+    v_code,
+    v_name,
+    v_entity_type,
+    v_default_currency,
+    p_is_active,
+    v_note
+  )
+  returning id into v_business_entity_id;
+
+  return query
+  select
+    b.id,
+    b.code,
+    b.name,
+    b.entity_type,
+    b.default_currency,
+    b.is_company_report,
+    b.is_active,
+    b.note,
+    b.created_at,
+    b.updated_at
+  from public.school_business_entities b
+  where b.id = v_business_entity_id;
+exception
+  when unique_violation then
+    raise exception '业务归属编码已存在：%。', v_code;
+end;
+$$;
+
+comment on function public.school_create_business_entity_profile(
+  text,
+  text,
+  text,
+  text,
+  boolean,
+  text
+) is
+  'Creates one future-use business entity master row. Does not create accounts or modify historical financial, settlement, wage, payment, balance, or account transaction records.';
+
+-- Permission note:
+-- Keep execute permission management explicit. Review permissions separately
+-- before enabling this function for authenticated users.
