@@ -178,3 +178,30 @@ export async function createCancelledActualLessonFromPlanned(payload) {
 
   return result;
 }
+
+export async function createMakeupCompletedActualLessonFromPlanned(payload) {
+  const { data, error } = await supabase.rpc("school_create_makeup_completed_actual_lesson_from_planned", {
+    p_planned_lesson_id: payload.plannedLessonId,
+    p_lesson_date: payload.lessonDate,
+    p_start_time: payload.startTime || null,
+    p_end_time: payload.endTime || null,
+    p_duration_hours: payload.durationHours,
+    p_unit_price: payload.unitPrice,
+    p_lesson_fee: payload.lessonFee,
+    p_is_billable: payload.isBillable,
+    p_lesson_count: payload.lessonCount,
+    p_lesson_content: payload.lessonContent || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("补课完成课时生成失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
