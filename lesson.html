@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.53.0-lesson-pair-readonly-20260607">
   </head>
   <body>
     <div class="app-shell">
@@ -116,17 +116,23 @@
         </section>
 
         <section class="panel" aria-labelledby="lessonListTitle">
-          <div class="section-heading section-heading-row">
+          <div class="section-heading section-heading-row lesson-list-heading">
             <div>
               <h2 id="lessonListTitle">课时记录</h2>
-              <p class="section-note">本页为原始课时记录只读一览，不代表学生月度结算课时、老师工资课时或统计口径。表格可横向滚动查看更多列。</p>
+              <p class="section-note">本页为原始课时记录只读一览，不代表学生月度结算课时、老师工资课时或统计口径。普通列表可横向滚动查看更多列。</p>
             </div>
-            <span id="lessonCount" class="record-count">0 条</span>
+            <div class="lesson-list-tools">
+              <div class="view-toggle" role="group" aria-label="课时视图">
+                <button class="button view-toggle-button is-active" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="true">普通列表</button>
+                <button class="button view-toggle-button" id="lessonPairViewButton" type="button" data-lesson-view="pair" aria-pressed="false">左右对应</button>
+              </div>
+              <span id="lessonCount" class="record-count">0 条</span>
+            </div>
           </div>
 
           <div id="lessonLoadingState" class="state-text is-hidden">正在加载课时记录...</div>
           <div id="lessonEmptyState" class="state-text is-hidden">暂无符合条件的课时记录。</div>
-          <div class="table-scroll">
+          <div id="lessonListView" class="table-scroll">
             <table class="payment-table lesson-table">
               <thead>
                 <tr>
@@ -154,10 +160,17 @@
               <tbody id="lessonTableBody"></tbody>
             </table>
           </div>
+          <div id="lessonPairView" class="lesson-pair-view is-hidden" aria-live="polite">
+            <div class="lesson-pair-legend">
+              <span><strong>planned</strong>：计划 / 待补课</span>
+              <span><strong>actual</strong>：已完成 / 已取消 / 补课完成</span>
+            </div>
+            <div id="lessonPairRows" class="lesson-pair-list"></div>
+          </div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./js/lesson-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.53.0-lesson-pair-readonly-20260607"></script>
   </body>
 </html>

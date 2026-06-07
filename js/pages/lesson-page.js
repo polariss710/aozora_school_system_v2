@@ -49,6 +49,7 @@ let subjects = [];
 let businessEntities = [];
 let lessonRecords = [];
 let loadedMonth = "";
+let activeView = "list";
 
 export function initLessonPage() {
   cacheDom();
@@ -83,6 +84,11 @@ function cacheDom() {
   dom.billableSelect = document.querySelector("#lessonBillableSelect");
   dom.keywordInput = document.querySelector("#lessonKeywordInput");
   dom.resetButton = document.querySelector("#lessonResetButton");
+  dom.listViewButton = document.querySelector("#lessonListViewButton");
+  dom.pairViewButton = document.querySelector("#lessonPairViewButton");
+  dom.listView = document.querySelector("#lessonListView");
+  dom.pairView = document.querySelector("#lessonPairView");
+  dom.pairRows = document.querySelector("#lessonPairRows");
   dom.tableBody = document.querySelector("#lessonTableBody");
   dom.loadingState = document.querySelector("#lessonLoadingState");
   dom.emptyState = document.querySelector("#lessonEmptyState");
@@ -98,6 +104,13 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyQuery();
+  });
+
+  [dom.listViewButton, dom.pairViewButton].forEach((button) => {
+    button?.addEventListener("click", () => {
+      setActiveView(button.dataset.lessonView || "list");
+      applyCurrentFilters();
+    });
   });
 }
 
@@ -266,9 +279,11 @@ function renderValueOptions(selectEl, values, labelGetter) {
 function renderLessonRecords(records) {
   dom.lessonCount.textContent = `${records.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", records.length > 0);
+  syncViewVisibility();
 
   if (!records.length) {
     dom.tableBody.innerHTML = "";
+    dom.pairRows.innerHTML = "";
     return;
   }
 
@@ -295,6 +310,191 @@ function renderLessonRecords(records) {
       <td class="lesson-content-cell">${escapeHtml(displayValue(record.import_source))}</td>
     </tr>
   `).join("");
+
+  renderLessonPairs(records);
+}
+
+function setActiveView(view) {
+  activeView = view === "pair" ? "pair" : "list";
+  syncViewVisibility();
+}
+
+function syncViewVisibility() {
+  const isPairView = activeView === "pair";
+  dom.listView.classList.toggle("is-hidden", isPairView);
+  dom.pairView.classList.toggle("is-hidden", !isPairView);
+  dom.listViewButton.classList.toggle("is-active", !isPairView);
+  dom.pairViewButton.classList.toggle("is-active", isPairView);
+  dom.listViewButton.setAttribute("aria-pressed", String(!isPairView));
+  dom.pairViewButton.setAttribute("aria-pressed", String(isPairView));
+}
+
+function renderLessonPairs(records) {
+  const grouped = buildLessonPairs(records);
+  const sections = [];
+
+  if (grouped.pairs.length) {
+    sections.push(grouped.pairs.map(renderLessonPairRow).join(""));
+  }
+
+  if (grouped.unlinkedActuals.length) {
+    sections.push(renderPairSection("未关联实际课时", grouped.unlinkedActuals.map(renderUnlinkedActualRow).join("")));
+  }
+
+  if (grouped.otherRecords.length) {
+    sections.push(renderPairSection("其他课时记录", grouped.otherRecords.map(renderOtherLessonRow).join("")));
+  }
+
+  dom.pairRows.innerHTML = sections.join("") || '<div class="state-text">暂无可对应显示的课时记录。</div>';
+}
+
+function buildLessonPairs(records) {
+  const plannedRecords = records.filter((record) => record.lesson_type === "planned");
+  const actualRecords = records.filter((record) => record.lesson_type === "actual");
+  const otherRecords = records.filter((record) => !["planned", "actual"].includes(record.lesson_type));
+  const plannedIds = new Set(plannedRecords.map((record) => record.id));
+  const actualsByPlannedId = new Map();
+  const unlinkedActuals = [];
+
+  for (const actual of actualRecords) {
+    if (actual.planned_lesson_id && plannedIds.has(actual.planned_lesson_id)) {
+      const rows = actualsByPlannedId.get(actual.planned_lesson_id) || [];
+      rows.push(actual);
+      actualsByPlannedId.set(actual.planned_lesson_id, rows);
+    } else {
+      unlinkedActuals.push(actual);
+    }
+  }
+
+  return {
+    pairs: plannedRecords.map((planned) => ({
+      planned,
+      actuals: actualsByPlannedId.get(planned.id) || [],
+    })),
+    unlinkedActuals,
+    otherRecords,
+  };
+}
+
+function renderLessonPairRow(pair) {
+  const actualHtml = pair.actuals.length
+    ? pair.actuals.map((actual) => renderLessonPairCard(actual, "actual")).join("")
+    : renderMissingActualCard(pair.planned);
+
+  return `
+    <article class="lesson-pair-row">
+      <div class="lesson-pair-column lesson-pair-column-planned">
+        <div class="lesson-pair-column-title">planned</div>
+        ${renderLessonPairCard(pair.planned, "planned")}
+      </div>
+      <div class="lesson-pair-column lesson-pair-column-actual">
+        <div class="lesson-pair-column-title">actual</div>
+        <div class="lesson-pair-actual-stack">${actualHtml}</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderPairSection(title, rowsHtml) {
+  return `
+    <section class="lesson-pair-section" aria-label="${escapeAttribute(title)}">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="lesson-pair-list">${rowsHtml}</div>
+    </section>
+  `;
+}
+
+function renderUnlinkedActualRow(actual) {
+  return `
+    <article class="lesson-pair-row lesson-pair-row-unlinked">
+      <div class="lesson-pair-column lesson-pair-column-empty">
+        <div class="lesson-pair-column-title">planned</div>
+        <div class="lesson-pair-placeholder">未找到对应 planned 记录</div>
+      </div>
+      <div class="lesson-pair-column lesson-pair-column-actual">
+        <div class="lesson-pair-column-title">actual</div>
+        ${renderLessonPairCard(actual, "actual")}
+      </div>
+    </article>
+  `;
+}
+
+function renderOtherLessonRow(record) {
+  return `
+    <article class="lesson-pair-row lesson-pair-row-unlinked">
+      <div class="lesson-pair-column lesson-pair-column-empty">
+        <div class="lesson-pair-column-title">planned</div>
+        <div class="lesson-pair-placeholder">当前类型无法配对</div>
+      </div>
+      <div class="lesson-pair-column">
+        <div class="lesson-pair-column-title">记录</div>
+        ${renderLessonPairCard(record, "actual")}
+      </div>
+    </article>
+  `;
+}
+
+function renderMissingActualCard(planned) {
+  const statusText = planned.status === "pending_makeup" ? "待补课，尚无 actual 记录" : "尚无 actual 记录";
+  return `
+    <div class="lesson-pair-placeholder">
+      <span>${escapeHtml(statusText)}</span>
+      <span class="lesson-pair-placeholder-id">planned ${escapeHtml(shortId(planned.id))}</span>
+    </div>
+  `;
+}
+
+function renderLessonPairCard(record, side) {
+  const isActual = side === "actual";
+  const modifierClass = [
+    isActual && record.status === "cancelled" ? "lesson-pair-card-cancelled" : "",
+    isActual && record.status === "makeup_completed" ? "lesson-pair-card-makeup" : "",
+    isActual && record.is_billable === false ? "lesson-pair-card-nonbillable" : "",
+  ].filter(Boolean).join(" ");
+  const billableText = isActual ? actualBillableSummary(record) : billableLabel(record.is_billable);
+
+  return `
+    <article class="lesson-pair-card ${escapeAttribute(modifierClass)}">
+      <div class="lesson-pair-card-header">
+        <div>
+          <a class="table-action-button" href="./lesson-detail.html?id=${encodeURIComponent(record.id)}">详情</a>
+          <span class="lesson-pair-id">${escapeHtml(shortId(record.id))}</span>
+        </div>
+        <span class="status-badge ${escapeAttribute(statusClass(record.status))}">${escapeHtml(lessonStatusLabel(record.status))}</span>
+      </div>
+      <div class="lesson-pair-main">
+        <strong>${escapeHtml(formatDateOnly(record.lesson_date))}</strong>
+        <span>${escapeHtml(formatWeekday(record.lesson_date))}</span>
+        <span>${escapeHtml(formatTimeRange(record.start_time, record.end_time))}</span>
+      </div>
+      <dl class="lesson-pair-meta">
+        <div><dt>学生</dt><dd>${escapeHtml(nameById(students, record.student_id, studentName))}</dd></div>
+        <div><dt>老师</dt><dd>${escapeHtml(nameById(teachers, record.teacher_id, teacherName))}</dd></div>
+        <div><dt>科目</dt><dd>${escapeHtml(nameById(subjects, record.subject_id, subjectName))}</dd></div>
+        <div><dt>业务归属</dt><dd>${escapeHtml(nameById(businessEntities, record.business_entity_id, businessEntityName))}</dd></div>
+        <div><dt>计费</dt><dd>${escapeHtml(billableText)}</dd></div>
+        <div><dt>时长</dt><dd>${escapeHtml(displayValue(record.duration_hours))}</dd></div>
+        <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>
+        <div><dt>planned ID</dt><dd>${escapeHtml(shortId(record.planned_lesson_id))}</dd></div>
+      </dl>
+      <div class="lesson-pair-text">
+        <span>${escapeHtml(displayValue(record.lesson_content))}</span>
+        <span>${escapeHtml(displayValue(record.note))}</span>
+      </div>
+    </article>
+  `;
+}
+
+function actualBillableSummary(record) {
+  if (record.status === "cancelled") {
+    return "不计费（取消课）";
+  }
+
+  if (record.status === "makeup_completed") {
+    return record.is_billable ? "计费（补课完成）" : "不计费（补课完成）";
+  }
+
+  return billableLabel(record.is_billable);
 }
 
 function filterLessonRecords(records, filters) {
@@ -492,6 +692,11 @@ function formatTime(value) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function shortId(value) {
+  const text = safeText(value);
+  return text ? text.slice(0, 8) : "-";
 }
 
 function setLoading(isLoading) {
