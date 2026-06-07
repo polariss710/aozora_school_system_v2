@@ -13,7 +13,7 @@ const LESSON_TYPE_LABELS = {
 
 const LESSON_STATUS_LABELS = {
   completed: "已完成",
-  planned: "预定",
+  planned: "待上课",
   cancelled: "已取消",
   pending_makeup: "待补课",
   makeup_completed: "补课完成",
