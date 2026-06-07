@@ -1,5 +1,9 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchExpenseDetailPage, reverseExpenseRecord } from "../api/expense-detail-api.js";
+import {
+  createExpenseAttachmentMetadata,
+  fetchExpenseDetailPage,
+  reverseExpenseRecord,
+} from "../api/expense-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const EXPENSE_STATUS_LABELS = {
@@ -46,13 +50,22 @@ const TRANSACTION_TYPE_LABELS = {
 };
 
 const SOURCE_TYPE_LABELS = {
+  invoice: "发票",
+  manual: "手工记录",
+  manual_metadata: "手工摘要",
+  other: "其他",
+  receipt: "收据",
+  statement: "对账单",
   teacher_wage: "老师工资",
 };
 
 const dom = {};
 let detailData = null;
 let isReverseSubmitting = false;
+let isAttachmentSubmitting = false;
 const REVERSE_EXPENSE_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
+const ATTACHMENT_FIELD_IDS = ["fileName", "fileType", "fileSize", "sourceType", "note"];
+const ATTACHMENT_SOURCE_TYPE_OPTIONS = ["manual_metadata", "receipt", "invoice", "statement", "other"];
 
 export function initExpenseDetailPage() {
   cacheDom();
@@ -95,7 +108,18 @@ function cacheDom() {
   dom.directTransactions = document.querySelector("#expenseDetailDirectTransactions");
   dom.paymentTransactions = document.querySelector("#expenseDetailPaymentTransactions");
   dom.reimbursements = document.querySelector("#expenseDetailReimbursements");
+  dom.openAttachmentDialogButton = document.querySelector("#openExpenseAttachmentDialogButton");
   dom.attachments = document.querySelector("#expenseDetailAttachments");
+  dom.attachmentDialog = document.querySelector("#expenseAttachmentDialog");
+  dom.attachmentSummary = document.querySelector("#expenseAttachmentSummary");
+  dom.attachmentError = document.querySelector("#expenseAttachmentError");
+  dom.attachmentFileNameInput = document.querySelector("#expenseAttachmentFileNameInput");
+  dom.attachmentFileTypeInput = document.querySelector("#expenseAttachmentFileTypeInput");
+  dom.attachmentFileSizeInput = document.querySelector("#expenseAttachmentFileSizeInput");
+  dom.attachmentSourceTypeSelect = document.querySelector("#expenseAttachmentSourceTypeSelect");
+  dom.attachmentNoteInput = document.querySelector("#expenseAttachmentNoteInput");
+  dom.attachmentSubmitButton = document.querySelector("#expenseAttachmentSubmitButton");
+  dom.attachmentCancelButton = document.querySelector("#expenseAttachmentCancelButton");
   dom.reverseDialog = document.querySelector("#reverseExpenseDialog");
   dom.reverseSummary = document.querySelector("#reverseExpenseSummary");
   dom.reverseError = document.querySelector("#reverseExpenseError");
@@ -108,6 +132,25 @@ function cacheDom() {
 
 function bindEvents() {
   dom.openReverseExpenseButton.addEventListener("click", openReverseDialog);
+  dom.openAttachmentDialogButton.addEventListener("click", openAttachmentDialog);
+  dom.attachmentCancelButton.addEventListener("click", closeAttachmentDialog);
+  dom.attachmentSubmitButton.addEventListener("click", submitAttachmentMetadata);
+  for (const [input, fieldId] of [
+    [dom.attachmentFileNameInput, "fileName"],
+    [dom.attachmentFileTypeInput, "fileType"],
+    [dom.attachmentFileSizeInput, "fileSize"],
+    [dom.attachmentSourceTypeSelect, "sourceType"],
+    [dom.attachmentNoteInput, "note"],
+  ]) {
+    input.addEventListener("input", () => {
+      setAttachmentFieldInvalid(fieldId, false);
+      hideAttachmentErrorIfClean();
+    });
+    input.addEventListener("change", () => {
+      setAttachmentFieldInvalid(fieldId, false);
+      hideAttachmentErrorIfClean();
+    });
+  }
   dom.reverseCancelButton.addEventListener("click", closeReverseDialog);
   dom.reverseSubmitButton.addEventListener("click", submitReverseExpense);
   dom.reverseDateInput.addEventListener("input", () => {
@@ -202,10 +245,13 @@ function renderActionArea(data) {
   const { expense } = data;
   const status = expense?.status || "";
   const canReverse = canReverseExpense(data);
+  const canCreateAttachment = canCreateAttachmentMetadata(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = expenseStatusLabel(status);
   dom.openReverseExpenseButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseExpenseButton.disabled = !canReverse;
+  dom.openAttachmentDialogButton.classList.toggle("is-hidden", !canCreateAttachment);
+  dom.openAttachmentDialogButton.disabled = !canCreateAttachment;
 }
 
 function canReverseExpense(data) {
@@ -221,6 +267,13 @@ function canReverseExpense(data) {
     && !expense.reversal_account_transaction_id
     && expense.reimbursement_status !== "paid"
     && !hasPaidReimbursement;
+}
+
+function canCreateAttachmentMetadata(data) {
+  const expense = data?.expense;
+  return Boolean(expense?.id)
+    && expense.app_type === "school"
+    && expense.expense_category !== "teacher_wage";
 }
 
 function renderReversalInfo(expense) {
@@ -356,6 +409,175 @@ function renderAttachments(attachments) {
       </article>
     `).join("")}
   `;
+}
+
+function openAttachmentDialog() {
+  if (isAttachmentSubmitting) {
+    return;
+  }
+
+  if (!canCreateAttachmentMetadata(detailData)) {
+    showMessage("error", attachmentNotAllowedMessage(detailData));
+    return;
+  }
+
+  clearAttachmentErrors();
+  dom.attachmentSummary.innerHTML = renderAttachmentSummary(detailData.expense);
+  dom.attachmentFileNameInput.value = "";
+  dom.attachmentFileTypeInput.value = "";
+  dom.attachmentFileSizeInput.value = "";
+  dom.attachmentSourceTypeSelect.value = "manual_metadata";
+  dom.attachmentNoteInput.value = "";
+  setAttachmentSubmitting(false);
+  dom.attachmentDialog.classList.remove("is-hidden");
+  dom.attachmentDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeAttachmentDialog() {
+  if (isAttachmentSubmitting) {
+    return;
+  }
+
+  dom.attachmentDialog.classList.add("is-hidden");
+  dom.attachmentDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitAttachmentMetadata() {
+  if (isAttachmentSubmitting) {
+    return;
+  }
+
+  clearAttachmentErrors();
+  const payload = readAttachmentPayload();
+  if (!payload) {
+    return;
+  }
+
+  setAttachmentSubmitting(true);
+
+  try {
+    const result = await createExpenseAttachmentMetadata(payload);
+    setAttachmentSubmitting(false);
+    closeAttachmentDialog();
+    await loadExpenseDetail(payload.expenseId);
+    showMessage("success", `附件摘要已保存：${shortId(result.attachment_id)}。`);
+  } catch (error) {
+    console.error(error);
+    showAttachmentError(`保存附件摘要失败：${error.message || error}`, attachmentFieldIdsForError(error.message || ""));
+  } finally {
+    setAttachmentSubmitting(false);
+  }
+}
+
+function readAttachmentPayload() {
+  const expense = detailData?.expense;
+  if (!expense?.id) {
+    showAttachmentError("支出记录不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (!canCreateAttachmentMetadata(detailData)) {
+    showAttachmentError(attachmentNotAllowedMessage(detailData));
+    return null;
+  }
+
+  const fileName = dom.attachmentFileNameInput.value.trim();
+  if (!fileName) {
+    showAttachmentError("附件文件名不能为空。", ["fileName"]);
+    return null;
+  }
+
+  if (fileName.length > 255) {
+    showAttachmentError("附件文件名过长。", ["fileName"]);
+    return null;
+  }
+
+  const fileSizeText = dom.attachmentFileSizeInput.value.trim();
+  const fileSize = fileSizeText ? Number(fileSizeText) : null;
+  if (fileSizeText && (!Number.isSafeInteger(fileSize) || fileSize < 0)) {
+    showAttachmentError("附件大小必须是 0 或正整数。", ["fileSize"]);
+    return null;
+  }
+
+  const sourceType = dom.attachmentSourceTypeSelect.value;
+  if (!ATTACHMENT_SOURCE_TYPE_OPTIONS.includes(sourceType)) {
+    showAttachmentError("附件来源类型无效。", ["sourceType"]);
+    return null;
+  }
+
+  return {
+    expenseId: expense.id,
+    fileName,
+    fileType: dom.attachmentFileTypeInput.value.trim(),
+    fileSize,
+    sourceType,
+    note: dom.attachmentNoteInput.value.trim(),
+  };
+}
+
+function renderAttachmentSummary(expense) {
+  return renderDefinitionList([
+    ["支出日期", formatDateOnly(expense.expense_date)],
+    ["分类", expenseCategoryLabel(expense.expense_category)],
+    ["描述", displayValue(expense.description)],
+    ["金额", formatCurrency(expense.amount, expense.currency)],
+    ["支出状态", expenseStatusLabel(expense.status)],
+  ]);
+}
+
+function attachmentNotAllowedMessage(data) {
+  const expense = data?.expense;
+  if (!expense) return "支出记录不存在，请刷新后重试。";
+  if (expense.expense_category === "teacher_wage") return "老师工资支出不支持普通支出附件摘要。";
+  return "当前支出不能新增附件摘要。";
+}
+
+function setAttachmentSubmitting(isSubmitting) {
+  isAttachmentSubmitting = isSubmitting;
+  dom.attachmentSubmitButton.disabled = isSubmitting;
+  dom.attachmentCancelButton.disabled = isSubmitting;
+  dom.attachmentSubmitButton.textContent = isSubmitting ? "保存中..." : "保存附件摘要";
+}
+
+function clearAttachmentErrors() {
+  dom.attachmentError.textContent = "";
+  dom.attachmentError.classList.add("is-hidden");
+  for (const fieldId of ATTACHMENT_FIELD_IDS) {
+    setAttachmentFieldInvalid(fieldId, false);
+  }
+}
+
+function showAttachmentError(message, fieldIds = []) {
+  dom.attachmentError.textContent = message;
+  dom.attachmentError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setAttachmentFieldInvalid(fieldId, true);
+  }
+  dom.attachmentDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function attachmentFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("文件名")) fields.push("fileName");
+  if (text.includes("大小")) fields.push("fileSize");
+  if (text.includes("来源类型")) fields.push("sourceType");
+  return fields;
+}
+
+function setAttachmentFieldInvalid(fieldId, invalid) {
+  const field = dom.attachmentDialog.querySelector(`[data-expense-attachment-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideAttachmentErrorIfClean() {
+  const hasInvalidField = Boolean(dom.attachmentDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.attachmentError.textContent = "";
+    dom.attachmentError.classList.add("is-hidden");
+  }
 }
 
 function openReverseDialog() {

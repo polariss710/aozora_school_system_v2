@@ -39,6 +39,10 @@ const WAGE_PAYMENT_REQUEST_COLUMNS = [
   "created_at",
 ].join(",");
 
+const ATTACHMENT_LIST_COLUMNS = [
+  "expense_id",
+].join(",");
+
 export async function fetchExpenseRecords(month) {
   const { data, error } = await supabase
     .from("school_expense_records")
@@ -73,6 +77,30 @@ export async function fetchExpensePaymentRequests(expenseIds) {
   }
 
   return data || [];
+}
+
+export async function fetchExpenseAttachmentCounts(expenseIds) {
+  const ids = Array.from(new Set((expenseIds || []).filter(Boolean)));
+  if (!ids.length) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from("school_expense_attachments")
+    .select(ATTACHMENT_LIST_COLUMNS)
+    .eq("app_type", "school")
+    .in("expense_id", ids);
+
+  if (error) {
+    throw error;
+  }
+
+  const counts = new Map();
+  for (const row of data || []) {
+    counts.set(row.expense_id, (counts.get(row.expense_id) || 0) + 1);
+  }
+
+  return counts;
 }
 
 export async function createExpenseRecord(payload) {

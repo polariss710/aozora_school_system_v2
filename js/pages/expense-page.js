@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createExpenseRecord,
+  fetchExpenseAttachmentCounts,
   fetchExpenseLookups,
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
@@ -106,6 +107,7 @@ let teachers = [];
 let students = [];
 let expenseRecords = [];
 let paymentRequestsByExpenseId = new Map();
+let attachmentCountsByExpenseId = new Map();
 let loadedMonth = "";
 let isCreateSubmitting = false;
 
@@ -260,6 +262,7 @@ async function loadInitialData() {
     students = [];
     expenseRecords = [];
     paymentRequestsByExpenseId = new Map();
+    attachmentCountsByExpenseId = new Map();
     loadedMonth = "";
     renderMasterOptions();
     renderDataOptions([]);
@@ -292,6 +295,7 @@ async function applyQuery() {
     } catch (error) {
       expenseRecords = [];
       paymentRequestsByExpenseId = new Map();
+      attachmentCountsByExpenseId = new Map();
       loadedMonth = "";
       renderDataOptions([]);
       renderExpenseRecords([]);
@@ -307,8 +311,12 @@ async function applyQuery() {
 
 async function loadExpenseMonth(month) {
   expenseRecords = await fetchExpenseRecords(month);
-  const paymentRequests = await fetchExpensePaymentRequests(teacherWageExpenseIds(expenseRecords));
+  const [paymentRequests, attachmentCounts] = await Promise.all([
+    fetchExpensePaymentRequests(teacherWageExpenseIds(expenseRecords)),
+    fetchExpenseAttachmentCounts(expenseRecords.map((row) => row.id)),
+  ]);
   paymentRequestsByExpenseId = groupPaymentRequestsByExpenseId(paymentRequests);
+  attachmentCountsByExpenseId = attachmentCounts;
   loadedMonth = month;
   renderDataOptions(expenseRecords);
 }
@@ -442,7 +450,7 @@ function renderExpenseRecords(rows) {
       <td>${renderWagePaymentStatus(row)}</td>
       <td>${escapeHtml(displayValue(row.receipt_status))}</td>
       <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status))}</td>
-      <td class="expense-nowrap">暂未接入</td>
+      <td class="expense-nowrap">${renderAttachmentStatus(row)}</td>
       <td class="expense-note-cell">${escapeHtml(displayValue(row.note))}</td>
       <td class="expense-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
       <td class="expense-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
@@ -953,6 +961,15 @@ function renderWagePaymentStatus(row) {
   }
 
   return `<span class="status-badge ${escapeAttribute(wagePaymentStatusClass(status))}">${escapeHtml(wagePaymentStatusLabel(status))}</span>`;
+}
+
+function renderAttachmentStatus(row) {
+  const count = attachmentCountsByExpenseId.get(row.id) || 0;
+  if (!count) {
+    return '<span class="status-badge status-neutral">无</span>';
+  }
+
+  return `<span class="status-badge status-active">${escapeHtml(`${count} 个`)}</span>`;
 }
 
 function distinctValues(rows, key) {

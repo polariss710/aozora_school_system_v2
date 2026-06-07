@@ -46,6 +46,7 @@
             </div>
             <div class="reimbursement-detail-actions">
               <span id="expenseDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-primary is-hidden" id="openExpenseAttachmentDialogButton" type="button">新增附件摘要</button>
               <button class="button button-danger is-hidden" id="openReverseExpenseButton" type="button">撤销支出</button>
               <a class="button" href="./expense.html">返回支出记录</a>
             </div>
@@ -124,11 +125,63 @@
           <section class="panel" aria-labelledby="expenseDetailAttachmentTitle">
             <div class="section-heading">
               <h2 id="expenseDetailAttachmentTitle">附件信息</h2>
+              <p class="section-note">附件 V1 仅记录摘要字段，不上传、下载、预览、替换、删除文件，也不做 OCR。</p>
             </div>
             <div id="expenseDetailAttachments" class="detail-list"></div>
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="expenseAttachmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel expense-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="expenseAttachmentTitle">
+        <div class="section-heading">
+          <h2 id="expenseAttachmentTitle">新增附件摘要</h2>
+          <p class="section-note">仅保存附件元数据摘要，不上传真实文件，不生成下载、预览、替换、删除或 OCR 流程。</p>
+        </div>
+
+        <div id="expenseAttachmentSummary" class="dialog-summary"></div>
+
+        <div id="expenseAttachmentError" class="dialog-error is-hidden"></div>
+
+        <div class="expense-create-field-grid">
+          <label class="field expense-create-wide-field" data-expense-attachment-field="fileName">
+            <span>文件名</span>
+            <input id="expenseAttachmentFileNameInput" type="text" autocomplete="off" placeholder="receipt.pdf">
+          </label>
+
+          <label class="field" data-expense-attachment-field="fileType">
+            <span>文件类型</span>
+            <input id="expenseAttachmentFileTypeInput" type="text" autocomplete="off" placeholder="application/pdf">
+          </label>
+
+          <label class="field" data-expense-attachment-field="fileSize">
+            <span>文件大小（bytes）</span>
+            <input id="expenseAttachmentFileSizeInput" type="number" min="0" step="1" inputmode="numeric" placeholder="可选">
+          </label>
+
+          <label class="field" data-expense-attachment-field="sourceType">
+            <span>来源类型</span>
+            <select id="expenseAttachmentSourceTypeSelect">
+              <option value="manual_metadata">手工摘要</option>
+              <option value="receipt">收据</option>
+              <option value="invoice">发票</option>
+              <option value="statement">对账单</option>
+              <option value="other">其他</option>
+            </select>
+          </label>
+
+          <label class="field expense-create-wide-field" data-expense-attachment-field="note">
+            <span>备注</span>
+            <textarea id="expenseAttachmentNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="expenseAttachmentSubmitButton" type="button">保存附件摘要</button>
+          <button class="button" id="expenseAttachmentCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="reverseExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -168,6 +221,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-detail-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <script type="module" src="./js/expense-detail-app.js?v=v2.51.1-expense-attachment-metadata-frontend-20260607"></script>
   </body>
 </html>
