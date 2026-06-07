@@ -108,7 +108,7 @@
     </div>
 
     <div id="createStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
+      <section class="dialog-panel student-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
         <div class="section-heading">
           <h2 id="createStudentProfileTitle">新增学生</h2>
           <p class="section-note">仅新增未来使用的学生主数据；不会创建或修改月度结算、carryover、收入、课时、工资或账户流水。</p>
@@ -155,7 +155,7 @@
           <input id="createStudentTargetTypeInput" type="text" autocomplete="off">
         </label>
 
-        <label class="field">
+        <label class="field student-create-wide-field">
           <span>目标学校</span>
           <input id="createStudentTargetSchoolsInput" type="text" autocomplete="off">
         </label>
@@ -170,7 +170,7 @@
           <select id="createStudentDefaultCurrencySelect"></select>
         </label>
 
-        <label class="field">
+        <label class="field student-create-wide-field">
           <span>备注</span>
           <textarea id="createStudentNoteInput" rows="3"></textarea>
         </label>
