@@ -92,9 +92,12 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="businessEntityListTitle">业务归属列表</h2>
-              <p class="section-note">本页用于维护业务归属基础显示信息；不会删除业务归属，也不会重算或修改历史收入、支出、账户、结算、工资、支付、账户余额或账户流水。</p>
+              <p class="section-note">本页用于新增和维护业务归属基础显示信息；不会自动创建账户、删除业务归属，也不会重算或修改历史收入、支出、账户、结算、工资、支付、账户余额或账户流水。</p>
             </div>
-            <span id="businessEntityCount" class="record-count">0 个</span>
+            <div class="header-meta">
+              <span id="businessEntityCount" class="record-count">0 个</span>
+              <button class="button button-primary" id="createBusinessEntityButton" type="button">新增业务归属</button>
+            </div>
           </div>
 
           <div id="businessEntityLoadingState" class="state-text is-hidden">正在加载业务归属...</div>
@@ -102,6 +105,55 @@
           <div id="businessEntityGrid" class="business-entity-grid"></div>
         </section>
       </main>
+    </div>
+
+    <div id="createBusinessEntityProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createBusinessEntityProfileTitle">
+        <div class="section-heading">
+          <h2 id="createBusinessEntityProfileTitle">新增业务归属</h2>
+          <p class="section-note">仅新增未来使用的业务归属主数据；不会自动创建账户，也不会回写历史收入、支出、结算、工资、支付或账户流水。</p>
+        </div>
+
+        <div id="createBusinessEntityProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-create-business-entity-field="code">
+          <span>编码</span>
+          <input id="createBusinessEntityCodeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-business-entity-field="name">
+          <span>名称</span>
+          <input id="createBusinessEntityNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-create-business-entity-field="entityType">
+          <span>类型</span>
+          <select id="createBusinessEntityTypeSelect"></select>
+        </label>
+
+        <label class="field" data-create-business-entity-field="defaultCurrency">
+          <span>默认币种</span>
+          <select id="createBusinessEntityDefaultCurrencySelect"></select>
+        </label>
+
+        <label class="field" data-create-business-entity-field="active">
+          <span>启用状态</span>
+          <select id="createBusinessEntityActiveSelect">
+            <option value="true">启用</option>
+            <option value="false">停用</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="createBusinessEntityNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createBusinessEntitySubmitButton" type="button">新增</button>
+          <button class="button" id="createBusinessEntityCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="editBusinessEntityProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -149,6 +201,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/business-entity-app.js?v=v2.39.0-business-entity-profile-update-full-autopilot-20260607"></script>
+    <script type="module" src="./js/business-entity-app.js?v=v2.47.0-business-entity-create-full-autopilot-20260607"></script>
   </body>
 </html>

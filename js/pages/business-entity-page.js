@@ -1,5 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createBusinessEntityProfile,
   fetchBusinessEntities,
   updateBusinessEntityProfile,
 } from "../api/business-entity-api.js";
@@ -20,11 +21,13 @@ const ENTITY_TYPE_LABELS = {
 
 const EDITABLE_ENTITY_TYPE_OPTIONS = ["company", "personal"];
 const EDITABLE_CURRENCY_OPTIONS = ["JPY", "CNY"];
+const CREATE_FIELD_IDS = ["code", "name", "entityType", "defaultCurrency", "active"];
 
 const dom = {};
 let allBusinessEntities = [];
 let editingEntity = null;
 let isEditSubmitting = false;
+let isCreateSubmitting = false;
 
 export function initBusinessEntityPage() {
   cacheDom();
@@ -56,6 +59,17 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#businessEntityLoadingState");
   dom.emptyState = document.querySelector("#businessEntityEmptyState");
   dom.entityCount = document.querySelector("#businessEntityCount");
+  dom.createButton = document.querySelector("#createBusinessEntityButton");
+  dom.createDialog = document.querySelector("#createBusinessEntityProfileDialog");
+  dom.createError = document.querySelector("#createBusinessEntityProfileError");
+  dom.createCodeInput = document.querySelector("#createBusinessEntityCodeInput");
+  dom.createNameInput = document.querySelector("#createBusinessEntityNameInput");
+  dom.createEntityTypeSelect = document.querySelector("#createBusinessEntityTypeSelect");
+  dom.createDefaultCurrencySelect = document.querySelector("#createBusinessEntityDefaultCurrencySelect");
+  dom.createActiveSelect = document.querySelector("#createBusinessEntityActiveSelect");
+  dom.createNoteInput = document.querySelector("#createBusinessEntityNoteInput");
+  dom.createCancelButton = document.querySelector("#createBusinessEntityCancelButton");
+  dom.createSubmitButton = document.querySelector("#createBusinessEntitySubmitButton");
   dom.editDialog = document.querySelector("#editBusinessEntityProfileDialog");
   dom.editSummary = document.querySelector("#editBusinessEntityProfileSummary");
   dom.editError = document.querySelector("#editBusinessEntityProfileError");
@@ -77,6 +91,30 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyCurrentFilters();
+  });
+
+  dom.createButton.addEventListener("click", openCreateDialog);
+  dom.createCancelButton.addEventListener("click", closeCreateDialog);
+  dom.createSubmitButton.addEventListener("click", submitCreateDialog);
+  dom.createCodeInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("code");
+    hideCreateErrorIfClean();
+  });
+  dom.createNameInput.addEventListener("input", () => {
+    clearCreateFieldInvalid("name");
+    hideCreateErrorIfClean();
+  });
+  dom.createEntityTypeSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("entityType");
+    hideCreateErrorIfClean();
+  });
+  dom.createDefaultCurrencySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("defaultCurrency");
+    hideCreateErrorIfClean();
+  });
+  dom.createActiveSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("active");
+    hideCreateErrorIfClean();
   });
 
   dom.entityGrid.addEventListener("click", (event) => {
@@ -232,6 +270,84 @@ function renderBusinessEntities(entities) {
   `).join("");
 }
 
+function openCreateDialog() {
+  clearCreateErrors();
+  setCreateSubmitting(false);
+  dom.createCodeInput.value = "";
+  dom.createNameInput.value = "";
+  renderCreateEntityTypeOptions("company");
+  renderCreateCurrencyOptions("JPY");
+  dom.createActiveSelect.value = "true";
+  dom.createNoteInput.value = "";
+  dom.createDialog.classList.remove("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "false");
+  dom.createCodeInput.focus();
+}
+
+function closeCreateDialog({ force = false } = {}) {
+  if (isCreateSubmitting && !force) {
+    return;
+  }
+
+  dom.createDialog.classList.add("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = {
+    code: dom.createCodeInput.value.trim(),
+    name: dom.createNameInput.value.trim(),
+    entityType: dom.createEntityTypeSelect.value,
+    defaultCurrency: dom.createDefaultCurrencySelect.value,
+    isActive: dom.createActiveSelect.value === "true",
+    note: dom.createNoteInput.value.trim(),
+  };
+
+  if (!payload.code) {
+    showCreateError("请输入业务归属编码。", ["code"]);
+    return;
+  }
+
+  if (!payload.name) {
+    showCreateError("请输入业务归属名称。", ["name"]);
+    return;
+  }
+
+  if (!EDITABLE_ENTITY_TYPE_OPTIONS.includes(payload.entityType)) {
+    showCreateError("请选择有效业务归属类型。", ["entityType"]);
+    return;
+  }
+
+  if (!EDITABLE_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
+    showCreateError("请选择有效默认币种。", ["defaultCurrency"]);
+    return;
+  }
+
+  if (!["true", "false"].includes(dom.createActiveSelect.value)) {
+    showCreateError("请选择启用状态。", ["active"]);
+    return;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    await createBusinessEntityProfile(payload);
+    closeCreateDialog({ force: true });
+    await loadBusinessEntityData();
+    showMessage("success", "业务归属已新增，可用于未来筛选和主数据配置。");
+  } catch (error) {
+    showCreateError(error.message || String(error), createFieldIdsForError(error));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
 function openEditDialog(entityId) {
   const entity = allBusinessEntities.find((item) => item.id === entityId);
   if (!entity) {
@@ -349,6 +465,67 @@ function renderEditCurrencyOptions(selectedCurrency) {
     .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
     .join("");
   dom.editDefaultCurrencySelect.value = selectedCurrency || "JPY";
+}
+
+function renderCreateEntityTypeOptions(selectedEntityType) {
+  dom.createEntityTypeSelect.innerHTML = EDITABLE_ENTITY_TYPE_OPTIONS
+    .map((entityType) => `<option value="${escapeAttribute(entityType)}">${escapeHtml(entityTypeLabel(entityType))}</option>`)
+    .join("");
+  dom.createEntityTypeSelect.value = selectedEntityType || "company";
+}
+
+function renderCreateCurrencyOptions(selectedCurrency) {
+  dom.createDefaultCurrencySelect.innerHTML = EDITABLE_CURRENCY_OPTIONS
+    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+    .join("");
+  dom.createDefaultCurrencySelect.value = selectedCurrency || "JPY";
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createError.textContent = message;
+  dom.createError.classList.remove("is-hidden");
+  fieldIds.forEach(setCreateFieldInvalid);
+}
+
+function clearCreateErrors() {
+  dom.createError.textContent = "";
+  dom.createError.classList.add("is-hidden");
+  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-create-business-entity-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.createError.textContent = "";
+    dom.createError.classList.add("is-hidden");
+  }
+}
+
+function setCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-business-entity-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-business-entity-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createSubmitButton.disabled = isSubmitting;
+  dom.createCancelButton.disabled = isSubmitting;
+  dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
+}
+
+function createFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("编码")) return ["code"];
+  if (message.includes("名称")) return ["name"];
+  if (message.includes("类型")) return ["entityType"];
+  if (message.includes("币种")) return ["defaultCurrency"];
+  if (message.includes("启用状态")) return ["active"];
+  return [];
 }
 
 function showEditError(message, fieldIds = []) {

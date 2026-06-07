@@ -27,6 +27,28 @@ export async function fetchBusinessEntities() {
   return data || [];
 }
 
+export async function createBusinessEntityProfile(payload) {
+  const { data, error } = await supabase.rpc("school_create_business_entity_profile", {
+    p_code: payload.code,
+    p_name: payload.name,
+    p_entity_type: payload.entityType,
+    p_default_currency: payload.defaultCurrency,
+    p_is_active: payload.isActive,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("业务归属新增失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function updateBusinessEntityProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_business_entity_profile", {
     p_business_entity_id: payload.businessEntityId,
