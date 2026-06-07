@@ -93,8 +93,9 @@
           <div class="section-heading section-heading-row">
             <h2 id="accountListTitle">账户列表</h2>
             <div class="table-actions">
+              <button class="button button-primary" id="openAccountCreateButton" type="button">新增账户</button>
               <button class="button" id="openAccountTransferButton" type="button">账户转账/调拨</button>
-              <button class="button button-primary" id="openAccountAdjustmentButton" type="button">账户调整</button>
+              <button class="button" id="openAccountAdjustmentButton" type="button">账户调整</button>
             </div>
           </div>
 
@@ -134,6 +135,79 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="accountCreateDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountCreateTitle">
+        <div class="section-heading">
+          <h2 id="accountCreateTitle">新增账户</h2>
+          <p class="section-note">仅新增未来使用的账户主数据，期初余额和当前余额固定为 0；不会生成账户流水或回写历史业务数据。</p>
+        </div>
+
+        <div id="accountCreateError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-account-create-field="accountCode">
+          <span>账户编码</span>
+          <input id="accountCreateCodeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-account-create-field="name">
+          <span>账户名称</span>
+          <input id="accountCreateNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-account-create-field="accountType">
+          <span>账户类型</span>
+          <select id="accountCreateTypeSelect"></select>
+        </label>
+
+        <label class="field" data-account-create-field="currency">
+          <span>币种</span>
+          <select id="accountCreateCurrencySelect"></select>
+        </label>
+
+        <label class="field" data-account-create-field="businessEntity">
+          <span>业务归属</span>
+          <select id="accountCreateBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-account-create-field="companyAccount">
+          <span>公司账户</span>
+          <select id="accountCreateCompanySelect">
+            <option value="false">否</option>
+            <option value="true">是</option>
+          </select>
+        </label>
+
+        <label class="field" data-account-create-field="active">
+          <span>启用状态</span>
+          <select id="accountCreateActiveSelect">
+            <option value="true">启用</option>
+            <option value="false">停用</option>
+          </select>
+        </label>
+
+        <div class="dialog-summary">
+          <div class="dialog-summary-row">
+            <span class="dialog-summary-label">期初余额</span>
+            <span>0</span>
+          </div>
+          <div class="dialog-summary-row">
+            <span class="dialog-summary-label">当前余额</span>
+            <span>0</span>
+          </div>
+        </div>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="accountCreateNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button" id="accountCreateCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="accountCreateSubmitButton" type="button">新增</button>
+        </div>
+      </section>
     </div>
 
     <div id="accountProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -285,6 +359,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.40.0-account-profile-update-full-autopilot-20260607"></script>
+    <script type="module" src="./js/account-app.js?v=v2.48.0-account-create-full-autopilot-20260607"></script>
   </body>
 </html>

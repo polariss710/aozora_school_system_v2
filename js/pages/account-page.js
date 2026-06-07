@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createAccountAdjustment,
+  createAccountProfile,
   createAccountTransfer,
   fetchAccountTransactions,
   fetchAccountTransactionTypes,
@@ -65,12 +66,23 @@ const ACCOUNT_TYPE_LABELS = {
 };
 
 const EDITABLE_ACCOUNT_TYPE_OPTIONS = ["cash", "bank", "wallet", "receivable", "payable", "other"];
+const EDITABLE_ACCOUNT_CURRENCY_OPTIONS = ["JPY", "CNY"];
+const ACCOUNT_CREATE_FIELD_IDS = [
+  "accountCode",
+  "name",
+  "accountType",
+  "currency",
+  "businessEntity",
+  "companyAccount",
+  "active",
+];
 
 const dom = {};
 let accounts = [];
 let businessEntities = [];
 let transactions = [];
 let editingAccount = null;
+let isAccountCreateSubmitting = false;
 let isAccountProfileSubmitting = false;
 let isAdjustmentSubmitting = false;
 let isTransferSubmitting = false;
@@ -112,6 +124,19 @@ function cacheDom() {
   dom.transactionLoadingState = document.querySelector("#accountTransactionLoadingState");
   dom.transactionEmptyState = document.querySelector("#accountTransactionEmptyState");
   dom.transactionCount = document.querySelector("#accountTransactionCount");
+  dom.openAccountCreateButton = document.querySelector("#openAccountCreateButton");
+  dom.accountCreateDialog = document.querySelector("#accountCreateDialog");
+  dom.accountCreateError = document.querySelector("#accountCreateError");
+  dom.accountCreateCodeInput = document.querySelector("#accountCreateCodeInput");
+  dom.accountCreateNameInput = document.querySelector("#accountCreateNameInput");
+  dom.accountCreateTypeSelect = document.querySelector("#accountCreateTypeSelect");
+  dom.accountCreateCurrencySelect = document.querySelector("#accountCreateCurrencySelect");
+  dom.accountCreateBusinessEntitySelect = document.querySelector("#accountCreateBusinessEntitySelect");
+  dom.accountCreateCompanySelect = document.querySelector("#accountCreateCompanySelect");
+  dom.accountCreateActiveSelect = document.querySelector("#accountCreateActiveSelect");
+  dom.accountCreateNoteInput = document.querySelector("#accountCreateNoteInput");
+  dom.accountCreateCancelButton = document.querySelector("#accountCreateCancelButton");
+  dom.accountCreateSubmitButton = document.querySelector("#accountCreateSubmitButton");
   dom.accountProfileDialog = document.querySelector("#accountProfileDialog");
   dom.accountProfileSummary = document.querySelector("#accountProfileSummary");
   dom.accountProfileError = document.querySelector("#accountProfileError");
@@ -158,6 +183,38 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     loadAccountData();
+  });
+
+  dom.openAccountCreateButton.addEventListener("click", openAccountCreateDialog);
+  dom.accountCreateCancelButton.addEventListener("click", closeAccountCreateDialog);
+  dom.accountCreateSubmitButton.addEventListener("click", submitAccountCreate);
+  dom.accountCreateCodeInput.addEventListener("input", () => {
+    clearAccountCreateFieldInvalid("accountCode");
+    hideAccountCreateErrorIfClean();
+  });
+  dom.accountCreateNameInput.addEventListener("input", () => {
+    clearAccountCreateFieldInvalid("name");
+    hideAccountCreateErrorIfClean();
+  });
+  dom.accountCreateTypeSelect.addEventListener("change", () => {
+    clearAccountCreateFieldInvalid("accountType");
+    hideAccountCreateErrorIfClean();
+  });
+  dom.accountCreateCurrencySelect.addEventListener("change", () => {
+    clearAccountCreateFieldInvalid("currency");
+    hideAccountCreateErrorIfClean();
+  });
+  dom.accountCreateBusinessEntitySelect.addEventListener("change", () => {
+    clearAccountCreateFieldInvalid("businessEntity");
+    hideAccountCreateErrorIfClean();
+  });
+  dom.accountCreateCompanySelect.addEventListener("change", () => {
+    clearAccountCreateFieldInvalid("companyAccount");
+    hideAccountCreateErrorIfClean();
+  });
+  dom.accountCreateActiveSelect.addEventListener("change", () => {
+    clearAccountCreateFieldInvalid("active");
+    hideAccountCreateErrorIfClean();
   });
 
   dom.accountGrid.addEventListener("click", (event) => {
@@ -453,6 +510,194 @@ function renderAccounts(items) {
       </dl>
     </article>
   `).join("");
+}
+
+function openAccountCreateDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  clearAccountCreateErrors();
+  setAccountCreateSubmitting(false);
+  dom.accountCreateCodeInput.value = "";
+  dom.accountCreateNameInput.value = "";
+  renderAccountCreateTypeOptions("bank");
+  renderAccountCreateCurrencyOptions("JPY");
+  renderAccountCreateBusinessEntityOptions(businessEntities.filter((entity) => entity.is_active !== false));
+  dom.accountCreateCompanySelect.value = "false";
+  dom.accountCreateActiveSelect.value = "true";
+  dom.accountCreateNoteInput.value = "";
+  dom.accountCreateDialog.classList.remove("is-hidden");
+  dom.accountCreateDialog.setAttribute("aria-hidden", "false");
+  dom.accountCreateCodeInput.focus();
+}
+
+function closeAccountCreateDialog({ force = false } = {}) {
+  if (isAccountCreateSubmitting && !force) {
+    return;
+  }
+
+  dom.accountCreateDialog.classList.add("is-hidden");
+  dom.accountCreateDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitAccountCreate() {
+  if (isAccountCreateSubmitting) {
+    return;
+  }
+
+  clearAccountCreateErrors();
+
+  const payload = {
+    accountCode: dom.accountCreateCodeInput.value.trim(),
+    name: dom.accountCreateNameInput.value.trim(),
+    accountType: dom.accountCreateTypeSelect.value,
+    currency: dom.accountCreateCurrencySelect.value,
+    businessEntityId: dom.accountCreateBusinessEntitySelect.value,
+    isCompanyAccount: dom.accountCreateCompanySelect.value === "true",
+    isActive: dom.accountCreateActiveSelect.value === "true",
+    note: dom.accountCreateNoteInput.value.trim(),
+  };
+
+  if (!payload.accountCode) {
+    showAccountCreateError("请输入账户编码。", ["accountCode"]);
+    return;
+  }
+
+  if (!payload.name) {
+    showAccountCreateError("请输入账户名称。", ["name"]);
+    return;
+  }
+
+  if (!EDITABLE_ACCOUNT_TYPE_OPTIONS.includes(payload.accountType)) {
+    showAccountCreateError("请选择有效账户类型。", ["accountType"]);
+    return;
+  }
+
+  if (!EDITABLE_ACCOUNT_CURRENCY_OPTIONS.includes(payload.currency)) {
+    showAccountCreateError("请选择有效账户币种。", ["currency"]);
+    return;
+  }
+
+  if (!payload.businessEntityId) {
+    showAccountCreateError("请选择业务归属。", ["businessEntity"]);
+    return;
+  }
+
+  if (!businessEntities.some((entity) => entity.id === payload.businessEntityId && entity.is_active !== false)) {
+    showAccountCreateError("请选择有效启用业务归属。", ["businessEntity"]);
+    return;
+  }
+
+  if (!["true", "false"].includes(dom.accountCreateCompanySelect.value)) {
+    showAccountCreateError("请选择公司账户标记。", ["companyAccount"]);
+    return;
+  }
+
+  if (!["true", "false"].includes(dom.accountCreateActiveSelect.value)) {
+    showAccountCreateError("请选择启用状态。", ["active"]);
+    return;
+  }
+
+  setAccountCreateSubmitting(true);
+
+  try {
+    const result = await createAccountProfile(payload);
+    closeAccountCreateDialog({ force: true });
+    await refreshAfterAccountCreate(result);
+    showMessage("success", "账户已新增，期初余额和当前余额为 0；余额变动请继续使用账户调整、收入、支出或转账流程。");
+  } catch (error) {
+    showAccountCreateError(`账户新增失败：${error.message || error}`, accountCreateFieldIdsForError(error.message || ""));
+  } finally {
+    setAccountCreateSubmitting(false);
+  }
+}
+
+async function refreshAfterAccountCreate(result) {
+  dom.accountSelect.value = "";
+  dom.businessEntitySelect.value = "";
+  dom.currencySelect.value = "";
+  dom.transactionTypeSelect.value = "";
+  await loadAccountData();
+}
+
+function renderAccountCreateTypeOptions(selectedType) {
+  dom.accountCreateTypeSelect.innerHTML = EDITABLE_ACCOUNT_TYPE_OPTIONS
+    .map((type) => `<option value="${escapeAttribute(type)}">${escapeHtml(accountTypeLabel(type))}</option>`)
+    .join("");
+  dom.accountCreateTypeSelect.value = selectedType || "bank";
+}
+
+function renderAccountCreateCurrencyOptions(selectedCurrency) {
+  dom.accountCreateCurrencySelect.innerHTML = EDITABLE_ACCOUNT_CURRENCY_OPTIONS
+    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+    .join("");
+  dom.accountCreateCurrencySelect.value = selectedCurrency || "JPY";
+}
+
+function renderAccountCreateBusinessEntityOptions(items) {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of items) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
+  }
+  dom.accountCreateBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function setAccountCreateSubmitting(isSubmitting) {
+  isAccountCreateSubmitting = isSubmitting;
+  dom.accountCreateSubmitButton.disabled = isSubmitting;
+  dom.accountCreateCancelButton.disabled = isSubmitting;
+  dom.accountCreateSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
+}
+
+function clearAccountCreateErrors() {
+  dom.accountCreateError.textContent = "";
+  dom.accountCreateError.classList.add("is-hidden");
+  for (const fieldId of ACCOUNT_CREATE_FIELD_IDS) {
+    clearAccountCreateFieldInvalid(fieldId);
+  }
+}
+
+function showAccountCreateError(message, fieldIds = []) {
+  dom.accountCreateError.textContent = message;
+  dom.accountCreateError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setAccountCreateFieldInvalid(fieldId, true);
+  }
+  dom.accountCreateDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function accountCreateFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("编码")) fields.push("accountCode");
+  if (text.includes("名称")) fields.push("name");
+  if (text.includes("类型")) fields.push("accountType");
+  if (text.includes("币种")) fields.push("currency");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("公司账户")) fields.push("companyAccount");
+  if (text.includes("启用状态")) fields.push("active");
+  return fields;
+}
+
+function setAccountCreateFieldInvalid(fieldId, invalid) {
+  const field = dom.accountCreateDialog.querySelector(`[data-account-create-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function clearAccountCreateFieldInvalid(fieldId) {
+  setAccountCreateFieldInvalid(fieldId, false);
+}
+
+function hideAccountCreateErrorIfClean() {
+  const hasInvalidField = Boolean(dom.accountCreateDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.accountCreateError.textContent = "";
+    dom.accountCreateError.classList.add("is-hidden");
+  }
 }
 
 function openAccountProfileDialog(accountId) {

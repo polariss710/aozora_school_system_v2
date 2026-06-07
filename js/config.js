@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.47.0-business-entity-create-full-autopilot-20260607";
+export const APP_VERSION = "v2.48.0-account-create-full-autopilot-20260607";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,
