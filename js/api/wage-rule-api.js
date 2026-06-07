@@ -185,6 +185,25 @@ export async function updateWageRuleConfig(payload) {
   return result;
 }
 
+export async function setWageRuleActiveState(payload) {
+  const { data, error } = await supabase.rpc("school_set_teacher_wage_rule_active_state", {
+    p_wage_rule_id: payload.wageRuleId,
+    p_is_active: payload.isActive,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("老师工资规则状态更新失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 async function fetchWageRule(wageRuleId) {
   const { data, error } = await supabase
     .from("school_teacher_wage_rules")

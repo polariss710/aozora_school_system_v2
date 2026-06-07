@@ -3,6 +3,7 @@ import {
   createWageRuleConfig,
   fetchWageRuleLookups,
   fetchWageRules,
+  setWageRuleActiveState,
   updateWageRuleConfig,
 } from "../api/wage-rule-api.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
@@ -53,8 +54,10 @@ let students = [];
 let subjects = [];
 let businessEntities = [];
 let editingWageRule = null;
+let activeStateTargetRule = null;
 let isCreateSubmitting = false;
 let isEditSubmitting = false;
+let isActiveStateSubmitting = false;
 
 export function initWageRulePage() {
   cacheDom();
@@ -119,6 +122,15 @@ function cacheDom() {
   dom.editNoteInput = document.querySelector("#editWageRuleNoteInput");
   dom.editSubmitButton = document.querySelector("#editWageRuleSubmitButton");
   dom.editCancelButton = document.querySelector("#editWageRuleCancelButton");
+  dom.activeStateDialog = document.querySelector("#wageRuleActiveStateDialog");
+  dom.activeStateTitle = document.querySelector("#wageRuleActiveStateTitle");
+  dom.activeStateDescription = document.querySelector("#wageRuleActiveStateDescription");
+  dom.activeStateSummary = document.querySelector("#wageRuleActiveStateSummary");
+  dom.activeStateError = document.querySelector("#wageRuleActiveStateError");
+  dom.activeStateNoteInput = document.querySelector("#wageRuleActiveStateNoteInput");
+  dom.activeStateConfirmCheck = document.querySelector("#wageRuleActiveStateConfirmCheck");
+  dom.activeStateSubmitButton = document.querySelector("#wageRuleActiveStateSubmitButton");
+  dom.activeStateCancelButton = document.querySelector("#wageRuleActiveStateCancelButton");
 }
 
 function bindEvents() {
@@ -154,16 +166,24 @@ function bindEvents() {
   });
 
   dom.tableBody.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-edit-wage-rule-id]");
-    if (!button) {
+    const editButton = event.target.closest("[data-edit-wage-rule-id]");
+    if (editButton) {
+      openEditDialog(editButton.dataset.editWageRuleId);
       return;
     }
 
-    openEditDialog(button.dataset.editWageRuleId);
+    const activeStateButton = event.target.closest("[data-active-state-wage-rule-id]");
+    if (activeStateButton) {
+      openActiveStateDialog(activeStateButton.dataset.activeStateWageRuleId);
+    }
   });
 
   dom.editCancelButton.addEventListener("click", closeEditDialog);
   dom.editSubmitButton.addEventListener("click", submitEditDialog);
+  dom.activeStateCancelButton.addEventListener("click", closeActiveStateDialog);
+  dom.activeStateSubmitButton.addEventListener("click", submitActiveStateDialog);
+  dom.activeStateNoteInput.addEventListener("input", hideActiveStateErrorIfClean);
+  dom.activeStateConfirmCheck.addEventListener("change", hideActiveStateErrorIfClean);
 
   [
     dom.editSettlementTypeSelect,
@@ -303,6 +323,7 @@ function renderWageRules(rows) {
       <tr>
         <td class="wage-rule-nowrap"><a class="table-action-button" href="./wage-rule-detail.html?id=${encodeURIComponent(rule.id)}">详情</a></td>
         <td class="wage-rule-nowrap"><button class="button table-action-button" type="button" data-edit-wage-rule-id="${escapeAttribute(rule.id)}">编辑</button></td>
+        <td class="wage-rule-nowrap">${renderActiveStateAction(rule)}</td>
         <td>${escapeHtml(teacherNameById(rule.teacher_id))}</td>
         <td>${escapeHtml(displayValue(teacher?.department))}</td>
         <td><span class="status-badge status-neutral">${escapeHtml(teacherStatusLabel(teacher?.status))}</span></td>
@@ -458,6 +479,7 @@ function openEditDialog(wageRuleId) {
   dom.editTransportFeeJpyInput.value = displayNumberInput(rule.transport_fee_jpy);
   dom.editClassroomFeeJpyInput.value = displayNumberInput(rule.classroom_fee_jpy);
   dom.editActiveSelect.value = rule.is_active === false ? "inactive" : "active";
+  dom.editActiveSelect.disabled = true;
   dom.editNoteInput.value = rule.note || "";
   clearEditErrors();
   setEditSubmitting(false);
@@ -465,6 +487,76 @@ function openEditDialog(wageRuleId) {
   dom.editDialog.classList.remove("is-hidden");
   dom.editDialog.setAttribute("aria-hidden", "false");
   dom.editSettlementTypeSelect.focus();
+}
+
+function openActiveStateDialog(wageRuleId) {
+  const rule = wageRules.find((item) => item.id === wageRuleId);
+  if (!rule) {
+    showMessage("error", "没有找到要更新状态的老师工资规则。");
+    return;
+  }
+
+  activeStateTargetRule = rule;
+  clearActiveStateErrors();
+  const willActivate = rule.is_active === false;
+  dom.activeStateTitle.textContent = willActivate ? "恢复工资规则" : "停用工资规则";
+  dom.activeStateDescription.textContent = willActivate
+    ? "恢复后该规则会重新参与未来工资规则匹配；不会重算历史工资锁定，也不会修改支付、支出或账户流水。"
+    : "停用后该规则不会参与未来工资规则匹配；历史工资锁定、支付请求、支出和账户流水都会保留。";
+  dom.activeStateSummary.innerHTML = renderActiveStateSummary(rule);
+  dom.activeStateNoteInput.value = activeStateDefaultNote(rule, willActivate);
+  dom.activeStateConfirmCheck.checked = false;
+  setActiveStateSubmitting(false);
+  dom.activeStateDialog.classList.remove("is-hidden");
+  dom.activeStateDialog.setAttribute("aria-hidden", "false");
+  dom.activeStateNoteInput.focus();
+}
+
+function closeActiveStateDialog({ force = false } = {}) {
+  if (isActiveStateSubmitting && !force) {
+    return;
+  }
+
+  activeStateTargetRule = null;
+  dom.activeStateDialog.classList.add("is-hidden");
+  dom.activeStateDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitActiveStateDialog() {
+  if (isActiveStateSubmitting) {
+    return;
+  }
+
+  clearActiveStateErrors();
+
+  if (!activeStateTargetRule) {
+    showActiveStateError("没有找到要更新状态的老师工资规则。");
+    return;
+  }
+
+  if (!dom.activeStateConfirmCheck.checked) {
+    showActiveStateError("请先勾选确认说明。", ["confirmCheck"]);
+    return;
+  }
+
+  const payload = {
+    wageRuleId: activeStateTargetRule.id,
+    isActive: activeStateTargetRule.is_active === false,
+    note: dom.activeStateNoteInput.value.trim(),
+  };
+
+  setActiveStateSubmitting(true);
+
+  try {
+    await setWageRuleActiveState(payload);
+    closeActiveStateDialog({ force: true });
+    await loadWageRuleData();
+    showMessage("success", payload.isActive ? "老师工资规则已恢复；仅影响未来工资锁定。" : "老师工资规则已停用；历史数据已保留。");
+  } catch (error) {
+    showActiveStateError(error.message || String(error));
+  } finally {
+    setActiveStateSubmitting(false);
+  }
 }
 
 function closeEditDialog({ force = false } = {}) {
@@ -578,6 +670,77 @@ function renderEditSummary(rule) {
       `).join("")}
     </dl>
   `;
+}
+
+function renderActiveStateAction(rule) {
+  const isInactive = rule.is_active === false;
+  const label = isInactive ? "恢复" : "停用";
+  const buttonClass = isInactive ? "button table-action-button" : "button button-danger table-action-button";
+  return `<button class="${buttonClass}" type="button" data-active-state-wage-rule-id="${escapeAttribute(rule.id)}">${escapeHtml(label)}</button>`;
+}
+
+function renderActiveStateSummary(rule) {
+  const rows = [
+    ["老师", teacherNameById(rule.teacher_id)],
+    ["学生", studentNameById(rule.student_id)],
+    ["科目", subjectNameById(rule.subject_id)],
+    ["业务归属", businessNameById(rule.business_entity_id)],
+    ["当前状态", activeLabel(rule.is_active)],
+    ["结算类型", settlementTypeLabel(rule.settlement_type)],
+    ["当前备注", displayValue(rule.note)],
+  ];
+
+  return `
+    <dl class="detail-definition-list">
+      ${rows.map(([label, value]) => `
+        <div>
+          <dt>${escapeHtml(label)}</dt>
+          <dd>${escapeHtml(displayValue(value))}</dd>
+        </div>
+      `).join("")}
+    </dl>
+  `;
+}
+
+function activeStateDefaultNote(rule, willActivate) {
+  return safeText(rule.note);
+}
+
+function showActiveStateError(message, fieldIds = []) {
+  dom.activeStateError.textContent = message;
+  dom.activeStateError.classList.remove("is-hidden");
+  fieldIds.forEach(setActiveStateFieldInvalid);
+}
+
+function clearActiveStateErrors() {
+  dom.activeStateError.textContent = "";
+  dom.activeStateError.classList.add("is-hidden");
+  clearActiveStateFieldInvalid("confirmCheck");
+}
+
+function hideActiveStateErrorIfClean() {
+  const hasInvalidField = dom.activeStateDialog.querySelector(".field.is-invalid");
+  if (!hasInvalidField) {
+    dom.activeStateError.textContent = "";
+    dom.activeStateError.classList.add("is-hidden");
+  }
+}
+
+function setActiveStateFieldInvalid(fieldId) {
+  const field = dom.activeStateDialog.querySelector(`[data-wage-rule-active-state-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearActiveStateFieldInvalid(fieldId) {
+  const field = dom.activeStateDialog.querySelector(`[data-wage-rule-active-state-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setActiveStateSubmitting(isSubmitting) {
+  isActiveStateSubmitting = isSubmitting;
+  dom.activeStateSubmitButton.disabled = isSubmitting;
+  dom.activeStateCancelButton.disabled = isSubmitting;
+  dom.activeStateSubmitButton.textContent = isSubmitting ? "处理中..." : "确认";
 }
 
 function handleEditFieldChange(event) {

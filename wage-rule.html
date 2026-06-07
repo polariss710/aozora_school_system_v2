@@ -127,6 +127,7 @@
                 <tr>
                   <th>详情</th>
                   <th>编辑</th>
+                  <th>停用 / 恢复</th>
                   <th>老师</th>
                   <th>老师分类</th>
                   <th>老师状态</th>
@@ -240,7 +241,7 @@
       <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="editWageRuleConfigTitle">编辑工资规则基础配置</h2>
-          <p class="section-note">仅允许编辑结算类型、费率、汇率、费用、启用状态和备注；老师、学生、科目、业务归属不可编辑。修改只影响未来工资锁定，不重算历史工资。</p>
+          <p class="section-note">仅允许编辑结算类型、费率、汇率、费用和备注；老师、学生、科目、业务归属不可编辑。启用状态请使用列表中的停用 / 恢复操作。修改只影响未来工资锁定，不重算历史工资。</p>
         </div>
 
         <div id="editWageRuleConfigSummary" class="dialog-summary"></div>
@@ -280,7 +281,7 @@
         </label>
 
         <label class="field" data-edit-wage-rule-field="activeState">
-          <span>启用状态</span>
+          <span>启用状态（请用停用 / 恢复操作变更）</span>
           <select id="editWageRuleActiveSelect">
             <option value="active">启用</option>
             <option value="inactive">停用</option>
@@ -301,6 +302,33 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=v2.49.0-wage-rule-create-full-autopilot-20260607"></script>
+    <div id="wageRuleActiveStateDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="wageRuleActiveStateTitle">
+        <div class="section-heading">
+          <h2 id="wageRuleActiveStateTitle">停用工资规则</h2>
+          <p id="wageRuleActiveStateDescription" class="section-note">停用或恢复只影响未来工资规则匹配，不重算历史工资。</p>
+        </div>
+
+        <div id="wageRuleActiveStateSummary" class="dialog-summary"></div>
+        <div id="wageRuleActiveStateError" class="dialog-error is-hidden"></div>
+
+        <label class="field">
+          <span>操作备注</span>
+          <textarea id="wageRuleActiveStateNoteInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-wage-rule-active-state-field="confirmCheck">
+          <input id="wageRuleActiveStateConfirmCheck" type="checkbox">
+          <span>我确认本次操作不删除工资规则，不回算历史工资，不修改工资锁定、支付请求、支出或账户流水。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="wageRuleActiveStateSubmitButton" type="button">确认</button>
+          <button class="button" id="wageRuleActiveStateCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/wage-rule-app.js?v=v2.52.0-wage-rule-soft-disable-restore-20260607"></script>
   </body>
 </html>
