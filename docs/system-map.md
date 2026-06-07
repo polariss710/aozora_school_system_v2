@@ -1,12 +1,12 @@
 # v2 System Map
 
-Status date: 2026-06-06
+Status date: 2026-06-07
 
 Reference baseline:
 
-- Latest repo commit reviewed: `4e54288`
-- Final code checkpoint noted in status docs: `a94c319`
-- This map reflects the current repository state, including document/backup checkpoints after the final code checkpoint.
+- Latest repo commit reviewed: `83a603a`
+- Final checkpoint noted in status docs: `83a603a`
+- This map reflects the current repository state after the master-data create/edit checkpoint.
 
 ## Global Boundaries
 
@@ -33,7 +33,7 @@ Reference baseline:
 | 老师工资结算 | `wage.html`, `wage-detail.html`, `js/pages/wage-page.js`, `js/pages/wage-detail-page.js`, `js/api/wage-api.js`, `js/api/wage-detail-api.js` | Read-only list and detail are complete. | `school_teacher_wage_locks`, `school_teacher_wage_lock_details`, `school_payment_requests`, `school_teachers`, `school_business_entities` | None from this module. Payment actions are handled by 老师工资支付, not wage detail. | Must not recalculate wage locks from current rules or lessons, edit wage lock details, or change payment status from wage detail. | Wage detail shows saved wage lock snapshot and related payment requests. Payment request detail handles payment chain display. | Any future wage lock generation/voiding flow needs a separate full write-RPC phase. |
 | 学生月度结算 | `settlement.html`, `settlement-detail.html`, `js/pages/settlement-page.js`, `js/pages/settlement-detail-page.js`, `js/api/settlement-api.js`, `js/api/settlement-detail-api.js` | Read-only list and detail are complete. | `school_student_monthly_settlements`, `school_students`, `school_business_entities`, `school_lesson_records`, `school_income_records`, `school_teachers`, `school_subjects`, `school_accounts` | None from this module. | Must not recalculate settlements from lessons/income/carryover, unlock/relock settlements, or mutate historical settlement rows. | Detail shows saved settlement snapshot plus matching lesson and income references for audit. Income detail may link back to settlement references. | Future settlement generation, adjustment, lock/unlock, or carryover modification requires separate guarded write workflow. |
 | 课时管理 | `lesson.html`, `lesson-detail.html`, `js/pages/lesson-page.js`, `js/pages/lesson-detail-page.js`, `js/api/lesson-api.js`, `js/api/lesson-detail-api.js` | Read-only list and detail are complete. Detail page includes source-chain tracking and settlement/wage references. | `school_lesson_records`, `school_students`, `school_teachers`, `school_subjects`, `school_business_entities`, `school_student_monthly_settlements`, `school_teacher_wage_lock_details`, `school_teacher_wage_locks` | None from this module. | Must not edit lesson records, recalculate student settlements, recalculate teacher wages, or reinterpret planned/actual/makeup chains during read-only detail display. | Lessons feed student settlement references and teacher wage lock details. Lesson detail cross-links settlement and wage evidence. | Future lesson create/edit/import/cancel flows need separate write-RPC design because they affect both student settlement and wage boundaries. |
-| 利润分析 | `profit-summary.html`, `js/pages/profit-summary-page.js`, `js/api/profit-summary-api.js` | Read-only summary and drilldown are complete. Supports month, business entity, and currency filters, plus income/expense detail links. | `school_income_records`, `school_expense_records`, `school_reimbursements`, `school_payment_requests`, `school_account_transactions`, `school_business_entities` | None. | Must not write DB, adjust source records, recalculate payments/settlements/wages, or count audit-only transactions as operating profit. | Effective received income and paid expense drive operating profit by currency. Reversed income/expense are excluded. Teacher wage expense is included through paid expense records. Reimbursements, account adjustments, transfers, and payment requests are audit references. | `current-status.md` notes static and online file checks, but no real local browser interaction test yet. |
+| 利润分析 | `profit-summary.html`, `js/pages/profit-summary-page.js`, `js/api/profit-summary-api.js` | Read-only summary and drilldown are complete. Supports month, business entity, and currency filters, plus income/expense detail links. | `school_income_records`, `school_expense_records`, `school_reimbursements`, `school_payment_requests`, `school_account_transactions`, `school_business_entities` | None. | Must not write DB, adjust source records, recalculate payments/settlements/wages, or count audit-only transactions as operating profit. | Effective received income and paid expense drive operating profit by currency. Reversed income/expense are excluded. Teacher wage expense is included through paid expense records. Reimbursements, account adjustments, transfers, and payment requests are audit references. | Real browser filters/drilldown verification is recorded in `current-status.md`; no write surface exists in this module. |
 
 ## Cross-Module Write Scope Summary
 
@@ -49,6 +49,6 @@ Reference baseline:
 ## Boundary Questions To Recheck Before Future Work
 
 - Payment cancel/restore/reissue actions are present in current UI/API and SQL files, while `current-status.md` only names teacher wage payment confirmation and reversal in the completed write-flow summary. Treat any future change around these status actions as requiring explicit retest against the full write-RPC workflow.
-- Account transfer and profit summary drilldown have static/online checks in status docs, but still need real browser interaction tests with filters.
+- Account transfer/reversal and profit summary filters/drilldown now have real browser verification recorded in `current-status.md`; future changes around these surfaces should retest the same workflows.
 - No standalone account transfer detail page exists; account transaction detail is the current audit surface.
 - No completed write flow currently exists for wage lock generation, settlement generation/adjustment, lesson creation/edit/import, or wage rule deletion.
