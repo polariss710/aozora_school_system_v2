@@ -943,6 +943,9 @@ h2 {
 }
 
 .lesson-pair-placeholder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 8px;
 }
 

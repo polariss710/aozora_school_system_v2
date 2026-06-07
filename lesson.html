@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.55.0-lesson-actual-from-planned-20260607">
+    <link rel="stylesheet" href="./css/app.css?v=v2.56.0-lesson-cancelled-actual-from-planned-20260607">
   </head>
   <body>
     <div class="app-shell">
@@ -330,8 +330,82 @@
           </div>
         </section>
       </div>
+
+      <div class="dialog-backdrop is-hidden" id="createCancelledActualLessonDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createCancelledActualLessonTitle">
+          <div class="section-heading">
+            <h2 id="createCancelledActualLessonTitle">生成取消课时</h2>
+            <p class="section-note">第一版只从单条 planned 生成 cancelled actual，不计费，不修改原 planned，不生成结算、工资、收入、支出或账户流水。</p>
+          </div>
+
+          <div id="createCancelledActualLessonSummary" class="dialog-summary"></div>
+          <div id="createCancelledActualLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <div class="lesson-create-field-grid">
+            <label class="field" data-create-cancelled-actual-lesson-field="lessonDate">
+              <span>取消课日期</span>
+              <input id="createCancelledActualLessonDateInput" type="date">
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <input id="createCancelledActualLessonStatusInput" type="text" value="已取消" readonly>
+            </label>
+
+            <label class="field">
+              <span>计费</span>
+              <input id="createCancelledActualLessonBillableInput" type="text" value="不计费" readonly>
+            </label>
+
+            <label class="field" data-create-cancelled-actual-lesson-field="startTime">
+              <span>开始时间</span>
+              <input id="createCancelledActualLessonStartTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-cancelled-actual-lesson-field="endTime">
+              <span>结束时间</span>
+              <input id="createCancelledActualLessonEndTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-cancelled-actual-lesson-field="durationHours">
+              <span>时长</span>
+              <input id="createCancelledActualLessonDurationInput" type="number" min="0" step="0.25" inputmode="decimal">
+            </label>
+
+            <label class="field" data-create-cancelled-actual-lesson-field="unitPrice">
+              <span>单价 JPY</span>
+              <input id="createCancelledActualLessonUnitPriceInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field">
+              <span>课时费 JPY</span>
+              <input id="createCancelledActualLessonFeeInput" type="number" value="0" readonly>
+            </label>
+
+            <label class="field" data-create-cancelled-actual-lesson-field="lessonCount">
+              <span>回数</span>
+              <input id="createCancelledActualLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>内容</span>
+              <textarea id="createCancelledActualLessonContentInput" rows="3"></textarea>
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>备注</span>
+              <textarea id="createCancelledActualLessonNoteInput" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button button-primary" id="createCancelledActualLessonSubmitButton" type="button">生成取消课</button>
+            <button class="button" id="createCancelledActualLessonCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <script type="module" src="./js/lesson-app.js?v=v2.55.0-lesson-actual-from-planned-20260607"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.56.0-lesson-cancelled-actual-from-planned-20260607"></script>
   </body>
 </html>

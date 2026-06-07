@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createActualLessonFromPlanned,
+  createCancelledActualLessonFromPlanned,
   createPlannedLessonRecord,
   fetchLessonBusinessEntities,
   fetchLessonRecords,
@@ -69,6 +70,15 @@ const CREATE_ACTUAL_LESSON_FIELD_IDS = [
   "lessonCount",
 ];
 
+const CREATE_CANCELLED_ACTUAL_LESSON_FIELD_IDS = [
+  "lessonDate",
+  "startTime",
+  "endTime",
+  "durationHours",
+  "unitPrice",
+  "lessonCount",
+];
+
 const dom = {};
 let students = [];
 let teachers = [];
@@ -82,6 +92,8 @@ let isCreateLessonFeeManual = false;
 let currentActualSourceLesson = null;
 let isCreateActualLessonSubmitting = false;
 let isActualLessonFeeManual = false;
+let currentCancelledActualSourceLesson = null;
+let isCreateCancelledActualLessonSubmitting = false;
 
 export function initLessonPage() {
   cacheDom();
@@ -158,6 +170,20 @@ function cacheDom() {
   dom.createActualLessonNoteInput = document.querySelector("#createActualLessonNoteInput");
   dom.createActualLessonSubmitButton = document.querySelector("#createActualLessonSubmitButton");
   dom.createActualLessonCancelButton = document.querySelector("#createActualLessonCancelButton");
+  dom.createCancelledActualLessonDialog = document.querySelector("#createCancelledActualLessonDialog");
+  dom.createCancelledActualLessonSummary = document.querySelector("#createCancelledActualLessonSummary");
+  dom.createCancelledActualLessonError = document.querySelector("#createCancelledActualLessonError");
+  dom.createCancelledActualLessonDateInput = document.querySelector("#createCancelledActualLessonDateInput");
+  dom.createCancelledActualLessonStartTimeInput = document.querySelector("#createCancelledActualLessonStartTimeInput");
+  dom.createCancelledActualLessonEndTimeInput = document.querySelector("#createCancelledActualLessonEndTimeInput");
+  dom.createCancelledActualLessonDurationInput = document.querySelector("#createCancelledActualLessonDurationInput");
+  dom.createCancelledActualLessonUnitPriceInput = document.querySelector("#createCancelledActualLessonUnitPriceInput");
+  dom.createCancelledActualLessonFeeInput = document.querySelector("#createCancelledActualLessonFeeInput");
+  dom.createCancelledActualLessonCountInput = document.querySelector("#createCancelledActualLessonCountInput");
+  dom.createCancelledActualLessonContentInput = document.querySelector("#createCancelledActualLessonContentInput");
+  dom.createCancelledActualLessonNoteInput = document.querySelector("#createCancelledActualLessonNoteInput");
+  dom.createCancelledActualLessonSubmitButton = document.querySelector("#createCancelledActualLessonSubmitButton");
+  dom.createCancelledActualLessonCancelButton = document.querySelector("#createCancelledActualLessonCancelButton");
 }
 
 function bindEvents() {
@@ -219,11 +245,16 @@ function bindEvents() {
   });
 
   dom.pairRows?.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-generate-actual-id]");
-    if (!button) {
+    const actualButton = event.target.closest("[data-generate-actual-id]");
+    if (actualButton) {
+      openCreateActualLessonDialog(actualButton.dataset.generateActualId || "");
       return;
     }
-    openCreateActualLessonDialog(button.dataset.generateActualId || "");
+
+    const cancelledButton = event.target.closest("[data-generate-cancelled-actual-id]");
+    if (cancelledButton) {
+      openCreateCancelledActualLessonDialog(cancelledButton.dataset.generateCancelledActualId || "");
+    }
   });
 
   dom.createActualLessonCancelButton?.addEventListener("click", () => closeCreateActualLessonDialog());
@@ -258,6 +289,33 @@ function bindEvents() {
   dom.createActualLessonUnitPriceInput?.addEventListener("input", updateCreateActualLessonFeePreview);
   dom.createActualLessonFeeInput?.addEventListener("input", () => {
     isActualLessonFeeManual = dom.createActualLessonFeeInput.value.trim() !== "";
+  });
+
+  dom.createCancelledActualLessonCancelButton?.addEventListener("click", () => closeCreateCancelledActualLessonDialog());
+  dom.createCancelledActualLessonSubmitButton?.addEventListener("click", handleCreateCancelledActualLessonSubmit);
+
+  dom.createCancelledActualLessonDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.createCancelledActualLessonDialog) {
+      closeCreateCancelledActualLessonDialog();
+    }
+  });
+
+  [
+    ["lessonDate", dom.createCancelledActualLessonDateInput],
+    ["startTime", dom.createCancelledActualLessonStartTimeInput],
+    ["endTime", dom.createCancelledActualLessonEndTimeInput],
+    ["durationHours", dom.createCancelledActualLessonDurationInput],
+    ["unitPrice", dom.createCancelledActualLessonUnitPriceInput],
+    ["lessonCount", dom.createCancelledActualLessonCountInput],
+  ].forEach(([fieldId, element]) => {
+    element?.addEventListener("input", () => {
+      clearCreateCancelledActualLessonFieldInvalid(fieldId);
+      hideCreateCancelledActualLessonErrorIfClean();
+    });
+    element?.addEventListener("change", () => {
+      clearCreateCancelledActualLessonFieldInvalid(fieldId);
+      hideCreateCancelledActualLessonErrorIfClean();
+    });
   });
 }
 
@@ -895,6 +953,218 @@ function updateCreateActualLessonFeePreview() {
   dom.createActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
 }
 
+function openCreateCancelledActualLessonDialog(plannedLessonId) {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能生成取消课时。");
+    return;
+  }
+
+  const plannedLesson = lessonRecords.find((record) => record.id === plannedLessonId);
+  if (!plannedLesson || plannedLesson.lesson_type !== "planned") {
+    showMessage("error", "未找到可生成取消 actual 的 planned 课时。");
+    return;
+  }
+
+  if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
+    showMessage("error", "当前 planned 状态不能生成 cancelled actual。");
+    return;
+  }
+
+  currentCancelledActualSourceLesson = plannedLesson;
+  resetCreateCancelledActualLessonForm(plannedLesson);
+  renderCreateCancelledActualLessonSummary(plannedLesson);
+  clearCreateCancelledActualLessonErrors();
+  setCreateCancelledActualLessonSubmitting(false);
+  dom.createCancelledActualLessonDialog.classList.remove("is-hidden");
+  dom.createCancelledActualLessonDialog.setAttribute("aria-hidden", "false");
+  dom.createCancelledActualLessonDateInput.focus();
+}
+
+function closeCreateCancelledActualLessonDialog(force = false) {
+  if (isCreateCancelledActualLessonSubmitting && !force) {
+    return;
+  }
+
+  dom.createCancelledActualLessonDialog.classList.add("is-hidden");
+  dom.createCancelledActualLessonDialog.setAttribute("aria-hidden", "true");
+}
+
+function resetCreateCancelledActualLessonForm(plannedLesson) {
+  dom.createCancelledActualLessonDateInput.value = safeText(plannedLesson.lesson_date);
+  dom.createCancelledActualLessonStartTimeInput.value = formatInputTime(plannedLesson.start_time);
+  dom.createCancelledActualLessonEndTimeInput.value = formatInputTime(plannedLesson.end_time);
+  dom.createCancelledActualLessonDurationInput.value = displayInputNumber(plannedLesson.duration_hours);
+  dom.createCancelledActualLessonUnitPriceInput.value = displayInputNumber(plannedLesson.unit_price || 0);
+  dom.createCancelledActualLessonFeeInput.value = "0";
+  dom.createCancelledActualLessonCountInput.value = plannedLesson.lesson_count ? String(plannedLesson.lesson_count) : "";
+  dom.createCancelledActualLessonContentInput.value = safeText(plannedLesson.lesson_content);
+  dom.createCancelledActualLessonNoteInput.value = safeText(plannedLesson.note);
+}
+
+function renderCreateCancelledActualLessonSummary(plannedLesson) {
+  dom.createCancelledActualLessonSummary.innerHTML = [
+    ["planned id", shortId(plannedLesson.id)],
+    ["学生", nameById(students, plannedLesson.student_id, studentName)],
+    ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
+    ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
+    ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
+    ["学生结算月", formatMonth(plannedLesson.year_month)],
+    ["取消课口径", "不计费 / 课时费 0 / 实际分钟 0"],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("");
+}
+
+async function handleCreateCancelledActualLessonSubmit() {
+  if (isCreateCancelledActualLessonSubmitting) {
+    return;
+  }
+
+  clearCreateCancelledActualLessonErrors();
+  const payload = readCreateCancelledActualLessonPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreateCancelledActualLessonSubmitting(true);
+
+  try {
+    const createdLesson = await createCancelledActualLessonFromPlanned(payload);
+    closeCreateCancelledActualLessonDialog(true);
+    await refreshAfterCreateCancelledActualLesson(createdLesson);
+    showMessage("success", `取消课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
+  } catch (error) {
+    const message = error.message || String(error);
+    showCreateCancelledActualLessonError(message, createCancelledActualLessonFieldIdsForError(message));
+  } finally {
+    setCreateCancelledActualLessonSubmitting(false);
+  }
+}
+
+function readCreateCancelledActualLessonPayload() {
+  if (!currentCancelledActualSourceLesson) {
+    showCreateCancelledActualLessonError("缺少来源 planned 课时，请重新打开生成窗口。");
+    return null;
+  }
+
+  const lessonDate = dom.createCancelledActualLessonDateInput.value;
+  const startTime = dom.createCancelledActualLessonStartTimeInput.value;
+  const endTime = dom.createCancelledActualLessonEndTimeInput.value;
+  const durationHours = numberFromInput(dom.createCancelledActualLessonDurationInput.value);
+  const unitPrice = numberFromInput(dom.createCancelledActualLessonUnitPriceInput.value);
+  const lessonCount = nullableIntegerFromInput(dom.createCancelledActualLessonCountInput.value);
+  const invalidFields = [];
+
+  if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
+  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
+  if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
+
+  if (invalidFields.length) {
+    showCreateCancelledActualLessonError("请检查取消课时表单中的必填项和数字格式。", invalidFields);
+    return null;
+  }
+
+  return {
+    plannedLessonId: currentCancelledActualSourceLesson.id,
+    lessonDate,
+    startTime,
+    endTime,
+    durationHours,
+    unitPrice,
+    lessonCount,
+    lessonContent: dom.createCancelledActualLessonContentInput.value.trim(),
+    note: dom.createCancelledActualLessonNoteInput.value.trim(),
+  };
+}
+
+async function refreshAfterCreateCancelledActualLesson(createdLesson) {
+  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
+  if (createdMonth) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
+  }
+
+  dom.lessonTypeSelect.value = "";
+  dom.statusSelect.value = "";
+  dom.billableSelect.value = "";
+  dom.keywordInput.value = "";
+
+  await loadLessonMonth(createdMonth);
+  renderDataOptions(lessonRecords);
+  restoreFilterSelections({
+    month: createdMonth,
+    studentId: createdLesson.student_id || currentCancelledActualSourceLesson?.student_id || "",
+    teacherId: "",
+    subjectId: "",
+    businessEntityId: "",
+    lessonType: "",
+    status: "",
+    isBillable: "",
+    keyword: "",
+  });
+  setActiveView("pair");
+  applyCurrentFilters();
+}
+
+function setCreateCancelledActualLessonSubmitting(isSubmitting) {
+  isCreateCancelledActualLessonSubmitting = isSubmitting;
+  dom.createCancelledActualLessonSubmitButton.disabled = isSubmitting;
+  dom.createCancelledActualLessonCancelButton.disabled = isSubmitting;
+  dom.openCreatePlannedLessonButton.disabled = isSubmitting;
+  dom.createCancelledActualLessonSubmitButton.textContent = isSubmitting ? "生成中..." : "生成取消课";
+}
+
+function clearCreateCancelledActualLessonErrors() {
+  dom.createCancelledActualLessonError.textContent = "";
+  dom.createCancelledActualLessonError.classList.add("is-hidden");
+  for (const fieldId of CREATE_CANCELLED_ACTUAL_LESSON_FIELD_IDS) {
+    clearCreateCancelledActualLessonFieldInvalid(fieldId);
+  }
+}
+
+function showCreateCancelledActualLessonError(message, fieldIds = []) {
+  dom.createCancelledActualLessonError.textContent = message;
+  dom.createCancelledActualLessonError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreateCancelledActualLessonFieldInvalid(fieldId, true);
+  }
+  dom.createCancelledActualLessonDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function createCancelledActualLessonFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("日期") || text.includes("学生月度结算") || text.includes("老师工资月份")) fields.push("lessonDate");
+  if (text.includes("开始时间")) fields.push("startTime");
+  if (text.includes("结束时间")) fields.push("endTime");
+  if (text.includes("时长")) fields.push("durationHours");
+  if (text.includes("单价")) fields.push("unitPrice");
+  if (text.includes("回数")) fields.push("lessonCount");
+  return fields;
+}
+
+function setCreateCancelledActualLessonFieldInvalid(fieldId, invalid) {
+  const field = dom.createCancelledActualLessonDialog.querySelector(`[data-create-cancelled-actual-lesson-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearCreateCancelledActualLessonFieldInvalid(fieldId) {
+  setCreateCancelledActualLessonFieldInvalid(fieldId, false);
+}
+
+function hideCreateCancelledActualLessonErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createCancelledActualLessonDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.createCancelledActualLessonError.textContent = "";
+    dom.createCancelledActualLessonError.classList.add("is-hidden");
+  }
+}
+
 function renderValueOptions(selectEl, values, labelGetter) {
   const options = ['<option value="">全部</option>'];
 
@@ -1068,7 +1338,10 @@ function renderOtherLessonRow(record) {
 function renderMissingActualCard(planned) {
   const statusText = planned.status === "pending_makeup" ? "待补课，尚无 actual 记录" : "尚无 actual 记录";
   const actionHtml = canGenerateActualFromPlanned(planned)
-    ? `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成 actual</button>`
+    ? [
+        `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成 actual</button>`,
+        `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">标记取消</button>`,
+      ].join("")
     : "";
   return `
     <div class="lesson-pair-placeholder">
