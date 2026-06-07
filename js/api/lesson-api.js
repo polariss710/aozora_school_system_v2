@@ -97,3 +97,33 @@ export async function fetchLessonBusinessEntities() {
 
   return data || [];
 }
+
+export async function createPlannedLessonRecord(payload) {
+  const { data, error } = await supabase.rpc("school_create_planned_lesson_record", {
+    p_lesson_date: payload.lessonDate,
+    p_student_id: payload.studentId,
+    p_teacher_id: payload.teacherId,
+    p_subject_id: payload.subjectId,
+    p_business_entity_id: payload.businessEntityId,
+    p_start_time: payload.startTime || null,
+    p_end_time: payload.endTime || null,
+    p_duration_hours: payload.durationHours,
+    p_unit_price: payload.unitPrice,
+    p_lesson_fee: payload.lessonFee,
+    p_status: payload.status,
+    p_lesson_count: payload.lessonCount,
+    p_lesson_content: payload.lessonContent || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("预定课时新增失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}

@@ -1,6 +1,7 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createPlannedLessonRecord,
   fetchLessonBusinessEntities,
   fetchLessonRecords,
   fetchLessonStudents,
@@ -42,6 +43,21 @@ const LESSON_STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+const CREATE_PLANNED_LESSON_FIELD_IDS = [
+  "lessonDate",
+  "status",
+  "student",
+  "teacher",
+  "subject",
+  "businessEntity",
+  "startTime",
+  "endTime",
+  "durationHours",
+  "unitPrice",
+  "lessonFee",
+  "lessonCount",
+];
+
 const dom = {};
 let students = [];
 let teachers = [];
@@ -50,6 +66,8 @@ let businessEntities = [];
 let lessonRecords = [];
 let loadedMonth = "";
 let activeView = "list";
+let isCreatePlannedLessonSubmitting = false;
+let isCreateLessonFeeManual = false;
 
 export function initLessonPage() {
   cacheDom();
@@ -86,6 +104,7 @@ function cacheDom() {
   dom.resetButton = document.querySelector("#lessonResetButton");
   dom.listViewButton = document.querySelector("#lessonListViewButton");
   dom.pairViewButton = document.querySelector("#lessonPairViewButton");
+  dom.openCreatePlannedLessonButton = document.querySelector("#openCreatePlannedLessonButton");
   dom.listView = document.querySelector("#lessonListView");
   dom.pairView = document.querySelector("#lessonPairView");
   dom.pairRows = document.querySelector("#lessonPairRows");
@@ -93,6 +112,24 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#lessonLoadingState");
   dom.emptyState = document.querySelector("#lessonEmptyState");
   dom.lessonCount = document.querySelector("#lessonCount");
+  dom.createPlannedLessonDialog = document.querySelector("#createPlannedLessonDialog");
+  dom.createPlannedLessonError = document.querySelector("#createPlannedLessonError");
+  dom.createPlannedLessonDateInput = document.querySelector("#createPlannedLessonDateInput");
+  dom.createPlannedLessonStatusSelect = document.querySelector("#createPlannedLessonStatusSelect");
+  dom.createPlannedLessonStudentSelect = document.querySelector("#createPlannedLessonStudentSelect");
+  dom.createPlannedLessonTeacherSelect = document.querySelector("#createPlannedLessonTeacherSelect");
+  dom.createPlannedLessonSubjectSelect = document.querySelector("#createPlannedLessonSubjectSelect");
+  dom.createPlannedLessonBusinessEntitySelect = document.querySelector("#createPlannedLessonBusinessEntitySelect");
+  dom.createPlannedLessonStartTimeInput = document.querySelector("#createPlannedLessonStartTimeInput");
+  dom.createPlannedLessonEndTimeInput = document.querySelector("#createPlannedLessonEndTimeInput");
+  dom.createPlannedLessonDurationInput = document.querySelector("#createPlannedLessonDurationInput");
+  dom.createPlannedLessonUnitPriceInput = document.querySelector("#createPlannedLessonUnitPriceInput");
+  dom.createPlannedLessonFeeInput = document.querySelector("#createPlannedLessonFeeInput");
+  dom.createPlannedLessonCountInput = document.querySelector("#createPlannedLessonCountInput");
+  dom.createPlannedLessonContentInput = document.querySelector("#createPlannedLessonContentInput");
+  dom.createPlannedLessonNoteInput = document.querySelector("#createPlannedLessonNoteInput");
+  dom.createPlannedLessonSubmitButton = document.querySelector("#createPlannedLessonSubmitButton");
+  dom.createPlannedLessonCancelButton = document.querySelector("#createPlannedLessonCancelButton");
 }
 
 function bindEvents() {
@@ -111,6 +148,46 @@ function bindEvents() {
       setActiveView(button.dataset.lessonView || "list");
       applyCurrentFilters();
     });
+  });
+
+  dom.openCreatePlannedLessonButton?.addEventListener("click", openCreatePlannedLessonDialog);
+  dom.createPlannedLessonCancelButton?.addEventListener("click", () => closeCreatePlannedLessonDialog());
+  dom.createPlannedLessonSubmitButton?.addEventListener("click", handleCreatePlannedLessonSubmit);
+
+  dom.createPlannedLessonDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.createPlannedLessonDialog) {
+      closeCreatePlannedLessonDialog();
+    }
+  });
+
+  [
+    ["lessonDate", dom.createPlannedLessonDateInput],
+    ["status", dom.createPlannedLessonStatusSelect],
+    ["student", dom.createPlannedLessonStudentSelect],
+    ["teacher", dom.createPlannedLessonTeacherSelect],
+    ["subject", dom.createPlannedLessonSubjectSelect],
+    ["businessEntity", dom.createPlannedLessonBusinessEntitySelect],
+    ["startTime", dom.createPlannedLessonStartTimeInput],
+    ["endTime", dom.createPlannedLessonEndTimeInput],
+    ["durationHours", dom.createPlannedLessonDurationInput],
+    ["unitPrice", dom.createPlannedLessonUnitPriceInput],
+    ["lessonFee", dom.createPlannedLessonFeeInput],
+    ["lessonCount", dom.createPlannedLessonCountInput],
+  ].forEach(([fieldId, element]) => {
+    element?.addEventListener("input", () => {
+      clearCreatePlannedLessonFieldInvalid(fieldId);
+      hideCreatePlannedLessonErrorIfClean();
+    });
+    element?.addEventListener("change", () => {
+      clearCreatePlannedLessonFieldInvalid(fieldId);
+      hideCreatePlannedLessonErrorIfClean();
+    });
+  });
+
+  dom.createPlannedLessonDurationInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
+  dom.createPlannedLessonUnitPriceInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
+  dom.createPlannedLessonFeeInput?.addEventListener("input", () => {
+    isCreateLessonFeeManual = dom.createPlannedLessonFeeInput.value.trim() !== "";
   });
 }
 
@@ -253,7 +330,11 @@ function renderDataOptions(records) {
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
-  const options = ['<option value="">全部</option>'];
+  renderEntityOptionsWithPlaceholder(selectEl, rows, labelGetter, "全部");
+}
+
+function renderEntityOptionsWithPlaceholder(selectEl, rows, labelGetter, placeholder) {
+  const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
 
   for (const row of rows) {
     options.push(
@@ -262,6 +343,255 @@ function renderEntityOptions(selectEl, rows, labelGetter) {
   }
 
   selectEl.innerHTML = options.join("");
+}
+
+function openCreatePlannedLessonDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能新增预定课时。");
+    return;
+  }
+
+  renderCreatePlannedLessonOptions();
+  resetCreatePlannedLessonForm();
+  clearCreatePlannedLessonErrors();
+  setCreatePlannedLessonSubmitting(false);
+  dom.createPlannedLessonDialog.classList.remove("is-hidden");
+  dom.createPlannedLessonDialog.setAttribute("aria-hidden", "false");
+  dom.createPlannedLessonDateInput.focus();
+}
+
+function closeCreatePlannedLessonDialog(force = false) {
+  if (isCreatePlannedLessonSubmitting && !force) {
+    return;
+  }
+
+  dom.createPlannedLessonDialog.classList.add("is-hidden");
+  dom.createPlannedLessonDialog.setAttribute("aria-hidden", "true");
+}
+
+function renderCreatePlannedLessonOptions() {
+  renderEntityOptionsWithPlaceholder(
+    dom.createPlannedLessonStudentSelect,
+    students.filter((student) => !["inactive", "graduated"].includes(safeText(student.status))),
+    studentName,
+    "请选择学生"
+  );
+  renderEntityOptionsWithPlaceholder(
+    dom.createPlannedLessonTeacherSelect,
+    teachers.filter((teacher) => !["inactive", "retired"].includes(safeText(teacher.status))),
+    teacherName,
+    "请选择老师"
+  );
+  renderEntityOptionsWithPlaceholder(
+    dom.createPlannedLessonSubjectSelect,
+    subjects.filter((subject) => subject.is_active !== false),
+    subjectName,
+    "请选择科目"
+  );
+  renderEntityOptionsWithPlaceholder(
+    dom.createPlannedLessonBusinessEntitySelect,
+    businessEntities.filter((entity) => entity.is_active !== false),
+    businessEntityName,
+    "请选择业务归属"
+  );
+}
+
+function resetCreatePlannedLessonForm() {
+  const selectedMonth = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
+  dom.createPlannedLessonDateInput.value = `${selectedMonth}-01`;
+  dom.createPlannedLessonStatusSelect.value = "planned";
+  dom.createPlannedLessonStudentSelect.value = dom.studentSelect.value || "";
+  dom.createPlannedLessonTeacherSelect.value = dom.teacherSelect.value || "";
+  dom.createPlannedLessonSubjectSelect.value = dom.subjectSelect.value || "";
+  dom.createPlannedLessonBusinessEntitySelect.value = dom.businessEntitySelect.value || "";
+  dom.createPlannedLessonStartTimeInput.value = "";
+  dom.createPlannedLessonEndTimeInput.value = "";
+  dom.createPlannedLessonDurationInput.value = "";
+  dom.createPlannedLessonUnitPriceInput.value = "0";
+  dom.createPlannedLessonFeeInput.value = "";
+  dom.createPlannedLessonCountInput.value = "";
+  dom.createPlannedLessonContentInput.value = "";
+  dom.createPlannedLessonNoteInput.value = "";
+  isCreateLessonFeeManual = false;
+}
+
+async function handleCreatePlannedLessonSubmit() {
+  if (isCreatePlannedLessonSubmitting) {
+    return;
+  }
+
+  clearCreatePlannedLessonErrors();
+  const payload = readCreatePlannedLessonPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreatePlannedLessonSubmitting(true);
+
+  try {
+    const createdLesson = await createPlannedLessonRecord(payload);
+    closeCreatePlannedLessonDialog(true);
+    await refreshAfterCreatePlannedLesson(createdLesson);
+    showMessage("success", `预定课时已新增：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
+  } catch (error) {
+    const message = error.message || String(error);
+    showCreatePlannedLessonError(message, createPlannedLessonFieldIdsForError(message));
+  } finally {
+    setCreatePlannedLessonSubmitting(false);
+  }
+}
+
+function readCreatePlannedLessonPayload() {
+  const lessonDate = dom.createPlannedLessonDateInput.value;
+  const status = dom.createPlannedLessonStatusSelect.value;
+  const studentId = dom.createPlannedLessonStudentSelect.value;
+  const teacherId = dom.createPlannedLessonTeacherSelect.value;
+  const subjectId = dom.createPlannedLessonSubjectSelect.value;
+  const businessEntityId = dom.createPlannedLessonBusinessEntitySelect.value;
+  const startTime = dom.createPlannedLessonStartTimeInput.value;
+  const endTime = dom.createPlannedLessonEndTimeInput.value;
+  const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
+  const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
+  const lessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
+  const lessonCount = nullableIntegerFromInput(dom.createPlannedLessonCountInput.value);
+  const invalidFields = [];
+
+  if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
+  if (!["planned", "pending_makeup"].includes(status)) invalidFields.push("status");
+  if (!studentId) invalidFields.push("student");
+  if (!teacherId) invalidFields.push("teacher");
+  if (!subjectId) invalidFields.push("subject");
+  if (!businessEntityId) invalidFields.push("businessEntity");
+  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
+  if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+  if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
+
+  if (invalidFields.length) {
+    showCreatePlannedLessonError("请检查新增预定课时表单中的必填项和数字格式。", invalidFields);
+    return null;
+  }
+
+  return {
+    lessonDate,
+    status,
+    studentId,
+    teacherId,
+    subjectId,
+    businessEntityId,
+    startTime,
+    endTime,
+    durationHours,
+    unitPrice,
+    lessonFee,
+    lessonCount,
+    lessonContent: dom.createPlannedLessonContentInput.value.trim(),
+    note: dom.createPlannedLessonNoteInput.value.trim(),
+  };
+}
+
+async function refreshAfterCreatePlannedLesson(createdLesson) {
+  const createdMonth = createdLesson.year_month || safeText(createdLesson.lesson_date).slice(0, 7);
+  if (createdMonth) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
+  }
+
+  dom.lessonTypeSelect.value = "";
+  dom.statusSelect.value = "";
+  dom.billableSelect.value = "";
+  dom.keywordInput.value = "";
+
+  await loadLessonMonth(createdMonth || currentYearMonth());
+  renderDataOptions(lessonRecords);
+  restoreFilterSelections({
+    month: createdMonth || loadedMonth,
+    studentId: createdLesson.student_id || "",
+    teacherId: "",
+    subjectId: "",
+    businessEntityId: "",
+    lessonType: "",
+    status: "",
+    isBillable: "",
+    keyword: "",
+  });
+  applyCurrentFilters();
+}
+
+function setCreatePlannedLessonSubmitting(isSubmitting) {
+  isCreatePlannedLessonSubmitting = isSubmitting;
+  dom.createPlannedLessonSubmitButton.disabled = isSubmitting;
+  dom.createPlannedLessonCancelButton.disabled = isSubmitting;
+  dom.openCreatePlannedLessonButton.disabled = isSubmitting;
+  dom.createPlannedLessonSubmitButton.textContent = isSubmitting ? "保存中..." : "新增";
+}
+
+function clearCreatePlannedLessonErrors() {
+  dom.createPlannedLessonError.textContent = "";
+  dom.createPlannedLessonError.classList.add("is-hidden");
+  for (const fieldId of CREATE_PLANNED_LESSON_FIELD_IDS) {
+    clearCreatePlannedLessonFieldInvalid(fieldId);
+  }
+}
+
+function showCreatePlannedLessonError(message, fieldIds = []) {
+  dom.createPlannedLessonError.textContent = message;
+  dom.createPlannedLessonError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreatePlannedLessonFieldInvalid(fieldId, true);
+  }
+  dom.createPlannedLessonDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function createPlannedLessonFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("日期") || text.includes("月份") || text.includes("已锁定")) fields.push("lessonDate");
+  if (text.includes("状态")) fields.push("status");
+  if (text.includes("学生")) fields.push("student");
+  if (text.includes("老师")) fields.push("teacher");
+  if (text.includes("科目")) fields.push("subject");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("开始时间")) fields.push("startTime");
+  if (text.includes("结束时间")) fields.push("endTime");
+  if (text.includes("时长")) fields.push("durationHours");
+  if (text.includes("单价")) fields.push("unitPrice");
+  if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
+  if (text.includes("回数")) fields.push("lessonCount");
+  return fields;
+}
+
+function setCreatePlannedLessonFieldInvalid(fieldId, invalid) {
+  const field = dom.createPlannedLessonDialog.querySelector(`[data-create-planned-lesson-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearCreatePlannedLessonFieldInvalid(fieldId) {
+  setCreatePlannedLessonFieldInvalid(fieldId, false);
+}
+
+function hideCreatePlannedLessonErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createPlannedLessonDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.createPlannedLessonError.textContent = "";
+    dom.createPlannedLessonError.classList.add("is-hidden");
+  }
+}
+
+function updateCreatePlannedLessonFeePreview() {
+  if (isCreateLessonFeeManual) {
+    return;
+  }
+
+  const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
+  const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
+  if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
+    dom.createPlannedLessonFeeInput.value = "";
+    return;
+  }
+
+  dom.createPlannedLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
 }
 
 function renderValueOptions(selectEl, values, labelGetter) {
@@ -688,6 +1018,37 @@ function formatTime(value) {
   }
 
   return text.slice(0, 5);
+}
+
+function isTimeValue(value) {
+  return /^\d{2}:\d{2}$/.test(safeText(value));
+}
+
+function numberFromInput(value) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return Number.NaN;
+  }
+
+  return Number(text);
+}
+
+function nullableNumberFromInput(value) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  return Number(text);
+}
+
+function nullableIntegerFromInput(value) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  return Number(text);
 }
 
 function displayValue(value) {

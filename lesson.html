@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.53.0-lesson-pair-readonly-20260607">
+    <link rel="stylesheet" href="./css/app.css?v=v2.54.0-lesson-planned-create-20260607">
   </head>
   <body>
     <div class="app-shell">
@@ -126,6 +126,7 @@
                 <button class="button view-toggle-button is-active" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="true">普通列表</button>
                 <button class="button view-toggle-button" id="lessonPairViewButton" type="button" data-lesson-view="pair" aria-pressed="false">左右对应</button>
               </div>
+              <button class="button button-primary" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
               <span id="lessonCount" class="record-count">0 条</span>
             </div>
           </div>
@@ -169,8 +170,99 @@
           </div>
         </section>
       </main>
+
+      <div class="dialog-backdrop is-hidden" id="createPlannedLessonDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createPlannedLessonTitle">
+          <div class="section-heading">
+            <h2 id="createPlannedLessonTitle">新增预定课时</h2>
+            <p class="section-note">第一版只新增 planned 预定课时，不生成 actual、工资、结算、收入、支出或账户流水。</p>
+          </div>
+
+          <div id="createPlannedLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <div class="lesson-create-field-grid">
+            <label class="field" data-create-planned-lesson-field="lessonDate">
+              <span>课时日期</span>
+              <input id="createPlannedLessonDateInput" type="date">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="status">
+              <span>状态</span>
+              <select id="createPlannedLessonStatusSelect">
+                <option value="planned">计划</option>
+                <option value="pending_makeup">待补课</option>
+              </select>
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="student">
+              <span>学生</span>
+              <select id="createPlannedLessonStudentSelect"></select>
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="teacher">
+              <span>老师</span>
+              <select id="createPlannedLessonTeacherSelect"></select>
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="subject">
+              <span>科目</span>
+              <select id="createPlannedLessonSubjectSelect"></select>
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="businessEntity">
+              <span>业务归属</span>
+              <select id="createPlannedLessonBusinessEntitySelect"></select>
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="startTime">
+              <span>开始时间</span>
+              <input id="createPlannedLessonStartTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="endTime">
+              <span>结束时间</span>
+              <input id="createPlannedLessonEndTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="durationHours">
+              <span>时长</span>
+              <input id="createPlannedLessonDurationInput" type="number" min="0" step="0.25" inputmode="decimal">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="unitPrice">
+              <span>单价 JPY</span>
+              <input id="createPlannedLessonUnitPriceInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="lessonFee">
+              <span>课时费 JPY</span>
+              <input id="createPlannedLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="lessonCount">
+              <span>回数</span>
+              <input id="createPlannedLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>内容</span>
+              <textarea id="createPlannedLessonContentInput" rows="3"></textarea>
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>备注</span>
+              <textarea id="createPlannedLessonNoteInput" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button button-primary" id="createPlannedLessonSubmitButton" type="button">新增</button>
+            <button class="button" id="createPlannedLessonCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <script type="module" src="./js/lesson-app.js?v=v2.53.0-lesson-pair-readonly-20260607"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.54.0-lesson-planned-create-20260607"></script>
   </body>
 </html>
