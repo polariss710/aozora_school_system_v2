@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.54.0-lesson-planned-create-20260607">
+    <link rel="stylesheet" href="./css/app.css?v=v2.55.0-lesson-actual-from-planned-20260607">
   </head>
   <body>
     <div class="app-shell">
@@ -261,8 +261,77 @@
           </div>
         </section>
       </div>
+
+      <div class="dialog-backdrop is-hidden" id="createActualLessonDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createActualLessonTitle">
+          <div class="section-heading">
+            <h2 id="createActualLessonTitle">生成实际课时</h2>
+            <p class="section-note">第一版只从单条 planned 生成 completed actual，不修改原 planned，不生成结算、工资、收入、支出或账户流水。</p>
+          </div>
+
+          <div id="createActualLessonSummary" class="dialog-summary"></div>
+          <div id="createActualLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <div class="lesson-create-field-grid">
+            <label class="field" data-create-actual-lesson-field="lessonDate">
+              <span>实际课时日期</span>
+              <input id="createActualLessonDateInput" type="date">
+            </label>
+
+            <label class="field">
+              <span>状态</span>
+              <input id="createActualLessonStatusInput" type="text" value="已完成" readonly>
+            </label>
+
+            <label class="field" data-create-actual-lesson-field="startTime">
+              <span>开始时间</span>
+              <input id="createActualLessonStartTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-actual-lesson-field="endTime">
+              <span>结束时间</span>
+              <input id="createActualLessonEndTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-actual-lesson-field="durationHours">
+              <span>时长</span>
+              <input id="createActualLessonDurationInput" type="number" min="0" step="0.25" inputmode="decimal">
+            </label>
+
+            <label class="field" data-create-actual-lesson-field="unitPrice">
+              <span>单价 JPY</span>
+              <input id="createActualLessonUnitPriceInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-create-actual-lesson-field="lessonFee">
+              <span>课时费 JPY</span>
+              <input id="createActualLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-create-actual-lesson-field="lessonCount">
+              <span>回数</span>
+              <input id="createActualLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>内容</span>
+              <textarea id="createActualLessonContentInput" rows="3"></textarea>
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>备注</span>
+              <textarea id="createActualLessonNoteInput" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button button-primary" id="createActualLessonSubmitButton" type="button">生成 actual</button>
+            <button class="button" id="createActualLessonCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <script type="module" src="./js/lesson-app.js?v=v2.54.1-planned-status-label-20260607"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.55.0-lesson-actual-from-planned-20260607"></script>
   </body>
 </html>

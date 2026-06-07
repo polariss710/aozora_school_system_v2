@@ -1,6 +1,7 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createActualLessonFromPlanned,
   createPlannedLessonRecord,
   fetchLessonBusinessEntities,
   fetchLessonRecords,
@@ -58,6 +59,16 @@ const CREATE_PLANNED_LESSON_FIELD_IDS = [
   "lessonCount",
 ];
 
+const CREATE_ACTUAL_LESSON_FIELD_IDS = [
+  "lessonDate",
+  "startTime",
+  "endTime",
+  "durationHours",
+  "unitPrice",
+  "lessonFee",
+  "lessonCount",
+];
+
 const dom = {};
 let students = [];
 let teachers = [];
@@ -68,6 +79,9 @@ let loadedMonth = "";
 let activeView = "list";
 let isCreatePlannedLessonSubmitting = false;
 let isCreateLessonFeeManual = false;
+let currentActualSourceLesson = null;
+let isCreateActualLessonSubmitting = false;
+let isActualLessonFeeManual = false;
 
 export function initLessonPage() {
   cacheDom();
@@ -130,6 +144,20 @@ function cacheDom() {
   dom.createPlannedLessonNoteInput = document.querySelector("#createPlannedLessonNoteInput");
   dom.createPlannedLessonSubmitButton = document.querySelector("#createPlannedLessonSubmitButton");
   dom.createPlannedLessonCancelButton = document.querySelector("#createPlannedLessonCancelButton");
+  dom.createActualLessonDialog = document.querySelector("#createActualLessonDialog");
+  dom.createActualLessonSummary = document.querySelector("#createActualLessonSummary");
+  dom.createActualLessonError = document.querySelector("#createActualLessonError");
+  dom.createActualLessonDateInput = document.querySelector("#createActualLessonDateInput");
+  dom.createActualLessonStartTimeInput = document.querySelector("#createActualLessonStartTimeInput");
+  dom.createActualLessonEndTimeInput = document.querySelector("#createActualLessonEndTimeInput");
+  dom.createActualLessonDurationInput = document.querySelector("#createActualLessonDurationInput");
+  dom.createActualLessonUnitPriceInput = document.querySelector("#createActualLessonUnitPriceInput");
+  dom.createActualLessonFeeInput = document.querySelector("#createActualLessonFeeInput");
+  dom.createActualLessonCountInput = document.querySelector("#createActualLessonCountInput");
+  dom.createActualLessonContentInput = document.querySelector("#createActualLessonContentInput");
+  dom.createActualLessonNoteInput = document.querySelector("#createActualLessonNoteInput");
+  dom.createActualLessonSubmitButton = document.querySelector("#createActualLessonSubmitButton");
+  dom.createActualLessonCancelButton = document.querySelector("#createActualLessonCancelButton");
 }
 
 function bindEvents() {
@@ -188,6 +216,48 @@ function bindEvents() {
   dom.createPlannedLessonUnitPriceInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonFeeInput?.addEventListener("input", () => {
     isCreateLessonFeeManual = dom.createPlannedLessonFeeInput.value.trim() !== "";
+  });
+
+  dom.pairRows?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-generate-actual-id]");
+    if (!button) {
+      return;
+    }
+    openCreateActualLessonDialog(button.dataset.generateActualId || "");
+  });
+
+  dom.createActualLessonCancelButton?.addEventListener("click", () => closeCreateActualLessonDialog());
+  dom.createActualLessonSubmitButton?.addEventListener("click", handleCreateActualLessonSubmit);
+
+  dom.createActualLessonDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.createActualLessonDialog) {
+      closeCreateActualLessonDialog();
+    }
+  });
+
+  [
+    ["lessonDate", dom.createActualLessonDateInput],
+    ["startTime", dom.createActualLessonStartTimeInput],
+    ["endTime", dom.createActualLessonEndTimeInput],
+    ["durationHours", dom.createActualLessonDurationInput],
+    ["unitPrice", dom.createActualLessonUnitPriceInput],
+    ["lessonFee", dom.createActualLessonFeeInput],
+    ["lessonCount", dom.createActualLessonCountInput],
+  ].forEach(([fieldId, element]) => {
+    element?.addEventListener("input", () => {
+      clearCreateActualLessonFieldInvalid(fieldId);
+      hideCreateActualLessonErrorIfClean();
+    });
+    element?.addEventListener("change", () => {
+      clearCreateActualLessonFieldInvalid(fieldId);
+      hideCreateActualLessonErrorIfClean();
+    });
+  });
+
+  dom.createActualLessonDurationInput?.addEventListener("input", updateCreateActualLessonFeePreview);
+  dom.createActualLessonUnitPriceInput?.addEventListener("input", updateCreateActualLessonFeePreview);
+  dom.createActualLessonFeeInput?.addEventListener("input", () => {
+    isActualLessonFeeManual = dom.createActualLessonFeeInput.value.trim() !== "";
   });
 }
 
@@ -594,6 +664,237 @@ function updateCreatePlannedLessonFeePreview() {
   dom.createPlannedLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
 }
 
+function openCreateActualLessonDialog(plannedLessonId) {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能生成实际课时。");
+    return;
+  }
+
+  const plannedLesson = lessonRecords.find((record) => record.id === plannedLessonId);
+  if (!plannedLesson || plannedLesson.lesson_type !== "planned") {
+    showMessage("error", "未找到可生成 actual 的 planned 课时。");
+    return;
+  }
+
+  if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
+    showMessage("error", "当前 planned 状态不能生成 completed actual。");
+    return;
+  }
+
+  currentActualSourceLesson = plannedLesson;
+  resetCreateActualLessonForm(plannedLesson);
+  renderCreateActualLessonSummary(plannedLesson);
+  clearCreateActualLessonErrors();
+  setCreateActualLessonSubmitting(false);
+  dom.createActualLessonDialog.classList.remove("is-hidden");
+  dom.createActualLessonDialog.setAttribute("aria-hidden", "false");
+  dom.createActualLessonDateInput.focus();
+}
+
+function closeCreateActualLessonDialog(force = false) {
+  if (isCreateActualLessonSubmitting && !force) {
+    return;
+  }
+
+  dom.createActualLessonDialog.classList.add("is-hidden");
+  dom.createActualLessonDialog.setAttribute("aria-hidden", "true");
+}
+
+function resetCreateActualLessonForm(plannedLesson) {
+  dom.createActualLessonDateInput.value = safeText(plannedLesson.lesson_date);
+  dom.createActualLessonStartTimeInput.value = formatInputTime(plannedLesson.start_time);
+  dom.createActualLessonEndTimeInput.value = formatInputTime(plannedLesson.end_time);
+  dom.createActualLessonDurationInput.value = displayInputNumber(plannedLesson.duration_hours);
+  dom.createActualLessonUnitPriceInput.value = displayInputNumber(plannedLesson.unit_price || 0);
+  dom.createActualLessonFeeInput.value = displayInputNumber(plannedLesson.lesson_fee || 0);
+  dom.createActualLessonCountInput.value = plannedLesson.lesson_count ? String(plannedLesson.lesson_count) : "";
+  dom.createActualLessonContentInput.value = safeText(plannedLesson.lesson_content);
+  dom.createActualLessonNoteInput.value = safeText(plannedLesson.note);
+  isActualLessonFeeManual = false;
+}
+
+function renderCreateActualLessonSummary(plannedLesson) {
+  dom.createActualLessonSummary.innerHTML = [
+    ["planned id", shortId(plannedLesson.id)],
+    ["学生", nameById(students, plannedLesson.student_id, studentName)],
+    ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
+    ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
+    ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
+    ["学生结算月", formatMonth(plannedLesson.year_month)],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("");
+}
+
+async function handleCreateActualLessonSubmit() {
+  if (isCreateActualLessonSubmitting) {
+    return;
+  }
+
+  clearCreateActualLessonErrors();
+  const payload = readCreateActualLessonPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreateActualLessonSubmitting(true);
+
+  try {
+    const createdLesson = await createActualLessonFromPlanned(payload);
+    closeCreateActualLessonDialog(true);
+    await refreshAfterCreateActualLesson(createdLesson);
+    showMessage("success", `实际课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
+  } catch (error) {
+    const message = error.message || String(error);
+    showCreateActualLessonError(message, createActualLessonFieldIdsForError(message));
+  } finally {
+    setCreateActualLessonSubmitting(false);
+  }
+}
+
+function readCreateActualLessonPayload() {
+  if (!currentActualSourceLesson) {
+    showCreateActualLessonError("缺少来源 planned 课时，请重新打开生成窗口。");
+    return null;
+  }
+
+  const lessonDate = dom.createActualLessonDateInput.value;
+  const startTime = dom.createActualLessonStartTimeInput.value;
+  const endTime = dom.createActualLessonEndTimeInput.value;
+  const durationHours = numberFromInput(dom.createActualLessonDurationInput.value);
+  const unitPrice = numberFromInput(dom.createActualLessonUnitPriceInput.value);
+  const lessonFee = nullableNumberFromInput(dom.createActualLessonFeeInput.value);
+  const lessonCount = nullableIntegerFromInput(dom.createActualLessonCountInput.value);
+  const invalidFields = [];
+
+  if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
+  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
+  if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+  if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
+
+  if (invalidFields.length) {
+    showCreateActualLessonError("请检查实际课时表单中的必填项和数字格式。", invalidFields);
+    return null;
+  }
+
+  return {
+    plannedLessonId: currentActualSourceLesson.id,
+    lessonDate,
+    startTime,
+    endTime,
+    durationHours,
+    unitPrice,
+    lessonFee,
+    lessonCount,
+    lessonContent: dom.createActualLessonContentInput.value.trim(),
+    note: dom.createActualLessonNoteInput.value.trim(),
+  };
+}
+
+async function refreshAfterCreateActualLesson(createdLesson) {
+  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
+  if (createdMonth) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
+  }
+
+  dom.lessonTypeSelect.value = "";
+  dom.statusSelect.value = "";
+  dom.billableSelect.value = "";
+  dom.keywordInput.value = "";
+
+  await loadLessonMonth(createdMonth);
+  renderDataOptions(lessonRecords);
+  restoreFilterSelections({
+    month: createdMonth,
+    studentId: createdLesson.student_id || currentActualSourceLesson?.student_id || "",
+    teacherId: "",
+    subjectId: "",
+    businessEntityId: "",
+    lessonType: "",
+    status: "",
+    isBillable: "",
+    keyword: "",
+  });
+  setActiveView("pair");
+  applyCurrentFilters();
+}
+
+function setCreateActualLessonSubmitting(isSubmitting) {
+  isCreateActualLessonSubmitting = isSubmitting;
+  dom.createActualLessonSubmitButton.disabled = isSubmitting;
+  dom.createActualLessonCancelButton.disabled = isSubmitting;
+  dom.openCreatePlannedLessonButton.disabled = isSubmitting;
+  dom.createActualLessonSubmitButton.textContent = isSubmitting ? "生成中..." : "生成 actual";
+}
+
+function clearCreateActualLessonErrors() {
+  dom.createActualLessonError.textContent = "";
+  dom.createActualLessonError.classList.add("is-hidden");
+  for (const fieldId of CREATE_ACTUAL_LESSON_FIELD_IDS) {
+    clearCreateActualLessonFieldInvalid(fieldId);
+  }
+}
+
+function showCreateActualLessonError(message, fieldIds = []) {
+  dom.createActualLessonError.textContent = message;
+  dom.createActualLessonError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreateActualLessonFieldInvalid(fieldId, true);
+  }
+  dom.createActualLessonDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function createActualLessonFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("日期") || text.includes("学生月度结算") || text.includes("老师工资月份")) fields.push("lessonDate");
+  if (text.includes("开始时间")) fields.push("startTime");
+  if (text.includes("结束时间")) fields.push("endTime");
+  if (text.includes("时长")) fields.push("durationHours");
+  if (text.includes("单价")) fields.push("unitPrice");
+  if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
+  if (text.includes("回数")) fields.push("lessonCount");
+  return fields;
+}
+
+function setCreateActualLessonFieldInvalid(fieldId, invalid) {
+  const field = dom.createActualLessonDialog.querySelector(`[data-create-actual-lesson-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearCreateActualLessonFieldInvalid(fieldId) {
+  setCreateActualLessonFieldInvalid(fieldId, false);
+}
+
+function hideCreateActualLessonErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createActualLessonDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.createActualLessonError.textContent = "";
+    dom.createActualLessonError.classList.add("is-hidden");
+  }
+}
+
+function updateCreateActualLessonFeePreview() {
+  if (isActualLessonFeeManual) {
+    return;
+  }
+
+  const durationHours = numberFromInput(dom.createActualLessonDurationInput.value);
+  const unitPrice = numberFromInput(dom.createActualLessonUnitPriceInput.value);
+  if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
+    dom.createActualLessonFeeInput.value = "";
+    return;
+  }
+
+  dom.createActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
+}
+
 function renderValueOptions(selectEl, values, labelGetter) {
   const options = ['<option value="">全部</option>'];
 
@@ -766,12 +1067,22 @@ function renderOtherLessonRow(record) {
 
 function renderMissingActualCard(planned) {
   const statusText = planned.status === "pending_makeup" ? "待补课，尚无 actual 记录" : "尚无 actual 记录";
+  const actionHtml = canGenerateActualFromPlanned(planned)
+    ? `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成 actual</button>`
+    : "";
   return `
     <div class="lesson-pair-placeholder">
       <span>${escapeHtml(statusText)}</span>
       <span class="lesson-pair-placeholder-id">planned ${escapeHtml(shortId(planned.id))}</span>
+      ${actionHtml ? `<div class="lesson-pair-placeholder-actions">${actionHtml}</div>` : ""}
     </div>
   `;
+}
+
+function canGenerateActualFromPlanned(planned) {
+  return planned
+    && planned.lesson_type === "planned"
+    && ["planned", "pending_makeup"].includes(planned.status);
 }
 
 function renderLessonPairCard(record, side) {
@@ -1018,6 +1329,19 @@ function formatTime(value) {
   }
 
   return text.slice(0, 5);
+}
+
+function formatInputTime(value) {
+  const text = safeText(value);
+  return text ? text.slice(0, 5) : "";
+}
+
+function displayInputNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  return String(value);
 }
 
 function isTimeValue(value) {

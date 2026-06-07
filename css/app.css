@@ -942,6 +942,10 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.lesson-pair-placeholder-actions {
+  margin-top: 8px;
+}
+
 .settlement-table {
   min-width: 1700px;
 }
