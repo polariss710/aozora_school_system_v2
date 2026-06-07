@@ -1,5 +1,10 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchWageRuleLookups, fetchWageRules, updateWageRuleConfig } from "../api/wage-rule-api.js";
+import {
+  createWageRuleConfig,
+  fetchWageRuleLookups,
+  fetchWageRules,
+  updateWageRuleConfig,
+} from "../api/wage-rule-api.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
@@ -19,10 +24,25 @@ const SETTLEMENT_TYPE_LABELS = {
 };
 
 const EDITABLE_SETTLEMENT_TYPES = ["jpy_hourly", "no_wage"];
+const CREATE_FIELD_IDS = [
+  "teacher",
+  "student",
+  "subject",
+  "businessEntity",
+  "settlementType",
+  "hourlyRateJpy",
+  "hourlyRateCny",
+  "exchangeRate",
+  "transportFeeJpy",
+  "classroomFeeJpy",
+  "activeState",
+];
 
 const TEACHER_STATUS_LABELS = {
   employed: "在职",
   inactive: "停用",
+  paused: "暂停",
+  resigned: "离职",
   retired: "退职",
 };
 
@@ -33,6 +53,7 @@ let students = [];
 let subjects = [];
 let businessEntities = [];
 let editingWageRule = null;
+let isCreateSubmitting = false;
 let isEditSubmitting = false;
 
 export function initWageRulePage() {
@@ -68,6 +89,23 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageRuleLoadingState");
   dom.emptyState = document.querySelector("#wageRuleEmptyState");
   dom.ruleCount = document.querySelector("#wageRuleCount");
+  dom.createButton = document.querySelector("#createWageRuleButton");
+  dom.createDialog = document.querySelector("#createWageRuleConfigDialog");
+  dom.createError = document.querySelector("#createWageRuleConfigError");
+  dom.createTeacherSelect = document.querySelector("#createWageRuleTeacherSelect");
+  dom.createStudentSelect = document.querySelector("#createWageRuleStudentSelect");
+  dom.createSubjectSelect = document.querySelector("#createWageRuleSubjectSelect");
+  dom.createBusinessEntitySelect = document.querySelector("#createWageRuleBusinessEntitySelect");
+  dom.createSettlementTypeSelect = document.querySelector("#createWageRuleSettlementTypeSelect");
+  dom.createHourlyRateJpyInput = document.querySelector("#createWageRuleHourlyRateJpyInput");
+  dom.createHourlyRateCnyInput = document.querySelector("#createWageRuleHourlyRateCnyInput");
+  dom.createExchangeRateInput = document.querySelector("#createWageRuleExchangeRateInput");
+  dom.createTransportFeeJpyInput = document.querySelector("#createWageRuleTransportFeeJpyInput");
+  dom.createClassroomFeeJpyInput = document.querySelector("#createWageRuleClassroomFeeJpyInput");
+  dom.createActiveSelect = document.querySelector("#createWageRuleActiveSelect");
+  dom.createNoteInput = document.querySelector("#createWageRuleNoteInput");
+  dom.createSubmitButton = document.querySelector("#createWageRuleSubmitButton");
+  dom.createCancelButton = document.querySelector("#createWageRuleCancelButton");
   dom.editDialog = document.querySelector("#editWageRuleConfigDialog");
   dom.editSummary = document.querySelector("#editWageRuleConfigSummary");
   dom.editError = document.querySelector("#editWageRuleConfigError");
@@ -92,6 +130,27 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyCurrentFilters();
+  });
+
+  dom.createButton.addEventListener("click", openCreateDialog);
+  dom.createCancelButton.addEventListener("click", closeCreateDialog);
+  dom.createSubmitButton.addEventListener("click", submitCreateDialog);
+
+  [
+    dom.createTeacherSelect,
+    dom.createStudentSelect,
+    dom.createSubjectSelect,
+    dom.createBusinessEntitySelect,
+    dom.createSettlementTypeSelect,
+    dom.createHourlyRateJpyInput,
+    dom.createHourlyRateCnyInput,
+    dom.createExchangeRateInput,
+    dom.createTransportFeeJpyInput,
+    dom.createClassroomFeeJpyInput,
+    dom.createActiveSelect,
+  ].forEach((field) => {
+    field.addEventListener("input", hideCreateErrorIfClean);
+    field.addEventListener("change", handleCreateFieldChange);
   });
 
   dom.tableBody.addEventListener("click", (event) => {
@@ -265,6 +324,124 @@ function renderWageRules(rows) {
   }).join("");
 }
 
+function openCreateDialog() {
+  clearCreateErrors();
+  setCreateSubmitting(false);
+  renderCreateLookupOptions();
+  dom.createSettlementTypeSelect.value = "jpy_hourly";
+  dom.createHourlyRateJpyInput.value = "0";
+  dom.createHourlyRateCnyInput.value = "0";
+  dom.createExchangeRateInput.value = "0";
+  dom.createTransportFeeJpyInput.value = "0";
+  dom.createClassroomFeeJpyInput.value = "0";
+  dom.createActiveSelect.value = "active";
+  dom.createNoteInput.value = "";
+  syncCreateNoWageFields();
+  dom.createDialog.classList.remove("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "false");
+  dom.createTeacherSelect.focus();
+}
+
+function closeCreateDialog({ force = false } = {}) {
+  if (isCreateSubmitting && !force) {
+    return;
+  }
+
+  dom.createDialog.classList.add("is-hidden");
+  dom.createDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCreateDialog() {
+  if (isCreateSubmitting) {
+    return;
+  }
+
+  clearCreateErrors();
+
+  const payload = {
+    teacherId: dom.createTeacherSelect.value,
+    studentId: dom.createStudentSelect.value,
+    subjectId: dom.createSubjectSelect.value,
+    businessEntityId: dom.createBusinessEntitySelect.value,
+    settlementType: dom.createSettlementTypeSelect.value,
+    hourlyRateJpy: readNonNegativeNumber(dom.createHourlyRateJpyInput.value),
+    hourlyRateCny: readNonNegativeNumber(dom.createHourlyRateCnyInput.value),
+    exchangeRate: readNonNegativeNumber(dom.createExchangeRateInput.value),
+    transportFeeJpy: readNonNegativeNumber(dom.createTransportFeeJpyInput.value),
+    classroomFeeJpy: readNonNegativeNumber(dom.createClassroomFeeJpyInput.value),
+    isActive: dom.createActiveSelect.value === "active",
+    note: dom.createNoteInput.value.trim(),
+  };
+
+  const invalidFields = validateCreatePayload(payload);
+  if (invalidFields.length > 0) {
+    showCreateError("请检查老师、学生、科目、业务归属、结算类型、费率、汇率、费用和启用状态。", invalidFields);
+    return;
+  }
+
+  if (payload.settlementType === "no_wage") {
+    payload.hourlyRateJpy = 0;
+    payload.hourlyRateCny = 0;
+    payload.exchangeRate = 0;
+    payload.transportFeeJpy = 0;
+    payload.classroomFeeJpy = 0;
+  }
+
+  setCreateSubmitting(true);
+
+  try {
+    await createWageRuleConfig(payload);
+    closeCreateDialog({ force: true });
+    await loadWageRuleData();
+    showMessage("success", "老师工资规则已新增；仅影响未来工资锁定。");
+  } catch (error) {
+    showCreateError(error.message || String(error), createFieldIdsForError(error));
+  } finally {
+    setCreateSubmitting(false);
+  }
+}
+
+function validateCreatePayload(payload) {
+  const invalidFields = [];
+
+  if (!usableTeacherById(payload.teacherId)) {
+    invalidFields.push("teacher");
+  }
+
+  if (!usableStudentById(payload.studentId)) {
+    invalidFields.push("student");
+  }
+
+  if (!usableSubjectById(payload.subjectId)) {
+    invalidFields.push("subject");
+  }
+
+  if (!usableBusinessEntityById(payload.businessEntityId)) {
+    invalidFields.push("businessEntity");
+  }
+
+  return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload, dom.createActiveSelect)]);
+}
+
+function renderCreateLookupOptions() {
+  renderCreateEntityOptions(dom.createTeacherSelect, teachers.filter(isUsableTeacher), teacherName, "请选择老师");
+  renderCreateEntityOptions(dom.createStudentSelect, students.filter(isUsableStudent), studentName, "请选择学生");
+  renderCreateEntityOptions(dom.createSubjectSelect, subjects.filter(isUsableSubject), subjectName, "请选择科目");
+  renderCreateEntityOptions(dom.createBusinessEntitySelect, businessEntities.filter(isUsableBusinessEntity), businessEntityName, "请选择业务归属");
+}
+
+function renderCreateEntityOptions(selectEl, rows, labelGetter, placeholder) {
+  const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
+
+  for (const row of rows) {
+    options.push(
+      `<option value="${escapeAttribute(row.id)}">${escapeHtml(labelGetter(row))}</option>`
+    );
+  }
+
+  selectEl.innerHTML = options.join("");
+}
+
 function openEditDialog(wageRuleId) {
   const rule = wageRules.find((item) => item.id === wageRuleId);
   if (!rule) {
@@ -353,6 +530,10 @@ async function submitEditDialog() {
 }
 
 function validateEditPayload(payload) {
+  return validateConfigPayload(payload, dom.editActiveSelect);
+}
+
+function validateConfigPayload(payload, activeSelect) {
   const invalidFields = [];
 
   if (!EDITABLE_SETTLEMENT_TYPES.includes(payload.settlementType)) {
@@ -371,7 +552,7 @@ function validateEditPayload(payload) {
     }
   });
 
-  if (!["active", "inactive"].includes(dom.editActiveSelect.value)) {
+  if (!["active", "inactive"].includes(activeSelect.value)) {
     invalidFields.push("activeState");
   }
 
@@ -407,6 +588,16 @@ function handleEditFieldChange(event) {
   hideEditErrorIfClean();
 }
 
+function handleCreateFieldChange(event) {
+  clearCreateFieldInvalid(createFieldIdForElement(event.currentTarget));
+
+  if (event.currentTarget === dom.createSettlementTypeSelect) {
+    syncCreateNoWageFields();
+  }
+
+  hideCreateErrorIfClean();
+}
+
 function syncNoWageFields() {
   const isNoWage = dom.editSettlementTypeSelect.value === "no_wage";
   const amountFields = [
@@ -415,6 +606,24 @@ function syncNoWageFields() {
     dom.editExchangeRateInput,
     dom.editTransportFeeJpyInput,
     dom.editClassroomFeeJpyInput,
+  ];
+
+  amountFields.forEach((field) => {
+    if (isNoWage) {
+      field.value = "0";
+    }
+    field.disabled = isNoWage;
+  });
+}
+
+function syncCreateNoWageFields() {
+  const isNoWage = dom.createSettlementTypeSelect.value === "no_wage";
+  const amountFields = [
+    dom.createHourlyRateJpyInput,
+    dom.createHourlyRateCnyInput,
+    dom.createExchangeRateInput,
+    dom.createTransportFeeJpyInput,
+    dom.createClassroomFeeJpyInput,
   ];
 
   amountFields.forEach((field) => {
@@ -437,6 +646,72 @@ function readNonNegativeNumber(value) {
 function displayNumberInput(value) {
   const text = safeText(value);
   return text || "0";
+}
+
+function showCreateError(message, fieldIds = []) {
+  dom.createError.textContent = message;
+  dom.createError.classList.remove("is-hidden");
+  fieldIds.forEach(setCreateFieldInvalid);
+}
+
+function clearCreateErrors() {
+  dom.createError.textContent = "";
+  dom.createError.classList.add("is-hidden");
+  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+}
+
+function hideCreateErrorIfClean() {
+  const hasInvalidField = document.querySelector("[data-create-wage-rule-field].is-invalid");
+  if (!hasInvalidField) {
+    dom.createError.textContent = "";
+    dom.createError.classList.add("is-hidden");
+  }
+}
+
+function setCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-wage-rule-field="${fieldId}"]`);
+  field?.classList.add("is-invalid");
+}
+
+function clearCreateFieldInvalid(fieldId) {
+  const field = document.querySelector(`[data-create-wage-rule-field="${fieldId}"]`);
+  field?.classList.remove("is-invalid");
+}
+
+function setCreateSubmitting(isSubmitting) {
+  isCreateSubmitting = isSubmitting;
+  dom.createSubmitButton.disabled = isSubmitting;
+  dom.createCancelButton.disabled = isSubmitting;
+  dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
+}
+
+function createFieldIdForElement(field) {
+  if (field === dom.createTeacherSelect) return "teacher";
+  if (field === dom.createStudentSelect) return "student";
+  if (field === dom.createSubjectSelect) return "subject";
+  if (field === dom.createBusinessEntitySelect) return "businessEntity";
+  if (field === dom.createSettlementTypeSelect) return "settlementType";
+  if (field === dom.createHourlyRateJpyInput) return "hourlyRateJpy";
+  if (field === dom.createHourlyRateCnyInput) return "hourlyRateCny";
+  if (field === dom.createExchangeRateInput) return "exchangeRate";
+  if (field === dom.createTransportFeeJpyInput) return "transportFeeJpy";
+  if (field === dom.createClassroomFeeJpyInput) return "classroomFeeJpy";
+  if (field === dom.createActiveSelect) return "activeState";
+  return "";
+}
+
+function createFieldIdsForError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("老师")) return ["teacher"];
+  if (message.includes("学生")) return ["student"];
+  if (message.includes("科目")) return ["subject"];
+  if (message.includes("业务归属")) return ["businessEntity"];
+  if (message.includes("结算类型")) return ["settlementType"];
+  if (message.includes("负数") || message.includes("费率") || message.includes("汇率") || message.includes("费用")) {
+    return ["hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
+  }
+  if (message.includes("启用状态")) return ["activeState"];
+  return [];
 }
 
 function showEditError(message, fieldIds = []) {
@@ -605,6 +880,22 @@ function teacherById(id) {
   return teachers.find((teacher) => teacher.id === id) || null;
 }
 
+function usableTeacherById(id) {
+  return teachers.find((teacher) => teacher.id === id && isUsableTeacher(teacher)) || null;
+}
+
+function usableStudentById(id) {
+  return students.find((student) => student.id === id && isUsableStudent(student)) || null;
+}
+
+function usableSubjectById(id) {
+  return subjects.find((subject) => subject.id === id && isUsableSubject(subject)) || null;
+}
+
+function usableBusinessEntityById(id) {
+  return businessEntities.find((entity) => entity.id === id && isUsableBusinessEntity(entity)) || null;
+}
+
 function teacherNameById(id) {
   const teacher = teacherById(id);
   if (!teacher) {
@@ -689,6 +980,26 @@ function activeClass(value) {
   }
 
   return "status-neutral";
+}
+
+function isUsableTeacher(teacher) {
+  return Boolean(teacher && !["inactive", "resigned", "retired"].includes(safeText(teacher.status)));
+}
+
+function isUsableStudent(student) {
+  return Boolean(student && !["inactive", "graduated", "withdrawn"].includes(safeText(student.status)));
+}
+
+function isUsableSubject(subject) {
+  return Boolean(subject && subject.is_active !== false);
+}
+
+function isUsableBusinessEntity(entity) {
+  return Boolean(entity && entity.is_active !== false);
+}
+
+function uniqueFieldIds(fieldIds) {
+  return fieldIds.filter((fieldId, index, list) => fieldId && list.indexOf(fieldId) === index);
 }
 
 function displayValue(value) {

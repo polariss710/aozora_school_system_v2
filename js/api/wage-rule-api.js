@@ -132,6 +132,34 @@ export async function fetchWageRuleLookups() {
   };
 }
 
+export async function createWageRuleConfig(payload) {
+  const { data, error } = await supabase.rpc("school_create_teacher_wage_rule_config", {
+    p_teacher_id: payload.teacherId,
+    p_student_id: payload.studentId,
+    p_subject_id: payload.subjectId,
+    p_business_entity_id: payload.businessEntityId,
+    p_settlement_type: payload.settlementType,
+    p_hourly_rate_jpy: payload.hourlyRateJpy,
+    p_hourly_rate_cny: payload.hourlyRateCny,
+    p_exchange_rate: payload.exchangeRate,
+    p_transport_fee_jpy: payload.transportFeeJpy,
+    p_classroom_fee_jpy: payload.classroomFeeJpy,
+    p_is_active: payload.isActive,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("老师工资规则新增失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function updateWageRuleConfig(payload) {
   const { data, error } = await supabase.rpc("school_update_teacher_wage_rule_config", {
     p_wage_rule_id: payload.wageRuleId,

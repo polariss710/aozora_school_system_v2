@@ -111,9 +111,12 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageRuleListTitle">规则列表</h2>
-              <p class="section-note">本页显示并编辑老师工资规则基础配置；只影响未来工资锁定，不重新计算已锁定工资，也不影响老师工资支付、支出记录或账户流水。规则匹配键不可编辑。</p>
+              <p class="section-note">本页显示、新增并编辑老师工资规则基础配置；只影响未来工资锁定，不重新计算已锁定工资，也不影响老师工资支付、支出记录或账户流水。已有规则匹配键不可编辑。</p>
             </div>
-            <span id="wageRuleCount" class="record-count">0 条</span>
+            <div class="header-meta">
+              <span id="wageRuleCount" class="record-count">0 条</span>
+              <button class="button button-primary" id="createWageRuleButton" type="button">新增工资规则</button>
+            </div>
           </div>
 
           <div id="wageRuleLoadingState" class="state-text is-hidden">正在加载老师工资规则...</div>
@@ -147,6 +150,90 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="createWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createWageRuleConfigTitle">
+        <div class="section-heading">
+          <h2 id="createWageRuleConfigTitle">新增工资规则</h2>
+          <p class="section-note">仅新增未来使用的老师工资规则配置；不会回算历史工资，也不会修改工资锁定、支付请求、支出或账户流水。</p>
+        </div>
+
+        <div id="createWageRuleConfigError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-create-wage-rule-field="teacher">
+          <span>老师</span>
+          <select id="createWageRuleTeacherSelect"></select>
+        </label>
+
+        <label class="field" data-create-wage-rule-field="student">
+          <span>学生</span>
+          <select id="createWageRuleStudentSelect"></select>
+        </label>
+
+        <label class="field" data-create-wage-rule-field="subject">
+          <span>科目</span>
+          <select id="createWageRuleSubjectSelect"></select>
+        </label>
+
+        <label class="field" data-create-wage-rule-field="businessEntity">
+          <span>业务归属</span>
+          <select id="createWageRuleBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-create-wage-rule-field="settlementType">
+          <span>结算类型</span>
+          <select id="createWageRuleSettlementTypeSelect">
+            <option value="jpy_hourly">日元时给</option>
+            <option value="no_wage">无工资</option>
+          </select>
+        </label>
+
+        <label class="field" data-create-wage-rule-field="hourlyRateJpy">
+          <span>日元时薪</span>
+          <input id="createWageRuleHourlyRateJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-create-wage-rule-field="hourlyRateCny">
+          <span>人民币时薪</span>
+          <input id="createWageRuleHourlyRateCnyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-create-wage-rule-field="exchangeRate">
+          <span>汇率</span>
+          <input id="createWageRuleExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
+        </label>
+
+        <label class="field" data-create-wage-rule-field="transportFeeJpy">
+          <span>交通费 JPY</span>
+          <input id="createWageRuleTransportFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-create-wage-rule-field="classroomFeeJpy">
+          <span>教室费 JPY</span>
+          <input id="createWageRuleClassroomFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-create-wage-rule-field="activeState">
+          <span>启用状态</span>
+          <select id="createWageRuleActiveSelect">
+            <option value="active">启用</option>
+            <option value="inactive">停用</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="createWageRuleNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-warning">新增后不会重算历史工资锁定，也不会修改支付请求、支出或账户流水；老师、学生、科目、业务归属作为匹配键保存后不可在编辑 dialog 修改。</div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createWageRuleSubmitButton" type="button">新增</button>
+          <button class="button" id="createWageRuleCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="editWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -214,6 +301,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=v2.42.0-wage-rule-config-edit-20260606"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=v2.49.0-wage-rule-create-full-autopilot-20260607"></script>
   </body>
 </html>
