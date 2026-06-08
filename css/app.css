@@ -767,17 +767,85 @@ h2 {
   min-width: 1660px;
 }
 
-.lesson-import-preview-dialog-panel {
-  width: min(1100px, 100%);
+.dialog-panel.lesson-import-preview-dialog-panel {
+  display: flex;
+  overflow: hidden;
+  flex-direction: column;
+  width: min(1280px, calc(100vw - 32px));
+  height: min(860px, calc(100vh - 32px));
+}
+
+@supports (height: 100dvh) {
+  .dialog-panel.lesson-import-preview-dialog-panel {
+    height: min(860px, calc(100dvh - 32px));
+  }
 }
 
 .lesson-import-file-field {
   margin-top: 14px;
 }
 
+.lesson-import-preview-guide {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.lesson-import-preview-guide h3,
+.lesson-import-preview-guide p {
+  margin: 0;
+}
+
+.lesson-import-preview-guide h3 {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.lesson-import-preview-guide p {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.lesson-import-preview-guide-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lesson-import-preview-guide-grid div {
+  min-width: 0;
+  border: 1px solid #e7edf5;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 8px;
+}
+
+.lesson-import-preview-guide-grid strong,
+.lesson-import-preview-guide-grid span {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lesson-import-preview-guide-grid strong {
+  color: var(--text);
+}
+
+.lesson-import-preview-guide-grid span {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
 .lesson-import-preview-summary {
   margin-top: 12px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
 }
 
 .lesson-import-preview-empty {
@@ -785,13 +853,15 @@ h2 {
 }
 
 .lesson-import-preview-scroll {
+  flex: 1 1 auto;
+  min-height: 260px;
   margin-top: 14px;
-  max-height: min(54vh, 520px);
+  max-height: none;
   overflow: auto;
 }
 
 .lesson-import-preview-table {
-  min-width: 1540px;
+  min-width: 1880px;
 }
 
 .lesson-import-preview-table th,
@@ -804,6 +874,7 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.lesson-import-preview-table .lesson-import-preview-content-cell,
 .lesson-import-preview-table .lesson-import-preview-note-cell {
   max-width: 280px;
   white-space: pre-wrap;
@@ -1703,6 +1774,20 @@ h2 {
   }
 
   .lesson-import-preview-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dialog-panel.lesson-import-preview-dialog-panel {
+    height: calc(100vh - 24px);
+  }
+
+  @supports (height: 100dvh) {
+    .dialog-panel.lesson-import-preview-dialog-panel {
+      height: calc(100dvh - 24px);
+    }
+  }
+
+  .lesson-import-preview-guide-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

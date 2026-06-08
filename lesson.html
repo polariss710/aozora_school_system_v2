@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.59.0-lesson-import-preview-20260608">
+    <link rel="stylesheet" href="./css/app.css?v=v2.59.1-lesson-import-preview-usability-20260608">
   </head>
   <body>
     <div class="app-shell">
@@ -492,6 +492,19 @@
 
           <div id="lessonImportPreviewError" class="dialog-error is-hidden" aria-live="polite"></div>
 
+          <div class="lesson-import-preview-guide">
+            <div>
+              <h3>模板字段说明</h3>
+              <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、lesson_type、status、课时、金额、是否计费、内容、备注、planned ID。</p>
+            </div>
+            <div class="lesson-import-preview-guide-grid">
+              <div><strong>lesson_type</strong><span>planned / actual</span></div>
+              <div><strong>planned status</strong><span>planned / pending_makeup</span></div>
+              <div><strong>actual status</strong><span>completed / cancelled / makeup_completed</span></div>
+              <div><strong>旧模板</strong><span>可识别预定/实际分栏；缺少状态列时只提示补列，不自动猜测。</span></div>
+            </div>
+          </div>
+
           <label class="field lesson-import-file-field">
             <span>选择文件</span>
             <input id="lessonImportPreviewFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
@@ -514,9 +527,12 @@
                   <th>时间</th>
                   <th>lesson_type</th>
                   <th>status</th>
+                  <th>计费</th>
                   <th>课时</th>
                   <th>金额</th>
+                  <th>内容</th>
                   <th>备注</th>
+                  <th>planned ID</th>
                   <th>错误 / 警告</th>
                 </tr>
               </thead>
@@ -533,6 +549,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.59.0-lesson-import-preview-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.59.1-lesson-import-preview-usability-20260608"></script>
   </body>
 </html>

@@ -69,6 +69,13 @@ const LESSON_IMPORT_REQUIRED_FIELDS = [
   "durationHours",
 ];
 
+const LESSON_IMPORT_FIELD_ALIAS_TEXT = {
+  businessEntity: "业务归属 / business_entity",
+  lessonType: "lesson_type / 类型",
+  status: "status / 状态 / 预定状态 / 实际状态",
+  durationHours: "课时 / 时长 / hours / 時間数 / 授業時間",
+};
+
 const CREATE_PLANNED_LESSON_FIELD_IDS = [
   "lessonDate",
   "status",
@@ -1771,7 +1778,7 @@ function findLessonImportPreviewHeaderRow(rows) {
       .filter(([, value]) => typeof value === "number")
       .map(([key]) => key);
     const hasCommon = mappedFields.includes("student") || mappedFields.includes("teacher");
-    const hasLesson = mappedFields.some((key) => /date|status|duration|lessonType/i.test(key));
+    const hasLesson = mappedFields.some((key) => /date|status|duration|lessonType|time|fee|content/i.test(key));
 
     if (mappedFields.length >= 3 && hasCommon && hasLesson) {
       return index;
@@ -1796,40 +1803,98 @@ function buildLessonImportPreviewColumnMap(header) {
       }
     };
 
-    if (/^(学生|学生姓名|生徒|student|studentname|student_name)$/.test(key)) set("student");
-    if (/^(老师|教师|教師|先生|担当老师|担当教師|teacher|teachername|teacher_name)$/.test(key)) set("teacher");
-    if (/^(科目|课程|講座|subject|subjectname|subject_name)$/.test(key)) set("subject");
-    if (/^(业务归属|归属|业务|businessentity|business_entity|entity)$/.test(key)) set("businessEntity");
-    if (/^(lesson_type|lessontype|课时类型|类型)$/.test(key)) set("lessonType");
-    if (/^(status|状态|ステータス)$/.test(key)) set("status");
-    if (/^(日期|课时日期|上课日期|date|lessondate|lesson_date)$/.test(key)) set("lessonDate");
-    if (/^(开始时间|开始|start|starttime|start_time)$/.test(key)) set("startTime");
-    if (/^(结束时间|结束|end|endtime|end_time)$/.test(key)) set("endTime");
-    if (/^(时间|时间段|时段|時間帯|time|timerange|time_range)$/.test(key)) set("timeRange");
-    if (/^(课时|时长|時間数|授業時間|duration|durationhours|duration_hours)$/.test(key)) set("durationHours");
-    if (/^(单价|课程单价|unitprice|unit_price)$/.test(key)) set("unitPrice");
-    if (/^(金额|课时费|应收课时费|授業料|金額|lessonfee|lesson_fee|fee)$/.test(key)) set("lessonFee");
+    if (/^(学生|学生姓名|生徒|生徒名|姓名|student|studentname|student_name)$/.test(key)) set("student");
+    if (/^(老师|教師|教师|先生|担当|担当老师|担当教師|担当先生|teacher|teachername|teacher_name)$/.test(key)) set("teacher");
+    if (/^(科目|课程|講座|授業科目|subject|subjectname|subject_name)$/.test(key)) set("subject");
+    if (/^(业务归属|业务归属id|归属|业务|业务主体|businessentity|business_entity|businessentityid|business_entity_id|entity|entityid)$/.test(key)) set("businessEntity");
+    if (/^(lesson_type|lessontype|课时类型|课程类型|类型|recordtype|record_type)$/.test(key)) set("lessonType");
+    if (/^(status|状态|ステータス|课时状态|授業状態)$/.test(key)) set("status");
+    if (/^(日期|课时日期|上课日期|授業日|lessondate|lesson_date|date)$/.test(key)) set("lessonDate");
+    if (/^(开始时间|开始|開始|start|starttime|start_time)$/.test(key)) set("startTime");
+    if (/^(结束时间|结束|終了|end|endtime|end_time)$/.test(key)) set("endTime");
+    if (/^(时间|时间段|时段|時間|時間帯|time|timerange|time_range)$/.test(key)) set("timeRange");
+    if (/^(课时|课时时长|时长|時間数|授業時間|hours|hour|duration|durationhours|duration_hours)$/.test(key)) set("durationHours");
+    if (/^(单价|课程单价|単価|unitprice|unit_price)$/.test(key)) set("unitPrice");
+    if (/^(金额|金額|课时费|授業料|应收|应收课时费|lessonfee|lesson_fee|fee|amount)$/.test(key)) set("lessonFee");
+    if (/^(是否计费|计费|收费|是否收费|請求|請求対象|billable|isbillable|is_billable)$/.test(key)) set("isBillable");
+    if (/^(内容|授業内容|上课内容|上课内容及作业|content|lessoncontent|lesson_content)$/.test(key)) set("lessonContent");
     if (/^(备注|備考|メモ|note|memo)$/.test(key)) set("note");
+    if (/^(plannedid|planned_id|plannedlessonid|planned_lesson_id|关联预定|关联标识|关联planned|关联plannedid)$/.test(key)) set("plannedId");
 
-    if (/^(预定日期|予定日|planneddate|planned_date)$/.test(key)) set("plannedDate");
-    if (/^(预定开始时间|予定開始|plannedstart|planned_start)$/.test(key)) set("plannedStartTime");
-    if (/^(预定结束时间|予定終了|plannedend|planned_end)$/.test(key)) set("plannedEndTime");
+    if (/^(预定日期|预定日|予定日|planneddate|planned_date)$/.test(key)) set("plannedDate");
+    if (/^(预定第几回|预定回数|予定回数|回数|回次|课次|plannedcount|planned_count)$/.test(key)) set("plannedCount");
+    if (/^(预定开始时间|预定开始|予定開始|plannedstart|planned_start|plannedstarttime|planned_start_time)$/.test(key)) set("plannedStartTime");
+    if (/^(预定结束时间|预定结束|予定終了|plannedend|planned_end|plannedendtime|planned_end_time)$/.test(key)) set("plannedEndTime");
     if (/^(预定时间|预定时间段|予定時間帯|plannedtime|planned_time|plannedtimerange|planned_time_range)$/.test(key)) set("plannedTimeRange");
-    if (/^(预定课时时长|预定时长|plannedduration|planned_duration)$/.test(key)) set("plannedDurationHours");
-    if (/^(预定单价|plannedunitprice|planned_unit_price)$/.test(key)) set("plannedUnitPrice");
-    if (/^(预定课时费|预定金额|plannedfee|planned_fee|plannedlessonfee|planned_lesson_fee)$/.test(key)) set("plannedLessonFee");
-    if (/^(预定状态|plannedstatus|planned_status)$/.test(key)) set("plannedStatus");
-    if (/^(预定备注|plannednote|planned_note)$/.test(key)) set("plannedNote");
+    if (/^(预定课时时长|预定时长|预定课时|予定時間数|予定授業時間|plannedduration|planned_duration|plannedhours|planned_hours)$/.test(key)) set("plannedDurationHours");
+    if (/^(预定单价|予定単価|plannedunitprice|planned_unit_price)$/.test(key)) set("plannedUnitPrice");
+    if (/^(预定课时费|预定金额|予定授業料|plannedfee|planned_fee|plannedlessonfee|planned_lesson_fee)$/.test(key)) set("plannedLessonFee");
+    if (/^(预定状态|予定状態|plannedstatus|planned_status)$/.test(key)) set("plannedStatus");
+    if (/^(预定计费|予定請求|plannedbillable|planned_billable)$/.test(key)) set("plannedBillable");
+    if (/^(预定内容|予定内容|plannedcontent|planned_content)$/.test(key)) set("plannedContent");
+    if (/^(预定备注|予定備考|plannednote|planned_note)$/.test(key)) set("plannedNote");
 
-    if (/^(实际日期|実際日|actualdate|actual_date)$/.test(key)) set("actualDate");
-    if (/^(实际开始时间|実際開始|actualstart|actual_start)$/.test(key)) set("actualStartTime");
-    if (/^(实际结束时间|実際終了|actualend|actual_end)$/.test(key)) set("actualEndTime");
+    if (/^(实际日期|实际上课日期|上课日|実際日|actualdate|actual_date)$/.test(key)) set("actualDate");
+    if (/^(实际开始时间|实际开始|実際開始|actualstart|actual_start|actualstarttime|actual_start_time)$/.test(key)) set("actualStartTime");
+    if (/^(实际结束时间|实际结束|実際終了|actualend|actual_end|actualendtime|actual_end_time)$/.test(key)) set("actualEndTime");
     if (/^(实际时间|实际时间段|実際時間帯|actualtime|actual_time|actualtimerange|actual_time_range)$/.test(key)) set("actualTimeRange");
-    if (/^(实际课时时长|实际时长|actualduration|actual_duration)$/.test(key)) set("actualDurationHours");
-    if (/^(实际课时费|实际金额|actualfee|actual_fee|actuallessonfee|actual_lesson_fee)$/.test(key)) set("actualLessonFee");
-    if (/^(实际状态|actualstatus|actual_status)$/.test(key)) set("actualStatus");
-    if (/^(实际备注|actualnote|actual_note)$/.test(key)) set("actualNote");
+    if (/^(实际课时时长|实际时长|实际课时|実際時間数|実際授業時間|actualduration|actual_duration|actualhours|actual_hours)$/.test(key)) set("actualDurationHours");
+    if (/^(实际课时费|实际金额|実際授業料|actualfee|actual_fee|actuallessonfee|actual_lesson_fee)$/.test(key)) set("actualLessonFee");
+    if (/^(实际状态|実際状態|actualstatus|actual_status)$/.test(key)) set("actualStatus");
+    if (/^(实际计费|実際請求|actualbillable|actual_billable)$/.test(key)) set("actualBillable");
+    if (/^(实际内容|実際内容|上课内容及作业|上课内容|actualcontent|actual_content)$/.test(key)) set("actualContent");
+    if (/^(实际备注|実際備考|actualnote|actual_note)$/.test(key)) set("actualNote");
   });
+
+  const hasPairedSpecificColumn = [
+    map.plannedDate,
+    map.plannedStatus,
+    map.actualDate,
+    map.actualStatus,
+    map.actualContent,
+  ].some((index) => typeof index === "number");
+
+  if (hasPairedSpecificColumn) {
+    if (map.plannedDurationHours === undefined && map.actualDurationHours === undefined && map.durationHours !== undefined) {
+      map.plannedDurationHours = map.durationHours;
+      map.actualDurationHours = map.durationHours;
+    }
+    if (map.plannedStartTime === undefined && map.actualStartTime === undefined && map.startTime !== undefined) {
+      map.plannedStartTime = map.startTime;
+      map.actualStartTime = map.startTime;
+    }
+    if (map.plannedEndTime === undefined && map.actualEndTime === undefined && map.endTime !== undefined) {
+      map.plannedEndTime = map.endTime;
+      map.actualEndTime = map.endTime;
+    }
+    if (map.plannedTimeRange === undefined && map.actualTimeRange === undefined && map.timeRange !== undefined) {
+      map.plannedTimeRange = map.timeRange;
+      map.actualTimeRange = map.timeRange;
+    }
+    if (map.plannedUnitPrice === undefined && map.unitPrice !== undefined) {
+      map.plannedUnitPrice = map.unitPrice;
+    }
+    if (map.plannedLessonFee === undefined && map.actualLessonFee === undefined && map.lessonFee !== undefined) {
+      map.plannedLessonFee = map.lessonFee;
+      map.actualLessonFee = map.lessonFee;
+    }
+    if (map.plannedStatus === undefined && map.actualStatus === undefined && map.status !== undefined) {
+      map.plannedStatus = map.status;
+      map.actualStatus = map.status;
+    }
+    if (map.plannedBillable === undefined && map.actualBillable === undefined && map.isBillable !== undefined) {
+      map.plannedBillable = map.isBillable;
+      map.actualBillable = map.isBillable;
+    }
+    if (map.plannedContent === undefined && map.actualContent === undefined && map.lessonContent !== undefined) {
+      map.plannedContent = map.lessonContent;
+      map.actualContent = map.lessonContent;
+    }
+    if (map.plannedNote === undefined && map.actualNote === undefined && map.note !== undefined) {
+      map.plannedNote = map.note;
+      map.actualNote = map.note;
+    }
+  }
 
   return {
     ...map,
@@ -1842,7 +1907,10 @@ function buildLessonImportPreviewColumnMap(header) {
       map.timeRange,
       map.durationHours,
       map.lessonFee,
+      map.isBillable,
+      map.lessonContent,
       map.note,
+      map.plannedId,
     ],
     plannedSide: [
       map.plannedDate,
@@ -1853,6 +1921,8 @@ function buildLessonImportPreviewColumnMap(header) {
       map.plannedUnitPrice,
       map.plannedLessonFee,
       map.plannedStatus,
+      map.plannedBillable,
+      map.plannedContent,
       map.plannedNote,
     ],
     actualSide: [
@@ -1863,50 +1933,81 @@ function buildLessonImportPreviewColumnMap(header) {
       map.actualDurationHours,
       map.actualLessonFee,
       map.actualStatus,
+      map.actualBillable,
+      map.actualContent,
       map.actualNote,
+      map.plannedId,
     ],
   };
 }
 
 function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
   const paired = mode !== "generic";
-  const raw = {
-    student: readLessonImportPreviewCell(rawRow, columnMap.student),
-    teacher: readLessonImportPreviewCell(rawRow, columnMap.teacher),
-    subject: readLessonImportPreviewCell(rawRow, columnMap.subject),
-    businessEntity: readLessonImportPreviewCell(rawRow, columnMap.businessEntity),
-    lessonType: paired ? mode : readLessonImportPreviewCell(rawRow, columnMap.lessonType),
+  const fieldIndexes = {
+    student: columnMap.student,
+    teacher: columnMap.teacher,
+    subject: columnMap.subject,
+    businessEntity: columnMap.businessEntity,
+    lessonType: paired ? -1 : columnMap.lessonType,
     status: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedStatus : columnMap.actualStatus)
-      : readLessonImportPreviewCell(rawRow, columnMap.status),
+      ? (mode === "planned" ? columnMap.plannedStatus : columnMap.actualStatus)
+      : columnMap.status,
     lessonDate: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedDate : columnMap.actualDate)
-      : readLessonImportPreviewCell(rawRow, columnMap.lessonDate),
+      ? (mode === "planned" ? columnMap.plannedDate : columnMap.actualDate)
+      : columnMap.lessonDate,
     startTime: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedStartTime : columnMap.actualStartTime)
-      : readLessonImportPreviewCell(rawRow, columnMap.startTime),
+      ? (mode === "planned" ? columnMap.plannedStartTime : columnMap.actualStartTime)
+      : columnMap.startTime,
     endTime: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedEndTime : columnMap.actualEndTime)
-      : readLessonImportPreviewCell(rawRow, columnMap.endTime),
+      ? (mode === "planned" ? columnMap.plannedEndTime : columnMap.actualEndTime)
+      : columnMap.endTime,
     timeRange: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedTimeRange : columnMap.actualTimeRange)
-      : readLessonImportPreviewCell(rawRow, columnMap.timeRange),
+      ? (mode === "planned" ? columnMap.plannedTimeRange : columnMap.actualTimeRange)
+      : columnMap.timeRange,
     durationHours: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedDurationHours : columnMap.actualDurationHours)
-      : readLessonImportPreviewCell(rawRow, columnMap.durationHours),
+      ? (mode === "planned" ? columnMap.plannedDurationHours : columnMap.actualDurationHours)
+      : columnMap.durationHours,
     unitPrice: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedUnitPrice : columnMap.unitPrice)
-      : readLessonImportPreviewCell(rawRow, columnMap.unitPrice),
+      ? (mode === "planned" ? columnMap.plannedUnitPrice : columnMap.unitPrice)
+      : columnMap.unitPrice,
     lessonFee: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedLessonFee : columnMap.actualLessonFee)
-      : readLessonImportPreviewCell(rawRow, columnMap.lessonFee),
+      ? (mode === "planned" ? columnMap.plannedLessonFee : columnMap.actualLessonFee)
+      : columnMap.lessonFee,
+    isBillable: paired
+      ? (mode === "planned" ? columnMap.plannedBillable : columnMap.actualBillable)
+      : columnMap.isBillable,
+    lessonContent: paired
+      ? (mode === "planned" ? columnMap.plannedContent : columnMap.actualContent)
+      : columnMap.lessonContent,
     note: paired
-      ? readLessonImportPreviewCell(rawRow, mode === "planned" ? columnMap.plannedNote : columnMap.actualNote)
-      : readLessonImportPreviewCell(rawRow, columnMap.note),
+      ? (mode === "planned" ? columnMap.plannedNote : columnMap.actualNote)
+      : columnMap.note,
+    plannedId: columnMap.plannedId,
+  };
+  const raw = {
+    student: readLessonImportPreviewCell(rawRow, fieldIndexes.student),
+    teacher: readLessonImportPreviewCell(rawRow, fieldIndexes.teacher),
+    subject: readLessonImportPreviewCell(rawRow, fieldIndexes.subject),
+    businessEntity: readLessonImportPreviewCell(rawRow, fieldIndexes.businessEntity),
+    lessonType: paired ? mode : readLessonImportPreviewCell(rawRow, fieldIndexes.lessonType),
+    status: readLessonImportPreviewCell(rawRow, fieldIndexes.status),
+    lessonDate: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonDate),
+    startTime: readLessonImportPreviewCell(rawRow, fieldIndexes.startTime),
+    endTime: readLessonImportPreviewCell(rawRow, fieldIndexes.endTime),
+    timeRange: readLessonImportPreviewCell(rawRow, fieldIndexes.timeRange),
+    durationHours: readLessonImportPreviewCell(rawRow, fieldIndexes.durationHours),
+    unitPrice: readLessonImportPreviewCell(rawRow, fieldIndexes.unitPrice),
+    lessonFee: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonFee),
+    isBillable: readLessonImportPreviewCell(rawRow, fieldIndexes.isBillable),
+    lessonContent: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonContent),
+    note: readLessonImportPreviewCell(rawRow, fieldIndexes.note),
+    plannedId: readLessonImportPreviewCell(rawRow, fieldIndexes.plannedId),
   };
 
   const row = {
     rowNo,
+    mode,
+    fieldIndexes,
     raw,
     values: {
       student: importPreviewCellText(raw.student),
@@ -1921,7 +2022,10 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
       durationHours: parseLessonImportPreviewNumber(raw.durationHours),
       unitPrice: parseLessonImportPreviewNumber(raw.unitPrice),
       lessonFee: parseLessonImportPreviewNumber(raw.lessonFee),
+      isBillable: normalizeLessonImportPreviewBillable(raw.isBillable),
+      lessonContent: importPreviewCellText(raw.lessonContent),
       note: importPreviewCellText(raw.note),
+      plannedId: importPreviewCellText(raw.plannedId),
     },
     errors: [],
     warnings: [],
@@ -1946,7 +2050,7 @@ function validateLessonImportPreviewRow(row, mode) {
 
   for (const field of LESSON_IMPORT_REQUIRED_FIELDS) {
     if (!hasLessonImportPreviewValue(values[field])) {
-      addLessonImportPreviewIssue(row, "error", field, `${LESSON_IMPORT_PREVIEW_FIELD_LABELS[field]}不能为空。`);
+      addLessonImportPreviewIssue(row, "error", field, lessonImportPreviewRequiredMessage(row, field));
     }
   }
 
@@ -1983,12 +2087,16 @@ function validateLessonImportPreviewRow(row, mode) {
     addLessonImportPreviewIssue(row, "error", "lessonDate", "日期无法转换为 YYYY-MM-DD。");
   }
 
-  if (!Number.isFinite(values.durationHours) || values.durationHours <= 0) {
+  if (hasLessonImportPreviewValue(row.raw.durationHours) && (!Number.isFinite(values.durationHours) || values.durationHours <= 0)) {
     addLessonImportPreviewIssue(row, "error", "durationHours", "课时必须是大于 0 的数字。");
   }
 
   if (hasLessonImportPreviewValue(row.raw.lessonFee) && (!Number.isFinite(values.lessonFee) || values.lessonFee < 0)) {
     addLessonImportPreviewIssue(row, "error", "lessonFee", "金额必须是 0 或正数。");
+  }
+
+  if (hasLessonImportPreviewValue(row.raw.isBillable) && values.isBillable === null) {
+    addLessonImportPreviewIssue(row, "warning", "isBillable", "是否计费无法识别；preview 阶段保留原值，后续导入前需确认。");
   }
 
   if (!hasLessonImportPreviewValue(row.raw.lessonFee)) {
@@ -2007,6 +2115,30 @@ function validateLessonImportPreviewRow(row, mode) {
   if (values.status === "makeup_completed") {
     addLessonImportPreviewIssue(row, "warning", "status", "preview 阶段只标识补课完成，不建立 planned 关联。");
   }
+}
+
+function lessonImportPreviewRequiredMessage(row, field) {
+  if (typeof row.fieldIndexes[field] !== "number") {
+    const alias = LESSON_IMPORT_FIELD_ALIAS_TEXT[field];
+    if (field === "lessonType") {
+      return `未识别到 ${alias} 列；通用模板必须补充 planned / actual，旧模板分栏推断规则需后续单独设计。`;
+    }
+    if (field === "status") {
+      return `未识别到 ${alias} 列；preview 阶段不会静默猜测状态，请补充合法状态值。`;
+    }
+    if (alias) {
+      return `未识别到 ${alias} 列，请在模板中补充。`;
+    }
+  }
+
+  if (field === "lessonType") {
+    return "lesson_type 不能为空；请填写 planned 或 actual。";
+  }
+  if (field === "status") {
+    return "status 不能为空；planned 可用 planned / pending_makeup，actual 可用 completed / cancelled / makeup_completed。";
+  }
+
+  return `${LESSON_IMPORT_PREVIEW_FIELD_LABELS[field]}不能为空。`;
 }
 
 function validateLessonImportPreviewLookup(row, field, rows, labelGetter) {
@@ -2104,9 +2236,12 @@ function renderLessonImportPreviewRow(row) {
       <td class="lesson-nowrap">${escapeHtml(formatLessonImportPreviewTime(values.startTime, values.endTime))}</td>
       ${renderLessonImportPreviewCell(row, "lessonType", values.lessonType)}
       ${renderLessonImportPreviewCell(row, "status", values.status ? lessonStatusLabel(values.status) : "")}
+      ${renderLessonImportPreviewCell(row, "isBillable", displayLessonImportPreviewBillable(values))}
       ${renderLessonImportPreviewCell(row, "durationHours", displayImportPreviewNumber(values.durationHours))}
       ${renderLessonImportPreviewCell(row, "lessonFee", displayImportPreviewNumber(values.lessonFee))}
+      <td class="lesson-import-preview-content-cell">${escapeHtml(displayValue(values.lessonContent))}</td>
       <td class="lesson-import-preview-note-cell">${escapeHtml(displayValue(values.note))}</td>
+      ${renderLessonImportPreviewCell(row, "plannedId", values.plannedId)}
       <td>${renderLessonImportPreviewIssues(row)}</td>
     </tr>
   `;
@@ -2247,6 +2382,23 @@ function normalizeLessonImportPreviewStatus(value) {
   }
 
   return text;
+}
+
+function normalizeLessonImportPreviewBillable(value) {
+  const text = normalizeLessonImportHeader(value);
+  if (!text) {
+    return "";
+  }
+
+  if (/^(是|要|计费|收费|收費|yes|true|1)$/.test(text)) {
+    return true;
+  }
+
+  if (/^(否|不|不计费|不收费|不收費|no|false|0)$/.test(text)) {
+    return false;
+  }
+
+  return null;
 }
 
 function inferLessonTypeFromStatus(status) {
@@ -2438,6 +2590,18 @@ function formatLessonImportPreviewTime(start, end) {
   }
 
   return `${start || "-"} - ${end || "-"}`;
+}
+
+function displayLessonImportPreviewBillable(values) {
+  if (values.isBillable === true) {
+    return "计费";
+  }
+
+  if (values.isBillable === false) {
+    return "不计费";
+  }
+
+  return values.isBillable === null ? "无法识别" : "";
 }
 
 function displayImportPreviewNumber(value) {
