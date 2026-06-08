@@ -1,12 +1,12 @@
 # v2 System Map
 
-Status date: 2026-06-07
+Status date: 2026-06-08
 
 Reference baseline:
 
-- Latest repo commit reviewed before frontend/docs checkpoint: `ea8d9fb`
-- Final checkpoint noted in status docs before frontend/docs checkpoint: `ea8d9fb`
-- This map reflects the current repository state after planned lesson creation V1, completed actual generation from planned V1, cancelled actual generation from planned V1, and makeup_completed actual generation from planned V1 implementation and verification.
+- Latest code checkpoint reviewed before this documentation-only lesson checkpoint: `7f25a93`
+- Lesson RPC SQL archive commits reviewed: `ce5ed9c` planned lesson create, `513dcd0` completed actual from planned, `ccaf087` cancelled actual from planned, and `ea8d9fb` makeup_completed actual from planned.
+- This map reflects the current repository state after planned lesson creation V1, completed actual generation from planned V1, cancelled actual generation from planned V1, makeup_completed actual generation from planned V1, the planned/actual paired readonly view, and the 2026-06-07 master-data create dialog UI polish checkpoint.
 
 ## Global Boundaries
 
@@ -56,4 +56,4 @@ Reference baseline:
 - Payment cancel/restore/reissue actions are present in current UI/API and SQL files, while `current-status.md` only names teacher wage payment confirmation and reversal in the completed write-flow summary. Treat any future change around these status actions as requiring explicit retest against the full write-RPC workflow.
 - Account transfer/reversal and profit summary filters/drilldown now have real browser verification recorded in `current-status.md`; future changes around these surfaces should retest the same workflows.
 - No standalone account transfer detail page exists; account transaction detail is the current audit surface.
-- Planned lesson creation V1 and completed actual generation from planned V1 are complete, but no completed write flow currently exists for free actual creation, lesson edit/delete/import/cancel/makeup_completed conversion, wage lock generation, settlement generation/adjustment, or wage rule physical deletion.
+- Planned lesson creation V1, completed actual generation from planned V1, cancelled actual generation from planned V1, and makeup_completed actual generation from planned V1 are complete. No completed write flow currently exists for free actual creation, lesson edit, lesson delete, lesson import preview, batch lesson import, broader lesson UI polish, wage lock generation, settlement generation/adjustment, or wage rule physical deletion.
