@@ -52,8 +52,8 @@ const LESSON_IMPORT_PREVIEW_FIELD_LABELS = {
   subject: "科目",
   businessEntity: "业务归属",
   lessonDate: "日期",
-  lessonType: "lesson_type",
-  status: "status",
+  lessonType: "课时类型",
+  status: "状态",
   durationHours: "课时",
   lessonFee: "金额",
 };
@@ -71,7 +71,7 @@ const LESSON_IMPORT_REQUIRED_FIELDS = [
 
 const LESSON_IMPORT_FIELD_ALIAS_TEXT = {
   businessEntity: "业务归属 / business_entity",
-  lessonType: "lesson_type / 类型",
+  lessonType: "课时类型 / lesson_type / 类型",
   status: "status / 状态 / 预定状态 / 实际状态",
   durationHours: "课时 / 时长 / hours / 時間数 / 授業時間",
 };
@@ -84,21 +84,22 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
   "日期",
   "开始时间",
   "结束时间",
-  "lesson_type",
-  "status",
+  "课时类型",
+  "状态",
   "课时",
   "金额",
   "是否计费",
   "内容",
   "备注",
-  "planned ID",
+  "关联预定ID",
 ];
 
 const LESSON_IMPORT_TEMPLATE_ROWS = [
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "planned", "pending", 1, 5000, "是", "预定课内容", "planned 示例；pending 会在 preview 中按待上课识别", ""],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "actual", "completed", 1, 5000, "是", "实际完成内容", "actual completed 示例", "上一行 planned ID 或导入后生成的 planned ID"],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "actual", "cancelled", 1, 0, "否", "取消课", "actual cancelled 示例；金额通常为 0", "关联的 planned ID"],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-12", "10:00", "11:00", "actual", "makeup_completed", 1, 5000, "是", "补课完成内容", "actual makeup_completed 示例；是否计费可填 是/否", "关联的 planned ID"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "预定", "待上课", 1, 5000, "是", "预定课内容", "预定-待上课 示例", ""],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "预定", "待补课", 1, 5000, "是", "待补课预定内容", "预定-待补课 示例", ""],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-12", "10:00", "11:00", "实际", "已上课", 1, 5000, "是", "实际完成内容", "实际-已上课 示例", "关联预定ID"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-13", "10:00", "11:00", "实际", "取消", 1, 0, "否", "取消课", "实际-取消 示例；金额通常为 0", "关联预定ID"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-14", "10:00", "11:00", "实际", "已补课", 1, 5000, "是", "补课完成内容", "实际-已补课 示例；是否计费可填 是/否", "关联预定ID"],
 ];
 
 const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
@@ -110,13 +111,15 @@ const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头。"],
   ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
   ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
-  ["lesson_type", "是", "planned / actual。"],
-  ["status", "是", "planned/pending 表示待上课；pending_makeup 表示待补课；actual 可用 completed / cancelled / makeup_completed。"],
+  ["课时类型", "是", "预定 / 实际；兼容 予定 / 実績 / planned / actual，preview 内部归一化为 planned / actual。"],
+  ["状态", "是", "预定可填 待上课 / 待补课；实际可填 已上课 / 取消 / 已补课。"],
+  ["状态英文兼容", "说明", "待上课兼容 pending / planned；待补课兼容 pending_makeup；已上课兼容 completed；取消兼容 cancelled；已补课兼容 makeup_completed。"],
+  ["合法组合", "说明", "预定：待上课 / 待补课；实际：已上课 / 取消 / 已补课。"],
   ["课时", "是", "大于 0 的数字。"],
   ["金额", "建议", "0 或正数；为空时 preview 只提示确认，不写入。"],
   ["是否计费", "建议", "是 / 否 / true / false。"],
   ["内容 / 备注", "否", "文本。"],
-  ["planned ID", "actual 建议", "后续 batch import 设计前仅用于 preview 显示，不会建立 DB 关联。"],
+  ["关联预定ID", "actual 建议", "可兼容 planned ID / planned_id / 关联预定；后续 batch import 设计前仅用于 preview 显示，不会建立 DB 关联。"],
 ];
 
 const CREATE_PLANNED_LESSON_FIELD_IDS = [
@@ -1920,7 +1923,7 @@ function buildLessonImportPreviewColumnMap(header) {
     if (/^(是否计费|计费|收费|是否收费|請求|請求対象|billable|isbillable|is_billable)$/.test(key)) set("isBillable");
     if (/^(内容|授業内容|上课内容|上课内容及作业|content|lessoncontent|lesson_content)$/.test(key)) set("lessonContent");
     if (/^(备注|備考|メモ|note|memo)$/.test(key)) set("note");
-    if (/^(plannedid|planned_id|plannedlessonid|planned_lesson_id|关联预定|关联标识|关联planned|关联plannedid)$/.test(key)) set("plannedId");
+    if (/^(plannedid|planned_id|plannedlessonid|planned_lesson_id|关联预定|关联预定id|预定id|预定课时id|関連予定id|关联标识|关联planned|关联plannedid)$/.test(key)) set("plannedId");
 
     if (/^(预定日期|预定日|予定日|planneddate|planned_date)$/.test(key)) set("plannedDate");
     if (/^(预定第几回|预定回数|予定回数|回数|回次|课次|plannedcount|planned_count)$/.test(key)) set("plannedCount");
@@ -2222,7 +2225,7 @@ function lessonImportPreviewRequiredMessage(row, field) {
   if (typeof row.fieldIndexes[field] !== "number") {
     const alias = LESSON_IMPORT_FIELD_ALIAS_TEXT[field];
     if (field === "lessonType") {
-      return `未识别到 ${alias} 列；通用模板必须补充 planned / actual，旧模板分栏推断规则需后续单独设计。`;
+      return `未识别到 ${alias} 列；通用模板必须补充 预定 / 实际（或 planned / actual），旧模板分栏推断规则需后续单独设计。`;
     }
     if (field === "status") {
       return `未识别到 ${alias} 列；preview 阶段不会静默猜测状态，请补充合法状态值。`;
@@ -2233,10 +2236,10 @@ function lessonImportPreviewRequiredMessage(row, field) {
   }
 
   if (field === "lessonType") {
-    return "lesson_type 不能为空；请填写 planned 或 actual。";
+    return "课时类型不能为空；请填写 预定 / 实际（兼容 planned / actual）。";
   }
   if (field === "status") {
-    return "status 不能为空；planned 可用 planned / pending_makeup，actual 可用 completed / cancelled / makeup_completed。";
+    return "状态不能为空；预定可用 待上课 / 待补课，实际可用 已上课 / 取消 / 已补课。";
   }
 
   return `${LESSON_IMPORT_PREVIEW_FIELD_LABELS[field]}不能为空。`;
@@ -2445,11 +2448,11 @@ function normalizeLessonImportPreviewType(value) {
     return "";
   }
 
-  if (text === "planned" || /计划|預定|预定|予定/.test(text)) {
+  if (text === "planned" || /计划|計画|預定|预定|予定/.test(text)) {
     return "planned";
   }
 
-  if (text === "actual" || /实际|実際|实绩|實績/.test(text)) {
+  if (text === "actual" || /实际|實際|実際|实绩|實績|実績/.test(text)) {
     return "actual";
   }
 
@@ -2462,7 +2465,7 @@ function normalizeLessonImportPreviewStatus(value) {
     return "";
   }
 
-  if (text === "planned" || text === "pending" || /待上课|待上|预定|予定/.test(text)) {
+  if (text === "planned" || text === "pending" || /待上课|待上課|待上|预定|預定|予定/.test(text)) {
     return "planned";
   }
 
@@ -2470,7 +2473,7 @@ function normalizeLessonImportPreviewStatus(value) {
     return "pending_makeup";
   }
 
-  if (text === "completed" || /已完成|已上课|已上|上课済|済|完成/.test(text)) {
+  if (text === "completed" || /已完成|已上课|已上課|已上|上课済|上課済|済|完成/.test(text)) {
     return "completed";
   }
 
@@ -2478,7 +2481,7 @@ function normalizeLessonImportPreviewStatus(value) {
     return "cancelled";
   }
 
-  if (text === "makeup_completed" || text === "makeupcompleted" || text === "makeup" || /补课完成|補完|已补课|已補課|已补|已補/.test(text)) {
+  if (text === "makeup_completed" || text === "makeupcompleted" || text === "makeup" || /补课完成|補課完成|補完|已补课|已補課|已补|已補/.test(text)) {
     return "makeup_completed";
   }
 

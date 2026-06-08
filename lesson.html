@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.59.2-lesson-import-template-export-20260608">
+    <link rel="stylesheet" href="./css/app.css?v=v2.59.3-lesson-import-template-human-values-20260608">
   </head>
   <body>
     <div class="app-shell">
@@ -495,12 +495,13 @@
           <div class="lesson-import-preview-guide">
             <div>
               <h3>模板字段说明</h3>
-              <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、lesson_type、status、课时、金额、是否计费、内容、备注、planned ID。</p>
+              <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、课时类型、状态、课时、金额、是否计费、内容、备注、关联预定ID。</p>
             </div>
             <div class="lesson-import-preview-guide-grid">
-              <div><strong>lesson_type</strong><span>planned / actual</span></div>
-              <div><strong>planned status</strong><span>pending / pending_makeup（兼容 planned）</span></div>
-              <div><strong>actual status</strong><span>completed / cancelled / makeup_completed</span></div>
+              <div><strong>课时类型</strong><span>预定 / 实际（兼容 planned / actual）</span></div>
+              <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
+              <div><strong>实际状态</strong><span>已上课 / 取消 / 已补课</span></div>
+              <div><strong>内部归一化</strong><span>preview 会转为 planned / actual / completed / cancelled / makeup_completed 等内部值。</span></div>
               <div><strong>旧模板</strong><span>可识别预定/实际分栏；缺少状态列时只提示补列，不自动猜测。</span></div>
             </div>
           </div>
@@ -529,14 +530,14 @@
                   <th>业务归属</th>
                   <th>日期</th>
                   <th>时间</th>
-                  <th>lesson_type</th>
-                  <th>status</th>
+                  <th>课时类型</th>
+                  <th>状态</th>
                   <th>计费</th>
                   <th>课时</th>
                   <th>金额</th>
                   <th>内容</th>
                   <th>备注</th>
-                  <th>planned ID</th>
+                  <th>关联预定ID</th>
                   <th>错误 / 警告</th>
                 </tr>
               </thead>
@@ -553,6 +554,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.59.2-lesson-import-template-export-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.59.3-lesson-import-template-human-values-20260608"></script>
   </body>
 </html>
