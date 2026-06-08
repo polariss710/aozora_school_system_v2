@@ -13,8 +13,8 @@ import {
   fetchLessonSubjects,
   fetchLessonTeachers,
   importPlannedLessonRecordsBatch,
-  updateLessonRecordGuarded,
 } from "../api/lesson-api.js";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -172,22 +172,6 @@ const CREATE_MAKEUP_ACTUAL_LESSON_FIELD_IDS = [
   "lessonCount",
 ];
 
-const EDIT_LESSON_FIELD_IDS = [
-  "lessonDate",
-  "status",
-  "student",
-  "teacher",
-  "subject",
-  "businessEntity",
-  "startTime",
-  "endTime",
-  "durationHours",
-  "unitPrice",
-  "lessonFee",
-  "lessonCount",
-  "isBillable",
-];
-
 const dom = {};
 let students = [];
 let teachers = [];
@@ -206,9 +190,7 @@ let isCreateCancelledActualLessonSubmitting = false;
 let currentMakeupActualSourceLesson = null;
 let isCreateMakeupActualLessonSubmitting = false;
 let isMakeupLessonFeeManual = false;
-let currentEditLesson = null;
-let isEditLessonSubmitting = false;
-let isEditLessonFeeManual = false;
+let lessonEditController = null;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
@@ -217,6 +199,7 @@ const successfulLessonImportFileHashes = new Set();
 
 export function initLessonPage() {
   cacheDom();
+  setupLessonEditController();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   setDefaultFilters();
@@ -232,6 +215,22 @@ export function initLessonPage() {
   }
 
   loadInitialData();
+}
+
+function setupLessonEditController() {
+  lessonEditController = createLessonEditDialogController({
+    dom: cacheLessonEditDialogDom(),
+    getLessonRecords: () => lessonRecords,
+    getMasterData: () => ({ students, teachers, subjects, businessEntities }),
+    hasSupabaseConfig,
+    showMessage,
+    onSaved: refreshAfterEditLesson,
+    setExternalBusy: (isBusy) => {
+      if (dom.openCreatePlannedLessonButton) {
+        dom.openCreatePlannedLessonButton.disabled = isBusy;
+      }
+    },
+  });
 }
 
 function cacheDom() {
@@ -392,7 +391,7 @@ function bindEvents() {
   dom.tableBody?.addEventListener("click", (event) => {
     const editButton = event.target.closest("[data-edit-lesson-id]");
     if (editButton) {
-      openEditLessonDialog(editButton.dataset.editLessonId || "");
+      lessonEditController?.open(editButton.dataset.editLessonId || "");
     }
   });
 
@@ -463,7 +462,7 @@ function bindEvents() {
 
     const editButton = event.target.closest("[data-edit-lesson-id]");
     if (editButton) {
-      openEditLessonDialog(editButton.dataset.editLessonId || "");
+      lessonEditController?.open(editButton.dataset.editLessonId || "");
     }
   });
 
@@ -564,46 +563,6 @@ function bindEvents() {
     isMakeupLessonFeeManual = dom.createMakeupActualLessonFeeInput.value.trim() !== "";
   });
 
-  dom.editLessonCancelButton?.addEventListener("click", () => closeEditLessonDialog());
-  dom.editLessonSubmitButton?.addEventListener("click", handleEditLessonSubmit);
-
-  dom.editLessonDialog?.addEventListener("click", (event) => {
-    if (event.target === dom.editLessonDialog) {
-      closeEditLessonDialog();
-    }
-  });
-
-  [
-    ["lessonDate", dom.editLessonDateInput],
-    ["status", dom.editLessonStatusSelect],
-    ["student", dom.editLessonStudentSelect],
-    ["teacher", dom.editLessonTeacherSelect],
-    ["subject", dom.editLessonSubjectSelect],
-    ["businessEntity", dom.editLessonBusinessEntitySelect],
-    ["startTime", dom.editLessonStartTimeInput],
-    ["endTime", dom.editLessonEndTimeInput],
-    ["durationHours", dom.editLessonDurationInput],
-    ["unitPrice", dom.editLessonUnitPriceInput],
-    ["lessonFee", dom.editLessonFeeInput],
-    ["lessonCount", dom.editLessonCountInput],
-    ["isBillable", dom.editLessonBillableSelect],
-  ].forEach(([fieldId, element]) => {
-    element?.addEventListener("input", () => {
-      clearEditLessonFieldInvalid(fieldId);
-      hideEditLessonErrorIfClean();
-    });
-    element?.addEventListener("change", () => {
-      clearEditLessonFieldInvalid(fieldId);
-      hideEditLessonErrorIfClean();
-    });
-  });
-
-  dom.editLessonDurationInput?.addEventListener("input", updateEditLessonFeePreview);
-  dom.editLessonUnitPriceInput?.addEventListener("input", updateEditLessonFeePreview);
-  dom.editLessonFeeInput?.addEventListener("input", () => {
-    isEditLessonFeeManual = dom.editLessonFeeInput.value.trim() !== "";
-  });
-  dom.editLessonBillableSelect?.addEventListener("change", handleEditLessonBillableChange);
 }
 
 function setDefaultFilters() {
@@ -1710,272 +1669,6 @@ function updateCreateMakeupActualLessonFeePreview() {
   dom.createMakeupActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
 }
 
-function openEditLessonDialog(lessonId) {
-  if (!hasSupabaseConfig()) {
-    showMessage("error", "当前 Supabase 配置不可用，不能编辑课时。");
-    return;
-  }
-
-  const lesson = lessonRecords.find((record) => record.id === lessonId);
-  if (!lesson) {
-    showMessage("error", "未找到要编辑的课时。");
-    return;
-  }
-
-  const blockReason = lessonEditBlockReason(lesson);
-  if (blockReason) {
-    showMessage("error", blockReason);
-    return;
-  }
-
-  currentEditLesson = lesson;
-  renderEditLessonOptions();
-  resetEditLessonForm(lesson);
-  renderEditLessonSummary(lesson);
-  clearEditLessonErrors();
-  setEditLessonSubmitting(false);
-  dom.editLessonDialog.classList.remove("is-hidden");
-  dom.editLessonDialog.setAttribute("aria-hidden", "false");
-  dom.editLessonDateInput.focus();
-}
-
-function closeEditLessonDialog(force = false) {
-  if (isEditLessonSubmitting && !force) {
-    return;
-  }
-
-  dom.editLessonDialog.classList.add("is-hidden");
-  dom.editLessonDialog.setAttribute("aria-hidden", "true");
-}
-
-function renderEditLessonOptions() {
-  renderEntityOptionsWithPlaceholder(
-    dom.editLessonStudentSelect,
-    students.filter((student) => !["inactive", "graduated"].includes(safeText(student.status))),
-    studentName,
-    "请选择学生"
-  );
-  renderEntityOptionsWithPlaceholder(
-    dom.editLessonTeacherSelect,
-    teachers.filter((teacher) => !["inactive", "retired"].includes(safeText(teacher.status))),
-    teacherName,
-    "请选择老师"
-  );
-  renderEntityOptionsWithPlaceholder(
-    dom.editLessonSubjectSelect,
-    subjects.filter((subject) => subject.is_active !== false),
-    subjectName,
-    "请选择科目"
-  );
-  renderEntityOptionsWithPlaceholder(
-    dom.editLessonBusinessEntitySelect,
-    businessEntities.filter((entity) => entity.is_active !== false),
-    businessEntityName,
-    "请选择业务归属"
-  );
-}
-
-function resetEditLessonForm(lesson) {
-  dom.editLessonTypeInput.value = lessonTypeLabel(lesson.lesson_type);
-  dom.editLessonStatusSelect.value = safeText(lesson.status);
-  dom.editLessonDateInput.value = safeText(lesson.lesson_date);
-  dom.editLessonBillableSelect.value = lesson.is_billable === false ? "false" : "true";
-  dom.editLessonStudentSelect.value = safeText(lesson.student_id);
-  dom.editLessonTeacherSelect.value = safeText(lesson.teacher_id);
-  dom.editLessonSubjectSelect.value = safeText(lesson.subject_id);
-  dom.editLessonBusinessEntitySelect.value = safeText(lesson.business_entity_id);
-  dom.editLessonStartTimeInput.value = formatInputTime(lesson.start_time);
-  dom.editLessonEndTimeInput.value = formatInputTime(lesson.end_time);
-  dom.editLessonDurationInput.value = displayInputNumber(lesson.duration_hours);
-  dom.editLessonUnitPriceInput.value = displayInputNumber(lesson.unit_price || 0);
-  dom.editLessonFeeInput.value = displayInputNumber(lesson.lesson_fee);
-  dom.editLessonCountInput.value = lesson.lesson_count ? String(lesson.lesson_count) : "";
-  dom.editLessonPlannedIdInput.value = safeText(lesson.planned_lesson_id);
-  dom.editLessonImportSourceInput.value = displayEditLessonImportSource(lesson);
-  dom.editLessonContentInput.value = safeText(lesson.lesson_content);
-  dom.editLessonNoteInput.value = safeText(lesson.note);
-  isEditLessonFeeManual = false;
-  syncEditLessonFieldModes();
-}
-
-function syncEditLessonFieldModes() {
-  const lesson = currentEditLesson;
-  if (!lesson) {
-    return;
-  }
-
-  const isPlanned = lesson.lesson_type === "planned";
-  const isActual = lesson.lesson_type === "actual";
-  const isLinkedActual = isActual && Boolean(lesson.planned_lesson_id);
-  const isCancelledActual = isActual && lesson.status === "cancelled";
-
-  dom.editLessonStatusSelect.disabled = isActual;
-  [...dom.editLessonStatusSelect.options].forEach((option) => {
-    option.disabled = isPlanned
-      ? !["planned", "pending_makeup"].includes(option.value)
-      : option.value !== lesson.status;
-  });
-
-  [dom.editLessonStudentSelect, dom.editLessonTeacherSelect, dom.editLessonSubjectSelect, dom.editLessonBusinessEntitySelect]
-    .forEach((element) => {
-      element.disabled = isLinkedActual;
-    });
-
-  dom.editLessonBillableSelect.disabled = isPlanned || isCancelledActual;
-  dom.editLessonFeeInput.readOnly = isCancelledActual || (isActual && dom.editLessonBillableSelect.value === "false");
-  if (isPlanned) {
-    dom.editLessonBillableSelect.value = "true";
-  }
-  if (isCancelledActual) {
-    dom.editLessonBillableSelect.value = "false";
-    dom.editLessonFeeInput.value = "0";
-  }
-  if (isActual && dom.editLessonBillableSelect.value === "false") {
-    dom.editLessonFeeInput.value = "0";
-  }
-
-  const warnings = [];
-  if (isActual) {
-    warnings.push("actual 状态 V1 只读，不能在编辑中切换为取消、已上课或补课完成。");
-  }
-  if (isLinkedActual) {
-    warnings.push("该 actual 已关联 planned，学生、老师、科目、业务归属只读。");
-  }
-  if (isPlanned) {
-    warnings.push("planned_lesson_id、导入信息和课时类型只读；如已有关联 actual，RPC 会拒绝编辑。");
-  }
-  renderEditLessonWarning(warnings);
-}
-
-function renderEditLessonSummary(lesson) {
-  dom.editLessonSummary.innerHTML = [
-    ["课时 ID", shortId(lesson.id)],
-    ["当前状态", lessonStatusLabel(lesson.status)],
-    ["学生结算月", formatMonth(lesson.year_month)],
-    ["老师结算月", formatMonth(lesson.teacher_settlement_month)],
-    ["版本", safeText(lesson.updated_at) ? "updated_at 已记录" : "缺少 updated_at"],
-  ].map(([label, value]) => `
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">${escapeHtml(label)}</span>
-      <span>${escapeHtml(displayValue(value))}</span>
-    </div>
-  `).join("");
-}
-
-function renderEditLessonWarning(warnings) {
-  if (!warnings.length) {
-    dom.editLessonWarning.textContent = "";
-    dom.editLessonWarning.classList.add("is-hidden");
-    return;
-  }
-
-  dom.editLessonWarning.textContent = warnings.join(" ");
-  dom.editLessonWarning.classList.remove("is-hidden");
-}
-
-async function handleEditLessonSubmit() {
-  if (isEditLessonSubmitting) {
-    return;
-  }
-
-  clearEditLessonErrors();
-  const payload = readEditLessonPayload();
-  if (!payload) {
-    return;
-  }
-
-  setEditLessonSubmitting(true);
-
-  try {
-    const updatedLesson = await updateLessonRecordGuarded(payload);
-    closeEditLessonDialog(true);
-    await refreshAfterEditLesson(updatedLesson);
-    showMessage("success", `课时已保存：${shortId(updatedLesson.lesson_id || updatedLesson.id)}`);
-  } catch (error) {
-    const message = error.message || String(error);
-    showEditLessonError(message, editLessonFieldIdsForError(message));
-  } finally {
-    setEditLessonSubmitting(false);
-  }
-}
-
-function readEditLessonPayload() {
-  if (!currentEditLesson) {
-    showEditLessonError("缺少要编辑的课时，请重新打开编辑窗口。");
-    return null;
-  }
-
-  const lesson = currentEditLesson;
-  const isPlanned = lesson.lesson_type === "planned";
-  const isActual = lesson.lesson_type === "actual";
-  const isLinkedActual = isActual && Boolean(lesson.planned_lesson_id);
-  const lessonDate = dom.editLessonDateInput.value;
-  const status = dom.editLessonStatusSelect.value;
-  const studentId = dom.editLessonStudentSelect.value;
-  const teacherId = dom.editLessonTeacherSelect.value;
-  const subjectId = dom.editLessonSubjectSelect.value;
-  const businessEntityId = dom.editLessonBusinessEntitySelect.value;
-  const startTime = dom.editLessonStartTimeInput.value;
-  const endTime = dom.editLessonEndTimeInput.value;
-  const durationHours = numberFromInput(dom.editLessonDurationInput.value);
-  const unitPrice = numberFromInput(dom.editLessonUnitPriceInput.value);
-  const isBillable = isPlanned ? true : dom.editLessonBillableSelect.value !== "false";
-  const lessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.editLessonFeeInput.value);
-  const lessonCount = nullableIntegerFromInput(dom.editLessonCountInput.value);
-  const invalidFields = [];
-
-  if (!lesson.updated_at) invalidFields.push("lessonDate");
-  if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
-  if (isPlanned && !["planned", "pending_makeup"].includes(status)) invalidFields.push("status");
-  if (isActual && status !== lesson.status) invalidFields.push("status");
-  if (!studentId) invalidFields.push("student");
-  if (!teacherId) invalidFields.push("teacher");
-  if (!subjectId) invalidFields.push("subject");
-  if (!businessEntityId) invalidFields.push("businessEntity");
-  if (isLinkedActual && (
-    studentId !== lesson.student_id
-    || teacherId !== lesson.teacher_id
-    || subjectId !== lesson.subject_id
-    || businessEntityId !== lesson.business_entity_id
-  )) {
-    invalidFields.push("student", "teacher", "subject", "businessEntity");
-  }
-  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
-  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
-  if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
-  if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
-  if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
-
-  if (invalidFields.length) {
-    const message = isActual && status !== lesson.status
-      ? "actual 课时 V1 不允许修改状态。"
-      : "请检查编辑课时表单中的必填项和数字格式。";
-    showEditLessonError(message, Array.from(new Set(invalidFields)));
-    return null;
-  }
-
-  return {
-    lessonId: lesson.id,
-    expectedUpdatedAt: lesson.updated_at,
-    lessonDate,
-    status,
-    studentId,
-    teacherId,
-    subjectId,
-    businessEntityId,
-    startTime,
-    endTime,
-    durationHours,
-    unitPrice,
-    lessonFee,
-    isBillable,
-    lessonCount,
-    lessonContent: dom.editLessonContentInput.value.trim(),
-    note: dom.editLessonNoteInput.value.trim(),
-  };
-}
-
 async function refreshAfterEditLesson(updatedLesson) {
   const updatedMonth = updatedLesson.year_month || safeText(updatedLesson.lesson_date).slice(0, 7) || loadedMonth;
   if (updatedMonth) {
@@ -1999,111 +1692,6 @@ async function refreshAfterEditLesson(updatedLesson) {
   renderDataOptions(lessonRecords);
   restoreFilterSelections(filters);
   applyCurrentFilters();
-}
-
-function setEditLessonSubmitting(isSubmitting) {
-  isEditLessonSubmitting = isSubmitting;
-  dom.editLessonSubmitButton.disabled = isSubmitting;
-  dom.editLessonCancelButton.disabled = isSubmitting;
-  dom.openCreatePlannedLessonButton.disabled = isSubmitting;
-  dom.editLessonSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
-}
-
-function clearEditLessonErrors() {
-  dom.editLessonError.textContent = "";
-  dom.editLessonError.classList.add("is-hidden");
-  for (const fieldId of EDIT_LESSON_FIELD_IDS) {
-    clearEditLessonFieldInvalid(fieldId);
-  }
-}
-
-function showEditLessonError(message, fieldIds = []) {
-  dom.editLessonError.textContent = message;
-  dom.editLessonError.classList.remove("is-hidden");
-  for (const fieldId of fieldIds) {
-    setEditLessonFieldInvalid(fieldId, true);
-  }
-  dom.editLessonDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function editLessonFieldIdsForError(message) {
-  const text = safeText(message);
-  const fields = [];
-  if (text.includes("日期") || text.includes("月份") || text.includes("结算") || text.includes("工资")) fields.push("lessonDate");
-  if (text.includes("状态")) fields.push("status");
-  if (text.includes("学生")) fields.push("student");
-  if (text.includes("老师")) fields.push("teacher");
-  if (text.includes("科目")) fields.push("subject");
-  if (text.includes("业务归属")) fields.push("businessEntity");
-  if (text.includes("开始时间")) fields.push("startTime");
-  if (text.includes("结束时间")) fields.push("endTime");
-  if (text.includes("时长")) fields.push("durationHours");
-  if (text.includes("单价")) fields.push("unitPrice");
-  if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
-  if (text.includes("回数")) fields.push("lessonCount");
-  if (text.includes("计费")) fields.push("isBillable");
-  if (text.includes("版本") || text.includes("刷新") || text.includes("updated_at")) fields.push("lessonDate");
-  return fields;
-}
-
-function setEditLessonFieldInvalid(fieldId, invalid) {
-  const field = dom.editLessonDialog.querySelector(`[data-edit-lesson-field="${fieldId}"]`);
-  field?.classList.toggle("is-invalid", invalid);
-}
-
-function clearEditLessonFieldInvalid(fieldId) {
-  setEditLessonFieldInvalid(fieldId, false);
-}
-
-function hideEditLessonErrorIfClean() {
-  const hasInvalidField = Boolean(dom.editLessonDialog.querySelector(".field.is-invalid"));
-  if (!hasInvalidField) {
-    dom.editLessonError.textContent = "";
-    dom.editLessonError.classList.add("is-hidden");
-  }
-}
-
-function handleEditLessonBillableChange() {
-  isEditLessonFeeManual = false;
-  syncEditLessonFieldModes();
-  updateEditLessonFeePreview();
-}
-
-function updateEditLessonFeePreview() {
-  if (!currentEditLesson) {
-    return;
-  }
-
-  const isActual = currentEditLesson.lesson_type === "actual";
-  const isCancelledActual = isActual && currentEditLesson.status === "cancelled";
-  const isBillable = dom.editLessonBillableSelect.value !== "false";
-
-  if (isCancelledActual || (isActual && !isBillable)) {
-    dom.editLessonFeeInput.value = "0";
-    return;
-  }
-
-  if (isEditLessonFeeManual) {
-    return;
-  }
-
-  const durationHours = numberFromInput(dom.editLessonDurationInput.value);
-  const unitPrice = numberFromInput(dom.editLessonUnitPriceInput.value);
-  if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
-    dom.editLessonFeeInput.value = "";
-    return;
-  }
-
-  dom.editLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
-}
-
-function displayEditLessonImportSource(lesson) {
-  const parts = [
-    safeText(lesson.import_source),
-    lesson.import_batch_id ? `batch ${shortId(lesson.import_batch_id)}` : "",
-    lesson.imported_at ? `imported ${safeText(lesson.imported_at).slice(0, 19)}` : "",
-  ].filter(Boolean);
-  return parts.join(" / ");
 }
 
 function renderValueOptions(selectEl, values, labelGetter) {
@@ -3871,44 +3459,7 @@ function canGenerateActualFromPlanned(planned) {
 }
 
 function renderLessonEditAction(record) {
-  const reason = lessonEditBlockReason(record);
-  if (reason) {
-    return `<button class="button table-action-button" type="button" disabled title="${escapeAttribute(reason)}">不可编辑</button>`;
-  }
-
-  return `<button class="button table-action-button" type="button" data-edit-lesson-id="${escapeAttribute(record.id)}">编辑</button>`;
-}
-
-function lessonEditBlockReason(record) {
-  if (!record || !record.id) {
-    return "缺少课时记录。";
-  }
-
-  if (record.lesson_type === "planned") {
-    if (!["planned", "pending_makeup"].includes(record.status)) {
-      return `当前 planned 状态不允许编辑：${lessonStatusLabel(record.status)}。`;
-    }
-    if (hasLinkedActual(record.id)) {
-      return "该 planned 已有关联 actual，V1 不允许编辑。";
-    }
-    return "";
-  }
-
-  if (record.lesson_type === "actual") {
-    if (!["completed", "cancelled", "makeup_completed"].includes(record.status)) {
-      return `当前 actual 状态不允许编辑：${lessonStatusLabel(record.status)}。`;
-    }
-    return "";
-  }
-
-  return `不支持编辑该课时类型：${lessonTypeLabel(record.lesson_type)}。`;
-}
-
-function hasLinkedActual(plannedLessonId) {
-  return lessonRecords.some((record) => (
-    record.lesson_type === "actual"
-    && record.planned_lesson_id === plannedLessonId
-  ));
+  return lessonEditController?.renderAction(record) || "";
 }
 
 function renderLessonPairCard(record, side) {

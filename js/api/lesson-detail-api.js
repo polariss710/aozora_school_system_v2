@@ -270,24 +270,24 @@ async function fetchLessonDetailLookups() {
   const [studentsResult, teachersResult, subjectsResult, businessEntitiesResult] = await Promise.all([
     supabase
       .from("school_students")
-      .select("id,student_code,name,display_name")
+      .select("id,student_code,name,display_name,status")
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("school_teachers")
-      .select("id,teacher_code,name,display_name")
+      .select("id,teacher_code,name,display_name,status")
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("school_subjects")
-      .select("id,name,category,primary_category")
+      .select("id,name,category,primary_category,is_active")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
     supabase
       .from("school_business_entities")
-      .select("id,code,name,entity_type")
+      .select("id,code,name,entity_type,is_active")
       .order("name", { ascending: true }),
   ]);
 

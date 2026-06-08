@@ -1,5 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const LESSON_TYPE_LABELS = {
@@ -35,9 +36,13 @@ const SETTLEMENT_TYPE_LABELS = {
 };
 
 const dom = {};
+let currentLessonDetailData = null;
+let currentLessonId = "";
+let lessonEditController = null;
 
 export function initLessonDetailPage() {
   cacheDom();
+  setupLessonEditController();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -48,20 +53,23 @@ export function initLessonDetailPage() {
     return;
   }
 
-  const lessonId = readLessonId();
-  if (!lessonId) {
+  currentLessonId = readLessonId();
+  if (!currentLessonId) {
     showMessage("error", "缺少课时记录 ID，请从课时管理一览进入详情页。");
     setContentVisible(false);
     return;
   }
 
-  loadLessonDetail(lessonId);
+  bindEvents();
+  loadLessonDetail(currentLessonId);
 }
 
 function cacheDom() {
   dom.messageArea = document.querySelector("#lessonDetailMessageArea");
   dom.loadingState = document.querySelector("#lessonDetailLoadingState");
   dom.content = document.querySelector("#lessonDetailContent");
+  dom.editActionArea = document.querySelector("#lessonDetailEditActionArea");
+  dom.editButton = document.querySelector("#lessonDetailEditButton");
   dom.titleText = document.querySelector("#lessonDetailTitleText");
   dom.basicInfo = document.querySelector("#lessonDetailBasicInfo");
   dom.objectInfo = document.querySelector("#lessonDetailObjectInfo");
@@ -79,6 +87,33 @@ function cacheDom() {
   dom.wageRows = document.querySelector("#lessonDetailWageRows");
 }
 
+function setupLessonEditController() {
+  lessonEditController = createLessonEditDialogController({
+    dom: cacheLessonEditDialogDom(),
+    getLessonRecords: getDetailLessonRecords,
+    getMasterData: () => currentLessonDetailData?.lookups || {
+      students: [],
+      teachers: [],
+      subjects: [],
+      businessEntities: [],
+    },
+    hasSupabaseConfig,
+    showMessage,
+    onSaved: async (updatedLesson) => {
+      const nextLessonId = updatedLesson?.lesson_id || updatedLesson?.id || currentLessonId;
+      currentLessonId = nextLessonId;
+      await loadLessonDetail(nextLessonId);
+    },
+  });
+}
+
+function bindEvents() {
+  dom.editButton?.addEventListener("click", () => {
+    const lessonId = dom.editButton.dataset.editLessonId || currentLessonId;
+    lessonEditController?.open(lessonId);
+  });
+}
+
 function readLessonId() {
   const params = new URLSearchParams(window.location.search);
   return params.get("id") || "";
@@ -91,6 +126,7 @@ async function loadLessonDetail(lessonId) {
 
   try {
     const data = await fetchLessonDetailPage(lessonId);
+    currentLessonDetailData = data;
     renderLessonDetail(data);
     setContentVisible(true);
     showMessage("success", "课时详情已加载。");
@@ -105,6 +141,7 @@ async function loadLessonDetail(lessonId) {
 function renderLessonDetail(data) {
   const { lesson, lookups, sourceChain, settlements, wageReferences } = data;
 
+  renderEditAction(lesson);
   dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}`;
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["lesson id", shortId(lesson.id)],
@@ -158,6 +195,34 @@ function renderLessonDetail(data) {
   renderSourceChain(sourceChain);
   renderSettlementReferences(settlements);
   renderWageReferences(wageReferences);
+}
+
+function getDetailLessonRecords() {
+  const data = currentLessonDetailData;
+  if (!data?.lesson) {
+    return [];
+  }
+
+  const rows = [data.lesson];
+  for (const row of data.sourceChain || []) {
+    if (row.lesson?.id && !rows.some((lesson) => lesson.id === row.lesson.id)) {
+      rows.push(row.lesson);
+    }
+  }
+  return rows;
+}
+
+function renderEditAction(lesson) {
+  if (!dom.editButton || !dom.editActionArea) {
+    return;
+  }
+
+  const reason = lessonEditController?.blockReason(lesson) || "";
+  dom.editButton.dataset.editLessonId = lesson.id || "";
+  dom.editButton.disabled = Boolean(reason);
+  dom.editButton.title = reason || "编辑课时";
+  dom.editButton.textContent = reason ? "不可编辑" : "编辑";
+  dom.editActionArea.classList.remove("is-hidden");
 }
 
 function renderSourceChain(rows) {
