@@ -284,6 +284,22 @@ export async function createPlannedLessonRecord(payload) {
   return result;
 }
 
+export async function importPlannedLessonRecordsBatch(payload) {
+  const { data, error } = await supabase.rpc("school_import_lesson_records_batch", {
+    p_import_batch_id: payload.importBatchId,
+    p_source_file_name: payload.sourceFileName,
+    p_source_file_hash: payload.sourceFileHash,
+    p_rows: payload.rows,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
 export async function createActualLessonFromPlanned(payload) {
   const { data, error } = await supabase.rpc("school_create_actual_lesson_from_planned", {
     p_planned_lesson_id: payload.plannedLessonId,

@@ -487,7 +487,7 @@
         <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonImportPreviewTitle">
           <div class="section-heading">
             <h2 id="lessonImportPreviewTitle">课时导入预览</h2>
-            <p class="section-note">只解析本地 Excel/CSV 并做前端校验；本阶段不会生成课时记录或写入数据库。</p>
+            <p class="section-note">可解析本地 Excel/CSV 并预览；第一版提交只导入预定课时，actual 行仅预览不写入。</p>
           </div>
 
           <div id="lessonImportPreviewError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -502,7 +502,8 @@
               <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
               <div><strong>实际状态</strong><span>已上课 / 取消 / 已补课</span></div>
               <div><strong>内部归一化</strong><span>preview 会转为 planned / actual / completed / cancelled / makeup_completed 等内部值。</span></div>
-              <div><strong>关联预定ID</strong><span>actual 填写后只读检查 planned、重复 actual、主数据一致性和锁定月份；未填写时不自动匹配。</span></div>
+              <div><strong>导入范围</strong><span>当前提交只支持预定课时；actual 行会在提交前阻止。</span></div>
+              <div><strong>关联预定ID</strong><span>actual 填写后只读检查 planned、重复 actual、主数据一致性和锁定月份；第一版不会写入关联。</span></div>
               <div><strong>旧模板</strong><span>可识别预定/实际分栏；缺少状态列时只提示补列，不自动猜测。</span></div>
             </div>
           </div>
@@ -547,6 +548,7 @@
           </div>
 
           <div class="dialog-actions">
+            <button class="button button-primary" id="lessonImportPlannedSubmitButton" type="button">导入预定课时</button>
             <button class="button" id="lessonImportPreviewClearButton" type="button">清空</button>
             <button class="button" id="lessonImportPreviewCloseButton" type="button">关闭</button>
           </div>

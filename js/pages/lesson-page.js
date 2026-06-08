@@ -12,6 +12,7 @@ import {
   fetchLessonStudents,
   fetchLessonSubjects,
   fetchLessonTeachers,
+  importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import {
   currentYearMonth,
@@ -117,6 +118,7 @@ const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["状态", "是", "预定可填 待上课 / 待补课；实际可填 已上课 / 取消 / 已补课。"],
   ["状态英文兼容", "说明", "待上课兼容 pending / planned；待补课兼容 pending_makeup；已上课兼容 completed；取消兼容 cancelled；已补课兼容 makeup_completed。"],
   ["合法组合", "说明", "预定：待上课 / 待补课；实际：已上课 / 取消 / 已补课。"],
+  ["当前导入范围", "说明", "第一版提交只支持预定课时；actual 行仅用于 preview，不会写入。"],
   ["课时", "是", "大于 0 的数字。"],
   ["金额", "建议", "0 或正数；为空时 preview 只提示确认，不写入。"],
   ["是否计费", "建议", "是 / 否 / true / false。"],
@@ -188,6 +190,8 @@ let currentMakeupActualSourceLesson = null;
 let isCreateMakeupActualLessonSubmitting = false;
 let isMakeupLessonFeeManual = false;
 let importPreviewRows = [];
+let importPreviewFileMeta = null;
+let isLessonImportSubmitting = false;
 
 export function initLessonPage() {
   cacheDom();
@@ -237,6 +241,7 @@ function cacheDom() {
   dom.lessonImportPreviewError = document.querySelector("#lessonImportPreviewError");
   dom.lessonImportPreviewFileInput = document.querySelector("#lessonImportPreviewFileInput");
   dom.lessonImportTemplateExportButton = document.querySelector("#lessonImportTemplateExportButton");
+  dom.lessonImportPlannedSubmitButton = document.querySelector("#lessonImportPlannedSubmitButton");
   dom.lessonImportPreviewSummary = document.querySelector("#lessonImportPreviewSummary");
   dom.lessonImportPreviewEmpty = document.querySelector("#lessonImportPreviewEmpty");
   dom.lessonImportPreviewRows = document.querySelector("#lessonImportPreviewRows");
@@ -328,6 +333,7 @@ function bindEvents() {
   dom.lessonImportPreviewClearButton?.addEventListener("click", clearLessonImportPreview);
   dom.lessonImportPreviewFileInput?.addEventListener("change", handleLessonImportPreviewFileChange);
   dom.lessonImportTemplateExportButton?.addEventListener("click", handleLessonImportTemplateExport);
+  dom.lessonImportPlannedSubmitButton?.addEventListener("click", handleLessonImportPlannedSubmit);
 
   dom.lessonImportPreviewDialog?.addEventListener("click", (event) => {
     if (event.target === dom.lessonImportPreviewDialog) {
@@ -1628,6 +1634,7 @@ function closeLessonImportPreviewDialog() {
 
 function clearLessonImportPreview() {
   importPreviewRows = [];
+  importPreviewFileMeta = null;
   if (dom.lessonImportPreviewFileInput) {
     dom.lessonImportPreviewFileInput.value = "";
   }
@@ -1638,6 +1645,7 @@ function clearLessonImportPreview() {
 async function handleLessonImportPreviewFileChange(event) {
   const file = event.target.files?.[0];
   importPreviewRows = [];
+  importPreviewFileMeta = null;
   hideLessonImportPreviewError();
 
   if (!file) {
@@ -1648,6 +1656,10 @@ async function handleLessonImportPreviewFileChange(event) {
   try {
     const rows = await parseLessonImportPreviewFile(file);
     importPreviewRows = buildLessonImportPreviewRows(rows);
+    importPreviewFileMeta = {
+      name: file.name,
+      hash: await calculateLessonImportFileHash(file),
+    };
     await addLessonImportPlannedIdPrecheck(importPreviewRows);
     if (!importPreviewRows.length) {
       showLessonImportPreviewError("没有读取到可预览的课时行。请确认文件包含表头和课时数据。");
@@ -1658,6 +1670,71 @@ async function handleLessonImportPreviewFileChange(event) {
   }
 
   renderLessonImportPreview();
+}
+
+async function handleLessonImportPlannedSubmit() {
+  if (isLessonImportSubmitting) {
+    return;
+  }
+
+  hideLessonImportPreviewError();
+
+  if (!importPreviewRows.length) {
+    showLessonImportPreviewError("请先选择文件并生成预览。");
+    return;
+  }
+
+  const actualRows = importPreviewRows.filter((row) => row.values.lessonType === "actual");
+  if (actualRows.length) {
+    for (const row of actualRows) {
+      addLessonImportPreviewIssue(row, "error", "lessonType", "当前批量导入第一版仅支持预定课时。");
+    }
+    renderLessonImportPreview();
+    showLessonImportPreviewError("当前批量导入第一版仅支持预定课时；请移除 actual 行后再提交。");
+    return;
+  }
+
+  const invalidRows = importPreviewRows.filter((row) => row.errors.length);
+  if (invalidRows.length) {
+    showLessonImportPreviewError(`仍有 ${invalidRows.length} 行错误，请先修正后再导入预定课时。`);
+    return;
+  }
+
+  if (!importPreviewFileMeta?.name || !importPreviewFileMeta?.hash) {
+    showLessonImportPreviewError("缺少文件信息，请重新选择文件后再导入。");
+    return;
+  }
+
+  setLessonImportSubmitting(true);
+
+  try {
+    const results = await importPlannedLessonRecordsBatch({
+      importBatchId: createLessonImportBatchId(),
+      sourceFileName: importPreviewFileMeta.name,
+      sourceFileHash: importPreviewFileMeta.hash,
+      rows: buildLessonImportSubmitRows(importPreviewRows),
+      note: "lesson planned-only batch import from lesson.html",
+    });
+
+    applyLessonImportSubmitResults(results);
+    renderLessonImportPreview();
+
+    const failedRows = results.filter((row) => row.row_valid === false || row.batch_committed === false || (row.errors || []).length);
+    if (failedRows.length) {
+      showLessonImportPreviewError(`导入被拒绝：${failedRows.length} 行需要处理。`);
+      return;
+    }
+
+    if (loadedMonth) {
+      await loadLessonMonth(loadedMonth);
+      applyCurrentFilters();
+    }
+    showMessage("success", `已导入预定课时 ${results.length} 行。`);
+  } catch (error) {
+    showLessonImportPreviewError(error.message || String(error));
+  } finally {
+    setLessonImportSubmitting(false);
+  }
 }
 
 function handleLessonImportTemplateExport() {
@@ -2521,6 +2598,10 @@ function renderLessonImportPreview() {
   dom.lessonImportPreviewEmpty.classList.toggle("is-hidden", rows.length > 0);
   dom.lessonImportPreviewSummary.classList.toggle("is-hidden", rows.length === 0);
   dom.lessonImportPreviewRows.innerHTML = rows.map(renderLessonImportPreviewRow).join("");
+  if (dom.lessonImportPlannedSubmitButton) {
+    dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0;
+    dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : "导入预定课时";
+  }
 
   if (rows.length) {
     dom.lessonImportPreviewSummary.innerHTML = [
@@ -2576,6 +2657,9 @@ function renderLessonImportPreviewIssues(row) {
   ];
 
   if (!issues.length) {
+    if (row.importResult?.createdLessonId) {
+      return `<span class="status-badge status-paid">已导入 ${escapeHtml(shortId(row.importResult.createdLessonId))}</span>`;
+    }
     return '<span class="status-badge status-paid">OK</span>';
   }
 
@@ -2605,6 +2689,82 @@ function showLessonImportPreviewError(message) {
 function hideLessonImportPreviewError() {
   dom.lessonImportPreviewError.textContent = "";
   dom.lessonImportPreviewError.classList.add("is-hidden");
+}
+
+function buildLessonImportSubmitRows(rows) {
+  return rows.map((row, index) => ({
+    row_index: index + 1,
+    source_row_no: row.rowNo,
+    row_key: `${row.rowNo}:${index + 1}`,
+    lesson_type: row.values.lessonType,
+    status: row.values.status,
+    lesson_date: row.values.lessonDate,
+    start_time: row.values.startTime || null,
+    end_time: row.values.endTime || null,
+    duration_hours: row.values.durationHours,
+    lesson_count: null,
+    unit_price: Number.isFinite(row.values.unitPrice) ? row.values.unitPrice : 0,
+    lesson_fee: Number.isFinite(row.values.lessonFee) ? row.values.lessonFee : null,
+    is_billable: true,
+    student_id: row.values.studentId,
+    teacher_id: row.values.teacherId,
+    subject_id: row.values.subjectId,
+    business_entity_id: row.values.businessEntityId,
+    planned_lesson_id: null,
+    lesson_content: row.values.lessonContent || null,
+    note: row.values.note || null,
+  }));
+}
+
+function applyLessonImportSubmitResults(results) {
+  const rowsByIndex = new Map(importPreviewRows.map((row, index) => [index + 1, row]));
+
+  for (const result of results || []) {
+    const row = rowsByIndex.get(Number(result.row_index));
+    if (!row) {
+      continue;
+    }
+    row.importResult = {
+      createdLessonId: result.created_lesson_id || "",
+      batchCommitted: Boolean(result.batch_committed),
+    };
+    for (const message of result.errors || []) {
+      addLessonImportPreviewIssue(row, "error", "lessonType", message);
+    }
+    for (const message of result.warnings || []) {
+      addLessonImportPreviewIssue(row, "warning", "lessonType", message);
+    }
+  }
+}
+
+function setLessonImportSubmitting(isSubmitting) {
+  isLessonImportSubmitting = isSubmitting;
+  if (dom.lessonImportPlannedSubmitButton) {
+    dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0;
+    dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : "导入预定课时";
+  }
+}
+
+async function calculateLessonImportFileHash(file) {
+  if (window.crypto?.subtle) {
+    const buffer = await file.arrayBuffer();
+    const digest = await window.crypto.subtle.digest("SHA-256", buffer);
+    return Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  return `${file.name}:${file.size}:${file.lastModified || 0}`;
+}
+
+function createLessonImportBatchId() {
+  if (window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  return "10000000-1000-4000-8000-".replace(/[018]/g, (char) => (
+    (Number(char) ^ window.crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> Number(char) / 4).toString(16)
+  )) + Date.now().toString(16).padStart(12, "0").slice(-12);
 }
 
 function importPreviewBaseYear() {
