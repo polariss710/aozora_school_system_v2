@@ -818,7 +818,9 @@ h2 {
 .lesson-pair-column {
   display: grid;
   min-width: 0;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+  align-items: stretch;
   gap: 8px;
 }
 
@@ -832,12 +834,16 @@ h2 {
 .lesson-pair-actual-stack {
   display: grid;
   min-width: 0;
+  height: 100%;
+  align-items: stretch;
+  grid-auto-rows: minmax(0, 1fr);
   gap: 8px;
 }
 
 .lesson-pair-card,
 .lesson-pair-placeholder {
   min-width: 0;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfe;
@@ -845,8 +851,15 @@ h2 {
 
 .lesson-pair-card {
   display: grid;
+  height: 100%;
+  align-content: start;
   gap: 10px;
   padding: 12px;
+}
+
+.lesson-pair-column > .lesson-pair-placeholder,
+.lesson-pair-actual-stack > .lesson-pair-placeholder {
+  height: 100%;
 }
 
 .lesson-pair-card-cancelled {
