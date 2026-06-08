@@ -76,6 +76,49 @@ const LESSON_IMPORT_FIELD_ALIAS_TEXT = {
   durationHours: "课时 / 时长 / hours / 時間数 / 授業時間",
 };
 
+const LESSON_IMPORT_TEMPLATE_HEADERS = [
+  "学生",
+  "老师",
+  "科目",
+  "业务归属",
+  "日期",
+  "开始时间",
+  "结束时间",
+  "lesson_type",
+  "status",
+  "课时",
+  "金额",
+  "是否计费",
+  "内容",
+  "备注",
+  "planned ID",
+];
+
+const LESSON_IMPORT_TEMPLATE_ROWS = [
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "planned", "pending", 1, 5000, "是", "预定课内容", "planned 示例；pending 会在 preview 中按待上课识别", ""],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "actual", "completed", 1, 5000, "是", "实际完成内容", "actual completed 示例", "上一行 planned ID 或导入后生成的 planned ID"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "actual", "cancelled", 1, 0, "否", "取消课", "actual cancelled 示例；金额通常为 0", "关联的 planned ID"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-12", "10:00", "11:00", "actual", "makeup_completed", 1, 5000, "是", "补课完成内容", "actual makeup_completed 示例；是否计费可填 是/否", "关联的 planned ID"],
+];
+
+const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
+  ["字段", "必填", "说明 / 合法值"],
+  ["示例值", "说明", "模板中的示例学生、示例老师、数学、青空进学塾需要替换为当前系统已有主数据；preview 会按 lookup 校验。"],
+  ["学生", "是", "填写学生名称；preview 会用当前学生 lookup 匹配。"],
+  ["老师", "是", "填写老师名称；可兼容 担当老师 / teacher 等表头。"],
+  ["科目", "是", "填写科目名称；可兼容 subject / 講座 等表头。"],
+  ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头。"],
+  ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
+  ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
+  ["lesson_type", "是", "planned / actual。"],
+  ["status", "是", "planned/pending 表示待上课；pending_makeup 表示待补课；actual 可用 completed / cancelled / makeup_completed。"],
+  ["课时", "是", "大于 0 的数字。"],
+  ["金额", "建议", "0 或正数；为空时 preview 只提示确认，不写入。"],
+  ["是否计费", "建议", "是 / 否 / true / false。"],
+  ["内容 / 备注", "否", "文本。"],
+  ["planned ID", "actual 建议", "后续 batch import 设计前仅用于 preview 显示，不会建立 DB 关联。"],
+];
+
 const CREATE_PLANNED_LESSON_FIELD_IDS = [
   "lessonDate",
   "status",
@@ -188,6 +231,7 @@ function cacheDom() {
   dom.lessonImportPreviewDialog = document.querySelector("#lessonImportPreviewDialog");
   dom.lessonImportPreviewError = document.querySelector("#lessonImportPreviewError");
   dom.lessonImportPreviewFileInput = document.querySelector("#lessonImportPreviewFileInput");
+  dom.lessonImportTemplateExportButton = document.querySelector("#lessonImportTemplateExportButton");
   dom.lessonImportPreviewSummary = document.querySelector("#lessonImportPreviewSummary");
   dom.lessonImportPreviewEmpty = document.querySelector("#lessonImportPreviewEmpty");
   dom.lessonImportPreviewRows = document.querySelector("#lessonImportPreviewRows");
@@ -278,6 +322,7 @@ function bindEvents() {
   dom.lessonImportPreviewCloseButton?.addEventListener("click", closeLessonImportPreviewDialog);
   dom.lessonImportPreviewClearButton?.addEventListener("click", clearLessonImportPreview);
   dom.lessonImportPreviewFileInput?.addEventListener("change", handleLessonImportPreviewFileChange);
+  dom.lessonImportTemplateExportButton?.addEventListener("click", handleLessonImportTemplateExport);
 
   dom.lessonImportPreviewDialog?.addEventListener("click", (event) => {
     if (event.target === dom.lessonImportPreviewDialog) {
@@ -1609,6 +1654,62 @@ async function handleLessonImportPreviewFileChange(event) {
   renderLessonImportPreview();
 }
 
+function handleLessonImportTemplateExport() {
+  hideLessonImportPreviewError();
+
+  if (window.XLSX) {
+    exportLessonImportTemplateXlsx();
+    return;
+  }
+
+  exportLessonImportTemplateCsv();
+  showLessonImportPreviewError("Excel 解析库尚未加载，已降级导出 CSV 标准模板。");
+}
+
+function exportLessonImportTemplateXlsx() {
+  const workbook = window.XLSX.utils.book_new();
+  const templateSheet = window.XLSX.utils.aoa_to_sheet([
+    LESSON_IMPORT_TEMPLATE_HEADERS,
+    ...LESSON_IMPORT_TEMPLATE_ROWS,
+  ]);
+  templateSheet["!cols"] = LESSON_IMPORT_TEMPLATE_HEADERS.map((header) => ({
+    wch: Math.max(12, String(header).length + 8),
+  }));
+
+  const guideSheet = window.XLSX.utils.aoa_to_sheet(LESSON_IMPORT_TEMPLATE_GUIDE_ROWS);
+  guideSheet["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 72 }];
+
+  window.XLSX.utils.book_append_sheet(workbook, templateSheet, "lesson_template");
+  window.XLSX.utils.book_append_sheet(workbook, guideSheet, "说明");
+  window.XLSX.writeFile(workbook, "lesson_import_template_v2.xlsx");
+}
+
+function exportLessonImportTemplateCsv() {
+  const csvRows = [
+    LESSON_IMPORT_TEMPLATE_HEADERS,
+    ...LESSON_IMPORT_TEMPLATE_ROWS,
+  ];
+  const csv = csvRows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n");
+  downloadTextFile("lesson_import_template_v2.csv", `\uFEFF${csv}`, "text/csv;charset=utf-8");
+}
+
+function escapeCsvCell(value) {
+  const text = String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
+function downloadTextFile(fileName, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 async function parseLessonImportPreviewFile(file) {
   const extension = file.name.split(".").pop()?.toLowerCase() || "";
 
@@ -2361,7 +2462,7 @@ function normalizeLessonImportPreviewStatus(value) {
     return "";
   }
 
-  if (text === "planned" || /待上课|待上|预定|予定/.test(text)) {
+  if (text === "planned" || text === "pending" || /待上课|待上|预定|予定/.test(text)) {
     return "planned";
   }
 

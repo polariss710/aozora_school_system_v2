@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.59.1-lesson-import-preview-usability-20260608">
+    <link rel="stylesheet" href="./css/app.css?v=v2.59.2-lesson-import-template-export-20260608">
   </head>
   <body>
     <div class="app-shell">
@@ -499,7 +499,7 @@
             </div>
             <div class="lesson-import-preview-guide-grid">
               <div><strong>lesson_type</strong><span>planned / actual</span></div>
-              <div><strong>planned status</strong><span>planned / pending_makeup</span></div>
+              <div><strong>planned status</strong><span>pending / pending_makeup（兼容 planned）</span></div>
               <div><strong>actual status</strong><span>completed / cancelled / makeup_completed</span></div>
               <div><strong>旧模板</strong><span>可识别预定/实际分栏；缺少状态列时只提示补列，不自动猜测。</span></div>
             </div>
@@ -509,6 +509,10 @@
             <span>选择文件</span>
             <input id="lessonImportPreviewFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
           </label>
+
+          <div class="lesson-import-preview-template-actions">
+            <button class="button" id="lessonImportTemplateExportButton" type="button">导出标准模板</button>
+          </div>
 
           <div id="lessonImportPreviewSummary" class="dialog-summary lesson-import-preview-summary is-hidden"></div>
 
@@ -549,6 +553,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.59.1-lesson-import-preview-usability-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.59.2-lesson-import-template-export-20260608"></script>
   </body>
 </html>
