@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.59.3-lesson-import-template-human-values-20260608">
+    <link rel="stylesheet" href="./css/app.css?v=v2.59.4-lesson-import-planned-id-precheck-20260608">
   </head>
   <body>
     <div class="app-shell">
@@ -502,6 +502,7 @@
               <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
               <div><strong>实际状态</strong><span>已上课 / 取消 / 已补课</span></div>
               <div><strong>内部归一化</strong><span>preview 会转为 planned / actual / completed / cancelled / makeup_completed 等内部值。</span></div>
+              <div><strong>关联预定ID</strong><span>actual 填写后只读检查 planned、重复 actual、主数据一致性和锁定月份；未填写时不自动匹配。</span></div>
               <div><strong>旧模板</strong><span>可识别预定/实际分栏；缺少状态列时只提示补列，不自动猜测。</span></div>
             </div>
           </div>
@@ -554,6 +555,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.59.3-lesson-import-template-human-values-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.59.4-lesson-import-planned-id-precheck-20260608"></script>
   </body>
 </html>

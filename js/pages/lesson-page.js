@@ -6,6 +6,8 @@ import {
   createMakeupCompletedActualLessonFromPlanned,
   createPlannedLessonRecord,
   fetchLessonBusinessEntities,
+  fetchLessonImportLockPrecheck,
+  fetchLessonImportPlannedReferences,
   fetchLessonRecords,
   fetchLessonStudents,
   fetchLessonSubjects,
@@ -119,7 +121,7 @@ const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["金额", "建议", "0 或正数；为空时 preview 只提示确认，不写入。"],
   ["是否计费", "建议", "是 / 否 / true / false。"],
   ["内容 / 备注", "否", "文本。"],
-  ["关联预定ID", "actual 建议", "可兼容 planned ID / planned_id / 关联预定；后续 batch import 设计前仅用于 preview 显示，不会建立 DB 关联。"],
+  ["关联预定ID", "actual 建议", "可兼容 planned ID / planned_id / 关联预定；preview 会只读预检查存在性、主数据一致性、重复 linked actual、学生结算锁和老师工资锁，但不会建立 DB 关联。"],
 ];
 
 const CREATE_PLANNED_LESSON_FIELD_IDS = [
@@ -1646,6 +1648,7 @@ async function handleLessonImportPreviewFileChange(event) {
   try {
     const rows = await parseLessonImportPreviewFile(file);
     importPreviewRows = buildLessonImportPreviewRows(rows);
+    await addLessonImportPlannedIdPrecheck(importPreviewRows);
     if (!importPreviewRows.length) {
       showLessonImportPreviewError("没有读取到可预览的课时行。请确认文件包含表头和课时数据。");
     }
@@ -1873,6 +1876,216 @@ function buildLessonImportPreviewRows(rows) {
   }
 
   return previewRows;
+}
+
+async function addLessonImportPlannedIdPrecheck(rows) {
+  const actualRows = rows.filter((row) => row.values.lessonType === "actual");
+  if (!actualRows.length) {
+    return;
+  }
+
+  for (const row of actualRows) {
+    if (!row.values.plannedId) {
+      addLessonImportPreviewIssue(
+        row,
+        "warning",
+        "plannedId",
+        "未填写关联预定ID；preview 阶段不会自动匹配 planned，batch import 前需决定是否允许按学生/老师/科目/日期/时间自动匹配。"
+      );
+    }
+  }
+
+  const rowsWithPlannedId = actualRows.filter((row) => row.values.plannedId);
+  const rowsWithValidPlannedId = [];
+  for (const row of rowsWithPlannedId) {
+    if (!isLessonImportUuid(row.values.plannedId)) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", "关联预定ID格式无效；请填写系统中的 planned UUID，或留空等待后续匹配规则设计。");
+      continue;
+    }
+    rowsWithValidPlannedId.push(row);
+  }
+
+  if (!rowsWithValidPlannedId.length) {
+    return;
+  }
+
+  const plannedIdGroups = groupLessonImportRowsByPlannedId(rowsWithValidPlannedId);
+  for (const groupRows of plannedIdGroups.values()) {
+    if (groupRows.length <= 1) {
+      continue;
+    }
+    for (const row of groupRows) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", "同一导入文件中多行 actual 使用了同一个关联预定ID，后续写入会产生重复关联风险。");
+    }
+  }
+
+  const { plannedLessons, linkedActuals } = await fetchLessonImportPlannedReferences(Array.from(plannedIdGroups.keys()));
+  const plannedById = new Map(plannedLessons.map((lesson) => [lesson.id, lesson]));
+  const linkedActualsByPlannedId = groupRowsByField(linkedActuals, "planned_lesson_id");
+  const precheckableRows = [];
+
+  for (const row of rowsWithValidPlannedId) {
+    const plannedId = normalizeLessonImportPlannedId(row.values.plannedId);
+    const plannedLesson = plannedById.get(plannedId);
+
+    if (!plannedLesson) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", "关联预定ID不存在，或不是当前系统 school 课时记录。");
+      continue;
+    }
+
+    row.values.plannedId = plannedLesson.id;
+
+    if (plannedLesson.lesson_type !== "planned") {
+      addLessonImportPreviewIssue(row, "error", "plannedId", "关联预定ID对应课时不是 planned，不能作为 actual 的来源。");
+      continue;
+    }
+
+    if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", "关联预定ID对应课时状态不是待上课或待补课，不能作为 actual 的来源。");
+    }
+
+    const mismatchedFields = lessonImportPlannedIdMismatchedFields(row, plannedLesson);
+    if (mismatchedFields.length) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", `关联预定ID对应课时与导入行${mismatchedFields.join("、")}不一致。`);
+    }
+
+    const linkedActualRows = linkedActualsByPlannedId.get(plannedLesson.id) || [];
+    if (linkedActualRows.length) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", `关联预定ID已存在 linked actual：${linkedActualRows.map((lesson) => shortId(lesson.id)).join("、")}，不能重复关联。`);
+    }
+
+    precheckableRows.push({ row, plannedLesson });
+  }
+
+  if (!precheckableRows.length) {
+    return;
+  }
+
+  const studentSettlementTargets = precheckableRows
+    .map(({ plannedLesson }) => ({
+      studentId: plannedLesson.student_id,
+      yearMonth: plannedLesson.year_month,
+      businessEntityId: plannedLesson.business_entity_id,
+    }))
+    .filter((target) => target.studentId && target.yearMonth);
+  const teacherWageTargets = precheckableRows
+    .map(({ row, plannedLesson }) => ({
+      teacherId: plannedLesson.teacher_id,
+      settlementMonth: lessonImportYearMonth(row.values.lessonDate || plannedLesson.lesson_date),
+      businessEntityId: plannedLesson.business_entity_id,
+    }))
+    .filter((target) => target.teacherId && target.settlementMonth);
+
+  const { lockedStudentSettlements, lockedTeacherWageLocks } = await fetchLessonImportLockPrecheck({
+    studentSettlementTargets,
+    teacherWageTargets,
+  });
+  const lockedSettlementKeys = new Set(lockedStudentSettlements.map((row) => lessonImportSettlementKey({
+    studentId: row.student_id,
+    yearMonth: row.year_month,
+    businessEntityId: row.business_entity_id,
+  })));
+  const lockedWageKeys = new Set(lockedTeacherWageLocks.map((row) => lessonImportWageLockKey({
+    teacherId: row.teacher_id,
+    settlementMonth: row.settlement_month,
+    businessEntityId: row.business_entity_id,
+  })));
+
+  for (const { row, plannedLesson } of precheckableRows) {
+    const settlementKey = lessonImportSettlementKey({
+      studentId: plannedLesson.student_id,
+      yearMonth: plannedLesson.year_month,
+      businessEntityId: plannedLesson.business_entity_id,
+    });
+    if (lockedSettlementKeys.has(settlementKey)) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", `关联预定涉及已锁定学生结算月 ${plannedLesson.year_month}，后续写入会被拒绝。`);
+    }
+
+    const teacherSettlementMonth = lessonImportYearMonth(row.values.lessonDate || plannedLesson.lesson_date);
+    const wageKey = lessonImportWageLockKey({
+      teacherId: plannedLesson.teacher_id,
+      settlementMonth: teacherSettlementMonth,
+      businessEntityId: plannedLesson.business_entity_id,
+    });
+    if (lockedWageKeys.has(wageKey)) {
+      addLessonImportPreviewIssue(row, "error", "plannedId", `actual 老师工资结算月 ${teacherSettlementMonth} 已锁定，后续写入会被拒绝。`);
+    }
+  }
+}
+
+function groupLessonImportRowsByPlannedId(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const plannedId = normalizeLessonImportPlannedId(row.values.plannedId);
+    if (!plannedId) {
+      continue;
+    }
+    const groupRows = groups.get(plannedId) || [];
+    groupRows.push(row);
+    groups.set(plannedId, groupRows);
+  }
+  return groups;
+}
+
+function normalizeLessonImportPlannedId(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isLessonImportUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || "").trim());
+}
+
+function groupRowsByField(rows, field) {
+  const groups = new Map();
+  for (const row of rows || []) {
+    const key = String(row?.[field] || "").trim();
+    if (!key) {
+      continue;
+    }
+    const groupRows = groups.get(key) || [];
+    groupRows.push(row);
+    groups.set(key, groupRows);
+  }
+  return groups;
+}
+
+function lessonImportPlannedIdMismatchedFields(row, plannedLesson) {
+  const checks = [
+    ["studentId", "student_id", "学生"],
+    ["teacherId", "teacher_id", "老师"],
+    ["subjectId", "subject_id", "科目"],
+    ["businessEntityId", "business_entity_id", "业务归属"],
+  ];
+
+  return checks
+    .filter(([rowField, lessonField]) => (
+      row.values[rowField]
+      && plannedLesson[lessonField]
+      && row.values[rowField] !== plannedLesson[lessonField]
+    ))
+    .map(([, , label]) => label);
+}
+
+function lessonImportSettlementKey(target) {
+  return [
+    target.studentId || "",
+    target.yearMonth || "",
+    target.businessEntityId || "",
+  ].join("|");
+}
+
+function lessonImportWageLockKey(target) {
+  return [
+    target.teacherId || "",
+    target.settlementMonth || "",
+    target.businessEntityId || "",
+  ].join("|");
+}
+
+function lessonImportYearMonth(value) {
+  const text = String(value || "").trim();
+  const match = text.match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : "";
 }
 
 function findLessonImportPreviewHeaderRow(rows) {

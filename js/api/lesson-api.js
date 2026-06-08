@@ -26,6 +26,24 @@ const LESSON_COLUMNS = [
   "teacher_settlement_month",
 ].join(",");
 
+const IMPORT_PRECHECK_SETTLEMENT_COLUMNS = [
+  "id",
+  "student_id",
+  "year_month",
+  "business_entity_id",
+  "settlement_status",
+  "locked_at",
+].join(",");
+
+const IMPORT_PRECHECK_WAGE_LOCK_COLUMNS = [
+  "id",
+  "teacher_id",
+  "business_entity_id",
+  "settlement_month",
+  "status",
+  "locked_at",
+].join(",");
+
 export async function fetchLessonRecords(yearMonth) {
   const { data, error } = await supabase
     .from("school_lesson_records")
@@ -40,6 +58,144 @@ export async function fetchLessonRecords(yearMonth) {
   }
 
   return data || [];
+}
+
+export async function fetchLessonImportPlannedReferences(plannedIds) {
+  const ids = normalizeIdList(plannedIds);
+  if (!ids.length) {
+    return {
+      plannedLessons: [],
+      linkedActuals: [],
+    };
+  }
+
+  const [plannedLessons, linkedActuals] = await Promise.all([
+    fetchLessonsByIds(ids),
+    fetchActualLessonsByPlannedIds(ids),
+  ]);
+
+  return {
+    plannedLessons,
+    linkedActuals,
+  };
+}
+
+export async function fetchLessonImportLockPrecheck(targets) {
+  const studentSettlementTargets = Array.isArray(targets?.studentSettlementTargets)
+    ? targets.studentSettlementTargets
+    : [];
+  const teacherWageTargets = Array.isArray(targets?.teacherWageTargets)
+    ? targets.teacherWageTargets
+    : [];
+
+  const [lockedStudentSettlements, lockedTeacherWageLocks] = await Promise.all([
+    fetchLockedStudentSettlements(studentSettlementTargets),
+    fetchLockedTeacherWageLocks(teacherWageTargets),
+  ]);
+
+  return {
+    lockedStudentSettlements,
+    lockedTeacherWageLocks,
+  };
+}
+
+async function fetchLessonsByIds(ids) {
+  const { data, error } = await supabase
+    .from("school_lesson_records")
+    .select(LESSON_COLUMNS)
+    .eq("app_type", "school")
+    .in("id", ids);
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function fetchActualLessonsByPlannedIds(plannedIds) {
+  const { data, error } = await supabase
+    .from("school_lesson_records")
+    .select(LESSON_COLUMNS)
+    .eq("app_type", "school")
+    .eq("lesson_type", "actual")
+    .in("planned_lesson_id", plannedIds);
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function fetchLockedStudentSettlements(targets) {
+  const studentIds = normalizeIdList(targets.map((target) => target.studentId));
+  const yearMonths = uniqueTextList(targets.map((target) => target.yearMonth));
+  if (!studentIds.length || !yearMonths.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("school_student_monthly_settlements")
+    .select(IMPORT_PRECHECK_SETTLEMENT_COLUMNS)
+    .in("student_id", studentIds)
+    .in("year_month", yearMonths)
+    .eq("settlement_status", "locked");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).filter((row) => (
+    targets.some((target) => (
+      row.student_id === target.studentId
+      && row.year_month === target.yearMonth
+      && nullSafeEqual(row.business_entity_id, target.businessEntityId)
+    ))
+  ));
+}
+
+async function fetchLockedTeacherWageLocks(targets) {
+  const teacherIds = normalizeIdList(targets.map((target) => target.teacherId));
+  const settlementMonths = uniqueTextList(targets.map((target) => target.settlementMonth));
+  if (!teacherIds.length || !settlementMonths.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("school_teacher_wage_locks")
+    .select(IMPORT_PRECHECK_WAGE_LOCK_COLUMNS)
+    .in("teacher_id", teacherIds)
+    .in("settlement_month", settlementMonths)
+    .eq("status", "locked");
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).filter((row) => (
+    targets.some((target) => (
+      row.teacher_id === target.teacherId
+      && row.settlement_month === target.settlementMonth
+      && nullSafeEqual(row.business_entity_id, target.businessEntityId)
+    ))
+  ));
+}
+
+function normalizeIdList(values) {
+  return Array.from(new Set(
+    (values || [])
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+  ));
+}
+
+function uniqueTextList(values) {
+  return normalizeIdList(values);
+}
+
+function nullSafeEqual(left, right) {
+  return (left || null) === (right || null);
 }
 
 export async function fetchLessonStudents() {
