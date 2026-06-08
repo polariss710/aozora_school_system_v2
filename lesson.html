@@ -126,7 +126,7 @@
                 <button class="button view-toggle-button is-active" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="true">普通列表</button>
                 <button class="button view-toggle-button" id="lessonPairViewButton" type="button" data-lesson-view="pair" aria-pressed="false">左右对应</button>
               </div>
-              <button class="button" id="openLessonImportPreviewButton" type="button">导入预览</button>
+              <button class="button" id="openLessonImportPreviewButton" type="button">导入预定课时</button>
               <button class="button button-primary" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
               <span id="lessonCount" class="record-count">0 条</span>
             </div>
@@ -486,21 +486,21 @@
       <div class="dialog-backdrop is-hidden" id="lessonImportPreviewDialog" aria-hidden="true">
         <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonImportPreviewTitle">
           <div class="section-heading">
-            <h2 id="lessonImportPreviewTitle">课时导入预览</h2>
-            <p class="section-note">可解析本地 Excel/CSV 并预览；第一版提交只导入预定课时，actual 行仅预览不写入。</p>
+            <h2 id="lessonImportPreviewTitle">导入预定课时</h2>
+            <p class="section-note">可解析本地 Excel/CSV 并预览；提交只写入预定课时，actual 行仅可预览且会在提交前阻止。</p>
           </div>
 
           <div id="lessonImportPreviewError" class="dialog-error is-hidden" aria-live="polite"></div>
 
           <div class="lesson-import-preview-guide">
             <div>
-              <h3>模板字段说明</h3>
-              <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、课时类型、状态、课时、金额、是否计费、内容、备注、关联预定ID。</p>
+              <h3>预定课时模板字段</h3>
+              <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、课时类型、状态、课时、金额、是否计费、内容、备注。</p>
             </div>
             <div class="lesson-import-preview-guide-grid">
-              <div><strong>课时类型</strong><span>预定 / 实际（兼容 planned / actual）</span></div>
+              <div><strong>课时类型</strong><span>主模板填写预定；actual 仅用于 preview / future backlog。</span></div>
               <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
-              <div><strong>实际状态</strong><span>已上课 / 取消 / 已补课</span></div>
+              <div><strong>actual 预览</strong><span>已上课 / 取消 / 已补课可识别，但当前不可提交。</span></div>
               <div><strong>内部归一化</strong><span>preview 会转为 planned / actual / completed / cancelled / makeup_completed 等内部值。</span></div>
               <div><strong>导入范围</strong><span>当前提交只支持预定课时；actual 行会在提交前阻止。</span></div>
               <div><strong>关联预定ID</strong><span>actual 填写后只读检查 planned、重复 actual、主数据一致性和锁定月份；第一版不会写入关联。</span></div>
@@ -514,12 +514,12 @@
           </label>
 
           <div class="lesson-import-preview-template-actions">
-            <button class="button" id="lessonImportTemplateExportButton" type="button">导出标准模板</button>
+            <button class="button" id="lessonImportTemplateExportButton" type="button">导出预定课时模板</button>
           </div>
 
           <div id="lessonImportPreviewSummary" class="dialog-summary lesson-import-preview-summary is-hidden"></div>
 
-          <div id="lessonImportPreviewEmpty" class="state-text lesson-import-preview-empty">请选择 Excel 或 CSV 文件后查看预览。</div>
+          <div id="lessonImportPreviewEmpty" class="state-text lesson-import-preview-empty">请选择 Excel 或 CSV 文件后查看预定课时导入预览。</div>
 
           <div class="table-scroll lesson-import-preview-scroll">
             <table class="payment-table lesson-import-preview-table">
@@ -549,6 +549,7 @@
 
           <div class="dialog-actions">
             <button class="button button-primary" id="lessonImportPlannedSubmitButton" type="button">导入预定课时</button>
+            <button class="button is-hidden" id="lessonImportViewMonthButton" type="button">查看导入月份</button>
             <button class="button" id="lessonImportPreviewClearButton" type="button">清空</button>
             <button class="button" id="lessonImportPreviewCloseButton" type="button">关闭</button>
           </div>
@@ -557,6 +558,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.59.4-lesson-import-planned-id-precheck-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.60.1-lesson-planned-import-ux-20260608"></script>
   </body>
 </html>

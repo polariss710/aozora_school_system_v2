@@ -100,30 +100,30 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
 const LESSON_IMPORT_TEMPLATE_ROWS = [
   ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "预定", "待上课", 1, 5000, "是", "预定课内容", "预定-待上课 示例", ""],
   ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "预定", "待补课", 1, 5000, "是", "待补课预定内容", "预定-待补课 示例", ""],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-12", "10:00", "11:00", "实际", "已上课", 1, 5000, "是", "实际完成内容", "实际-已上课 示例", "关联预定ID"],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-13", "10:00", "11:00", "实际", "取消", 1, 0, "否", "取消课", "实际-取消 示例；金额通常为 0", "关联预定ID"],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-14", "10:00", "11:00", "实际", "已补课", 1, 5000, "是", "补课完成内容", "实际-已补课 示例；是否计费可填 是/否", "关联预定ID"],
 ];
 
 const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["字段", "必填", "说明 / 合法值"],
-  ["示例值", "说明", "模板中的示例学生、示例老师、数学、青空进学塾需要替换为当前系统已有主数据；preview 会按 lookup 校验。"],
+  ["示例值", "说明", "主表只放预定课时示例；模板中的示例学生、示例老师、数学、青空进学塾需要替换为当前系统已有主数据。"],
   ["学生", "是", "填写学生名称；preview 会用当前学生 lookup 匹配。"],
   ["老师", "是", "填写老师名称；可兼容 担当老师 / teacher 等表头。"],
   ["科目", "是", "填写科目名称；可兼容 subject / 講座 等表头。"],
   ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头。"],
   ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
   ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
-  ["课时类型", "是", "预定 / 实际；兼容 予定 / 実績 / planned / actual，preview 内部归一化为 planned / actual。"],
-  ["状态", "是", "预定可填 待上课 / 待补课；实际可填 已上课 / 取消 / 已补课。"],
+  ["课时类型", "是", "当前提交只支持 预定；preview 仍可识别 实际 / actual 但不会提交。"],
+  ["状态", "是", "预定可填 待上课 / 待补课。"],
   ["状态英文兼容", "说明", "待上课兼容 pending / planned；待补课兼容 pending_makeup；已上课兼容 completed；取消兼容 cancelled；已补课兼容 makeup_completed。"],
-  ["合法组合", "说明", "预定：待上课 / 待补课；实际：已上课 / 取消 / 已补课。"],
+  ["合法组合", "说明", "当前可提交：预定 + 待上课 / 待补课。"],
   ["当前导入范围", "说明", "第一版提交只支持预定课时；actual 行仅用于 preview，不会写入。"],
   ["课时", "是", "大于 0 的数字。"],
   ["金额", "建议", "0 或正数；为空时 preview 只提示确认，不写入。"],
   ["是否计费", "建议", "是 / 否 / true / false。"],
   ["内容 / 备注", "否", "文本。"],
-  ["关联预定ID", "actual 建议", "可兼容 planned ID / planned_id / 关联预定；preview 会只读预检查存在性、主数据一致性、重复 linked actual、学生结算锁和老师工资锁，但不会建立 DB 关联。"],
+  ["关联预定ID", "不提交", "当前预定课时导入不需要填写；actual preview 可识别该列，但第一版不会写入关联。"],
+  ["future actual 示例", "说明", "完整课时导入仅作为 future/history migration backlog：实际 + 已上课 / completed，关联预定ID 可选。"],
+  ["future actual 示例", "说明", "完整课时导入仅作为 future/history migration backlog：实际 + 取消 / cancelled，金额通常为 0。"],
+  ["future actual 示例", "说明", "完整课时导入仅作为 future/history migration backlog：实际 + 已补课 / makeup_completed，是否计费需单独规则。"],
 ];
 
 const CREATE_PLANNED_LESSON_FIELD_IDS = [
@@ -192,6 +192,7 @@ let isMakeupLessonFeeManual = false;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
+let lastLessonImportResult = null;
 
 export function initLessonPage() {
   cacheDom();
@@ -242,6 +243,7 @@ function cacheDom() {
   dom.lessonImportPreviewFileInput = document.querySelector("#lessonImportPreviewFileInput");
   dom.lessonImportTemplateExportButton = document.querySelector("#lessonImportTemplateExportButton");
   dom.lessonImportPlannedSubmitButton = document.querySelector("#lessonImportPlannedSubmitButton");
+  dom.lessonImportViewMonthButton = document.querySelector("#lessonImportViewMonthButton");
   dom.lessonImportPreviewSummary = document.querySelector("#lessonImportPreviewSummary");
   dom.lessonImportPreviewEmpty = document.querySelector("#lessonImportPreviewEmpty");
   dom.lessonImportPreviewRows = document.querySelector("#lessonImportPreviewRows");
@@ -334,6 +336,7 @@ function bindEvents() {
   dom.lessonImportPreviewFileInput?.addEventListener("change", handleLessonImportPreviewFileChange);
   dom.lessonImportTemplateExportButton?.addEventListener("click", handleLessonImportTemplateExport);
   dom.lessonImportPlannedSubmitButton?.addEventListener("click", handleLessonImportPlannedSubmit);
+  dom.lessonImportViewMonthButton?.addEventListener("click", handleLessonImportViewMonthClick);
 
   dom.lessonImportPreviewDialog?.addEventListener("click", (event) => {
     if (event.target === dom.lessonImportPreviewDialog) {
@@ -1635,6 +1638,7 @@ function closeLessonImportPreviewDialog() {
 function clearLessonImportPreview() {
   importPreviewRows = [];
   importPreviewFileMeta = null;
+  lastLessonImportResult = null;
   if (dom.lessonImportPreviewFileInput) {
     dom.lessonImportPreviewFileInput.value = "";
   }
@@ -1646,6 +1650,7 @@ async function handleLessonImportPreviewFileChange(event) {
   const file = event.target.files?.[0];
   importPreviewRows = [];
   importPreviewFileMeta = null;
+  lastLessonImportResult = null;
   hideLessonImportPreviewError();
 
   if (!file) {
@@ -1717,24 +1722,65 @@ async function handleLessonImportPlannedSubmit() {
     });
 
     applyLessonImportSubmitResults(results);
-    renderLessonImportPreview();
 
     const failedRows = results.filter((row) => row.row_valid === false || row.batch_committed === false || (row.errors || []).length);
     if (failedRows.length) {
+      renderLessonImportPreview();
       showLessonImportPreviewError(`导入被拒绝：${failedRows.length} 行需要处理。`);
       return;
     }
+
+    lastLessonImportResult = buildLessonImportResultSummary(results, importPreviewRows);
+    renderLessonImportPreview();
 
     if (loadedMonth) {
       await loadLessonMonth(loadedMonth);
       applyCurrentFilters();
     }
-    showMessage("success", `已导入预定课时 ${results.length} 行。`);
+    const monthText = formatLessonImportMonthRange(lastLessonImportResult.months);
+    showMessage("success", `已导入预定课时 ${lastLessonImportResult.successCount} 行${monthText ? `（${monthText}）` : ""}。`);
   } catch (error) {
     showLessonImportPreviewError(error.message || String(error));
   } finally {
     setLessonImportSubmitting(false);
   }
+}
+
+async function handleLessonImportViewMonthClick() {
+  const months = lastLessonImportResult?.months || [];
+  if (months.length !== 1) {
+    return;
+  }
+
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, months[0]);
+  closeLessonImportPreviewDialog();
+  await applyQuery();
+}
+
+function buildLessonImportResultSummary(results, rows) {
+  const successfulRowIndexes = new Set((results || [])
+    .filter((row) => row.batch_committed !== false && row.created_lesson_id)
+    .map((row) => Number(row.row_index))
+    .filter(Number.isFinite));
+  const months = [...new Set(rows
+    .map((row, index) => (successfulRowIndexes.has(index + 1) ? lessonImportYearMonth(row.values.lessonDate) : ""))
+    .filter(Boolean))]
+    .sort();
+
+  return {
+    successCount: successfulRowIndexes.size,
+    months,
+  };
+}
+
+function formatLessonImportMonthRange(months) {
+  if (!months?.length) {
+    return "";
+  }
+  if (months.length === 1) {
+    return months[0];
+  }
+  return `${months[0]} - ${months[months.length - 1]}`;
 }
 
 function handleLessonImportTemplateExport() {
@@ -1746,7 +1792,7 @@ function handleLessonImportTemplateExport() {
   }
 
   exportLessonImportTemplateCsv();
-  showLessonImportPreviewError("Excel 解析库尚未加载，已降级导出 CSV 标准模板。");
+  showLessonImportPreviewError("Excel 解析库尚未加载，已降级导出 CSV 预定课时模板。");
 }
 
 function exportLessonImportTemplateXlsx() {
@@ -1764,7 +1810,7 @@ function exportLessonImportTemplateXlsx() {
 
   window.XLSX.utils.book_append_sheet(workbook, templateSheet, "lesson_template");
   window.XLSX.utils.book_append_sheet(workbook, guideSheet, "说明");
-  window.XLSX.writeFile(workbook, "lesson_import_template_v2.xlsx");
+  window.XLSX.writeFile(workbook, "lesson_planned_import_template_v2.xlsx");
 }
 
 function exportLessonImportTemplateCsv() {
@@ -1773,7 +1819,7 @@ function exportLessonImportTemplateCsv() {
     ...LESSON_IMPORT_TEMPLATE_ROWS,
   ];
   const csv = csvRows.map((row) => row.map(escapeCsvCell).join(",")).join("\r\n");
-  downloadTextFile("lesson_import_template_v2.csv", `\uFEFF${csv}`, "text/csv;charset=utf-8");
+  downloadTextFile("lesson_planned_import_template_v2.csv", `\uFEFF${csv}`, "text/csv;charset=utf-8");
 }
 
 function escapeCsvCell(value) {
@@ -2602,14 +2648,27 @@ function renderLessonImportPreview() {
     dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0;
     dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : "导入预定课时";
   }
+  if (dom.lessonImportViewMonthButton) {
+    const canViewImportMonth = !isLessonImportSubmitting && lastLessonImportResult?.months?.length === 1;
+    dom.lessonImportViewMonthButton.classList.toggle("is-hidden", !canViewImportMonth);
+    dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
+    dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看 ${lastLessonImportResult.months[0]}` : "查看导入月份";
+  }
 
   if (rows.length) {
-    dom.lessonImportPreviewSummary.innerHTML = [
+    const summaryRows = [
       renderDialogSummaryRow("预览行", `${rows.length} 行`),
       renderDialogSummaryRow("planned / actual", `${plannedCount} / ${actualCount}`),
       renderDialogSummaryRow("错误行", `${errorCount} 行`),
       renderDialogSummaryRow("警告行", `${warningCount} 行`),
-    ].join("");
+    ];
+    if (lastLessonImportResult) {
+      summaryRows.push(
+        renderDialogSummaryRow("成功导入", `${lastLessonImportResult.successCount} 行`),
+        renderDialogSummaryRow("导入月份", formatLessonImportMonthRange(lastLessonImportResult.months) || "-")
+      );
+    }
+    dom.lessonImportPreviewSummary.innerHTML = summaryRows.join("");
   } else {
     dom.lessonImportPreviewSummary.innerHTML = "";
   }
@@ -2742,6 +2801,11 @@ function setLessonImportSubmitting(isSubmitting) {
   if (dom.lessonImportPlannedSubmitButton) {
     dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0;
     dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : "导入预定课时";
+  }
+  if (dom.lessonImportViewMonthButton) {
+    const canViewImportMonth = !isSubmitting && lastLessonImportResult?.months?.length === 1;
+    dom.lessonImportViewMonthButton.classList.toggle("is-hidden", !canViewImportMonth);
+    dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
   }
 }
 
