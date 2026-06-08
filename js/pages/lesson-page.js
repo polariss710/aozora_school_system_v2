@@ -2806,6 +2806,7 @@ function setLessonImportSubmitting(isSubmitting) {
     const canViewImportMonth = !isSubmitting && lastLessonImportResult?.months?.length === 1;
     dom.lessonImportViewMonthButton.classList.toggle("is-hidden", !canViewImportMonth);
     dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
+    dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看 ${lastLessonImportResult.months[0]}` : "查看导入月份";
   }
 }
 
