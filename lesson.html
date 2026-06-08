@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.58.1-lesson-pair-height-align-20260608">
+    <link rel="stylesheet" href="./css/app.css?v=v2.59.0-lesson-import-preview-20260608">
   </head>
   <body>
     <div class="app-shell">
@@ -126,6 +126,7 @@
                 <button class="button view-toggle-button is-active" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="true">普通列表</button>
                 <button class="button view-toggle-button" id="lessonPairViewButton" type="button" data-lesson-view="pair" aria-pressed="false">左右对应</button>
               </div>
+              <button class="button" id="openLessonImportPreviewButton" type="button">导入预览</button>
               <button class="button button-primary" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
               <span id="lessonCount" class="record-count">0 条</span>
             </div>
@@ -481,8 +482,57 @@
           </div>
         </section>
       </div>
+
+      <div class="dialog-backdrop is-hidden" id="lessonImportPreviewDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonImportPreviewTitle">
+          <div class="section-heading">
+            <h2 id="lessonImportPreviewTitle">课时导入预览</h2>
+            <p class="section-note">只解析本地 Excel/CSV 并做前端校验；本阶段不会生成课时记录或写入数据库。</p>
+          </div>
+
+          <div id="lessonImportPreviewError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <label class="field lesson-import-file-field">
+            <span>选择文件</span>
+            <input id="lessonImportPreviewFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
+          </label>
+
+          <div id="lessonImportPreviewSummary" class="dialog-summary lesson-import-preview-summary is-hidden"></div>
+
+          <div id="lessonImportPreviewEmpty" class="state-text lesson-import-preview-empty">请选择 Excel 或 CSV 文件后查看预览。</div>
+
+          <div class="table-scroll lesson-import-preview-scroll">
+            <table class="payment-table lesson-import-preview-table">
+              <thead>
+                <tr>
+                  <th>原始行</th>
+                  <th>学生</th>
+                  <th>老师</th>
+                  <th>科目</th>
+                  <th>业务归属</th>
+                  <th>日期</th>
+                  <th>时间</th>
+                  <th>lesson_type</th>
+                  <th>status</th>
+                  <th>课时</th>
+                  <th>金额</th>
+                  <th>备注</th>
+                  <th>错误 / 警告</th>
+                </tr>
+              </thead>
+              <tbody id="lessonImportPreviewRows"></tbody>
+            </table>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button" id="lessonImportPreviewClearButton" type="button">清空</button>
+            <button class="button" id="lessonImportPreviewCloseButton" type="button">关闭</button>
+          </div>
+        </section>
+      </div>
     </div>
 
-    <script type="module" src="./js/lesson-app.js?v=v2.58.0-lesson-pair-note-polish-20260608"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.59.0-lesson-import-preview-20260608"></script>
   </body>
 </html>

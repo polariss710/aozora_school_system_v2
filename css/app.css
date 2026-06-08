@@ -767,6 +767,79 @@ h2 {
   min-width: 1660px;
 }
 
+.lesson-import-preview-dialog-panel {
+  width: min(1100px, 100%);
+}
+
+.lesson-import-file-field {
+  margin-top: 14px;
+}
+
+.lesson-import-preview-summary {
+  margin-top: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.lesson-import-preview-empty {
+  margin-top: 14px;
+}
+
+.lesson-import-preview-scroll {
+  margin-top: 14px;
+  max-height: min(54vh, 520px);
+  overflow: auto;
+}
+
+.lesson-import-preview-table {
+  min-width: 1540px;
+}
+
+.lesson-import-preview-table th,
+.lesson-import-preview-table td {
+  vertical-align: top;
+}
+
+.lesson-import-preview-table td {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+}
+
+.lesson-import-preview-table .lesson-import-preview-note-cell {
+  max-width: 280px;
+  white-space: pre-wrap;
+}
+
+.lesson-import-preview-row-error {
+  background: #fef2f2;
+}
+
+.lesson-import-preview-row-warning {
+  background: #fffbeb;
+}
+
+.lesson-import-preview-cell-error {
+  box-shadow: inset 0 0 0 2px #fecaca;
+}
+
+.lesson-import-preview-issues {
+  display: grid;
+  min-width: 220px;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lesson-import-preview-issue-error {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.lesson-import-preview-issue-warning {
+  color: var(--warning);
+  font-weight: 700;
+}
+
 .lesson-pair-view {
   min-width: 0;
 }
@@ -1620,8 +1693,17 @@ h2 {
     width: 100%;
   }
 
+  .lesson-list-tools > .button,
+  .lesson-list-tools > .record-count {
+    width: 100%;
+  }
+
   .view-toggle-button {
     flex: 1 1 0;
+  }
+
+  .lesson-import-preview-summary {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .lesson-pair-row {
