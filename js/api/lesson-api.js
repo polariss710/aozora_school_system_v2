@@ -20,10 +20,13 @@ const LESSON_COLUMNS = [
   "planned_lesson_id",
   "unit_price",
   "lesson_fee",
+  "import_batch_id",
   "import_source",
+  "imported_at",
   "lesson_count",
   "actual_minutes",
   "teacher_settlement_month",
+  "updated_at",
 ].join(",");
 
 const IMPORT_PRECHECK_SETTLEMENT_COLUMNS = [
@@ -298,6 +301,39 @@ export async function importPlannedLessonRecordsBatch(payload) {
   }
 
   return Array.isArray(data) ? data : [];
+}
+
+export async function updateLessonRecordGuarded(payload) {
+  const { data, error } = await supabase.rpc("school_update_lesson_record_guarded", {
+    p_lesson_id: payload.lessonId,
+    p_expected_updated_at: payload.expectedUpdatedAt,
+    p_lesson_date: payload.lessonDate,
+    p_student_id: payload.studentId,
+    p_teacher_id: payload.teacherId,
+    p_subject_id: payload.subjectId,
+    p_business_entity_id: payload.businessEntityId,
+    p_start_time: payload.startTime || null,
+    p_end_time: payload.endTime || null,
+    p_duration_hours: payload.durationHours,
+    p_unit_price: payload.unitPrice,
+    p_lesson_fee: payload.lessonFee,
+    p_status: payload.status,
+    p_is_billable: payload.isBillable,
+    p_lesson_count: payload.lessonCount,
+    p_lesson_content: payload.lessonContent || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("课时编辑失败：RPC 没有返回结果。");
+  }
+
+  return result;
 }
 
 export async function createActualLessonFromPlanned(payload) {

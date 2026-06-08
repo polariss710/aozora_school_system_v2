@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.59.4-lesson-import-planned-id-precheck-20260608">
+    <link rel="stylesheet" href="./css/app.css?v=v2.61.1-lesson-edit-frontend-20260608">
   </head>
   <body>
     <div class="app-shell">
@@ -139,6 +139,7 @@
               <thead>
                 <tr>
                   <th>详情</th>
+                  <th>操作</th>
                   <th>日期</th>
                   <th>星期</th>
                   <th>时间</th>
@@ -555,9 +556,128 @@
           </div>
         </section>
       </div>
+
+      <div class="dialog-backdrop is-hidden" id="editLessonDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editLessonTitle">
+          <div class="section-heading">
+            <h2 id="editLessonTitle">编辑课时</h2>
+            <p class="section-note">V1 只编辑单条课时记录，不修改 lesson_type / planned_lesson_id，不生成结算、工资、收入、支出或账户流水。</p>
+          </div>
+
+          <div id="editLessonSummary" class="dialog-summary"></div>
+          <div id="editLessonWarning" class="dialog-warning is-hidden"></div>
+          <div id="editLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <div class="lesson-create-field-grid">
+            <label class="field">
+              <span>课时类型</span>
+              <input id="editLessonTypeInput" type="text" readonly>
+            </label>
+
+            <label class="field" data-edit-lesson-field="status">
+              <span>状态</span>
+              <select id="editLessonStatusSelect">
+                <option value="planned">待上课</option>
+                <option value="pending_makeup">待补课</option>
+                <option value="completed">已完成</option>
+                <option value="cancelled">已取消</option>
+                <option value="makeup_completed">补课完成</option>
+              </select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="lessonDate">
+              <span>课时日期</span>
+              <input id="editLessonDateInput" type="date">
+            </label>
+
+            <label class="field" data-edit-lesson-field="isBillable">
+              <span>计费</span>
+              <select id="editLessonBillableSelect">
+                <option value="true">计费</option>
+                <option value="false">不计费</option>
+              </select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="student">
+              <span>学生</span>
+              <select id="editLessonStudentSelect"></select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="teacher">
+              <span>老师</span>
+              <select id="editLessonTeacherSelect"></select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="subject">
+              <span>科目</span>
+              <select id="editLessonSubjectSelect"></select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="businessEntity">
+              <span>业务归属</span>
+              <select id="editLessonBusinessEntitySelect"></select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="startTime">
+              <span>开始时间</span>
+              <input id="editLessonStartTimeInput" type="time">
+            </label>
+
+            <label class="field" data-edit-lesson-field="endTime">
+              <span>结束时间</span>
+              <input id="editLessonEndTimeInput" type="time">
+            </label>
+
+            <label class="field" data-edit-lesson-field="durationHours">
+              <span>时长</span>
+              <input id="editLessonDurationInput" type="number" min="0" step="0.25" inputmode="decimal">
+            </label>
+
+            <label class="field" data-edit-lesson-field="unitPrice">
+              <span>单价 JPY</span>
+              <input id="editLessonUnitPriceInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-edit-lesson-field="lessonFee">
+              <span>课时费 JPY</span>
+              <input id="editLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-edit-lesson-field="lessonCount">
+              <span>回数</span>
+              <input id="editLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field">
+              <span>关联预定ID</span>
+              <input id="editLessonPlannedIdInput" type="text" readonly>
+            </label>
+
+            <label class="field">
+              <span>导入来源</span>
+              <input id="editLessonImportSourceInput" type="text" readonly>
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>内容</span>
+              <textarea id="editLessonContentInput" rows="3"></textarea>
+            </label>
+
+            <label class="field lesson-create-wide-field">
+              <span>备注</span>
+              <textarea id="editLessonNoteInput" rows="3"></textarea>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button button-primary" id="editLessonSubmitButton" type="button">保存</button>
+            <button class="button" id="editLessonCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.60.3-lesson-planned-import-duplicate-ux-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.61.1-lesson-edit-frontend-20260608"></script>
   </body>
 </html>
