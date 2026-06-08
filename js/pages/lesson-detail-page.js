@@ -70,6 +70,7 @@ function cacheDom() {
   dom.content = document.querySelector("#lessonDetailContent");
   dom.editActionArea = document.querySelector("#lessonDetailEditActionArea");
   dom.editButton = document.querySelector("#lessonDetailEditButton");
+  dom.returnLink = document.querySelector("#lessonDetailReturnLink");
   dom.titleText = document.querySelector("#lessonDetailTitleText");
   dom.basicInfo = document.querySelector("#lessonDetailBasicInfo");
   dom.objectInfo = document.querySelector("#lessonDetailObjectInfo");
@@ -114,6 +115,32 @@ function bindEvents() {
   });
 }
 
+function syncReturnLink() {
+  if (!dom.returnLink) {
+    return;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const year = safeText(params.get("returnYear"));
+  const month = safeText(params.get("returnMonth")).padStart(2, "0");
+  const view = params.get("returnView") === "pair" ? "pair" : "";
+  const hasMonth = /^\d{4}$/.test(year) && /^(0[1-9]|1[0-2])$/.test(month);
+  if (!hasMonth) {
+    dom.returnLink.href = "./lesson.html";
+    dom.returnLink.textContent = "返回课时管理";
+    return;
+  }
+
+  const targetParams = new URLSearchParams({ year, month });
+  if (view) {
+    targetParams.set("view", view);
+  }
+  dom.returnLink.href = `./lesson.html?${targetParams.toString()}`;
+  dom.returnLink.textContent = view === "pair"
+    ? `返回 ${year}-${month} 对应视图`
+    : `返回 ${year}-${month} 课时管理`;
+}
+
 function readLessonId() {
   const params = new URLSearchParams(window.location.search);
   return params.get("id") || "";
@@ -141,6 +168,7 @@ async function loadLessonDetail(lessonId) {
 function renderLessonDetail(data) {
   const { lesson, lookups, sourceChain, settlements, wageReferences } = data;
 
+  syncReturnLink();
   renderEditAction(lesson);
   dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}`;
   dom.basicInfo.innerHTML = renderDefinitionList([

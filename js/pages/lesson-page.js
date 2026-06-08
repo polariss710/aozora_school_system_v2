@@ -264,6 +264,7 @@ function cacheDom() {
   dom.lessonImportTemplateExportButton = document.querySelector("#lessonImportTemplateExportButton");
   dom.lessonImportPlannedSubmitButton = document.querySelector("#lessonImportPlannedSubmitButton");
   dom.lessonImportViewMonthButton = document.querySelector("#lessonImportViewMonthButton");
+  dom.lessonImportViewFirstDetailButton = document.querySelector("#lessonImportViewFirstDetailButton");
   dom.lessonImportPreviewSummary = document.querySelector("#lessonImportPreviewSummary");
   dom.lessonImportPreviewEmpty = document.querySelector("#lessonImportPreviewEmpty");
   dom.lessonImportPreviewRows = document.querySelector("#lessonImportPreviewRows");
@@ -381,6 +382,7 @@ function bindEvents() {
   dom.lessonImportTemplateExportButton?.addEventListener("click", handleLessonImportTemplateExport);
   dom.lessonImportPlannedSubmitButton?.addEventListener("click", handleLessonImportPlannedSubmit);
   dom.lessonImportViewMonthButton?.addEventListener("click", handleLessonImportViewMonthClick);
+  dom.lessonImportViewFirstDetailButton?.addEventListener("click", handleLessonImportViewFirstDetailClick);
 
   dom.lessonImportPreviewDialog?.addEventListener("click", (event) => {
     if (event.target === dom.lessonImportPreviewDialog) {
@@ -566,7 +568,8 @@ function bindEvents() {
 }
 
 function setDefaultFilters() {
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+  const initialFilters = readInitialLessonQuery();
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, initialFilters.month);
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
   dom.subjectSelect.value = DEFAULT_FILTERS.subjectId;
@@ -575,6 +578,19 @@ function setDefaultFilters() {
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.billableSelect.value = DEFAULT_FILTERS.isBillable;
   dom.keywordInput.value = DEFAULT_FILTERS.keyword;
+  activeView = initialFilters.view;
+  syncViewVisibility();
+}
+
+function readInitialLessonQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const year = safeText(params.get("year"));
+  const month = safeText(params.get("month")).padStart(2, "0");
+  const hasMonth = /^\d{4}$/.test(year) && /^(0[1-9]|1[0-2])$/.test(month);
+  return {
+    month: hasMonth ? `${year}-${month}` : currentYearMonth(),
+    view: params.get("view") === "pair" ? "pair" : "list",
+  };
 }
 
 async function loadInitialData() {
@@ -590,7 +606,7 @@ async function loadInitialData() {
     ]);
 
     renderMasterOptions();
-    await loadLessonMonth(currentYearMonth());
+    await loadLessonMonth(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth());
     applyCurrentFilters();
     showMessage("success", "课时管理数据已加载。");
   } catch (error) {
@@ -1851,19 +1867,37 @@ async function handleLessonImportViewMonthClick() {
   await applyQuery();
 }
 
+function handleLessonImportViewFirstDetailClick() {
+  const firstLessonId = lastLessonImportResult?.createdLessonIds?.[0] || "";
+  if (!firstLessonId) {
+    return;
+  }
+
+  window.location.href = createLessonDetailUrl(
+    firstLessonId,
+    lastLessonImportResult.months?.[0] || loadedMonth,
+    activeView
+  );
+}
+
 function buildLessonImportResultSummary(results, rows) {
-  const successfulRowIndexes = new Set((results || [])
-    .filter((row) => row.batch_committed !== false && row.created_lesson_id)
+  const successfulResults = (results || [])
+    .filter((row) => row.batch_committed !== false && row.created_lesson_id);
+  const successfulRowIndexes = new Set(successfulResults
     .map((row) => Number(row.row_index))
     .filter(Number.isFinite));
   const months = [...new Set(rows
     .map((row, index) => (successfulRowIndexes.has(index + 1) ? lessonImportYearMonth(row.values.lessonDate) : ""))
     .filter(Boolean))]
     .sort();
+  const createdLessonIds = successfulResults
+    .map((row) => row.created_lesson_id)
+    .filter(Boolean);
 
   return {
     successCount: successfulRowIndexes.size,
     months,
+    createdLessonIds,
   };
 }
 
@@ -1875,6 +1909,21 @@ function formatLessonImportMonthRange(months) {
     return months[0];
   }
   return `${months[0]} - ${months[months.length - 1]}`;
+}
+
+function createLessonDetailUrl(lessonId, returnMonth = loadedMonth, returnView = activeView) {
+  const params = new URLSearchParams();
+  params.set("id", lessonId);
+  const monthText = safeText(returnMonth);
+  const match = monthText.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (match) {
+    params.set("returnYear", match[1]);
+    params.set("returnMonth", match[2]);
+  }
+  if (returnView === "pair") {
+    params.set("returnView", "pair");
+  }
+  return `./lesson-detail.html?${params.toString()}`;
 }
 
 function handleLessonImportTemplateExport() {
@@ -2749,6 +2798,11 @@ function renderLessonImportPreview() {
     dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
     dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看 ${lastLessonImportResult.months[0]}` : "查看导入月份";
   }
+  if (dom.lessonImportViewFirstDetailButton) {
+    const canViewFirstDetail = !isLessonImportSubmitting && Boolean(lastLessonImportResult?.createdLessonIds?.[0]);
+    dom.lessonImportViewFirstDetailButton.classList.toggle("is-hidden", !canViewFirstDetail);
+    dom.lessonImportViewFirstDetailButton.disabled = !canViewFirstDetail;
+  }
 
   if (rows.length) {
     const summaryRows = [
@@ -2760,7 +2814,8 @@ function renderLessonImportPreview() {
     if (lastLessonImportResult) {
       summaryRows.push(
         renderDialogSummaryRow("成功导入", `${lastLessonImportResult.successCount} 行`),
-        renderDialogSummaryRow("导入月份", formatLessonImportMonthRange(lastLessonImportResult.months) || "-")
+        renderDialogSummaryRow("导入月份", formatLessonImportMonthRange(lastLessonImportResult.months) || "-"),
+        renderDialogSummaryRow("导入记录", renderLessonImportResultLinks(lastLessonImportResult.createdLessonIds), true)
       );
     }
     dom.lessonImportPreviewSummary.innerHTML = summaryRows.join("");
@@ -2812,7 +2867,8 @@ function renderLessonImportPreviewIssues(row) {
 
   if (!issues.length) {
     if (row.importResult?.createdLessonId) {
-      return `<span class="status-badge status-paid">已导入 ${escapeHtml(shortId(row.importResult.createdLessonId))}</span>`;
+      const href = createLessonDetailUrl(row.importResult.createdLessonId, lessonImportYearMonth(row.values.lessonDate), activeView);
+      return `<a class="table-action-button" href="${escapeAttribute(href)}">已导入 ${escapeHtml(shortId(row.importResult.createdLessonId))}</a>`;
     }
     return '<span class="status-badge status-paid">OK</span>';
   }
@@ -2826,11 +2882,27 @@ function renderLessonImportPreviewIssues(row) {
   `;
 }
 
-function renderDialogSummaryRow(label, value) {
+function renderLessonImportResultLinks(createdLessonIds = []) {
+  const ids = createdLessonIds.filter(Boolean);
+  if (!ids.length) {
+    return "-";
+  }
+
+  const links = ids.slice(0, 3).map((lessonId, index) => {
+    const href = createLessonDetailUrl(lessonId, lastLessonImportResult?.months?.[0] || loadedMonth, activeView);
+    return `<a class="table-action-button" href="${escapeAttribute(href)}">${index === 0 ? "首条详情" : shortId(lessonId)}</a>`;
+  });
+  if (ids.length > links.length) {
+    links.push(`<span>${escapeHtml(`等 ${ids.length} 条`)}</span>`);
+  }
+  return links.join(" ");
+}
+
+function renderDialogSummaryRow(label, value, valueIsHtml = false) {
   return `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
-      <span>${escapeHtml(value)}</span>
+      <span>${valueIsHtml ? value : escapeHtml(value)}</span>
     </div>
   `;
 }
@@ -2932,6 +3004,11 @@ function setLessonImportSubmitting(isSubmitting) {
     dom.lessonImportViewMonthButton.classList.toggle("is-hidden", !canViewImportMonth);
     dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
     dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看 ${lastLessonImportResult.months[0]}` : "查看导入月份";
+  }
+  if (dom.lessonImportViewFirstDetailButton) {
+    const canViewFirstDetail = !isSubmitting && Boolean(lastLessonImportResult?.createdLessonIds?.[0]);
+    dom.lessonImportViewFirstDetailButton.classList.toggle("is-hidden", !canViewFirstDetail);
+    dom.lessonImportViewFirstDetailButton.disabled = !canViewFirstDetail;
   }
 }
 
@@ -3288,7 +3365,7 @@ function renderLessonRecords(records) {
 
   dom.tableBody.innerHTML = records.map((record) => `
     <tr>
-      <td class="lesson-nowrap"><a class="table-action-button" href="./lesson-detail.html?id=${encodeURIComponent(record.id)}">详情</a></td>
+      <td class="lesson-nowrap"><a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "list"))}">查看详情</a></td>
       <td class="lesson-nowrap">${renderLessonEditAction(record)}</td>
       <td class="lesson-nowrap">${escapeHtml(formatDateOnly(record.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatWeekday(record.lesson_date))}</td>
@@ -3475,7 +3552,7 @@ function renderLessonPairCard(record, side) {
     <article class="lesson-pair-card ${escapeAttribute(modifierClass)}">
       <div class="lesson-pair-card-header">
         <div>
-          <a class="table-action-button" href="./lesson-detail.html?id=${encodeURIComponent(record.id)}">详情</a>
+          <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "pair"))}">查看详情</a>
           ${renderLessonEditAction(record)}
           <span class="lesson-pair-id">${escapeHtml(shortId(record.id))}</span>
         </div>
