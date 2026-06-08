@@ -265,8 +265,13 @@ export function createLessonEditDialogController(options) {
     const isActual = lesson.lesson_type === "actual";
     const isLinkedActual = isActual && Boolean(lesson.planned_lesson_id);
     const isCancelledActual = isActual && lesson.status === "cancelled";
+    const actualStatusReason = "actual 状态由生成链路决定，V1 编辑保持只读；如需改成取消、已上课或补课完成，需要走独立 guarded 流程。";
+    const linkedMasterReason = "该 actual 已关联 planned，学生、老师、科目、业务归属必须保持与来源 planned 一致，V1 不允许在编辑中修改。";
+    const plannedReadonlyReason = "课时类型、planned_lesson_id 和导入信息只读；planned 只允许调整日期、对象、时间、金额、内容、备注和 planned/pending_makeup 状态。";
+    const importReadonlyReason = "导入元数据只作为来源审计信息保留，编辑课时时不可修改。";
 
     dom.statusSelect.disabled = isActual;
+    dom.statusSelect.title = isActual ? actualStatusReason : "";
     [...dom.statusSelect.options].forEach((option) => {
       option.disabled = isPlanned
         ? !["planned", "pending_makeup"].includes(option.value)
@@ -275,10 +280,17 @@ export function createLessonEditDialogController(options) {
 
     [dom.studentSelect, dom.teacherSelect, dom.subjectSelect, dom.businessEntitySelect].forEach((element) => {
       element.disabled = isLinkedActual;
+      element.title = isLinkedActual ? linkedMasterReason : "";
     });
 
     dom.billableSelect.disabled = isPlanned || isCancelledActual;
+    dom.billableSelect.title = isPlanned
+      ? "planned 课时固定按计费课时处理；是否实际收费由 actual 和后续结算口径决定。"
+      : "";
     dom.feeInput.readOnly = isCancelledActual || (isActual && dom.billableSelect.value === "false");
+    dom.typeInput.title = "课时类型由创建链路决定，编辑时不可修改。";
+    dom.plannedIdInput.title = "关联预定ID由 actual 生成链路决定，编辑时不可修改。";
+    dom.importSourceInput.title = importReadonlyReason;
     if (isPlanned) {
       dom.billableSelect.value = "true";
     }
@@ -292,13 +304,15 @@ export function createLessonEditDialogController(options) {
 
     const warnings = [];
     if (isActual) {
-      warnings.push("actual 状态 V1 只读，不能在编辑中切换为取消、已上课或补课完成。");
+      warnings.push(actualStatusReason);
     }
     if (isLinkedActual) {
-      warnings.push("该 actual 已关联 planned，学生、老师、科目、业务归属只读。");
+      warnings.push(linkedMasterReason);
     }
     if (isPlanned) {
-      warnings.push("planned_lesson_id、导入信息和课时类型只读；如已有关联 actual，RPC 会拒绝编辑。");
+      warnings.push(`${plannedReadonlyReason} 如已有关联 actual，RPC 会拒绝编辑。`);
+    } else {
+      warnings.push("课时类型、planned_lesson_id 和导入信息只读。");
     }
     renderWarning(warnings);
   }
