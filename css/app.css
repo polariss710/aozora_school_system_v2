@@ -920,10 +920,42 @@ h2 {
 .lesson-pair-text {
   display: grid;
   min-width: 0;
-  gap: 4px;
+  gap: 6px;
   color: var(--muted);
   font-size: 13px;
   overflow-wrap: anywhere;
+}
+
+.lesson-pair-text-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.lesson-pair-text-label {
+  color: #94a3b8;
+  font-weight: 800;
+}
+
+.lesson-pair-text-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.lesson-pair-text-collapsible:not(.is-expanded) .lesson-pair-text-value {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lesson-pair-text-toggle {
+  justify-self: start;
+  min-height: 28px;
+  padding: 4px 10px;
 }
 
 .lesson-pair-placeholder {
@@ -1585,6 +1617,11 @@ h2 {
 
   .lesson-pair-meta {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-pair-text-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 
   .account-grid {

@@ -275,6 +275,12 @@ function bindEvents() {
   });
 
   dom.pairRows?.addEventListener("click", (event) => {
+    const textToggleButton = event.target.closest("[data-lesson-pair-text-toggle]");
+    if (textToggleButton) {
+      handleLessonPairTextToggle(textToggleButton);
+      return;
+    }
+
     const actualButton = event.target.closest("[data-generate-actual-id]");
     if (actualButton) {
       openCreateActualLessonDialog(actualButton.dataset.generateActualId || "");
@@ -1722,12 +1728,44 @@ function renderLessonPairCard(record, side) {
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>
         <div><dt>planned ID</dt><dd>${escapeHtml(shortId(record.planned_lesson_id))}</dd></div>
       </dl>
-      <div class="lesson-pair-text">
-        <span>${escapeHtml(displayValue(record.lesson_content))}</span>
-        <span>${escapeHtml(displayValue(record.note))}</span>
-      </div>
+      ${renderLessonPairText(record)}
     </article>
   `;
+}
+
+function renderLessonPairText(record) {
+  const content = safeText(record.lesson_content);
+  const note = safeText(record.note);
+  const hasLongText = [content, note].some((value) => value.length > 80 || value.includes("\n"));
+  const toggleHtml = hasLongText
+    ? '<button class="button table-action-button lesson-pair-text-toggle" type="button" data-lesson-pair-text-toggle aria-expanded="false">展开</button>'
+    : "";
+
+  return `
+    <div class="lesson-pair-text${hasLongText ? " lesson-pair-text-collapsible" : ""}">
+      <div class="lesson-pair-text-row">
+        <span class="lesson-pair-text-label">内容</span>
+        <span class="lesson-pair-text-value">${escapeHtml(displayValue(content))}</span>
+      </div>
+      <div class="lesson-pair-text-row">
+        <span class="lesson-pair-text-label">备注</span>
+        <span class="lesson-pair-text-value">${escapeHtml(displayValue(note))}</span>
+      </div>
+      ${toggleHtml}
+    </div>
+  `;
+}
+
+function handleLessonPairTextToggle(button) {
+  const textBlock = button.closest(".lesson-pair-text");
+  if (!textBlock) {
+    return;
+  }
+
+  const shouldExpand = !textBlock.classList.contains("is-expanded");
+  textBlock.classList.toggle("is-expanded", shouldExpand);
+  button.setAttribute("aria-expanded", String(shouldExpand));
+  button.textContent = shouldExpand ? "收起" : "展开";
 }
 
 function actualBillableSummary(record) {
