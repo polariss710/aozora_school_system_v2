@@ -193,6 +193,7 @@ let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
 let lastLessonImportResult = null;
+const successfulLessonImportFileHashes = new Set();
 
 export function initLessonPage() {
   cacheDom();
@@ -1684,6 +1685,11 @@ async function handleLessonImportPlannedSubmit() {
 
   hideLessonImportPreviewError();
 
+  if (lastLessonImportResult?.successCount > 0) {
+    showLessonImportPreviewError("当前预览已成功导入，不能重复提交；如需导入其他课时，请先清空并重新选择文件。");
+    return;
+  }
+
   if (!importPreviewRows.length) {
     showLessonImportPreviewError("请先选择文件并生成预览。");
     return;
@@ -1710,6 +1716,11 @@ async function handleLessonImportPlannedSubmit() {
     return;
   }
 
+  if (successfulLessonImportFileHashes.has(importPreviewFileMeta.hash)) {
+    showLessonImportPreviewError("该文件已在本页面成功导入过。为避免重复生成预定课时，本次提交已阻止；请重新选择未导入的文件。");
+    return;
+  }
+
   setLessonImportSubmitting(true);
 
   try {
@@ -1726,11 +1737,12 @@ async function handleLessonImportPlannedSubmit() {
     const failedRows = results.filter((row) => row.row_valid === false || row.batch_committed === false || (row.errors || []).length);
     if (failedRows.length) {
       renderLessonImportPreview();
-      showLessonImportPreviewError(`导入被拒绝：${failedRows.length} 行需要处理。`);
+      showLessonImportPreviewError(formatLessonImportFailedRowsMessage(failedRows));
       return;
     }
 
     lastLessonImportResult = buildLessonImportResultSummary(results, importPreviewRows);
+    successfulLessonImportFileHashes.add(importPreviewFileMeta.hash);
     renderLessonImportPreview();
 
     if (loadedMonth) {
@@ -1740,7 +1752,7 @@ async function handleLessonImportPlannedSubmit() {
     const monthText = formatLessonImportMonthRange(lastLessonImportResult.months);
     showMessage("success", `已导入预定课时 ${lastLessonImportResult.successCount} 行${monthText ? `（${monthText}）` : ""}。`);
   } catch (error) {
-    showLessonImportPreviewError(error.message || String(error));
+    showLessonImportPreviewError(formatLessonImportSubmitError(error));
   } finally {
     setLessonImportSubmitting(false);
   }
@@ -2640,13 +2652,14 @@ function renderLessonImportPreview() {
   const warningCount = rows.filter((row) => row.warnings.length).length;
   const plannedCount = rows.filter((row) => row.values.lessonType === "planned").length;
   const actualCount = rows.filter((row) => row.values.lessonType === "actual").length;
+  const hasCommittedPreview = Boolean(lastLessonImportResult?.successCount > 0);
 
   dom.lessonImportPreviewEmpty.classList.toggle("is-hidden", rows.length > 0);
   dom.lessonImportPreviewSummary.classList.toggle("is-hidden", rows.length === 0);
   dom.lessonImportPreviewRows.innerHTML = rows.map(renderLessonImportPreviewRow).join("");
   if (dom.lessonImportPlannedSubmitButton) {
-    dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0;
-    dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : "导入预定课时";
+    dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0 || hasCommittedPreview;
+    dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
   }
   if (dom.lessonImportViewMonthButton) {
     const canViewImportMonth = !isLessonImportSubmitting && lastLessonImportResult?.months?.length === 1;
@@ -2750,6 +2763,35 @@ function hideLessonImportPreviewError() {
   dom.lessonImportPreviewError.classList.add("is-hidden");
 }
 
+function formatLessonImportFailedRowsMessage(failedRows) {
+  const messages = (failedRows || []).flatMap((row) => row.errors || []);
+  if (messages.some(isLessonImportDuplicateBatchMessage)) {
+    return "检测到重复导入批次：系统已拒绝本次提交，未写入新的预定课时。请重新选择文件生成新的预览后再导入。";
+  }
+  return `导入被拒绝：${failedRows.length} 行需要处理。`;
+}
+
+function formatLessonImportSubmitError(error) {
+  const message = error?.message || String(error);
+  if (isLessonImportDuplicateBatchMessage(message)) {
+    return "检测到重复导入批次：该批次已经导入过，系统没有写入新的预定课时。请重新选择文件后再导入。";
+  }
+  return message;
+}
+
+function isLessonImportDuplicateBatchMessage(message) {
+  const text = safeText(message).toLowerCase();
+  return (
+    text.includes("import_batch_id") ||
+    text.includes("同一批次") ||
+    text.includes("重复导入") ||
+    text.includes("already imported") ||
+    text.includes("batch already") ||
+    text.includes("batch exists") ||
+    text.includes("import batch")
+  );
+}
+
 function buildLessonImportSubmitRows(rows) {
   return rows.map((row, index) => ({
     row_index: index + 1,
@@ -2798,9 +2840,10 @@ function applyLessonImportSubmitResults(results) {
 
 function setLessonImportSubmitting(isSubmitting) {
   isLessonImportSubmitting = isSubmitting;
+  const hasCommittedPreview = Boolean(lastLessonImportResult?.successCount > 0);
   if (dom.lessonImportPlannedSubmitButton) {
-    dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0;
-    dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : "导入预定课时";
+    dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0 || hasCommittedPreview;
+    dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
   }
   if (dom.lessonImportViewMonthButton) {
     const canViewImportMonth = !isSubmitting && lastLessonImportResult?.months?.length === 1;
