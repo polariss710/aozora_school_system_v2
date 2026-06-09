@@ -2,6 +2,8 @@
 
 Status date: 2026-06-09
 
+Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-based static overview.
+
 Scope:
 
 - This document summarizes feature completion from current repo docs and code structure. It does not replace the technical ownership map in `docs/system-map.md`.

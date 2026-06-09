@@ -2,7 +2,7 @@
 
 Status date: 2026-06-09
 
-Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority.
+Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority. For a visual static overview, open `docs/module-status-dashboard.html` locally.
 
 Reference baseline:
 
