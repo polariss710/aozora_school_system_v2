@@ -1533,6 +1533,18 @@ h2 {
   width: min(820px, 100%);
 }
 
+.app-dialog--xl {
+  width: min(1120px, calc(100vw - 48px));
+  max-height: calc(100vh - 24px);
+  padding: 16px 18px;
+}
+
+@supports (height: 100dvh) {
+  .app-dialog--xl {
+    max-height: calc(100dvh - 24px);
+  }
+}
+
 .income-create-dialog-panel .dialog-error,
 .expense-create-dialog-panel .dialog-error,
 .reimbursement-create-dialog-panel .dialog-error,
@@ -1559,6 +1571,65 @@ h2 {
 .reimbursement-create-wide-field,
 .lesson-create-wide-field {
   grid-column: 1 / -1;
+}
+
+.lesson-edit-dialog-panel .section-heading {
+  margin-bottom: 8px;
+}
+
+.lesson-edit-dialog-panel .section-heading h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.lesson-edit-dialog-panel .section-note {
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.lesson-edit-dialog-panel .dialog-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.lesson-edit-dialog-panel .dialog-summary-row {
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.lesson-edit-dialog-panel .dialog-warning,
+.lesson-edit-dialog-panel .dialog-error {
+  margin-top: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.lesson-edit-dialog-panel .lesson-create-field-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0 12px;
+}
+
+.lesson-edit-dialog-panel .field {
+  margin-top: 8px;
+}
+
+.lesson-edit-dialog-panel .field input,
+.lesson-edit-dialog-panel .field select,
+.lesson-edit-dialog-panel .field textarea {
+  min-height: 36px;
+  padding: 7px 9px;
+}
+
+.lesson-edit-dialog-panel #editLessonContentInput,
+.lesson-edit-dialog-panel #editLessonNoteInput {
+  min-height: 68px;
+}
+
+.lesson-edit-dialog-panel .dialog-actions {
+  margin-top: 12px;
 }
 
 .account-create-dialog-panel,
@@ -1850,10 +1921,20 @@ h2 {
     padding: 16px;
   }
 
+  .app-dialog--xl {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
   .income-create-field-grid,
   .expense-create-field-grid,
   .reimbursement-create-field-grid,
   .lesson-create-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-edit-dialog-panel .lesson-create-field-grid,
+  .lesson-edit-dialog-panel .dialog-summary {
     grid-template-columns: minmax(0, 1fr);
   }
 
