@@ -5,6 +5,8 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlements,
   lockStudentMonthlySettlement,
+  relockStudentMonthlySettlement,
+  unlockStudentMonthlySettlement,
 } from "../api/settlement-api.js";
 import {
   currentYearMonth,
@@ -24,6 +26,7 @@ const DEFAULT_FILTERS = {
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
+  unlocked: "锁定已撤销",
   preview: "未锁定 / 预览",
 };
 
@@ -34,6 +37,9 @@ let settlements = [];
 let loadedMonth = "";
 let currentLockSettlement = null;
 let isLockSubmitting = false;
+let currentStatusActionSettlement = null;
+let currentStatusAction = "";
+let isStatusActionSubmitting = false;
 
 export function initSettlementPage() {
   cacheDom();
@@ -75,6 +81,19 @@ function cacheDom() {
   dom.lockConfirmCheckbox = document.querySelector("#lockSettlementConfirmCheckbox");
   dom.lockSubmitButton = document.querySelector("#lockSettlementSubmitButton");
   dom.lockCancelButton = document.querySelector("#lockSettlementCancelButton");
+  dom.statusActionDialog = document.querySelector("#settlementStatusActionDialog");
+  dom.statusActionTitle = document.querySelector("#settlementStatusActionTitle");
+  dom.statusActionDescription = document.querySelector("#settlementStatusActionDescription");
+  dom.statusActionSummary = document.querySelector("#settlementStatusActionSummary");
+  dom.statusActionWarning = document.querySelector("#settlementStatusActionWarning");
+  dom.statusActionError = document.querySelector("#settlementStatusActionError");
+  dom.statusActionReasonField = document.querySelector("#settlementStatusActionReasonField");
+  dom.statusActionReasonInput = document.querySelector("#settlementStatusActionReasonInput");
+  dom.statusActionNoteField = document.querySelector("#settlementStatusActionNoteField");
+  dom.statusActionNoteInput = document.querySelector("#settlementStatusActionNoteInput");
+  dom.statusActionConfirmCheckbox = document.querySelector("#settlementStatusActionConfirmCheckbox");
+  dom.statusActionSubmitButton = document.querySelector("#settlementStatusActionSubmitButton");
+  dom.statusActionCancelButton = document.querySelector("#settlementStatusActionCancelButton");
 }
 
 function bindEvents() {
@@ -89,11 +108,19 @@ function bindEvents() {
   });
 
   dom.tableBody.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-lock-settlement-id]");
-    if (!button) {
+    const lockButton = event.target.closest("[data-lock-settlement-id]");
+    if (lockButton) {
+      openLockDialog(lockButton.dataset.lockSettlementId);
       return;
     }
-    openLockDialog(button.dataset.lockSettlementId);
+
+    const actionButton = event.target.closest("[data-settlement-action-id]");
+    if (actionButton) {
+      openStatusActionDialog(
+        actionButton.dataset.settlementActionId,
+        actionButton.dataset.settlementAction
+      );
+    }
   });
 
   dom.lockCancelButton?.addEventListener("click", () => closeLockDialog());
@@ -107,6 +134,23 @@ function bindEvents() {
   dom.lockConfirmCheckbox?.addEventListener("change", () => {
     clearLockFieldInvalid("confirm");
     hideLockErrorIfClean();
+  });
+
+  dom.statusActionCancelButton?.addEventListener("click", () => closeStatusActionDialog());
+  dom.statusActionSubmitButton?.addEventListener("click", handleStatusActionSubmit);
+  dom.statusActionDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.statusActionDialog) {
+      closeStatusActionDialog();
+    }
+  });
+  dom.statusActionReasonInput?.addEventListener("input", () => {
+    clearStatusActionFieldInvalid("reason");
+    hideStatusActionErrorIfClean();
+  });
+  dom.statusActionNoteInput?.addEventListener("input", () => hideStatusActionErrorIfClean());
+  dom.statusActionConfirmCheckbox?.addEventListener("change", () => {
+    clearStatusActionFieldInvalid("confirm");
+    hideStatusActionErrorIfClean();
   });
 }
 
@@ -293,7 +337,39 @@ function renderSettlementDetailAction(row) {
     `;
   }
 
-  return `<a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>`;
+  const actionButton = renderSettlementStatusAction(row);
+  return `
+    <div class="table-action-group">
+      <a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>
+      ${actionButton}
+    </div>
+  `;
+}
+
+function renderSettlementStatusAction(row) {
+  if (row.settlement_status === "locked") {
+    return `
+      <button
+        class="button table-action-button button-danger"
+        type="button"
+        data-settlement-action-id="${escapeAttribute(row.id)}"
+        data-settlement-action="unlock"
+      >撤销锁定</button>
+    `;
+  }
+
+  if (row.settlement_status === "unlocked") {
+    return `
+      <button
+        class="button table-action-button button-primary"
+        type="button"
+        data-settlement-action-id="${escapeAttribute(row.id)}"
+        data-settlement-action="relock"
+      >重新锁定</button>
+    `;
+  }
+
+  return "";
 }
 
 function openLockDialog(settlementRowId) {
@@ -422,6 +498,197 @@ function clearLockFieldInvalid(fieldId) {
   setLockFieldInvalid(fieldId, false);
 }
 
+function openStatusActionDialog(settlementId, action) {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能变更学生月度结算状态。");
+    return;
+  }
+
+  const row = settlements.find((item) => item.id === settlementId);
+  if (!row || row.is_preview) {
+    showMessage("error", "未找到可变更状态的结算快照。");
+    return;
+  }
+
+  if (!["unlock", "relock"].includes(action)) {
+    showMessage("error", "结算状态操作无效。");
+    return;
+  }
+
+  if (action === "unlock" && row.settlement_status !== "locked") {
+    showMessage("error", "只有已锁定的结算可以撤销锁定。");
+    return;
+  }
+
+  if (action === "relock" && row.settlement_status !== "unlocked") {
+    showMessage("error", "只有锁定已撤销的结算可以重新锁定。");
+    return;
+  }
+
+  currentStatusActionSettlement = row;
+  currentStatusAction = action;
+  dom.statusActionReasonInput.value = "";
+  dom.statusActionNoteInput.value = "";
+  dom.statusActionConfirmCheckbox.checked = false;
+  clearStatusActionErrors();
+  renderStatusActionDialog(row, action);
+  setStatusActionSubmitting(false);
+  dom.statusActionDialog.classList.remove("is-hidden");
+  dom.statusActionDialog.setAttribute("aria-hidden", "false");
+  if (action === "unlock") {
+    dom.statusActionReasonInput.focus();
+  } else {
+    dom.statusActionConfirmCheckbox.focus();
+  }
+}
+
+function closeStatusActionDialog(force = false) {
+  if (isStatusActionSubmitting && !force) {
+    return;
+  }
+
+  dom.statusActionDialog?.classList.add("is-hidden");
+  dom.statusActionDialog?.setAttribute("aria-hidden", "true");
+  currentStatusActionSettlement = null;
+  currentStatusAction = "";
+  clearStatusActionErrors();
+}
+
+function renderStatusActionDialog(row, action) {
+  const isUnlock = action === "unlock";
+  dom.statusActionTitle.textContent = isUnlock ? "撤销锁定学生月度结算" : "重新锁定学生月度结算";
+  dom.statusActionDescription.textContent = isUnlock
+    ? "撤销锁定会把当前快照状态改为锁定已撤销，保留同一条结算记录和撤销原因。"
+    : "重新锁定会复用当前实时结算口径覆盖同一条快照金额，不创建历史版本。";
+  dom.statusActionWarning.textContent = isUnlock
+    ? "撤销锁定后，该学生该月份的课时和学费收入写入 guard 会放开；如果该结算已作为有效结转来源，RPC 会拒绝本操作。"
+    : "重新锁定后，该学生该月份的课时和学费收入写入 guard 会恢复；本操作不会自动撤销或重建结转。";
+  dom.statusActionReasonField.classList.toggle("is-hidden", !isUnlock);
+  dom.statusActionNoteField.classList.toggle("is-hidden", isUnlock);
+  dom.statusActionSubmitButton.classList.toggle("button-danger", isUnlock);
+  dom.statusActionSubmitButton.classList.toggle("button-primary", !isUnlock);
+  dom.statusActionSubmitButton.textContent = isUnlock ? "确认撤销锁定" : "确认重新锁定";
+  renderStatusActionSummary(row);
+}
+
+function renderStatusActionSummary(row) {
+  dom.statusActionSummary.innerHTML = [
+    ["学生", nameById(students, row.student_id, studentName)],
+    ["结算月份", formatMonth(row.year_month)],
+    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
+    ["当前状态", settlementStatusLabel(row.settlement_status)],
+    ["锁定时间", formatDate(row.locked_at)],
+    ["撤销时间", formatDate(row.unlocked_at)],
+    ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("");
+}
+
+async function handleStatusActionSubmit() {
+  if (isStatusActionSubmitting) {
+    return;
+  }
+
+  clearStatusActionErrors();
+
+  if (!currentStatusActionSettlement || !currentStatusAction) {
+    showStatusActionError("未找到可变更状态的结算快照。");
+    return;
+  }
+
+  if (currentStatusAction === "unlock") {
+    const reason = dom.statusActionReasonInput.value.trim();
+    if (!reason) {
+      setStatusActionFieldInvalid("reason", true);
+      showStatusActionError("请填写撤销锁定原因。");
+      return;
+    }
+  }
+
+  if (!dom.statusActionConfirmCheckbox.checked) {
+    setStatusActionFieldInvalid("confirm", true);
+    showStatusActionError("请先勾选确认后再继续。");
+    return;
+  }
+
+  setStatusActionSubmitting(true);
+
+  try {
+    const sourceRow = currentStatusActionSettlement;
+    const action = currentStatusAction;
+    const result = action === "unlock"
+      ? await unlockStudentMonthlySettlement({
+        settlementId: sourceRow.id,
+        reason: dom.statusActionReasonInput.value.trim(),
+      })
+      : await relockStudentMonthlySettlement({
+        settlementId: sourceRow.id,
+        note: dom.statusActionNoteInput.value.trim(),
+      });
+    closeStatusActionDialog(true);
+    await loadSettlementMonth(sourceRow.year_month);
+    applyCurrentFilters();
+    showMessage("success", action === "unlock"
+      ? `学生月度结算锁定已撤销：${shortId(result?.settlement_id || result?.id)}。`
+      : `学生月度结算已重新锁定：${shortId(result?.settlement_id || result?.id)}。`);
+  } catch (error) {
+    showStatusActionError(error.message || String(error));
+  } finally {
+    setStatusActionSubmitting(false);
+  }
+}
+
+function setStatusActionSubmitting(isSubmitting) {
+  isStatusActionSubmitting = isSubmitting;
+  if (dom.statusActionSubmitButton) {
+    dom.statusActionSubmitButton.disabled = isSubmitting;
+    if (isSubmitting) {
+      dom.statusActionSubmitButton.textContent = currentStatusAction === "unlock"
+        ? "撤销中..."
+        : "重新锁定中...";
+    } else {
+      dom.statusActionSubmitButton.textContent = currentStatusAction === "unlock"
+        ? "确认撤销锁定"
+        : "确认重新锁定";
+    }
+  }
+  if (dom.statusActionCancelButton) {
+    dom.statusActionCancelButton.disabled = isSubmitting;
+  }
+}
+
+function showStatusActionError(message) {
+  dom.statusActionError.textContent = message;
+  dom.statusActionError.classList.remove("is-hidden");
+}
+
+function clearStatusActionErrors() {
+  dom.statusActionError.textContent = "";
+  dom.statusActionError.classList.add("is-hidden");
+  clearStatusActionFieldInvalid("reason");
+  clearStatusActionFieldInvalid("confirm");
+}
+
+function hideStatusActionErrorIfClean() {
+  if (!dom.statusActionDialog?.querySelector(".field.is-invalid")) {
+    dom.statusActionError.textContent = "";
+    dom.statusActionError.classList.add("is-hidden");
+  }
+}
+
+function setStatusActionFieldInvalid(fieldId, invalid) {
+  const field = dom.statusActionDialog?.querySelector(`[data-settlement-status-action-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearStatusActionFieldInvalid(fieldId) {
+  setStatusActionFieldInvalid(fieldId, false);
+}
+
 function filterSettlements(rows, filters) {
   return rows.filter((row) => {
     if (filters.studentId && row.student_id !== filters.studentId) {
@@ -511,11 +778,14 @@ function statusClass(status) {
   if (status === "preview") {
     return "status-pending";
   }
+  if (status === "unlocked") {
+    return "status-cancelled";
+  }
   return status === "locked" ? "status-paid" : "status-neutral";
 }
 
 function noteText(row) {
-  return displayValue([row.note, row.adjustment_reason].filter(Boolean).join(" / "));
+  return displayValue([row.note, row.unlock_reason, row.adjustment_reason].filter(Boolean).join(" / "));
 }
 
 function displayValue(value) {

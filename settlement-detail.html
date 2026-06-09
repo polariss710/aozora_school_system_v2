@@ -44,7 +44,12 @@
               <h2 id="settlementDetailPageTitle">详情</h2>
               <p class="section-note">本页为学生月度结算快照只读详情。显示内容来自已保存的学生月度结算记录，不代表实时结算预览。本页不会从课时、收入或结转重新计算结算结果。</p>
             </div>
-            <a class="button" href="./settlement.html">返回学生月度结算</a>
+            <div class="table-action-group">
+              <span id="settlementDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-danger is-hidden" id="openUnlockSettlementButton" type="button">撤销锁定</button>
+              <button class="button button-primary is-hidden" id="openRelockSettlementButton" type="button">重新锁定</button>
+              <a class="button" href="./settlement.html">返回学生月度结算</a>
+            </div>
           </div>
         </section>
 
@@ -164,6 +169,41 @@
       </main>
     </div>
 
-    <script type="module" src="./js/settlement-detail-app.js?v=v2.54.1-planned-status-label-20260607"></script>
+    <div id="detailSettlementStatusActionDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="detailSettlementStatusActionTitle">
+        <div class="section-heading">
+          <h2 id="detailSettlementStatusActionTitle">变更学生月度结算状态</h2>
+          <p id="detailSettlementStatusActionDescription" class="section-note"></p>
+        </div>
+
+        <div id="detailSettlementStatusActionSummary" class="dialog-summary"></div>
+
+        <div id="detailSettlementStatusActionWarning" class="dialog-warning"></div>
+
+        <div id="detailSettlementStatusActionError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <label id="detailSettlementStatusActionReasonField" class="field" data-detail-settlement-status-action-field="reason">
+          <span>撤销锁定原因（必填）</span>
+          <textarea id="detailSettlementStatusActionReasonInput" rows="3"></textarea>
+        </label>
+
+        <label id="detailSettlementStatusActionNoteField" class="field is-hidden" data-detail-settlement-status-action-field="note">
+          <span>重新锁定备注（可选）</span>
+          <textarea id="detailSettlementStatusActionNoteInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-detail-settlement-status-action-field="confirm">
+          <input id="detailSettlementStatusActionConfirmCheckbox" type="checkbox">
+          <span>我确认只变更当前结算快照状态，不创建历史版本、不处理结转或调整。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="detailSettlementStatusActionSubmitButton" type="button">确认</button>
+          <button class="button" id="detailSettlementStatusActionCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/settlement-detail-app.js?v=v2.76.0-settlement-unlock-relock-frontend-20260609"></script>
   </body>
 </html>

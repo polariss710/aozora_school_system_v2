@@ -20,6 +20,8 @@ const SETTLEMENT_COLUMNS = [
   "carryover_amount_cny",
   "settlement_status",
   "locked_at",
+  "unlocked_at",
+  "unlock_reason",
   "note",
   "created_at",
   "updated_at",

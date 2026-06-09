@@ -20,6 +20,8 @@ const SETTLEMENT_COLUMNS = [
   "carryover_amount_cny",
   "settlement_status",
   "locked_at",
+  "unlocked_at",
+  "unlock_reason",
   "note",
 ].join(",");
 
@@ -211,6 +213,8 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
     carryover_amount_cny: summary.locked_carryover_cny,
     settlement_status: "preview",
     locked_at: null,
+    unlocked_at: null,
+    unlock_reason: "",
     note: "实时预览，未锁定；按学生/月汇总，业务归属显示学生档案默认值。",
     is_preview: true,
   };
@@ -252,6 +256,32 @@ export async function lockStudentMonthlySettlement(payload) {
   const { data, error } = await supabase.rpc("school_lock_student_monthly_settlement", {
     p_student_id: payload.studentId,
     p_year_month: payload.yearMonth,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function unlockStudentMonthlySettlement(payload) {
+  const { data, error } = await supabase.rpc("school_unlock_student_monthly_settlement", {
+    p_settlement_id: payload.settlementId,
+    p_reason: payload.reason,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function relockStudentMonthlySettlement(payload) {
+  const { data, error } = await supabase.rpc("school_relock_student_monthly_settlement", {
+    p_settlement_id: payload.settlementId,
     p_note: payload.note || null,
   });
 
