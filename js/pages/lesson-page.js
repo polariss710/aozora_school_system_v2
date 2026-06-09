@@ -51,6 +51,16 @@ const LESSON_STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+const LESSON_STATUS_FILTER_OPTIONS = [
+  ["", "全部"],
+  ["planned", "待上课"],
+  ["pending_makeup", "待补课"],
+  ["completed", "已上课"],
+  ["cancelled", "取消课"],
+  ["makeup_completed", "已补课"],
+  ["voided", "已作废"],
+];
+
 const SUBJECT_SORT_RULES = [
   ["日语", "日本語", "JLPT"],
   ["数学", "math"],
@@ -188,6 +198,7 @@ let subjects = [];
 let businessEntities = [];
 let lessonRecords = [];
 let loadedMonth = "";
+let loadedLessonRecordMode = "";
 let activeView = "list";
 let isCreatePlannedLessonSubmitting = false;
 let isCreateLessonFeeManual = false;
@@ -690,7 +701,7 @@ async function loadInitialData() {
     ]);
 
     renderMasterOptions();
-    await loadLessonMonth(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth());
+    await loadLessonMonth(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth(), readFilters());
     applyCurrentFilters();
     showMessage("success", "课时管理数据已加载。");
   } catch (error) {
@@ -719,12 +730,12 @@ async function applyQuery() {
     return;
   }
 
-  if (filters.month !== loadedMonth) {
+  if (filters.month !== loadedMonth || lessonRecordQueryMode(filters) !== loadedLessonRecordMode) {
     setLoading(true);
     showMessage("info", "正在加载课时记录...");
 
     try {
-      await loadLessonMonth(filters.month);
+      await loadLessonMonth(filters.month, filters);
       restoreFilterSelections(filters);
       applyCurrentFilters();
       showMessage("success", "课时记录已加载。");
@@ -743,10 +754,16 @@ async function applyQuery() {
   applyCurrentFilters();
 }
 
-async function loadLessonMonth(month) {
-  lessonRecords = sortLessonRecords(await fetchLessonRecords(month));
+async function loadLessonMonth(month, filters = {}) {
+  const queryMode = lessonRecordQueryMode(filters);
+  lessonRecords = sortLessonRecords(await fetchLessonRecords(month, { status: filters.status }));
   loadedMonth = month;
+  loadedLessonRecordMode = queryMode;
   renderDataOptions(lessonRecords);
+}
+
+function lessonRecordQueryMode(filters = {}) {
+  return filters.status === "voided" ? "voided" : "active";
 }
 
 function applyCurrentFilters() {
@@ -800,7 +817,7 @@ function renderMasterOptions() {
 
 function renderDataOptions(records) {
   renderValueOptions(dom.lessonTypeSelect, distinctValues(records, "lesson_type"), lessonTypeLabel);
-  renderValueOptions(dom.statusSelect, distinctValues(records, "status"), lessonStatusLabel);
+  renderLessonStatusFilterOptions(dom.statusSelect);
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -1072,7 +1089,7 @@ async function refreshAfterCreatePlannedLesson(createdLesson) {
   dom.billableSelect.value = "";
   dom.keywordInput.value = "";
 
-  await loadLessonMonth(createdMonth || currentYearMonth());
+  await loadLessonMonth(createdMonth || currentYearMonth(), { status: "" });
   renderDataOptions(lessonRecords);
   restoreFilterSelections({
     month: createdMonth || loadedMonth,
@@ -1355,7 +1372,7 @@ async function refreshAfterCreateActualLesson(createdLesson) {
   dom.billableSelect.value = "";
   dom.keywordInput.value = "";
 
-  await loadLessonMonth(createdMonth);
+  await loadLessonMonth(createdMonth, { status: "" });
   renderDataOptions(lessonRecords);
   restoreFilterSelections({
     month: createdMonth,
@@ -1378,7 +1395,8 @@ async function refreshAfterVoidLesson(result, sourceLesson) {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, targetMonth);
   }
 
-  await loadLessonMonth(targetMonth);
+  const filters = readFilters() || { status: "" };
+  await loadLessonMonth(targetMonth, filters);
   applyCurrentFilters();
   showMessage("success", `预定课时已作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
@@ -1644,7 +1662,7 @@ async function refreshAfterCreateCancelledActualLesson(createdLesson) {
   dom.billableSelect.value = "";
   dom.keywordInput.value = "";
 
-  await loadLessonMonth(createdMonth);
+  await loadLessonMonth(createdMonth, { status: "" });
   renderDataOptions(lessonRecords);
   restoreFilterSelections({
     month: createdMonth,
@@ -1917,7 +1935,7 @@ async function refreshAfterCreateMakeupActualLesson(createdLesson) {
   dom.billableSelect.value = "";
   dom.keywordInput.value = "";
 
-  await loadLessonMonth(createdMonth);
+  await loadLessonMonth(createdMonth, { status: "" });
   renderDataOptions(lessonRecords);
   restoreFilterSelections({
     month: createdMonth,
@@ -2127,7 +2145,7 @@ async function refreshAfterEditLesson(updatedLesson) {
   };
   filters.month = updatedMonth || filters.month;
 
-  await loadLessonMonth(filters.month);
+  await loadLessonMonth(filters.month, filters);
   renderDataOptions(lessonRecords);
   restoreFilterSelections(filters);
   applyCurrentFilters();
@@ -2143,6 +2161,12 @@ function renderValueOptions(selectEl, values, labelGetter) {
   }
 
   selectEl.innerHTML = options.join("");
+}
+
+function renderLessonStatusFilterOptions(selectEl) {
+  selectEl.innerHTML = LESSON_STATUS_FILTER_OPTIONS
+    .map(([value, label]) => `<option value="${escapeAttribute(value)}">${escapeHtml(label)}</option>`)
+    .join("");
 }
 
 function openLessonImportPreviewDialog() {
@@ -2267,7 +2291,7 @@ async function handleLessonImportPlannedSubmit() {
     renderLessonImportPreview();
 
     if (loadedMonth) {
-      await loadLessonMonth(loadedMonth);
+      await loadLessonMonth(loadedMonth, readFilters() || { status: "" });
       applyCurrentFilters();
     }
     const monthText = formatLessonImportMonthRange(lastLessonImportResult.months);
@@ -4073,6 +4097,10 @@ function actualBillableSummary(record) {
 
 function filterLessonRecords(records, filters) {
   return records.filter((record) => {
+    if (!recordMatchesStatusFilter(record, filters.status)) {
+      return false;
+    }
+
     if (filters.studentId && record.student_id !== filters.studentId) {
       return false;
     }
@@ -4093,16 +4121,28 @@ function filterLessonRecords(records, filters) {
       return false;
     }
 
-    if (filters.status && record.status !== filters.status) {
-      return false;
-    }
-
     if (filters.isBillable && String(record.is_billable) !== filters.isBillable) {
       return false;
     }
 
     return matchesKeyword(record, filters.keyword);
   });
+}
+
+function recordMatchesStatusFilter(record, statusFilter) {
+  if (statusFilter === "voided") {
+    return isVoidedPlanned(record);
+  }
+
+  if (isVoidedPlanned(record)) {
+    return false;
+  }
+
+  if (!statusFilter) {
+    return true;
+  }
+
+  return record.status === statusFilter;
 }
 
 function matchesKeyword(record, keyword) {

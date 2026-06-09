@@ -91,6 +91,12 @@
               <span>状态</span>
               <select id="lessonStatusSelect" name="status">
                 <option value="">全部</option>
+                <option value="planned">待上课</option>
+                <option value="pending_makeup">待补课</option>
+                <option value="completed">已上课</option>
+                <option value="cancelled">取消课</option>
+                <option value="makeup_completed">已补课</option>
+                <option value="voided">已作废</option>
               </select>
             </label>
 
@@ -708,6 +714,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.63.0-lesson-void-frontend-20260609"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.64.0-lesson-void-status-filter-20260609"></script>
   </body>
 </html>

@@ -50,13 +50,22 @@ const IMPORT_PRECHECK_WAGE_LOCK_COLUMNS = [
   "locked_at",
 ].join(",");
 
-export async function fetchLessonRecords(yearMonth) {
-  const { data, error } = await supabase
+export async function fetchLessonRecords(yearMonth, options = {}) {
+  let query = supabase
     .from("school_lesson_records")
     .select(LESSON_COLUMNS)
     .eq("app_type", "school")
-    .eq("year_month", yearMonth)
-    .or("lesson_type.neq.planned,voided_at.is.null")
+    .eq("year_month", yearMonth);
+
+  if (options.status === "voided") {
+    query = query
+      .eq("lesson_type", "planned")
+      .not("voided_at", "is", null);
+  } else {
+    query = query.or("lesson_type.neq.planned,voided_at.is.null");
+  }
+
+  const { data, error } = await query
     .order("lesson_date", { ascending: true })
     .order("lesson_count", { ascending: true, nullsFirst: false })
     .order("start_time", { ascending: true, nullsFirst: false })
