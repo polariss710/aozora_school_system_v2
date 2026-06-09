@@ -441,13 +441,13 @@
         <div class="module-body">
           <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>13/13</span></div><div class="progress-track"><div class="progress-fill closed" style="width: 100%;"></div></div></div>
           <div class="field"><div class="label">当前状态</div><div class="value">课时管理 V1 基本收口。预定/实际 V1、受保护编辑、仅预定导入、仅预定作废已经形成可运营链路。</div></div>
-          <div class="field"><div class="label">V1 边界</div><div class="value">planned-only 导入是当前核心稳定源头；实际生成、取消、补课完成和 linked actual 编辑都依托 planned 源头及其保护语义。生成实际课时后如有问题，当前运营优先通过 guarded edit 修正，而不是删除重建。</div></div>
+          <div class="field"><div class="label">V1 边界</div><div class="value">planned-only 导入是当前核心稳定源头；当前 v2 普通新增/导入仍保持 planned-only，不恢复 v1 那种普通新增时自由选择预定/实际的宽入口。实际生成、取消、补课完成和 linked actual 编辑都依托 planned 源头及其保护语义。生成实际课时后如有问题，当前运营优先通过 guarded edit 修正，而不是删除重建。</div></div>
           <div class="field"><div class="label">已完成</div><div class="value">列表/详情、预定/实际配对视图、预定新增、三类从预定生成实际、受保护编辑、预定作废、已作废只读查看、导入预览/模板/提交、返回筛选导航、结算/工资证据链接。</div></div>
           <div class="field"><div class="label">写入入口</div><div class="value">通过 <code>js/api/lesson-api.js</code> 调用已验证 RPC：预定新增、三类实际生成、仅预定批量导入、受保护编辑、仅预定作废。</div></div>
           <div class="field"><div class="label">保护规则</div><div class="value">保护已锁定学生结算月、已锁定老师工资月、关联实际/来源一致性、过期 <code>updated_at</code>、已作废行、工资明细快照和空原因。</div></div>
           <div class="field"><div class="label">历史数据</div><div class="value">当前不处理历史数据；历史维护由 v1 或单独 migration/backlog 处理。full actual import 保持 future/history migration backlog。</div></div>
-          <div class="field"><div class="label">跨月补课</div><div class="value">模型和统计口径可表达 <code>lesson_type = actual</code> + <code>status = makeup_completed</code> + <code>is_billable = false</code>，但当前 UI 没有完整流程去选择上月 <code>pending_makeup</code> 并生成本月 <code>makeup_completed</code> actual；跨月待补课完成登记 / 待补课池是 future backlog，本轮不实现。</div></div>
-          <div class="field"><div class="label">未完成</div><div class="value">自由实际新增、完整实际导入、课时删除、作废恢复、<code>voided_by</code>、从课时生成工资锁定、自动匹配、同文件预定/实际关联、跨月待补课池。lesson delete 仍是 backlog，但当前不是刚需。</div></div>
+          <div class="field"><div class="label">跨月补课</div><div class="value">后续高优先级：单独设计“补课完成登记 / 新增补课结果”入口，处理以前月份 <code>pending_makeup</code> planned 在当前月份完成补课，生成 <code>lesson_type = actual</code> + <code>status = makeup_completed</code> actual。补以前月份已收费课时默认 <code>is_billable = false</code>，保留 <code>planned_lesson_id</code>；来源月份已锁定时，不修改来源 planned，只新增当前月 actual。该功能需要单独 guarded design，不属于 full actual import，也不属于历史迁移。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">自由实际新增、完整实际导入、课时删除、作废恢复、<code>voided_by</code>、从课时生成工资锁定、自动匹配、同文件预定/实际关联、跨月补课完成登记。lesson delete 仍是 backlog，但当前不是刚需。</div></div>
         </div>
       </article>
 
@@ -607,7 +607,7 @@
           <div class="field"><div class="label">写入入口</div><div class="value">无。</div></div>
           <div class="field"><div class="label">保护规则</div><div class="value">未来写入必须走 full write-RPC workflow 和 API-layer boundary；历史修复、破坏性清理、广泛回填、非白名单真实数据写入仍是 hard stop。</div></div>
           <div class="field"><div class="label">编辑范围</div><div class="value">不适用。</div></div>
-          <div class="field"><div class="label">未完成</div><div class="value">历史迁移/修复、完整实际导入、跨月待补课完成登记 / 待补课池、多版本结算历史、结算调整、结转自动化、工资锁定生成、课时删除/恢复、工资规则物理删除、支付状态动作复核、白名单测试数据清理。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">历史迁移/修复、完整实际导入、后续高优先级的跨月补课完成登记 / 新增补课结果、多版本结算历史、结算调整、结转自动化、工资锁定生成、课时删除/恢复、工资规则物理删除、支付状态动作复核、白名单测试数据清理。</div></div>
         </div>
       </article>
     </section>
