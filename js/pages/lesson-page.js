@@ -50,6 +50,14 @@ const LESSON_STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+const SUBJECT_SORT_RULES = [
+  ["日语", "日本語", "JLPT"],
+  ["数学", "math"],
+  ["物理", "physics"],
+  ["化学", "chemistry"],
+  ["文综", "综合科目", "総合科目", "文科"],
+];
+
 const LESSON_IMPORT_PREVIEW_FIELD_LABELS = {
   student: "学生",
   teacher: "老师",
@@ -182,14 +190,22 @@ let loadedMonth = "";
 let activeView = "list";
 let isCreatePlannedLessonSubmitting = false;
 let isCreateLessonFeeManual = false;
+let createPlannedLessonInitialSnapshot = null;
+let isCreatePlannedLessonCloseConfirmPending = false;
 let currentActualSourceLesson = null;
 let isCreateActualLessonSubmitting = false;
 let isActualLessonFeeManual = false;
+let createActualLessonInitialSnapshot = null;
+let isCreateActualLessonCloseConfirmPending = false;
 let currentCancelledActualSourceLesson = null;
 let isCreateCancelledActualLessonSubmitting = false;
+let createCancelledActualLessonInitialSnapshot = null;
+let isCreateCancelledActualLessonCloseConfirmPending = false;
 let currentMakeupActualSourceLesson = null;
 let isCreateMakeupActualLessonSubmitting = false;
 let isMakeupLessonFeeManual = false;
+let createMakeupActualLessonInitialSnapshot = null;
+let isCreateMakeupActualLessonCloseConfirmPending = false;
 let lessonEditController = null;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
@@ -384,6 +400,17 @@ function bindEvents() {
   dom.lessonImportViewMonthButton?.addEventListener("click", handleLessonImportViewMonthClick);
   dom.lessonImportViewFirstDetailButton?.addEventListener("click", handleLessonImportViewFirstDetailClick);
 
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    const activeDialog = activeLessonCreateDialog();
+    if (activeDialog) {
+      event.preventDefault();
+      activeDialog.blockDirectDismiss();
+    }
+  });
+
   dom.lessonImportPreviewDialog?.addEventListener("click", (event) => {
     if (event.target === dom.lessonImportPreviewDialog) {
       closeLessonImportPreviewDialog();
@@ -403,7 +430,7 @@ function bindEvents() {
 
   dom.createPlannedLessonDialog?.addEventListener("click", (event) => {
     if (event.target === dom.createPlannedLessonDialog) {
-      closeCreatePlannedLessonDialog();
+      blockCreatePlannedLessonDirectDismiss();
     }
   });
 
@@ -422,15 +449,21 @@ function bindEvents() {
     ["lessonCount", dom.createPlannedLessonCountInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
+      isCreatePlannedLessonCloseConfirmPending = false;
       clearCreatePlannedLessonFieldInvalid(fieldId);
       hideCreatePlannedLessonErrorIfClean();
     });
     element?.addEventListener("change", () => {
+      isCreatePlannedLessonCloseConfirmPending = false;
       clearCreatePlannedLessonFieldInvalid(fieldId);
       hideCreatePlannedLessonErrorIfClean();
     });
   });
 
+  dom.createPlannedLessonStartTimeInput?.addEventListener("input", syncCreatePlannedLessonDurationFromTimeRange);
+  dom.createPlannedLessonStartTimeInput?.addEventListener("change", syncCreatePlannedLessonDurationFromTimeRange);
+  dom.createPlannedLessonEndTimeInput?.addEventListener("input", syncCreatePlannedLessonDurationFromTimeRange);
+  dom.createPlannedLessonEndTimeInput?.addEventListener("change", syncCreatePlannedLessonDurationFromTimeRange);
   dom.createPlannedLessonDurationInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonUnitPriceInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonFeeInput?.addEventListener("input", () => {
@@ -473,7 +506,7 @@ function bindEvents() {
 
   dom.createActualLessonDialog?.addEventListener("click", (event) => {
     if (event.target === dom.createActualLessonDialog) {
-      closeCreateActualLessonDialog();
+      blockCreateActualLessonDirectDismiss();
     }
   });
 
@@ -487,15 +520,21 @@ function bindEvents() {
     ["lessonCount", dom.createActualLessonCountInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
+      isCreateActualLessonCloseConfirmPending = false;
       clearCreateActualLessonFieldInvalid(fieldId);
       hideCreateActualLessonErrorIfClean();
     });
     element?.addEventListener("change", () => {
+      isCreateActualLessonCloseConfirmPending = false;
       clearCreateActualLessonFieldInvalid(fieldId);
       hideCreateActualLessonErrorIfClean();
     });
   });
 
+  dom.createActualLessonStartTimeInput?.addEventListener("input", syncCreateActualLessonDurationFromTimeRange);
+  dom.createActualLessonStartTimeInput?.addEventListener("change", syncCreateActualLessonDurationFromTimeRange);
+  dom.createActualLessonEndTimeInput?.addEventListener("input", syncCreateActualLessonDurationFromTimeRange);
+  dom.createActualLessonEndTimeInput?.addEventListener("change", syncCreateActualLessonDurationFromTimeRange);
   dom.createActualLessonDurationInput?.addEventListener("input", updateCreateActualLessonFeePreview);
   dom.createActualLessonUnitPriceInput?.addEventListener("input", updateCreateActualLessonFeePreview);
   dom.createActualLessonFeeInput?.addEventListener("input", () => {
@@ -507,7 +546,7 @@ function bindEvents() {
 
   dom.createCancelledActualLessonDialog?.addEventListener("click", (event) => {
     if (event.target === dom.createCancelledActualLessonDialog) {
-      closeCreateCancelledActualLessonDialog();
+      blockCreateCancelledActualLessonDirectDismiss();
     }
   });
 
@@ -520,21 +559,28 @@ function bindEvents() {
     ["lessonCount", dom.createCancelledActualLessonCountInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
+      isCreateCancelledActualLessonCloseConfirmPending = false;
       clearCreateCancelledActualLessonFieldInvalid(fieldId);
       hideCreateCancelledActualLessonErrorIfClean();
     });
     element?.addEventListener("change", () => {
+      isCreateCancelledActualLessonCloseConfirmPending = false;
       clearCreateCancelledActualLessonFieldInvalid(fieldId);
       hideCreateCancelledActualLessonErrorIfClean();
     });
   });
+
+  dom.createCancelledActualLessonStartTimeInput?.addEventListener("input", syncCreateCancelledActualLessonDurationFromTimeRange);
+  dom.createCancelledActualLessonStartTimeInput?.addEventListener("change", syncCreateCancelledActualLessonDurationFromTimeRange);
+  dom.createCancelledActualLessonEndTimeInput?.addEventListener("input", syncCreateCancelledActualLessonDurationFromTimeRange);
+  dom.createCancelledActualLessonEndTimeInput?.addEventListener("change", syncCreateCancelledActualLessonDurationFromTimeRange);
 
   dom.createMakeupActualLessonCancelButton?.addEventListener("click", () => closeCreateMakeupActualLessonDialog());
   dom.createMakeupActualLessonSubmitButton?.addEventListener("click", handleCreateMakeupActualLessonSubmit);
 
   dom.createMakeupActualLessonDialog?.addEventListener("click", (event) => {
     if (event.target === dom.createMakeupActualLessonDialog) {
-      closeCreateMakeupActualLessonDialog();
+      blockCreateMakeupActualLessonDirectDismiss();
     }
   });
 
@@ -549,16 +595,22 @@ function bindEvents() {
     ["lessonCount", dom.createMakeupActualLessonCountInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
+      isCreateMakeupActualLessonCloseConfirmPending = false;
       clearCreateMakeupActualLessonFieldInvalid(fieldId);
       hideCreateMakeupActualLessonErrorIfClean();
     });
     element?.addEventListener("change", () => {
+      isCreateMakeupActualLessonCloseConfirmPending = false;
       clearCreateMakeupActualLessonFieldInvalid(fieldId);
       hideCreateMakeupActualLessonErrorIfClean();
     });
   });
 
   dom.createMakeupActualLessonBillableSelect?.addEventListener("change", handleCreateMakeupActualLessonBillableChange);
+  dom.createMakeupActualLessonStartTimeInput?.addEventListener("input", syncCreateMakeupActualLessonDurationFromTimeRange);
+  dom.createMakeupActualLessonStartTimeInput?.addEventListener("change", syncCreateMakeupActualLessonDurationFromTimeRange);
+  dom.createMakeupActualLessonEndTimeInput?.addEventListener("input", syncCreateMakeupActualLessonDurationFromTimeRange);
+  dom.createMakeupActualLessonEndTimeInput?.addEventListener("change", syncCreateMakeupActualLessonDurationFromTimeRange);
   dom.createMakeupActualLessonDurationInput?.addEventListener("input", updateCreateMakeupActualLessonFeePreview);
   dom.createMakeupActualLessonUnitPriceInput?.addEventListener("input", updateCreateMakeupActualLessonFeePreview);
   dom.createMakeupActualLessonFeeInput?.addEventListener("input", () => {
@@ -735,6 +787,54 @@ function renderEntityOptionsWithPlaceholder(selectEl, rows, labelGetter, placeho
   selectEl.innerHTML = options.join("");
 }
 
+function activeLessonCreateDialog() {
+  if (isDialogOpen(dom.createPlannedLessonDialog)) {
+    return { blockDirectDismiss: blockCreatePlannedLessonDirectDismiss };
+  }
+  if (isDialogOpen(dom.createActualLessonDialog)) {
+    return { blockDirectDismiss: blockCreateActualLessonDirectDismiss };
+  }
+  if (isDialogOpen(dom.createCancelledActualLessonDialog)) {
+    return { blockDirectDismiss: blockCreateCancelledActualLessonDirectDismiss };
+  }
+  if (isDialogOpen(dom.createMakeupActualLessonDialog)) {
+    return { blockDirectDismiss: blockCreateMakeupActualLessonDirectDismiss };
+  }
+  return null;
+}
+
+function isDialogOpen(dialog) {
+  return Boolean(dialog && !dialog.classList.contains("is-hidden"));
+}
+
+function blockCreatePlannedLessonDirectDismiss() {
+  if (!isDialogOpen(dom.createPlannedLessonDialog) || isCreatePlannedLessonSubmitting) {
+    return;
+  }
+  showCreatePlannedLessonError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
+}
+
+function blockCreateActualLessonDirectDismiss() {
+  if (!isDialogOpen(dom.createActualLessonDialog) || isCreateActualLessonSubmitting) {
+    return;
+  }
+  showCreateActualLessonError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
+}
+
+function blockCreateCancelledActualLessonDirectDismiss() {
+  if (!isDialogOpen(dom.createCancelledActualLessonDialog) || isCreateCancelledActualLessonSubmitting) {
+    return;
+  }
+  showCreateCancelledActualLessonError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
+}
+
+function blockCreateMakeupActualLessonDirectDismiss() {
+  if (!isDialogOpen(dom.createMakeupActualLessonDialog) || isCreateMakeupActualLessonSubmitting) {
+    return;
+  }
+  showCreateMakeupActualLessonError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
+}
+
 function openCreatePlannedLessonDialog() {
   if (!hasSupabaseConfig()) {
     showMessage("error", "当前 Supabase 配置不可用，不能新增预定课时。");
@@ -755,8 +855,18 @@ function closeCreatePlannedLessonDialog(force = false) {
     return;
   }
 
+  if (!force && hasCreatePlannedLessonFormChanged()) {
+    if (!isCreatePlannedLessonCloseConfirmPending) {
+      isCreatePlannedLessonCloseConfirmPending = true;
+      showCreatePlannedLessonError("表单已有修改。再次点击取消将放弃输入。");
+      return;
+    }
+  }
+
   dom.createPlannedLessonDialog.classList.add("is-hidden");
   dom.createPlannedLessonDialog.setAttribute("aria-hidden", "true");
+  createPlannedLessonInitialSnapshot = null;
+  isCreatePlannedLessonCloseConfirmPending = false;
 }
 
 function renderCreatePlannedLessonOptions() {
@@ -803,6 +913,31 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonContentInput.value = "";
   dom.createPlannedLessonNoteInput.value = "";
   isCreateLessonFeeManual = false;
+  isCreatePlannedLessonCloseConfirmPending = false;
+  createPlannedLessonInitialSnapshot = readCreatePlannedLessonFormSnapshot();
+}
+
+function readCreatePlannedLessonFormSnapshot() {
+  return JSON.stringify({
+    lessonDate: dom.createPlannedLessonDateInput.value,
+    status: dom.createPlannedLessonStatusSelect.value,
+    student: dom.createPlannedLessonStudentSelect.value,
+    teacher: dom.createPlannedLessonTeacherSelect.value,
+    subject: dom.createPlannedLessonSubjectSelect.value,
+    businessEntity: dom.createPlannedLessonBusinessEntitySelect.value,
+    startTime: dom.createPlannedLessonStartTimeInput.value,
+    endTime: dom.createPlannedLessonEndTimeInput.value,
+    durationHours: dom.createPlannedLessonDurationInput.value,
+    unitPrice: dom.createPlannedLessonUnitPriceInput.value,
+    lessonFee: dom.createPlannedLessonFeeInput.value,
+    lessonCount: dom.createPlannedLessonCountInput.value,
+    lessonContent: dom.createPlannedLessonContentInput.value,
+    note: dom.createPlannedLessonNoteInput.value,
+  });
+}
+
+function hasCreatePlannedLessonFormChanged() {
+  return Boolean(createPlannedLessonInitialSnapshot && readCreatePlannedLessonFormSnapshot() !== createPlannedLessonInitialSnapshot);
 }
 
 async function handleCreatePlannedLessonSubmit() {
@@ -854,13 +989,25 @@ function readCreatePlannedLessonPayload() {
   if (!businessEntityId) invalidFields.push("businessEntity");
   if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  const timeValidation = validateLessonTimeRange(startTime, endTime);
+  let validationMessage = "";
+  if (timeValidation.status === "error") {
+    invalidFields.push("startTime", "endTime", "durationHours");
+    validationMessage = timeValidation.message;
+  } else if (
+    timeValidation.status === "valid"
+    && (!Number.isFinite(durationHours) || !numbersEqual(durationHours, timeValidation.durationHours))
+  ) {
+    invalidFields.push("durationHours");
+    validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
+  }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
   if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreatePlannedLessonError("请检查新增预定课时表单中的必填项和数字格式。", invalidFields);
+    showCreatePlannedLessonError(validationMessage || "请检查新增预定课时表单中的必填项和数字格式。", invalidFields);
     return null;
   }
 
@@ -1016,8 +1163,19 @@ function closeCreateActualLessonDialog(force = false) {
     return;
   }
 
+  if (!force && hasCreateActualLessonFormChanged()) {
+    if (!isCreateActualLessonCloseConfirmPending) {
+      isCreateActualLessonCloseConfirmPending = true;
+      showCreateActualLessonError("表单已有修改。再次点击取消将放弃输入。");
+      return;
+    }
+  }
+
   dom.createActualLessonDialog.classList.add("is-hidden");
   dom.createActualLessonDialog.setAttribute("aria-hidden", "true");
+  currentActualSourceLesson = null;
+  createActualLessonInitialSnapshot = null;
+  isCreateActualLessonCloseConfirmPending = false;
 }
 
 function resetCreateActualLessonForm(plannedLesson) {
@@ -1031,6 +1189,26 @@ function resetCreateActualLessonForm(plannedLesson) {
   dom.createActualLessonContentInput.value = safeText(plannedLesson.lesson_content);
   dom.createActualLessonNoteInput.value = safeText(plannedLesson.note);
   isActualLessonFeeManual = false;
+  isCreateActualLessonCloseConfirmPending = false;
+  createActualLessonInitialSnapshot = readCreateActualLessonFormSnapshot();
+}
+
+function readCreateActualLessonFormSnapshot() {
+  return JSON.stringify({
+    lessonDate: dom.createActualLessonDateInput.value,
+    startTime: dom.createActualLessonStartTimeInput.value,
+    endTime: dom.createActualLessonEndTimeInput.value,
+    durationHours: dom.createActualLessonDurationInput.value,
+    unitPrice: dom.createActualLessonUnitPriceInput.value,
+    lessonFee: dom.createActualLessonFeeInput.value,
+    lessonCount: dom.createActualLessonCountInput.value,
+    lessonContent: dom.createActualLessonContentInput.value,
+    note: dom.createActualLessonNoteInput.value,
+  });
+}
+
+function hasCreateActualLessonFormChanged() {
+  return Boolean(createActualLessonInitialSnapshot && readCreateActualLessonFormSnapshot() !== createActualLessonInitialSnapshot);
 }
 
 function renderCreateActualLessonSummary(plannedLesson) {
@@ -1093,13 +1271,25 @@ function readCreateActualLessonPayload() {
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  const timeValidation = validateLessonTimeRange(startTime, endTime);
+  let validationMessage = "";
+  if (timeValidation.status === "error") {
+    invalidFields.push("startTime", "endTime", "durationHours");
+    validationMessage = timeValidation.message;
+  } else if (
+    timeValidation.status === "valid"
+    && (!Number.isFinite(durationHours) || !numbersEqual(durationHours, timeValidation.durationHours))
+  ) {
+    invalidFields.push("durationHours");
+    validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
+  }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
   if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateActualLessonError("请检查实际课时表单中的必填项和数字格式。", invalidFields);
+    showCreateActualLessonError(validationMessage || "请检查实际课时表单中的必填项和数字格式。", invalidFields);
     return null;
   }
 
@@ -1247,8 +1437,19 @@ function closeCreateCancelledActualLessonDialog(force = false) {
     return;
   }
 
+  if (!force && hasCreateCancelledActualLessonFormChanged()) {
+    if (!isCreateCancelledActualLessonCloseConfirmPending) {
+      isCreateCancelledActualLessonCloseConfirmPending = true;
+      showCreateCancelledActualLessonError("表单已有修改。再次点击取消将放弃输入。");
+      return;
+    }
+  }
+
   dom.createCancelledActualLessonDialog.classList.add("is-hidden");
   dom.createCancelledActualLessonDialog.setAttribute("aria-hidden", "true");
+  currentCancelledActualSourceLesson = null;
+  createCancelledActualLessonInitialSnapshot = null;
+  isCreateCancelledActualLessonCloseConfirmPending = false;
 }
 
 function resetCreateCancelledActualLessonForm(plannedLesson) {
@@ -1261,6 +1462,28 @@ function resetCreateCancelledActualLessonForm(plannedLesson) {
   dom.createCancelledActualLessonCountInput.value = plannedLesson.lesson_count ? String(plannedLesson.lesson_count) : "";
   dom.createCancelledActualLessonContentInput.value = safeText(plannedLesson.lesson_content);
   dom.createCancelledActualLessonNoteInput.value = safeText(plannedLesson.note);
+  isCreateCancelledActualLessonCloseConfirmPending = false;
+  createCancelledActualLessonInitialSnapshot = readCreateCancelledActualLessonFormSnapshot();
+}
+
+function readCreateCancelledActualLessonFormSnapshot() {
+  return JSON.stringify({
+    lessonDate: dom.createCancelledActualLessonDateInput.value,
+    startTime: dom.createCancelledActualLessonStartTimeInput.value,
+    endTime: dom.createCancelledActualLessonEndTimeInput.value,
+    durationHours: dom.createCancelledActualLessonDurationInput.value,
+    unitPrice: dom.createCancelledActualLessonUnitPriceInput.value,
+    lessonCount: dom.createCancelledActualLessonCountInput.value,
+    lessonContent: dom.createCancelledActualLessonContentInput.value,
+    note: dom.createCancelledActualLessonNoteInput.value,
+  });
+}
+
+function hasCreateCancelledActualLessonFormChanged() {
+  return Boolean(
+    createCancelledActualLessonInitialSnapshot
+    && readCreateCancelledActualLessonFormSnapshot() !== createCancelledActualLessonInitialSnapshot
+  );
 }
 
 function renderCreateCancelledActualLessonSummary(plannedLesson) {
@@ -1323,12 +1546,24 @@ function readCreateCancelledActualLessonPayload() {
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  const timeValidation = validateLessonTimeRange(startTime, endTime);
+  let validationMessage = "";
+  if (timeValidation.status === "error") {
+    invalidFields.push("startTime", "endTime", "durationHours");
+    validationMessage = timeValidation.message;
+  } else if (
+    timeValidation.status === "valid"
+    && (!Number.isFinite(durationHours) || !numbersEqual(durationHours, timeValidation.durationHours))
+  ) {
+    invalidFields.push("durationHours");
+    validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
+  }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateCancelledActualLessonError("请检查取消课时表单中的必填项和数字格式。", invalidFields);
+    showCreateCancelledActualLessonError(validationMessage || "请检查取消课时表单中的必填项和数字格式。", invalidFields);
     return null;
   }
 
@@ -1459,8 +1694,19 @@ function closeCreateMakeupActualLessonDialog(force = false) {
     return;
   }
 
+  if (!force && hasCreateMakeupActualLessonFormChanged()) {
+    if (!isCreateMakeupActualLessonCloseConfirmPending) {
+      isCreateMakeupActualLessonCloseConfirmPending = true;
+      showCreateMakeupActualLessonError("表单已有修改。再次点击取消将放弃输入。");
+      return;
+    }
+  }
+
   dom.createMakeupActualLessonDialog.classList.add("is-hidden");
   dom.createMakeupActualLessonDialog.setAttribute("aria-hidden", "true");
+  currentMakeupActualSourceLesson = null;
+  createMakeupActualLessonInitialSnapshot = null;
+  isCreateMakeupActualLessonCloseConfirmPending = false;
 }
 
 function resetCreateMakeupActualLessonForm(plannedLesson) {
@@ -1476,6 +1722,30 @@ function resetCreateMakeupActualLessonForm(plannedLesson) {
   dom.createMakeupActualLessonNoteInput.value = safeText(plannedLesson.note);
   isMakeupLessonFeeManual = false;
   syncCreateMakeupActualLessonFeeMode();
+  isCreateMakeupActualLessonCloseConfirmPending = false;
+  createMakeupActualLessonInitialSnapshot = readCreateMakeupActualLessonFormSnapshot();
+}
+
+function readCreateMakeupActualLessonFormSnapshot() {
+  return JSON.stringify({
+    lessonDate: dom.createMakeupActualLessonDateInput.value,
+    isBillable: dom.createMakeupActualLessonBillableSelect.value,
+    startTime: dom.createMakeupActualLessonStartTimeInput.value,
+    endTime: dom.createMakeupActualLessonEndTimeInput.value,
+    durationHours: dom.createMakeupActualLessonDurationInput.value,
+    unitPrice: dom.createMakeupActualLessonUnitPriceInput.value,
+    lessonFee: dom.createMakeupActualLessonFeeInput.value,
+    lessonCount: dom.createMakeupActualLessonCountInput.value,
+    lessonContent: dom.createMakeupActualLessonContentInput.value,
+    note: dom.createMakeupActualLessonNoteInput.value,
+  });
+}
+
+function hasCreateMakeupActualLessonFormChanged() {
+  return Boolean(
+    createMakeupActualLessonInitialSnapshot
+    && readCreateMakeupActualLessonFormSnapshot() !== createMakeupActualLessonInitialSnapshot
+  );
 }
 
 function renderCreateMakeupActualLessonSummary(plannedLesson) {
@@ -1541,13 +1811,25 @@ function readCreateMakeupActualLessonPayload() {
   if (!["true", "false"].includes(dom.createMakeupActualLessonBillableSelect.value)) invalidFields.push("isBillable");
   if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  const timeValidation = validateLessonTimeRange(startTime, endTime);
+  let validationMessage = "";
+  if (timeValidation.status === "error") {
+    invalidFields.push("startTime", "endTime", "durationHours");
+    validationMessage = timeValidation.message;
+  } else if (
+    timeValidation.status === "valid"
+    && (!Number.isFinite(durationHours) || !numbersEqual(durationHours, timeValidation.durationHours))
+  ) {
+    invalidFields.push("durationHours");
+    validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
+  }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
   if (isBillable && lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateMakeupActualLessonError("请检查补课完成表单中的必填项和数字格式。", invalidFields);
+    showCreateMakeupActualLessonError(validationMessage || "请检查补课完成表单中的必填项和数字格式。", invalidFields);
     return null;
   }
 
@@ -1683,6 +1965,89 @@ function updateCreateMakeupActualLessonFeePreview() {
   }
 
   dom.createMakeupActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
+}
+
+function syncCreatePlannedLessonDurationFromTimeRange() {
+  const result = validateLessonTimeRange(
+    dom.createPlannedLessonStartTimeInput.value,
+    dom.createPlannedLessonEndTimeInput.value
+  );
+  if (result.status === "incomplete") {
+    return;
+  }
+  if (result.status === "error") {
+    showCreatePlannedLessonError(result.message, ["startTime", "endTime", "durationHours"]);
+    return;
+  }
+
+  dom.createPlannedLessonDurationInput.value = displayInputNumber(result.durationHours);
+  clearCreatePlannedLessonFieldInvalid("startTime");
+  clearCreatePlannedLessonFieldInvalid("endTime");
+  clearCreatePlannedLessonFieldInvalid("durationHours");
+  hideCreatePlannedLessonErrorIfClean();
+  updateCreatePlannedLessonFeePreview();
+}
+
+function syncCreateActualLessonDurationFromTimeRange() {
+  const result = validateLessonTimeRange(
+    dom.createActualLessonStartTimeInput.value,
+    dom.createActualLessonEndTimeInput.value
+  );
+  if (result.status === "incomplete") {
+    return;
+  }
+  if (result.status === "error") {
+    showCreateActualLessonError(result.message, ["startTime", "endTime", "durationHours"]);
+    return;
+  }
+
+  dom.createActualLessonDurationInput.value = displayInputNumber(result.durationHours);
+  clearCreateActualLessonFieldInvalid("startTime");
+  clearCreateActualLessonFieldInvalid("endTime");
+  clearCreateActualLessonFieldInvalid("durationHours");
+  hideCreateActualLessonErrorIfClean();
+  updateCreateActualLessonFeePreview();
+}
+
+function syncCreateCancelledActualLessonDurationFromTimeRange() {
+  const result = validateLessonTimeRange(
+    dom.createCancelledActualLessonStartTimeInput.value,
+    dom.createCancelledActualLessonEndTimeInput.value
+  );
+  if (result.status === "incomplete") {
+    return;
+  }
+  if (result.status === "error") {
+    showCreateCancelledActualLessonError(result.message, ["startTime", "endTime", "durationHours"]);
+    return;
+  }
+
+  dom.createCancelledActualLessonDurationInput.value = displayInputNumber(result.durationHours);
+  clearCreateCancelledActualLessonFieldInvalid("startTime");
+  clearCreateCancelledActualLessonFieldInvalid("endTime");
+  clearCreateCancelledActualLessonFieldInvalid("durationHours");
+  hideCreateCancelledActualLessonErrorIfClean();
+}
+
+function syncCreateMakeupActualLessonDurationFromTimeRange() {
+  const result = validateLessonTimeRange(
+    dom.createMakeupActualLessonStartTimeInput.value,
+    dom.createMakeupActualLessonEndTimeInput.value
+  );
+  if (result.status === "incomplete") {
+    return;
+  }
+  if (result.status === "error") {
+    showCreateMakeupActualLessonError(result.message, ["startTime", "endTime", "durationHours"]);
+    return;
+  }
+
+  dom.createMakeupActualLessonDurationInput.value = displayInputNumber(result.durationHours);
+  clearCreateMakeupActualLessonFieldInvalid("startTime");
+  clearCreateMakeupActualLessonFieldInvalid("endTime");
+  clearCreateMakeupActualLessonFieldInvalid("durationHours");
+  hideCreateMakeupActualLessonErrorIfClean();
+  updateCreateMakeupActualLessonFeePreview();
 }
 
 async function refreshAfterEditLesson(updatedLesson) {
@@ -3685,20 +4050,69 @@ function sortLessonRecords(records) {
       return dateCompare;
     }
 
-    const timeCompare = safeText(left.start_time).localeCompare(safeText(right.start_time));
+    const leftSubjectRank = subjectSortRank(nameById(subjects, left.subject_id, subjectName));
+    const rightSubjectRank = subjectSortRank(nameById(subjects, right.subject_id, subjectName));
+    if (leftSubjectRank !== rightSubjectRank) {
+      return leftSubjectRank - rightSubjectRank;
+    }
+
+    const subjectNameCompare = nameById(subjects, left.subject_id, subjectName)
+      .localeCompare(nameById(subjects, right.subject_id, subjectName), "zh-CN");
+    if (subjectNameCompare !== 0) {
+      return subjectNameCompare;
+    }
+
+    const countCompare = compareNullableNumbers(left.lesson_count, right.lesson_count);
+    if (countCompare !== 0) {
+      return countCompare;
+    }
+
+    const timeCompare = compareNullableText(left.start_time, right.start_time);
     if (timeCompare !== 0) {
       return timeCompare;
     }
 
-    const studentCompare = nameById(students, left.student_id, studentName)
-      .localeCompare(nameById(students, right.student_id, studentName), "zh-CN");
-    if (studentCompare !== 0) {
-      return studentCompare;
+    const createdCompare = compareNullableText(left.created_at, right.created_at);
+    if (createdCompare !== 0) {
+      return createdCompare;
     }
 
-    return nameById(teachers, left.teacher_id, teacherName)
-      .localeCompare(nameById(teachers, right.teacher_id, teacherName), "zh-CN");
+    return safeText(left.id).localeCompare(safeText(right.id));
   });
+}
+
+function subjectSortRank(subjectLabel) {
+  const normalized = safeText(subjectLabel).toLowerCase();
+  const matchIndex = SUBJECT_SORT_RULES.findIndex((aliases) => (
+    aliases.some((alias) => normalized.includes(alias.toLowerCase()))
+  ));
+  return matchIndex >= 0 ? matchIndex : SUBJECT_SORT_RULES.length;
+}
+
+function compareNullableNumbers(left, right) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  const leftFinite = Number.isFinite(leftNumber);
+  const rightFinite = Number.isFinite(rightNumber);
+  if (leftFinite && rightFinite && leftNumber !== rightNumber) {
+    return leftNumber - rightNumber;
+  }
+  if (leftFinite !== rightFinite) {
+    return leftFinite ? -1 : 1;
+  }
+  return 0;
+}
+
+function compareNullableText(left, right) {
+  const leftText = safeText(left);
+  const rightText = safeText(right);
+  if (leftText && rightText) {
+    return leftText.localeCompare(rightText);
+  }
+  if (Boolean(leftText) !== Boolean(rightText)) {
+    return leftText ? -1 : 1;
+  }
+  return 0;
 }
 
 function distinctValues(records, key) {
@@ -3832,7 +4246,49 @@ function displayInputNumber(value) {
 }
 
 function isTimeValue(value) {
-  return /^\d{2}:\d{2}$/.test(safeText(value));
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(safeText(value));
+}
+
+function validateLessonTimeRange(startTime, endTime) {
+  const startText = safeText(startTime);
+  const endText = safeText(endTime);
+  if (!startText && !endText) {
+    return { status: "incomplete" };
+  }
+  if (!startText || !endText) {
+    return { status: "incomplete" };
+  }
+  if (!isTimeValue(startText) || !isTimeValue(endText)) {
+    return {
+      status: "error",
+      message: "请填写正确的开始时间和结束时间。",
+    };
+  }
+
+  const startMinutes = clockMinutes(startText);
+  const endMinutes = clockMinutes(endText);
+  const diffMinutes = endMinutes - startMinutes;
+  if (diffMinutes <= 0) {
+    return {
+      status: "error",
+      message: "结束时间必须晚于开始时间。",
+    };
+  }
+  if (diffMinutes % 15 !== 0) {
+    return {
+      status: "error",
+      message: "开始/结束时间差必须是 15 分钟的整数倍；不会自动四舍五入。",
+    };
+  }
+
+  return {
+    status: "valid",
+    durationHours: Number((diffMinutes / 60).toFixed(2)),
+  };
+}
+
+function numbersEqual(left, right) {
+  return Math.abs(Number(left) - Number(right)) < 0.000001;
 }
 
 function numberFromInput(value) {

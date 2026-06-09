@@ -73,6 +73,8 @@ export function createLessonEditDialogController(options) {
   let currentLesson = null;
   let isSubmitting = false;
   let isFeeManual = false;
+  let initialFormSnapshot = null;
+  let closeConfirmPending = false;
 
   function init() {
     dom.cancelButton?.addEventListener("click", () => close());
@@ -80,7 +82,14 @@ export function createLessonEditDialogController(options) {
 
     dom.dialog?.addEventListener("click", (event) => {
       if (event.target === dom.dialog) {
-        close();
+        blockDirectDismiss();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isDialogOpen()) {
+        event.preventDefault();
+        blockDirectDismiss();
       }
     });
 
@@ -100,15 +109,21 @@ export function createLessonEditDialogController(options) {
       ["isBillable", dom.billableSelect],
     ].forEach(([fieldId, element]) => {
       element?.addEventListener("input", () => {
+        closeConfirmPending = false;
         clearFieldInvalid(fieldId);
         hideErrorIfClean();
       });
       element?.addEventListener("change", () => {
+        closeConfirmPending = false;
         clearFieldInvalid(fieldId);
         hideErrorIfClean();
       });
     });
 
+    dom.startTimeInput?.addEventListener("input", syncDurationFromTimeRange);
+    dom.startTimeInput?.addEventListener("change", syncDurationFromTimeRange);
+    dom.endTimeInput?.addEventListener("input", syncDurationFromTimeRange);
+    dom.endTimeInput?.addEventListener("change", syncDurationFromTimeRange);
     dom.durationInput?.addEventListener("input", updateFeePreview);
     dom.unitPriceInput?.addEventListener("input", updateFeePreview);
     dom.feeInput?.addEventListener("input", () => {
@@ -151,8 +166,19 @@ export function createLessonEditDialogController(options) {
       return;
     }
 
+    if (!force && hasFormChanged()) {
+      if (!closeConfirmPending) {
+        closeConfirmPending = true;
+        showError("表单已有修改。再次点击取消将放弃输入。");
+        return;
+      }
+    }
+
     dom.dialog?.classList.add("is-hidden");
     dom.dialog?.setAttribute("aria-hidden", "true");
+    currentLesson = null;
+    initialFormSnapshot = null;
+    closeConfirmPending = false;
   }
 
   function renderAction(record) {
@@ -252,7 +278,9 @@ export function createLessonEditDialogController(options) {
     dom.contentInput.value = safeText(lesson.lesson_content);
     dom.noteInput.value = safeText(lesson.note);
     isFeeManual = false;
+    closeConfirmPending = false;
     syncFieldModes();
+    initialFormSnapshot = readFormSnapshot();
   }
 
   function syncFieldModes() {
@@ -412,6 +440,18 @@ export function createLessonEditDialogController(options) {
     }
     if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
     if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+    const timeValidation = validateLessonTimeRange(startTime, endTime);
+    let validationMessage = "";
+    if (timeValidation.status === "error") {
+      invalidFields.push("startTime", "endTime", "durationHours");
+      validationMessage = timeValidation.message;
+    } else if (
+      timeValidation.status === "valid"
+      && (!Number.isFinite(durationHours) || !numbersEqual(durationHours, timeValidation.durationHours))
+    ) {
+      invalidFields.push("durationHours");
+      validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
+    }
     if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
     if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
     if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
@@ -420,7 +460,7 @@ export function createLessonEditDialogController(options) {
     if (invalidFields.length) {
       const message = isActual && status !== lesson.status
         ? "actual 课时 V1 不允许修改状态。"
-        : "请检查编辑课时表单中的必填项和数字格式。";
+        : validationMessage || "请检查编辑课时表单中的必填项和数字格式。";
       showError(message, Array.from(new Set(invalidFields)));
       return null;
     }
@@ -542,6 +582,61 @@ export function createLessonEditDialogController(options) {
     dom.feeInput.value = String(Math.round(durationHours * unitPrice));
   }
 
+  function isDialogOpen() {
+    return Boolean(dom.dialog && !dom.dialog.classList.contains("is-hidden"));
+  }
+
+  function blockDirectDismiss() {
+    if (!isDialogOpen() || isSubmitting) {
+      return;
+    }
+
+    showError("请使用取消按钮关闭编辑窗口；表单已有修改时需要二次确认。");
+  }
+
+  function readFormSnapshot() {
+    return JSON.stringify({
+      lessonDate: dom.dateInput.value,
+      status: dom.statusSelect.value,
+      billable: dom.billableSelect.value,
+      student: dom.studentSelect.value,
+      teacher: dom.teacherSelect.value,
+      subject: dom.subjectSelect.value,
+      businessEntity: dom.businessEntitySelect.value,
+      startTime: dom.startTimeInput.value,
+      endTime: dom.endTimeInput.value,
+      durationHours: dom.durationInput.value,
+      unitPrice: dom.unitPriceInput.value,
+      lessonFee: dom.feeInput.value,
+      lessonCount: dom.countInput.value,
+      lessonContent: dom.contentInput.value,
+      note: dom.noteInput.value,
+    });
+  }
+
+  function hasFormChanged() {
+    return Boolean(initialFormSnapshot && readFormSnapshot() !== initialFormSnapshot);
+  }
+
+  function syncDurationFromTimeRange() {
+    const result = validateLessonTimeRange(dom.startTimeInput.value, dom.endTimeInput.value);
+    if (result.status === "incomplete") {
+      return;
+    }
+
+    if (result.status === "error") {
+      showError(result.message, ["startTime", "endTime", "durationHours"]);
+      return;
+    }
+
+    dom.durationInput.value = displayInputNumber(result.durationHours);
+    clearFieldInvalid("startTime");
+    clearFieldInvalid("endTime");
+    clearFieldInvalid("durationHours");
+    hideErrorIfClean();
+    updateFeePreview();
+  }
+
   init();
   return {
     open,
@@ -601,7 +696,54 @@ function displayInputNumber(value) {
 }
 
 function isTimeValue(value) {
-  return /^\d{2}:\d{2}$/.test(safeText(value));
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(safeText(value));
+}
+
+function validateLessonTimeRange(startTime, endTime) {
+  const startText = safeText(startTime);
+  const endText = safeText(endTime);
+  if (!startText && !endText) {
+    return { status: "incomplete" };
+  }
+  if (!startText || !endText) {
+    return { status: "incomplete" };
+  }
+  if (!isTimeValue(startText) || !isTimeValue(endText)) {
+    return {
+      status: "error",
+      message: "请填写正确的开始时间和结束时间。",
+    };
+  }
+
+  const startMinutes = clockMinutes(startText);
+  const endMinutes = clockMinutes(endText);
+  const diffMinutes = endMinutes - startMinutes;
+  if (diffMinutes <= 0) {
+    return {
+      status: "error",
+      message: "结束时间必须晚于开始时间。",
+    };
+  }
+  if (diffMinutes % 15 !== 0) {
+    return {
+      status: "error",
+      message: "开始/结束时间差必须是 15 分钟的整数倍；不会自动四舍五入。",
+    };
+  }
+
+  return {
+    status: "valid",
+    durationHours: Number((diffMinutes / 60).toFixed(2)),
+  };
+}
+
+function clockMinutes(value) {
+  const [hour, minute] = safeText(value).split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function numbersEqual(left, right) {
+  return Math.abs(Number(left) - Number(right)) < 0.000001;
 }
 
 function numberFromInput(value) {

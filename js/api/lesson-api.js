@@ -26,6 +26,7 @@ const LESSON_COLUMNS = [
   "lesson_count",
   "actual_minutes",
   "teacher_settlement_month",
+  "created_at",
   "updated_at",
 ].join(",");
 
@@ -54,7 +55,9 @@ export async function fetchLessonRecords(yearMonth) {
     .eq("app_type", "school")
     .eq("year_month", yearMonth)
     .order("lesson_date", { ascending: true })
-    .order("start_time", { ascending: true });
+    .order("lesson_count", { ascending: true, nullsFirst: false })
+    .order("start_time", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
 
   if (error) {
     throw error;
