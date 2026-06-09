@@ -46,7 +46,7 @@
             </div>
             <div id="lessonDetailEditActionArea" class="dialog-actions is-hidden">
               <button class="button button-primary" id="lessonDetailEditButton" type="button">编辑</button>
-              <button class="button" id="lessonDetailVoidButton" type="button">作废</button>
+                <button class="button" id="lessonDetailVoidButton" type="button">误录作废</button>
               <a class="button" id="lessonDetailReturnLink" href="./lesson.html">返回课时管理</a>
             </div>
           </div>
@@ -291,8 +291,8 @@
       <div class="dialog-backdrop is-hidden" id="voidLessonDialog" aria-hidden="true">
         <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="voidLessonTitle">
           <div class="section-heading">
-            <h2 id="voidLessonTitle">作废预定课时</h2>
-            <p class="section-note">仅作废 planned-only 预定课时，保留导入批次和来源痕迹，不生成 actual。</p>
+            <h2 id="voidLessonTitle">误录作废预定课时</h2>
+            <p class="section-note">此操作仅用于重复导入、误录课时等数据修正。学生请假、老师请假、取消课、待补课、结算调整请不要使用作废；真实计划内课时应保留原始预定记录，并通过实际课时或月度结算处理。</p>
           </div>
 
           <div id="voidLessonSummary" class="dialog-summary"></div>
@@ -300,24 +300,24 @@
 
           <div class="lesson-create-field-grid">
             <label class="field lesson-create-wide-field" data-void-lesson-field="reason">
-              <span>作废原因</span>
+              <span>误录作废原因</span>
               <textarea id="voidLessonReasonInput" rows="4"></textarea>
             </label>
 
             <label class="field lesson-create-wide-field confirm-check" data-void-lesson-field="confirm">
               <input id="voidLessonConfirmCheckbox" type="checkbox">
-              <span>确认作废该预定课时</span>
+              <span>确认这是数据修正，不是取消课 / 请假 / 补课处理</span>
             </label>
           </div>
 
           <div class="dialog-actions">
-            <button class="button button-danger" id="voidLessonSubmitButton" type="button">确认作废</button>
+            <button class="button button-danger" id="voidLessonSubmitButton" type="button">确认误录作废</button>
             <button class="button" id="voidLessonCancelButton" type="button">取消</button>
           </div>
         </section>
       </div>
     </div>
 
-    <script type="module" src="./js/lesson-detail-app.js?v=v2.65.0-lesson-init-idempotent-20260609"></script>
+    <script type="module" src="./js/lesson-detail-app.js?v=v2.67.0-lesson-void-copy-20260609"></script>
   </body>
 </html>

@@ -71,13 +71,13 @@ export function createLessonVoidDialogController(options) {
 
   function open(lessonId) {
     if (!hasSupabaseConfig()) {
-      showMessage("error", "当前 Supabase 配置不可用，不能作废预定课时。");
+      showMessage("error", "当前 Supabase 配置不可用，不能误录作废预定课时。");
       return;
     }
 
     const lesson = findLesson(lessonId);
     if (!lesson) {
-      showMessage("error", "未找到要作废的预定课时。");
+      showMessage("error", "未找到要误录作废的预定课时。");
       return;
     }
 
@@ -105,7 +105,7 @@ export function createLessonVoidDialogController(options) {
     if (!force && hasFormInput()) {
       if (!closeConfirmPending) {
         closeConfirmPending = true;
-        showError("作废原因已有输入或已勾选确认。再次点击取消将关闭窗口。");
+        showError("误录作废原因已有输入或已勾选确认。再次点击取消将关闭窗口。");
         return;
       }
     }
@@ -117,7 +117,7 @@ export function createLessonVoidDialogController(options) {
   }
 
   function blockDirectDismiss() {
-    showError("作废窗口不能通过背景或 Esc 关闭，请点击取消。");
+    showError("误录作废窗口不能通过背景或 Esc 关闭，请点击取消。");
   }
 
   function renderAction(record) {
@@ -125,7 +125,7 @@ export function createLessonVoidDialogController(options) {
       return "";
     }
 
-    return `<button class="button table-action-button" type="button" data-void-planned-lesson-id="${escapeAttribute(record.id)}">作废</button>`;
+    return `<button class="button table-action-button" type="button" data-void-planned-lesson-id="${escapeAttribute(record.id)}">误录作废</button>`;
   }
 
   function blockReason(record) {
@@ -134,7 +134,7 @@ export function createLessonVoidDialogController(options) {
     }
 
     if (record.lesson_type !== "planned") {
-      return "只允许作废 planned 预定课时。";
+      return "只允许误录作废 planned 预定课时。";
     }
 
     if (record.voided_at) {
@@ -142,15 +142,15 @@ export function createLessonVoidDialogController(options) {
     }
 
     if (!["planned", "pending_makeup"].includes(record.status)) {
-      return `当前 planned 状态不允许作废：${lessonStatusLabel(record.status)}。`;
+      return `当前 planned 状态不允许误录作废：${lessonStatusLabel(record.status)}。`;
     }
 
     if (hasLinkedActual(record.id)) {
-      return "该 planned 已有关联 actual，不能作废。";
+      return "该 planned 已有关联 actual，不能误录作废。";
     }
 
     if (!safeText(record.updated_at)) {
-      return "缺少 updated_at，不能作废。";
+      return "缺少 updated_at，不能误录作废。";
     }
 
     return "";
@@ -213,7 +213,7 @@ export function createLessonVoidDialogController(options) {
         try {
           await onVoided(result, sourceLesson);
         } catch (refreshError) {
-          showMessage("error", `预定课时已作废，但刷新页面数据失败：${refreshError.message || refreshError}`);
+          showMessage("error", `预定课时已误录作废，但刷新页面数据失败：${refreshError.message || refreshError}`);
         }
       }
     } catch (error) {
@@ -225,7 +225,7 @@ export function createLessonVoidDialogController(options) {
 
   function readPayload() {
     if (!currentLesson) {
-      showError("缺少要作废的预定课时，请重新打开窗口。");
+      showError("缺少要误录作废的预定课时，请重新打开窗口。");
       return null;
     }
 
@@ -239,7 +239,7 @@ export function createLessonVoidDialogController(options) {
     }
 
     if (invalidFields.length) {
-      showError("请填写作废原因，并勾选确认作废。", invalidFields);
+      showError("请填写误录作废原因，并勾选确认误录作废。", invalidFields);
       return null;
     }
 
@@ -257,7 +257,7 @@ export function createLessonVoidDialogController(options) {
     if (typeof setExternalBusy === "function") {
       setExternalBusy(isBusy);
     }
-    dom.submitButton.textContent = isBusy ? "作废中..." : "确认作废";
+    dom.submitButton.textContent = isBusy ? "误录作废中..." : "确认误录作废";
   }
 
   function clearErrors() {

@@ -108,7 +108,7 @@ function setupLessonVoidController() {
       const nextLessonId = result?.lesson_id || result?.id || sourceLesson?.id || currentLessonId;
       currentLessonId = nextLessonId;
       await loadLessonDetail(nextLessonId);
-      showMessage("success", `预定课时已作废：${shortId(nextLessonId)}`);
+      showMessage("success", `预定课时已误录作废：${shortId(nextLessonId)}`);
     },
     getLinkedActualExists: hasLinkedActualLesson,
   });
@@ -290,7 +290,7 @@ function renderEditAction(lesson) {
     dom.voidButton.dataset.voidPlannedLessonId = lesson.id || "";
     dom.voidButton.classList.toggle("is-hidden", Boolean(voidReason));
     dom.voidButton.disabled = Boolean(voidReason);
-    dom.voidButton.title = voidReason || "作废预定课时";
+    dom.voidButton.title = voidReason || "误录作废预定课时";
   }
   dom.editActionArea.classList.remove("is-hidden");
 }

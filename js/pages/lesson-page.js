@@ -1468,7 +1468,7 @@ async function refreshAfterVoidLesson(result, sourceLesson) {
   const filters = readFilters() || { status: "" };
   await loadLessonMonth(targetMonth, filters);
   applyCurrentFilters();
-  showMessage("success", `预定课时已作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
+  showMessage("success", `预定课时已误录作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
 
 function setCreateActualLessonSubmitting(isSubmitting) {
