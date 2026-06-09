@@ -446,7 +446,7 @@
           <div class="field"><div class="label">写入入口</div><div class="value">通过 <code>js/api/lesson-api.js</code> 调用已验证 RPC：预定新增、三类实际生成、仅预定批量导入、受保护编辑、仅预定作废。</div></div>
           <div class="field"><div class="label">保护规则</div><div class="value">保护已锁定学生结算月、已锁定老师工资月、关联实际/来源一致性、过期 <code>updated_at</code>、已作废行、工资明细快照和空原因。</div></div>
           <div class="field"><div class="label">历史数据</div><div class="value">当前不处理历史数据；历史维护由 v1 或单独 migration/backlog 处理。full actual import 保持 future/history migration backlog。</div></div>
-          <div class="field"><div class="label">跨月补课</div><div class="value">后续高优先级：单独设计“补课完成登记 / 新增补课结果”入口，处理以前月份 <code>pending_makeup</code> planned 在当前月份完成补课，生成 <code>lesson_type = actual</code> + <code>status = makeup_completed</code> actual。补以前月份已收费课时默认 <code>is_billable = false</code>，保留 <code>planned_lesson_id</code>；来源月份已锁定时，不修改来源 planned，只新增当前月 actual。该功能需要单独 guarded design，不属于 full actual import，也不属于历史迁移。</div></div>
+          <div class="field"><div class="label">跨月补课</div><div class="value">后续高优先级：<code>docs/lesson-cross-month-makeup-completion-design.md</code> 已完成只读设计。后续实现应选择原月份 <code>pending_makeup</code> planned，在补课月份生成 <code>makeup_completed</code> actual，<code>planned_lesson_id</code> 指向原 planned，不复制 planned/actual，不修改来源 planned；原月份显示“已于补课月份完成”，补课月份显示“来源：原月份待补课”。仍未实现，需单独 guarded write workflow。</div></div>
           <div class="field"><div class="label">未完成</div><div class="value">自由实际新增、完整实际导入、课时删除、作废恢复、<code>voided_by</code>、从课时生成工资锁定、自动匹配、同文件预定/实际关联、跨月补课完成登记。lesson delete 仍是 backlog，但当前不是刚需。</div></div>
         </div>
       </article>

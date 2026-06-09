@@ -36,6 +36,8 @@ const DEFAULT_FILTERS = {
   keyword: "",
 };
 
+const DEFAULT_LESSON_VIEW = "pair";
+
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
 const LESSON_TYPE_LABELS = {
@@ -201,7 +203,7 @@ let businessEntities = [];
 let lessonRecords = [];
 let loadedMonth = "";
 let loadedLessonRecordMode = "";
-let activeView = "list";
+let activeView = DEFAULT_LESSON_VIEW;
 let isCreatePlannedLessonSubmitting = false;
 let isCreateLessonFeeManual = false;
 let createPlannedLessonInitialSnapshot = null;
@@ -675,7 +677,7 @@ function setDefaultFilters(filters = readInitialLessonQuery()) {
 function defaultLessonFilters() {
   return {
     month: currentYearMonth(),
-    view: "list",
+    view: DEFAULT_LESSON_VIEW,
     ...DEFAULT_FILTERS,
   };
 }
@@ -710,7 +712,7 @@ function readLessonQueryValue(params, snakeName, camelName) {
 }
 
 function normalizeLessonView(value) {
-  return value === "pair" ? "pair" : "list";
+  return value === "list" ? "list" : DEFAULT_LESSON_VIEW;
 }
 
 function normalizeLessonStatusFilter(value) {
@@ -4020,7 +4022,7 @@ function renderLessonRecords(records) {
 }
 
 function setActiveView(view) {
-  activeView = view === "pair" ? "pair" : "list";
+  activeView = normalizeLessonView(view);
   syncViewVisibility();
 }
 
