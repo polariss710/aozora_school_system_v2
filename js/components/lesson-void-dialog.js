@@ -28,8 +28,14 @@ export function createLessonVoidDialogController(options) {
   let currentLesson = null;
   let isSubmitting = false;
   let closeConfirmPending = false;
+  let isInitialized = false;
 
   function init() {
+    if (isInitialized) {
+      return;
+    }
+    isInitialized = true;
+
     dom.cancelButton?.addEventListener("click", () => close());
     dom.submitButton?.addEventListener("click", handleSubmit);
 

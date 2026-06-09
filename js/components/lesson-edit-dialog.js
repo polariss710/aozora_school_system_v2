@@ -75,8 +75,14 @@ export function createLessonEditDialogController(options) {
   let isFeeManual = false;
   let initialFormSnapshot = null;
   let closeConfirmPending = false;
+  let isInitialized = false;
 
   function init() {
+    if (isInitialized) {
+      return;
+    }
+    isInitialized = true;
+
     dom.cancelButton?.addEventListener("click", () => close());
     dom.submitButton?.addEventListener("click", handleSubmit);
 
@@ -642,6 +648,7 @@ export function createLessonEditDialogController(options) {
 
   init();
   return {
+    init,
     open,
     close,
     renderAction,

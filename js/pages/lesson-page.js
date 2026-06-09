@@ -220,6 +220,7 @@ let createMakeupActualLessonInitialSnapshot = null;
 let isCreateMakeupActualLessonCloseConfirmPending = false;
 let lessonEditController = null;
 let lessonVoidController = null;
+let isLessonPageInitialized = false;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
@@ -227,6 +228,11 @@ let lastLessonImportResult = null;
 const successfulLessonImportFileHashes = new Set();
 
 export function initLessonPage() {
+  if (isLessonPageInitialized) {
+    return;
+  }
+  isLessonPageInitialized = true;
+
   cacheDom();
   setupLessonEditController();
   setupLessonVoidController();
@@ -278,6 +284,7 @@ function setupLessonEditController() {
       }
     },
   });
+  lessonEditController.init();
 }
 
 function cacheDom() {

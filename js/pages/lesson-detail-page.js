@@ -41,8 +41,14 @@ let currentLessonDetailData = null;
 let currentLessonId = "";
 let lessonEditController = null;
 let lessonVoidController = null;
+let isLessonDetailPageInitialized = false;
 
 export function initLessonDetailPage() {
+  if (isLessonDetailPageInitialized) {
+    return;
+  }
+  isLessonDetailPageInitialized = true;
+
   cacheDom();
   setupLessonEditController();
   setupLessonVoidController();
@@ -127,6 +133,7 @@ function setupLessonEditController() {
       await loadLessonDetail(nextLessonId);
     },
   });
+  lessonEditController.init();
 }
 
 function bindEvents() {
