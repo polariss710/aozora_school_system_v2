@@ -71,14 +71,15 @@ async function fetchStudentSettlementPreviewCandidates(yearMonth) {
   ]);
   const byKey = new Map();
   [...lessonCandidates, ...incomeCandidates].forEach((candidate) => {
-    if (!candidate.student_id || !candidate.business_entity_id) {
+    if (!candidate.student_id) {
       return;
     }
-    const key = settlementKey(candidate.student_id, yearMonth, candidate.business_entity_id);
+    const key = settlementStudentKey(candidate.student_id, yearMonth);
+    const existing = byKey.get(key);
     byKey.set(key, {
       student_id: candidate.student_id,
       year_month: yearMonth,
-      business_entity_id: candidate.business_entity_id,
+      fallback_business_entity_id: existing?.fallback_business_entity_id || candidate.business_entity_id || null,
     });
   });
   return [...byKey.values()];
@@ -119,13 +120,13 @@ async function fetchIncomePreviewCandidates(yearMonth) {
 }
 
 async function fetchStudentSettlementPreviewRows(yearMonth, snapshots, candidates) {
-  const snapshotKeys = new Set(snapshots.map((row) => (
-    settlementKey(row.student_id, row.year_month, row.business_entity_id)
-  )));
+  const snapshotKeys = new Set(snapshots.map((row) => settlementStudentKey(row.student_id, row.year_month)));
   const previewCandidates = candidates.filter((candidate) => (
-    !snapshotKeys.has(settlementKey(candidate.student_id, yearMonth, candidate.business_entity_id))
+    !snapshotKeys.has(settlementStudentKey(candidate.student_id, yearMonth))
   ));
-  const ambiguousStudentIds = ambiguousPreviewStudentIds(previewCandidates);
+  const studentBusinessEntities = await fetchStudentDefaultBusinessEntities(
+    previewCandidates.map((candidate) => candidate.student_id)
+  );
   const summaryCache = new Map();
   const rows = [];
 
@@ -140,8 +141,7 @@ async function fetchStudentSettlementPreviewRows(yearMonth, snapshots, candidate
     if (summary) {
       rows.push(mapPreviewSummaryToSettlementRow(
         summary,
-        candidate.business_entity_id,
-        ambiguousStudentIds.has(candidate.student_id)
+        studentBusinessEntities.get(candidate.student_id) || candidate.fallback_business_entity_id
       ));
     }
   }
@@ -149,17 +149,25 @@ async function fetchStudentSettlementPreviewRows(yearMonth, snapshots, candidate
   return rows;
 }
 
-function ambiguousPreviewStudentIds(candidates) {
-  const businessByStudent = new Map();
-  candidates.forEach((candidate) => {
-    if (!businessByStudent.has(candidate.student_id)) {
-      businessByStudent.set(candidate.student_id, new Set());
-    }
-    businessByStudent.get(candidate.student_id).add(candidate.business_entity_id);
-  });
-  return new Set([...businessByStudent.entries()]
-    .filter(([, businessIds]) => businessIds.size > 1)
-    .map(([studentId]) => studentId));
+async function fetchStudentDefaultBusinessEntities(studentIds) {
+  const ids = [...new Set(studentIds.filter(Boolean))];
+  if (!ids.length) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from("school_students")
+    .select("id,business_entity_id")
+    .eq("app_type", "school")
+    .in("id", ids);
+
+  if (error) {
+    throw error;
+  }
+
+  return new Map((data || [])
+    .filter((row) => row.id && row.business_entity_id)
+    .map((row) => [row.id, row.business_entity_id]));
 }
 
 async function fetchStudentSettlementPreviewSummary(studentId, yearMonth) {
@@ -182,9 +190,9 @@ function normalizeSnapshotRow(row) {
   };
 }
 
-function mapPreviewSummaryToSettlementRow(summary, businessEntityId, isBusinessAmbiguous) {
+function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
   return {
-    id: `preview:${summary.student_id}:${summary.year_month}:${businessEntityId}`,
+    id: `preview:${summary.student_id}:${summary.year_month}`,
     student_id: summary.student_id,
     year_month: summary.year_month,
     business_entity_id: businessEntityId,
@@ -203,15 +211,13 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId, isBusinessA
     carryover_amount_cny: summary.locked_carryover_cny,
     settlement_status: "preview",
     locked_at: null,
-    note: isBusinessAmbiguous
-      ? "实时预览，未锁定；该学生本月存在多个业务归属，当前预览按学生/月汇总。"
-      : "实时预览，未锁定；尚未保存为结算快照。",
+    note: "实时预览，未锁定；按学生/月汇总，业务归属显示学生档案默认值。",
     is_preview: true,
   };
 }
 
-function settlementKey(studentId, yearMonth, businessEntityId) {
-  return `${studentId || ""}::${yearMonth || ""}::${businessEntityId || ""}`;
+function settlementStudentKey(studentId, yearMonth) {
+  return `${studentId || ""}::${yearMonth || ""}`;
 }
 
 export async function fetchSettlementStudents() {
