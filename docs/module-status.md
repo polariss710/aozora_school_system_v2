@@ -9,9 +9,36 @@ Scope:
 - This document summarizes feature completion from current repo docs and code structure. It does not replace the technical ownership map in `docs/system-map.md`.
 - Historical maintenance remains in v1. v2 is scoped to current and future operations unless a future phase explicitly opens a guarded migration/repair workflow.
 - Items marked `需要进一步验证` are intentionally not inferred beyond the current docs/code evidence.
+- 完成度按当前 V1 目标清单粗粒度计算，不代表最终系统全部功能；历史迁移、删除/合并、广义编辑、清理和最终自动化能力不自动计入已完成。
+
+Status labels:
+
+- 已收口: 当前 V1 目标已经完成并有文档记录，后续只做独立新阶段或缺陷修正。
+- V1 可用: 核心读写链路已经可用，但仍有明确的后续增强或补充页面。
+- 只读/预览: 当前模块主要提供列表、详情、预览或审计查看，本模块自身不发起写入。
+- 需要验证: repo/docs/code 里能看到入口或边界，但还需要单独复核后才能标为已完成。
+- Backlog: 已明确暂不实现，或必须另开 guarded workflow 的事项。
+
+Completion snapshot:
+
+| Module | Status | Completion |
+| --- | --- | --- |
+| 课时管理 | 已收口 | 13/13 |
+| 学生月度结算 | 已收口 | 8/8 |
+| 老师工资结算 | 只读/预览 | 4/4 |
+| 账户管理 | V1 可用 | 8/9 |
+| 收入记录 | V1 可用 | 3/6 |
+| 支出记录 | V1 可用 | 5/9 |
+| 报销管理 | V1 可用 | 3/7 |
+| 学生/老师/科目/业务归属管理 | V1 可用 | 12/16 |
+| 工资规则 | V1 可用 | 5/8 |
+| 导入导出 | 已收口 | 8/8 |
+| Backlog / 暂不实现 | Backlog | 0/10 |
 
 ## 课时管理
 
+- 状态标签: 已收口
+- 完成度: 13/13
 - 已完成: ordinary list, planned/actual paired view, detail page, planned lesson creation V1, completed/cancelled/makeup_completed actual-from-planned V1, guarded edit V1, planned-only void V1, voided planned readonly filter/detail, lesson import preview, planned-only batch import, planned-only Excel template export, detail return-query navigation, and settlement/wage evidence links.
 - 可写入功能: create planned lesson, create completed actual from planned, create cancelled actual from planned, create makeup_completed actual from planned, planned-only batch import, guarded lesson edit, planned-only void. All exposed writes go through `js/api/lesson-api.js` and verified RPCs.
 - 只读/预览功能: list, paired view, detail, import preview, planned-ID/lock precheck for import, voided planned review, source-chain and settlement/wage reference display.
@@ -22,6 +49,8 @@ Scope:
 
 ## 学生月度结算
 
+- 状态标签: 已收口
+- 完成度: 8/8
 - 已完成: V1 is closed for current/future operations: realtime preview, preview -> locked snapshot, soft unlock, same-row relock, list/detail status display, guard documentation, and closure self-check.
 - 可写入功能: lock from preview, unlock locked settlement, relock unlocked settlement. Writes are centralized in `js/api/settlement-api.js` through `school_lock_student_monthly_settlement`, `school_unlock_student_monthly_settlement`, and `school_relock_student_monthly_settlement`.
 - 只读/预览功能: settlement list, detail page, realtime preview rows, read-only summary RPC `school_get_student_monthly_settlement_summary`, saved snapshot detail plus matching lesson/income references.
@@ -32,6 +61,8 @@ Scope:
 
 ## 老师工资结算
 
+- 状态标签: 只读/预览
+- 完成度: 4/4
 - 已完成: wage lock list and wage lock detail are read-only and complete; detail shows saved wage lock snapshot, wage lock details, and related payment requests.
 - 可写入功能: none from `wage.html` / `wage-detail.html`. Teacher wage payment actions are handled by the payment module, not wage detail.
 - 只读/预览功能: monthly wage lock list, teacher/business filters, wage detail snapshot, payment request references.
@@ -42,16 +73,21 @@ Scope:
 
 ## 账户管理
 
+- 状态标签: V1 可用
+- 完成度: 8/9
 - 已完成: account list, account transaction detail, future-use account creation, account profile update, account adjustment create/reverse, account transfer create/reverse.
 - 可写入功能: create/update account profile, create/reverse account adjustment, create/reverse account transfer through `js/api/account-api.js` and `js/api/account-transaction-detail-api.js`.
 - 只读/预览功能: account list, account transaction list/filter, transaction detail with linked source summaries for income, expense, payment, reimbursement, adjustment, transfer, and account origin.
 - guard/锁定保护: account create fixes opening/current balance at 0 and creates no transaction; profile edit cannot alter code, business ownership, currency, opening/current balances, or historical chains. Adjustment/transfer reversal preserves audit history through reversal records/transactions.
+- 编辑范围: 账户新增可填写 `account_code`, `name`, `account_type`, `currency`, `business_entity_id`, `is_company_account`, `is_active`, `note`; `opening_balance` 和 `current_balance` 固定为 `0`，不生成 `school_account_transactions`。账户资料编辑仅允许 `name`, `account_type`, `is_company_account`, `is_active`, `note`。不可编辑/受保护字段包括 `account_code`, `currency`, `business_entity_id`, `opening_balance`, `current_balance`, `app_type`, `created_at`，以及 `school_account_transactions` 和历史收入、支出、报销、支付、转账、调整、结算、工资链路；余额修正只能走已验证的 account adjustment flow。
 - 未完成: standalone account transfer detail page.
 - 已知限制: balance changes are intentionally limited to verified income, expense, reimbursement, payment, adjustment, and transfer flows. Account transaction detail is the current audit surface for transfers.
 - 后续优先级: add standalone transfer detail only if transaction detail becomes insufficient.
 
 ## 收入记录
 
+- 状态标签: V1 可用
+- 完成度: 3/6
 - 已完成: income list/detail, paid tuition income creation, received tuition income reversal from detail when guards pass.
 - 可写入功能: create income record and reverse income record through API-layer RPC wrappers.
 - 只读/预览功能: income list, income detail, lookup loading, settlement/account transaction references.
@@ -62,6 +98,8 @@ Scope:
 
 ## 支出记录
 
+- 状态标签: V1 可用
+- 完成度: 5/9
 - 已完成: expense list/detail, ordinary paid expense creation, ordinary paid expense reversal from detail, ordinary non-teacher-wage expense attachment metadata creation.
 - 可写入功能: create/reverse ordinary expense and create attachment metadata through API-layer RPC wrappers.
 - 只读/预览功能: expense list/detail, payment request references, reimbursement references, attachment counts/metadata display.
@@ -72,6 +110,8 @@ Scope:
 
 ## 报销管理
 
+- 状态标签: V1 可用
+- 完成度: 3/7
 - 已完成: reimbursement list/detail, reimbursement confirmation from candidate paid non-teacher-wage expenses, reimbursement reversal from detail.
 - 可写入功能: create reimbursement record and reverse reimbursement record through API-layer RPC wrappers.
 - 只读/预览功能: list/detail, candidate expense loading, reimbursement item counts, transaction counts, linked expense/account references.
@@ -82,6 +122,8 @@ Scope:
 
 ## 学生/老师/科目/业务归属管理
 
+- 状态标签: V1 可用
+- 完成度: 12/16
 - 已完成: student, teacher, subject, and business entity readable lists; future-use profile creation; narrow profile update.
 - 可写入功能: create/update student profile, teacher profile, subject profile, and business entity profile through API-layer RPC wrappers.
 - 只读/预览功能: master-data list/filter surfaces and lookup sources for lesson, settlement, wage, income, expense, account, payment, and profit modules.
@@ -92,6 +134,8 @@ Scope:
 
 ## 工资规则
 
+- 状态标签: V1 可用
+- 完成度: 5/8
 - 已完成: wage rule list, read-only detail, future-use rule config create, config edit, soft-disable/restore instead of delete.
 - 可写入功能: create/update wage rule config and set active state through API-layer RPC wrappers.
 - 只读/预览功能: wage rule list/detail, teacher/student/subject/business entity lookups, future-lock-only/no-history-recalculation notice.
@@ -102,6 +146,8 @@ Scope:
 
 ## 导入导出
 
+- 状态标签: 已收口
+- 完成度: 8/8
 - 已完成: lesson planned-only import preview, same-file duplicate detection, exact-only lookup matching, planned-only batch import submit, planned-only template export with `回数` and `课时费总额 JPY`, legacy `关联预定ID` ignored during planned import, dialog error/scroll/close behavior fixes.
 - 可写入功能: planned-only lesson batch import through `school_import_lesson_records_batch`.
 - 只读/预览功能: CSV/Excel parsing, preview errors/warnings, lock precheck, planned reference precheck for future actual design, template export and guide sheet.
@@ -112,6 +158,8 @@ Scope:
 
 ## Backlog / 暂不实现
 
+- 状态标签: Backlog
+- 完成度: 0/10
 - 已完成: backlog boundaries are documented in `docs/system-map.md` and `docs/current-status.md`; student settlement V1 and planned-only lesson import are explicitly closed for current/future v2 operation.
 - 可写入功能: none in this section.
 - 只读/预览功能: docs-only tracking.

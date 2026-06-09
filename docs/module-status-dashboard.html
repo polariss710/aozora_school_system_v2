@@ -7,23 +7,24 @@
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f7f9;
+      --bg: #f5f7fa;
       --panel: #ffffff;
-      --panel-soft: #f9fafb;
+      --soft: #f8fafc;
       --text: #172033;
-      --muted: #657287;
+      --muted: #627083;
       --line: #d9dee8;
-      --line-soft: #e8ebf1;
+      --line-soft: #e8ecf3;
       --green: #117a4f;
       --green-bg: #e8f6ee;
       --blue: #2563a8;
-      --blue-bg: #e9f1fb;
+      --blue-bg: #e8f1fb;
       --gray: #596273;
       --gray-bg: #eef1f5;
       --amber: #8a5b12;
       --amber-bg: #fff4d8;
       --red: #9a3412;
       --red-bg: #fff0e8;
+      --track: #e5e9f0;
       --shadow: 0 14px 36px rgba(18, 26, 43, 0.08);
     }
 
@@ -31,13 +32,19 @@
       box-sizing: border-box;
     }
 
+    html,
     body {
       margin: 0;
+      max-width: 100%;
+      overflow-x: hidden;
+    }
+
+    body {
       background: var(--bg);
       color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", "Microsoft YaHei", sans-serif;
       font-size: 15px;
-      line-height: 1.58;
+      line-height: 1.6;
     }
 
     a {
@@ -49,17 +56,34 @@
       text-decoration: underline;
     }
 
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: #eef2f7;
+      color: #263246;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+      overflow-wrap: anywhere;
+    }
+
     .page {
       width: min(1180px, calc(100% - 32px));
       margin: 0 auto;
       padding: 32px 0 48px;
     }
 
-    .hero {
-      padding: 28px;
-      background: var(--panel);
+    .hero,
+    .note,
+    .legend-panel,
+    .summary-card,
+    .module-card {
       border: 1px solid var(--line-soft);
       border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .hero {
+      padding: 28px;
       box-shadow: var(--shadow);
     }
 
@@ -67,21 +91,19 @@
       margin: 0 0 8px;
       color: var(--muted);
       font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 0;
-      text-transform: uppercase;
+      font-weight: 800;
     }
 
     h1 {
       margin: 0;
-      font-size: 40px;
-      line-height: 1.12;
+      font-size: 38px;
+      line-height: 1.14;
       letter-spacing: 0;
     }
 
     .subtitle {
-      max-width: 860px;
-      margin: 16px 0 0;
+      max-width: 900px;
+      margin: 14px 0 0;
       color: var(--muted);
       font-size: 16px;
     }
@@ -97,13 +119,15 @@
       display: inline-flex;
       align-items: center;
       min-height: 36px;
+      max-width: 100%;
       padding: 7px 12px;
       border: 1px solid var(--line);
       border-radius: 999px;
       background: #fff;
       color: var(--text);
       font-size: 14px;
-      font-weight: 700;
+      font-weight: 800;
+      text-align: center;
     }
 
     .summary-grid {
@@ -116,15 +140,12 @@
     .summary-card {
       min-width: 0;
       padding: 16px;
-      border: 1px solid var(--line-soft);
-      border-radius: 8px;
-      background: var(--panel);
     }
 
     .summary-value {
       display: block;
       font-size: 28px;
-      font-weight: 800;
+      font-weight: 850;
       line-height: 1;
     }
 
@@ -133,26 +154,46 @@
       margin-top: 8px;
       color: var(--muted);
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 800;
     }
 
-    .legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+    .legend-panel,
+    .note {
       margin: 0 0 20px;
+      padding: 18px;
+    }
+
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .legend-list {
+      display: grid;
+      gap: 10px;
+      margin: 0;
       padding: 0;
       list-style: none;
+    }
+
+    .legend-item {
+      display: grid;
+      grid-template-columns: 96px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
     }
 
     .tag {
       display: inline-flex;
       align-items: center;
+      justify-content: center;
       min-height: 28px;
+      max-width: 100%;
       padding: 4px 9px;
       border-radius: 999px;
       font-size: 12px;
-      font-weight: 800;
+      font-weight: 850;
       white-space: nowrap;
     }
 
@@ -171,14 +212,18 @@
       color: var(--gray);
     }
 
+    .tag.verify {
+      background: var(--amber-bg);
+      color: var(--amber);
+    }
+
     .tag.backlog {
       background: var(--red-bg);
       color: var(--red);
     }
 
-    .tag.verify {
-      background: var(--amber-bg);
-      color: var(--amber);
+    .note {
+      color: var(--muted);
     }
 
     .module-grid {
@@ -190,21 +235,18 @@
 
     .module-card {
       min-width: 0;
-      border: 1px solid var(--line-soft);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: 0 8px 24px rgba(18, 26, 43, 0.05);
       overflow: hidden;
+      box-shadow: 0 8px 24px rgba(18, 26, 43, 0.05);
     }
 
     .module-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
       gap: 12px;
-      padding: 18px 18px 14px;
+      align-items: start;
+      padding: 18px;
       border-bottom: 1px solid var(--line-soft);
-      background: var(--panel-soft);
+      background: var(--soft);
     }
 
     h2 {
@@ -220,9 +262,48 @@
       padding: 16px 18px 18px;
     }
 
+    .progress-row {
+      display: grid;
+      gap: 7px;
+    }
+
+    .progress-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .progress-track {
+      height: 9px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: inherit;
+      background: var(--blue);
+    }
+
+    .progress-fill.closed {
+      background: var(--green);
+    }
+
+    .progress-fill.readonly {
+      background: var(--gray);
+    }
+
+    .progress-fill.backlog {
+      background: var(--red);
+    }
+
     .field {
       display: grid;
-      grid-template-columns: 108px minmax(0, 1fr);
+      grid-template-columns: 106px minmax(0, 1fr);
       gap: 10px;
       padding-bottom: 12px;
       border-bottom: 1px solid var(--line-soft);
@@ -236,15 +317,11 @@
     .label {
       color: var(--muted);
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 850;
     }
 
     .value {
       min-width: 0;
-      overflow-wrap: anywhere;
-    }
-
-    .value code {
       overflow-wrap: anywhere;
     }
 
@@ -283,25 +360,35 @@
         padding: 18px 0 32px;
       }
 
-      h1 {
-        font-size: 30px;
+      .hero,
+      .legend-panel,
+      .note,
+      .module-head,
+      .module-body,
+      .summary-card {
+        padding: 14px;
       }
 
-      .hero {
-        padding: 20px;
+      h1 {
+        font-size: 28px;
       }
 
       .summary-grid {
         grid-template-columns: 1fr;
       }
 
-      .module-head {
-        display: grid;
-      }
-
+      .legend-item,
       .field {
         grid-template-columns: 1fr;
         gap: 4px;
+      }
+
+      .module-head {
+        grid-template-columns: 1fr;
+      }
+
+      .tag {
+        justify-self: start;
       }
 
       .link-pill {
@@ -314,9 +401,9 @@
 <body>
   <main class="page">
     <section class="hero" aria-labelledby="dashboard-title">
-      <p class="eyebrow">aozora_school_system_v2 - docs dashboard</p>
+      <p class="eyebrow">aozora_school_system_v2 文档看板</p>
       <h1 id="dashboard-title">模块状态可视化</h1>
-      <p class="subtitle">基于 <code>docs/module-status.md</code> 整理。第一版为单文件静态 HTML，可直接本地打开，不连接 Notion，不依赖外部 CDN、npm、插件或构建工具。</p>
+      <p class="subtitle">基于 <code>docs/module-status.md</code> 整理。完成度按当前 V1 目标清单计算，不代表最终系统全部功能。此页是单文件静态 HTML，不连接 Notion，不依赖外部资源、npm 或构建工具。</p>
       <nav class="links" aria-label="相关文档">
         <a class="link-pill" href="./module-status.md">模块状态 Markdown</a>
         <a class="link-pill" href="./system-map.md">系统结构图</a>
@@ -325,35 +412,25 @@
     </section>
 
     <section class="summary-grid" aria-label="状态总览">
-      <div class="summary-card">
-        <span class="summary-value">11</span>
-        <span class="summary-label">覆盖模块</span>
-      </div>
-      <div class="summary-card">
-        <span class="summary-value">3</span>
-        <span class="summary-label">已收口模块</span>
-      </div>
-      <div class="summary-card">
-        <span class="summary-value">6</span>
-        <span class="summary-label">V1 可用模块</span>
-      </div>
-      <div class="summary-card">
-        <span class="summary-value">1</span>
-        <span class="summary-label">只读/预览模块</span>
-      </div>
-      <div class="summary-card">
-        <span class="summary-value">1</span>
-        <span class="summary-label">Backlog 区域</span>
-      </div>
+      <div class="summary-card"><span class="summary-value">11</span><span class="summary-label">覆盖模块</span></div>
+      <div class="summary-card"><span class="summary-value">3</span><span class="summary-label">已收口</span></div>
+      <div class="summary-card"><span class="summary-value">6</span><span class="summary-label">V1 可用</span></div>
+      <div class="summary-card"><span class="summary-value">1</span><span class="summary-label">只读/预览</span></div>
+      <div class="summary-card"><span class="summary-value">1</span><span class="summary-label">Backlog</span></div>
     </section>
 
-    <ul class="legend" aria-label="状态标签说明">
-      <li><span class="tag closed">已收口</span></li>
-      <li><span class="tag v1">V1 可用</span></li>
-      <li><span class="tag readonly">只读/预览</span></li>
-      <li><span class="tag verify">需要验证</span></li>
-      <li><span class="tag backlog">Backlog</span></li>
-    </ul>
+    <section class="legend-panel" aria-labelledby="legend-title">
+      <h2 class="section-title" id="legend-title">状态标签说明</h2>
+      <ul class="legend-list">
+        <li class="legend-item"><span class="tag closed">已收口</span><span>当前 V1 目标已经完成并有文档记录，后续只做独立新阶段或缺陷修正。</span></li>
+        <li class="legend-item"><span class="tag v1">V1 可用</span><span>核心读写链路已经可用，但仍有明确的后续增强、补充页面或扩展范围。</span></li>
+        <li class="legend-item"><span class="tag readonly">只读/预览</span><span>当前模块主要提供列表、详情、预览或审计查看，本模块自身不发起写入。</span></li>
+        <li class="legend-item"><span class="tag verify">需要验证</span><span>repo/docs/code 里能看到入口或边界，但还需要单独复核后才能标为已完成。</span></li>
+        <li class="legend-item"><span class="tag backlog">Backlog</span><span>已明确暂不实现，或必须另开 guarded workflow 的事项。</span></li>
+      </ul>
+    </section>
+
+    <p class="note">编辑范围优先按当前 repo/docs/code 中可验证的 RPC、API 层和页面实现统计。RPC、表名、字段名和文件名保留英文并以 <code>code</code> 显示；不确定的编辑范围标为“需要进一步验证”。</p>
 
     <section class="module-grid" aria-label="模块状态卡片">
       <article class="module-card">
@@ -362,13 +439,13 @@
           <span class="tag closed">已收口</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">planned/actual V1、guarded edit、planned-only import、planned-only void 已形成可运营链路。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">list/detail、paired view、planned create、completed/cancelled/makeup_completed actual-from-planned、guarded edit、planned void、voided readonly review、import preview/template/submit、return-query navigation。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create planned lesson、actual-from-planned 三类生成、planned-only batch import、guarded edit、planned-only void，均通过 <code>js/api/lesson-api.js</code> 和 verified RPC。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">list、paired view、detail、import preview、planned-ID/lock precheck、voided planned review、settlement/wage evidence。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">写 RPC guard locked student settlement、locked teacher wage、linked actual/source consistency、stale <code>updated_at</code>、voided rows、wage detail snapshots 和 blank reason。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">free actual creation、full actual import、delete、void restore、voided_by、wage lock generation、auto matching、same-file planned/actual linking 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">保持 planned-only import 稳定；full actual/history migration import 另开 guarded design；再考虑 void restore 和 wage-lock generation。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>13/13</span></div><div class="progress-track"><div class="progress-fill closed" style="width: 100%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">预定/实际 V1、受保护编辑、仅预定导入、仅预定作废已经形成可运营链路。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">列表/详情、预定/实际配对视图、预定新增、三类从预定生成实际、受保护编辑、预定作废、已作废只读查看、导入预览/模板/提交、返回筛选导航、结算/工资证据链接。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 <code>js/api/lesson-api.js</code> 调用已验证 RPC：预定新增、三类实际生成、仅预定批量导入、受保护编辑、仅预定作废。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">保护已锁定学生结算月、已锁定老师工资月、关联实际/来源一致性、过期 <code>updated_at</code>、已作废行、工资明细快照和空原因。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">需要进一步验证；当前已知受保护编辑只更新单条 <code>school_lesson_records</code>，不改结算、工资、支付、收入、支出、账户或流水链路。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">自由实际新增、完整实际导入、删除、作废恢复、<code>voided_by</code>、从课时生成工资锁定、自动匹配、同文件预定/实际关联。</div></div>
         </div>
       </article>
 
@@ -378,13 +455,13 @@
           <span class="tag closed">已收口</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">V1 已收口，面向当前和未来运营；历史维护继续由 v1 完成。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">realtime preview、preview -> locked snapshot、soft unlock、same-row relock、list/detail 状态显示、guard 文档和 closure self-check。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">lock from preview、unlock locked settlement、relock unlocked settlement，通过 <code>js/api/settlement-api.js</code> 集中调用。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">list、detail、realtime preview row、read-only summary RPC、saved snapshot detail、matching lesson/income references。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">locked settlement 阻止 lesson edit、planned void、actual generation、tuition income create/reverse；active carryover source 阻止 unlock/relock。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">不做历史版本、多版本 snapshot、adjustment、carryover 自动撤销/重建、历史迁移/修复、whitelist test data cleanup。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">无 immediate V1 工作；adjustment 或 carryover automation 需单独设计。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>8/8</span></div><div class="progress-track"><div class="progress-fill closed" style="width: 100%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">V1 已面向当前和未来运营收口；历史维护继续由 v1 完成。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">实时预览、预览转锁定快照、软撤销锁定、同一行重新锁定、列表/详情状态展示、保护规则文档和收口自检。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 <code>js/api/settlement-api.js</code> 调用 <code>school_lock_student_monthly_settlement</code>、<code>school_unlock_student_monthly_settlement</code>、<code>school_relock_student_monthly_settlement</code>。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">已锁定结算阻止课时编辑、预定作废、实际生成、学费收入新增/冲销；有效结转来源阻止撤销锁定/重新锁定。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">需要进一步验证；当前 V1 只处理结算快照锁定状态和重算同一快照行，不改课时、收入、账户、工资、支付或支出行。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">多版本快照、调整编辑、结转自动撤销/重建、历史迁移/修复、白名单测试数据清理。</div></div>
         </div>
       </article>
 
@@ -394,13 +471,13 @@
           <span class="tag readonly">只读/预览</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">wage lock list/detail 为只读 snapshot 查看。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">wage lock list、wage lock detail、saved snapshot、wage lock details、related payment requests。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">本模块无写入；工资支付动作在 payment 模块处理。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">monthly wage lock list、teacher/business filters、wage detail snapshot、payment request references。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">wage detail 不重算、不编辑 lock/detail、不改 payment status；lesson 写入 guard locked teacher wage month 和 wage detail snapshots。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">wage lock generation、wage lock void/relock、recalculation、detail edit 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">等 lesson/settlement inputs 稳定后，再单独设计 wage lock generation。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>4/4</span></div><div class="progress-track"><div class="progress-fill readonly" style="width: 100%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">工资锁定列表和详情是已保存快照的只读审计查看。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">月度工资锁定列表、工资详情快照、工资明细、关联支付请求引用。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">本模块无写入；老师工资支付动作由支付模块处理。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">详情页不重算、不编辑锁定或明细、不改支付状态；课时写入会保护已锁定老师工资月份和工资明细快照。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">无当前编辑入口。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">工资锁定生成、作废/重新锁定、重算、详情编辑。</div></div>
         </div>
       </article>
 
@@ -410,13 +487,13 @@
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">account master、transaction audit、adjustment/transfer V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">account list、transaction detail、future-use account create、profile update、adjustment create/reverse、transfer create/reverse。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create/update account profile、create/reverse adjustment、create/reverse transfer。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">account list、transaction list/filter、transaction detail source summaries。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">account create balances 固定为 0 且不建 transaction；profile edit 不改 code、ownership、currency、balances 或历史链；reversal 保留 audit history。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">无 standalone account transfer detail page；transaction detail 是当前 transfer audit surface。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">仅当 transaction detail 不足时再加 transfer detail。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>8/9</span></div><div class="progress-track"><div class="progress-fill" style="width: 88.89%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">账户主数据、流水审计、余额调整和账户转账 V1 可用。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">账户列表、账户流水详情、未来使用账户新增、账户资料编辑、余额调整新增/冲销、账户转账新增/冲销。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 <code>js/api/account-api.js</code> 和 <code>js/api/account-transaction-detail-api.js</code> 调用 <code>school_create_account_profile</code>、<code>school_update_account_profile</code>、<code>school_create_account_adjustment</code>、<code>school_reverse_account_adjustment</code>、<code>school_create_account_transfer</code>、<code>school_reverse_account_transfer</code>。</div></div>
+          <div class="field"><div class="label">可编辑</div><div class="value"><ul><li>新增账户：<code>account_code</code>、<code>name</code>、<code>account_type</code>、<code>currency</code>、<code>business_entity_id</code>、<code>is_company_account</code>、<code>is_active</code>、<code>note</code>。</li><li>资料编辑：<code>name</code>、<code>account_type</code>、<code>is_company_account</code>、<code>is_active</code>、<code>note</code>。</li></ul></div></div>
+          <div class="field"><div class="label">不可编辑</div><div class="value">资料编辑不改 <code>account_code</code>、<code>currency</code>、<code>business_entity_id</code>、<code>opening_balance</code>、<code>current_balance</code>、<code>app_type</code>、<code>created_at</code>。新增账户的 <code>opening_balance</code> 和 <code>current_balance</code> 固定为 <code>0</code>，且不生成 <code>school_account_transactions</code>。历史收入、支出、报销、支付、转账、调整、结算、工资链路受保护；余额修正只能走已验证的 account adjustment flow。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">没有独立账户转账详情页；当前通过账户流水详情展示转账审计摘要。</div></div>
         </div>
       </article>
 
@@ -426,13 +503,13 @@
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">paid tuition income create/reverse V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">income list/detail、paid tuition income creation、received tuition income reversal。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create income record、reverse income record through API-layer RPC wrappers。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">income list/detail、lookup loading、settlement/account transaction references。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">create/reverse guard locked student settlement months 和 student-payment-chain-linked income；reversal preserves original income/transaction。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">broader income categories、edit、partial/payment-plan handling 未完成；first version 限 paid tuition income。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">扩展收入类别前先明确 settlement guard semantics。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>3/6</span></div><div class="progress-track"><div class="progress-fill" style="width: 50%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">已收款学费收入新增/冲销 V1 可用。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">收入列表、收入详情、已收款学费收入新增、详情页冲销。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增和冲销收入。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">新增/冲销保护已锁定学生结算月和学生支付链路；冲销保留原收入和原账户流水。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">需要进一步验证。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">更多收入类别、编辑流程、部分收款或付款计划。</div></div>
         </div>
       </article>
 
@@ -442,13 +519,13 @@
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">ordinary paid expense create/reverse 和 metadata-only attachment V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">expense list/detail、ordinary paid expense creation/reversal、ordinary non-teacher-wage expense attachment metadata。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create/reverse ordinary expense、create attachment metadata。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">expense list/detail、payment request references、reimbursement references、attachment counts/metadata。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">ordinary reversal 不用于 teacher wage expense；teacher wage expense 不加 ordinary attachment metadata；reimbursed expense 需先 reverse reimbursement。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">真实文件 storage、upload/download/preview/replace/delete、OCR、create-flow attachments、partial reimbursement 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">real attachment storage 单独作为 storage/security phase。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>5/9</span></div><div class="progress-track"><div class="progress-fill" style="width: 55.56%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">普通已支付支出新增/冲销和仅元数据附件 V1 可用。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">支出列表/详情、普通已支付支出新增/冲销、普通非老师工资支出附件元数据新增。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增/冲销普通支出、创建附件元数据。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">普通冲销不用于老师工资支出；老师工资支出不加普通附件元数据；已报销支出需先冲销报销。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">需要进一步验证；附件 V1 仅写元数据，不写 Supabase Storage 文件。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">文件上传/下载/预览/替换/删除、OCR、创建时附件、部分报销。</div></div>
         </div>
       </article>
 
@@ -458,13 +535,13 @@
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">candidate expense reimbursement confirmation/reversal V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">reimbursement list/detail、confirmation from candidate paid non-teacher-wage expenses、detail reversal。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create reimbursement record、reverse reimbursement record。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">list/detail、candidate expense loading、item counts、transaction counts、linked references。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">reimbursement 不计 operating expense；reversal creates opposite transactions、restores balances、returns linked expenses to pending。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">edit、partial reimbursement、attachments、page statistics 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">partial/edit 需单独设计，因为会触碰 expense、account、transaction。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>3/7</span></div><div class="progress-track"><div class="progress-fill" style="width: 42.86%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">从候选已支付非老师工资支出确认报销和详情冲销 V1 可用。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">报销列表/详情、候选支出确认报销、详情页冲销。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增和冲销报销记录。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">报销不计为经营支出；冲销创建反向账户流水、恢复余额，并把关联支出恢复到待报销。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">需要进一步验证。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">编辑、部分报销、附件、报销页统计。</div></div>
         </div>
       </article>
 
@@ -474,13 +551,13 @@
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">master data list、future-use create、narrow update V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">student、teacher、subject、business entity readable lists；profile creation；narrow profile update。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create/update student profile、teacher profile、subject profile、business entity profile。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">master-data lists/filters 和 lesson、settlement、wage、income、expense、account、payment、profit lookup sources。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">master writes 不 rewrite historical lessons、settlements、wages、payments、finance chains；subject status maps to <code>is_active</code>。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">delete/merge、broad contact/parent/tuition-rule editing、business entity account auto-create、company-report inclusion edit 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">继续保持 narrow writes；delete/merge 延后到 audit-safe workflow。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>12/16</span></div><div class="progress-track"><div class="progress-fill" style="width: 75%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">主数据列表、未来使用资料新增、窄范围资料编辑 V1 可用。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">学生、老师、科目、业务归属列表；资料新增；窄范围资料编辑。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增/更新学生、老师、科目和业务归属资料。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">主数据写入是面向未来使用的窄范围变更，不重写历史课时、结算、工资、支付、收入、支出、账户、余额或流水。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">已有文档记录各模块窄范围字段；跨模块汇总仍需要进一步验证。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">删除/合并、广义联系方式/家长/学费规则编辑、业务归属自动建账户、公司报表纳入编辑。</div></div>
         </div>
       </article>
 
@@ -490,13 +567,13 @@
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">future-lock wage rule config V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">wage rule list、read-only detail、config create、config edit、soft-disable/restore instead of delete。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">create/update wage rule config、set active state。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">wage rule list/detail、teacher/student/subject/business entity lookups、future-lock-only notice。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">不重算历史 wages；不改 wage locks、payment requests、expenses、balances、transactions；edit 不改 linkage；restore rejects conflicting active rules。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">physical delete、generic student-empty rules、historical wage recalculation 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">保持 future-lock config；generic matching rules 需显式冲突语义。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>5/8</span></div><div class="progress-track"><div class="progress-fill" style="width: 62.5%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">面向未来锁定的工资规则配置 V1 可用。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">工资规则列表、只读详情、配置新增、配置编辑、软停用/恢复替代删除。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增/更新工资规则配置并切换启用状态。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">不重算历史工资；不改工资锁定、工资明细、支付请求、支出、账户余额或流水；编辑不改老师/学生/科目/业务归属关联；恢复会拒绝冲突的启用规则。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">配置编辑字段在文档中已列明；是否需要新增更细字段说明仍需要进一步验证。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">物理删除、通用空学生规则、历史工资重算。</div></div>
         </div>
       </article>
 
@@ -506,13 +583,13 @@
           <span class="tag closed">已收口</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">planned-only lesson import/export 已完成并修复用户发现的模板、lookup、重复行、dialog 问题。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">planned-only import preview、exact-only lookup、same-file duplicate detection、batch submit、template export with <code>回数</code> and <code>课时费总额 JPY</code>、legacy planned ID ignore、dialog UX fixes。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">planned-only lesson batch import through <code>school_import_lesson_records_batch</code>。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">CSV/Excel parsing、preview errors/warnings、lock precheck、planned reference precheck、template export and guide sheet。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">任意 row error 阻止整批提交；actual rows 被 planned-only submit 拦截；locked student settlement months 被拒绝；planned ID 不写入。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">full actual import、history migration import、import undo、更多 import result/detail navigation 未完成。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">保持 planned-only stable；full actual/history migration import 单独设计。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>8/8</span></div><div class="progress-track"><div class="progress-fill closed" style="width: 100%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">仅预定课时导入/导出已完成，并修复模板、查找、重复行和弹窗问题。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">仅预定导入预览、精确查找、同文件重复检测、批量提交、含 <code>回数</code> 和 <code>课时费总额 JPY</code> 的模板导出、旧 <code>关联预定ID</code> 忽略、弹窗体验修正。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">仅预定批量导入通过 <code>school_import_lesson_records_batch</code>。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">任意行错误阻止整批提交；实际课时行被提交前拦截；已锁定学生结算月被拒绝；预定 ID 不写入。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">不适用；当前是导入/导出流程，不是记录资料编辑页。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">完整实际导入、历史迁移导入、导入撤销、更多导入结果/详情导航。</div></div>
         </div>
       </article>
 
@@ -522,19 +599,18 @@
           <span class="tag backlog">Backlog</span>
         </header>
         <div class="module-body">
-          <div class="field"><div class="label">当前状态</div><div class="value">集中记录暂不实现或需单独 guarded workflow 的事项。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">backlog boundaries 已在 <code>docs/system-map.md</code> 和 <code>docs/current-status.md</code> 记录；settlement V1 和 planned-only import 已收口。</div></div>
-          <div class="field"><div class="label">可写入功能</div><div class="value">无。</div></div>
-          <div class="field"><div class="label">只读/预览</div><div class="value">docs-only tracking。</div></div>
-          <div class="field"><div class="label">guard/锁定保护</div><div class="value">未来写入必须走 full write-RPC workflow 和 API-layer boundary；历史修复、destructive cleanup、broad backfill、non-whitelisted real-data writes 是 hard stop。</div></div>
-          <div class="field"><div class="label">未完成/限制</div><div class="value">historical migration/repair、full actual import、multi-version settlement history、settlement adjustment、carryover automation、wage lock generation、lesson delete/restore、wage rule physical delete、payment cancel/restore/reissue retest depth、whitelist test data cleanup。</div></div>
-          <div class="field"><div class="label">后续优先级</div><div class="value">优先保护完成的 V1 surfaces；backlog 拆成小的 guarded phases。</div></div>
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>0/10</span></div><div class="progress-track"><div class="progress-fill backlog" style="width: 0%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">集中记录暂不实现或必须另开 guarded workflow 的事项。</div></div>
+          <div class="field"><div class="label">已记录</div><div class="value">边界已在 <code>docs/system-map.md</code> 和 <code>docs/current-status.md</code> 记录；学生结算 V1 和仅预定导入已收口。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">无。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">未来写入必须走 full write-RPC workflow 和 API-layer boundary；历史修复、破坏性清理、广泛回填、非白名单真实数据写入仍是 hard stop。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">不适用。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">历史迁移/修复、完整实际导入、多版本结算历史、结算调整、结转自动化、工资锁定生成、课时删除/恢复、工资规则物理删除、支付状态动作复核、白名单测试数据清理。</div></div>
         </div>
       </article>
-
     </section>
 
-    <p class="footnote">No DB, SQL, RPC, Notion, plugins, npm, or external resources are used by this dashboard. Source of truth: <code>docs/module-status.md</code>, with technical boundaries in <code>docs/system-map.md</code>.</p>
+    <p class="footnote">本 dashboard 不使用 DB、SQL、RPC、Notion、插件、npm、脚本或外部资源。Markdown 来源是 <code>docs/module-status.md</code>，技术边界参考 <code>docs/system-map.md</code>。</p>
   </main>
 </body>
 </html>
