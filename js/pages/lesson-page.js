@@ -221,6 +221,7 @@ let isCreateMakeupActualLessonCloseConfirmPending = false;
 let lessonEditController = null;
 let lessonVoidController = null;
 let isLessonPageInitialized = false;
+let initialLessonQueryFilters = null;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
@@ -418,8 +419,9 @@ function bindEvents() {
   });
 
   dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters();
-    applyQuery();
+    setDefaultFilters(defaultLessonFilters());
+    clearLessonQueryUrl();
+    applyQuery({ updateUrl: false });
   });
 
   [dom.listViewButton, dom.pairViewButton].forEach((button) => {
@@ -669,30 +671,82 @@ function bindEvents() {
 
 }
 
-function setDefaultFilters() {
-  const initialFilters = readInitialLessonQuery();
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, initialFilters.month);
-  dom.studentSelect.value = DEFAULT_FILTERS.studentId;
-  dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
-  dom.subjectSelect.value = DEFAULT_FILTERS.subjectId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
-  dom.lessonTypeSelect.value = DEFAULT_FILTERS.lessonType;
-  dom.statusSelect.value = DEFAULT_FILTERS.status;
-  dom.billableSelect.value = DEFAULT_FILTERS.isBillable;
-  dom.keywordInput.value = DEFAULT_FILTERS.keyword;
-  activeView = initialFilters.view;
-  syncViewVisibility();
+function setDefaultFilters(filters = readInitialLessonQuery()) {
+  initialLessonQueryFilters = filters;
+  restoreFilterSelections(filters);
+}
+
+function defaultLessonFilters() {
+  return {
+    month: currentYearMonth(),
+    view: "list",
+    ...DEFAULT_FILTERS,
+  };
 }
 
 function readInitialLessonQuery() {
   const params = new URLSearchParams(window.location.search);
+  const filters = defaultLessonFilters();
+  filters.month = readLessonQueryMonth(params);
+  filters.view = normalizeLessonView(params.get("view"));
+  filters.studentId = readLessonQueryValue(params, "student_id", "studentId");
+  filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
+  filters.subjectId = readLessonQueryValue(params, "subject_id", "subjectId");
+  filters.businessEntityId = readLessonQueryValue(params, "business_entity_id", "businessEntityId");
+  filters.status = normalizeLessonStatusFilter(params.get("status"));
+  return filters;
+}
+
+function readLessonQueryMonth(params) {
+  const yearMonth = safeText(params.get("year_month") || params.get("yearMonth"));
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth)) {
+    return yearMonth;
+  }
+
   const year = safeText(params.get("year"));
   const month = safeText(params.get("month")).padStart(2, "0");
   const hasMonth = /^\d{4}$/.test(year) && /^(0[1-9]|1[0-2])$/.test(month);
-  return {
-    month: hasMonth ? `${year}-${month}` : currentYearMonth(),
-    view: params.get("view") === "pair" ? "pair" : "list",
-  };
+  return hasMonth ? `${year}-${month}` : currentYearMonth();
+}
+
+function readLessonQueryValue(params, snakeName, camelName) {
+  return safeText(params.get(snakeName) || params.get(camelName));
+}
+
+function normalizeLessonView(value) {
+  return value === "pair" ? "pair" : "list";
+}
+
+function normalizeLessonStatusFilter(value) {
+  const status = safeText(value);
+  return LESSON_STATUS_FILTER_OPTIONS.some(([optionValue]) => optionValue === status) ? status : "";
+}
+
+function syncLessonQueryUrl(filters) {
+  if (!window.history?.replaceState) {
+    return;
+  }
+
+  const params = new URLSearchParams();
+  const monthMatch = safeText(filters.month).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (monthMatch) {
+    params.set("year", monthMatch[1]);
+    params.set("month", monthMatch[2]);
+  }
+  params.set("view", normalizeLessonView(filters.view));
+  if (filters.teacherId) params.set("teacher_id", filters.teacherId);
+  if (filters.studentId) params.set("student_id", filters.studentId);
+  if (filters.subjectId) params.set("subject_id", filters.subjectId);
+  if (filters.businessEntityId) params.set("business_entity_id", filters.businessEntityId);
+  if (filters.status) params.set("status", filters.status);
+
+  window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+}
+
+function clearLessonQueryUrl() {
+  if (window.history?.replaceState) {
+    window.history.replaceState(null, "", window.location.pathname);
+  }
 }
 
 async function loadInitialData() {
@@ -708,7 +762,9 @@ async function loadInitialData() {
     ]);
 
     renderMasterOptions();
-    await loadLessonMonth(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth(), readFilters());
+    const filters = initialLessonQueryFilters || readFilters();
+    await loadLessonMonth(filters.month, filters);
+    restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "课时管理数据已加载。");
   } catch (error) {
@@ -727,7 +783,7 @@ async function loadInitialData() {
   }
 }
 
-async function applyQuery() {
+async function applyQuery(options = {}) {
   if (!hasSupabaseConfig()) {
     return;
   }
@@ -735,6 +791,10 @@ async function applyQuery() {
   const filters = readFilters();
   if (!filters) {
     return;
+  }
+
+  if (options.updateUrl !== false) {
+    syncLessonQueryUrl(filters);
   }
 
   if (filters.month !== loadedMonth || lessonRecordQueryMode(filters) !== loadedLessonRecordMode) {
@@ -792,6 +852,7 @@ function readFilters() {
 
   return {
     month,
+    view: activeView,
     studentId: dom.studentSelect.value,
     teacherId: dom.teacherSelect.value,
     subjectId: dom.subjectSelect.value,
@@ -805,14 +866,16 @@ function readFilters() {
 
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
-  dom.studentSelect.value = filters.studentId;
-  dom.teacherSelect.value = filters.teacherId;
-  dom.subjectSelect.value = filters.subjectId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
-  dom.lessonTypeSelect.value = filters.lessonType;
-  dom.statusSelect.value = filters.status;
-  dom.billableSelect.value = filters.isBillable;
-  dom.keywordInput.value = filters.keyword;
+  dom.studentSelect.value = filters.studentId || "";
+  dom.teacherSelect.value = filters.teacherId || "";
+  dom.subjectSelect.value = filters.subjectId || "";
+  dom.businessEntitySelect.value = filters.businessEntityId || "";
+  dom.lessonTypeSelect.value = filters.lessonType || "";
+  dom.statusSelect.value = filters.status || "";
+  dom.billableSelect.value = filters.isBillable || "";
+  dom.keywordInput.value = filters.keyword || "";
+  activeView = normalizeLessonView(filters.view || activeView);
+  syncViewVisibility();
 }
 
 function renderMasterOptions() {
