@@ -100,7 +100,7 @@
             <table class="payment-table settlement-table">
               <thead>
                 <tr>
-                  <th>详情</th>
+                  <th>操作</th>
                   <th>年月</th>
                   <th>学生</th>
                   <th>业务归属</th>
@@ -128,6 +128,38 @@
       </main>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=v2.72.0-settlement-preview-student-month-20260609"></script>
+    <div id="lockSettlementDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lockSettlementTitle">
+        <div class="section-heading">
+          <h2 id="lockSettlementTitle">锁定学生月度结算</h2>
+          <p class="section-note">锁定后会把当前实时预览保存为结算快照。第一版不做调整、不自动生成下月结转，也不支持解锁或重锁。</p>
+        </div>
+
+        <div id="lockSettlementSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning">
+          锁定后，该学生该月份的课时编辑、误录作废、actual 生成、学费收入新增或撤销都会被现有 RPC guard 拒绝。
+        </div>
+
+        <div id="lockSettlementError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <label class="field" data-lock-settlement-field="note">
+          <span>锁定备注（可选）</span>
+          <textarea id="lockSettlementNoteInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-lock-settlement-field="confirm">
+          <input id="lockSettlementConfirmCheckbox" type="checkbox">
+          <span>我确认锁定当前实时预览，并理解本阶段不支持解锁、重锁或调整。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="lockSettlementSubmitButton" type="button">确认锁定</button>
+          <button class="button" id="lockSettlementCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/settlement-app.js?v=v2.74.0-settlement-lock-frontend-20260609"></script>
   </body>
 </html>

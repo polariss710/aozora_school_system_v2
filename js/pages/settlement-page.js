@@ -4,6 +4,7 @@ import {
   fetchSettlementBusinessEntities,
   fetchSettlementStudents,
   fetchStudentSettlements,
+  lockStudentMonthlySettlement,
 } from "../api/settlement-api.js";
 import {
   currentYearMonth,
@@ -31,6 +32,8 @@ let students = [];
 let businessEntities = [];
 let settlements = [];
 let loadedMonth = "";
+let currentLockSettlement = null;
+let isLockSubmitting = false;
 
 export function initSettlementPage() {
   cacheDom();
@@ -65,6 +68,13 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#settlementLoadingState");
   dom.emptyState = document.querySelector("#settlementEmptyState");
   dom.settlementCount = document.querySelector("#settlementCount");
+  dom.lockDialog = document.querySelector("#lockSettlementDialog");
+  dom.lockSummary = document.querySelector("#lockSettlementSummary");
+  dom.lockError = document.querySelector("#lockSettlementError");
+  dom.lockNoteInput = document.querySelector("#lockSettlementNoteInput");
+  dom.lockConfirmCheckbox = document.querySelector("#lockSettlementConfirmCheckbox");
+  dom.lockSubmitButton = document.querySelector("#lockSettlementSubmitButton");
+  dom.lockCancelButton = document.querySelector("#lockSettlementCancelButton");
 }
 
 function bindEvents() {
@@ -76,6 +86,27 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyQuery();
+  });
+
+  dom.tableBody.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-lock-settlement-id]");
+    if (!button) {
+      return;
+    }
+    openLockDialog(button.dataset.lockSettlementId);
+  });
+
+  dom.lockCancelButton?.addEventListener("click", () => closeLockDialog());
+  dom.lockSubmitButton?.addEventListener("click", handleLockSubmit);
+  dom.lockDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.lockDialog) {
+      closeLockDialog();
+    }
+  });
+  dom.lockNoteInput?.addEventListener("input", () => hideLockErrorIfClean());
+  dom.lockConfirmCheckbox?.addEventListener("change", () => {
+    clearLockFieldInvalid("confirm");
+    hideLockErrorIfClean();
   });
 }
 
@@ -254,10 +285,141 @@ function renderSettlements(rows) {
 
 function renderSettlementDetailAction(row) {
   if (row.is_preview) {
-    return '<span class="status-badge status-pending">预览</span>';
+    return `
+      <div class="table-action-group">
+        <span class="status-badge status-pending">预览</span>
+        <button class="button table-action-button button-primary" type="button" data-lock-settlement-id="${escapeAttribute(row.id)}">锁定</button>
+      </div>
+    `;
   }
 
   return `<a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>`;
+}
+
+function openLockDialog(settlementRowId) {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能锁定学生月度结算。");
+    return;
+  }
+
+  const row = settlements.find((item) => item.id === settlementRowId);
+  if (!row || !row.is_preview) {
+    showMessage("error", "未找到可锁定的实时预览记录。");
+    return;
+  }
+
+  currentLockSettlement = row;
+  dom.lockNoteInput.value = "";
+  dom.lockConfirmCheckbox.checked = false;
+  clearLockErrors();
+  renderLockSummary(row);
+  setLockSubmitting(false);
+  dom.lockDialog.classList.remove("is-hidden");
+  dom.lockDialog.setAttribute("aria-hidden", "false");
+  dom.lockConfirmCheckbox.focus();
+}
+
+function closeLockDialog(force = false) {
+  if (isLockSubmitting && !force) {
+    return;
+  }
+
+  dom.lockDialog?.classList.add("is-hidden");
+  dom.lockDialog?.setAttribute("aria-hidden", "true");
+  currentLockSettlement = null;
+  clearLockErrors();
+}
+
+function renderLockSummary(row) {
+  dom.lockSummary.innerHTML = [
+    ["学生", nameById(students, row.student_id, studentName)],
+    ["结算月份", formatMonth(row.year_month)],
+    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
+    ["预定课时费", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
+    ["实际课时费", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
+    ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("");
+}
+
+async function handleLockSubmit() {
+  if (isLockSubmitting) {
+    return;
+  }
+
+  clearLockErrors();
+
+  if (!currentLockSettlement) {
+    showLockError("未找到可锁定的实时预览记录。");
+    return;
+  }
+
+  if (!dom.lockConfirmCheckbox.checked) {
+    setLockFieldInvalid("confirm", true);
+    showLockError("请先勾选确认后再锁定。");
+    return;
+  }
+
+  setLockSubmitting(true);
+
+  try {
+    const sourceRow = currentLockSettlement;
+    const result = await lockStudentMonthlySettlement({
+      studentId: sourceRow.student_id,
+      yearMonth: sourceRow.year_month,
+      note: dom.lockNoteInput.value.trim(),
+    });
+    closeLockDialog(true);
+    await loadSettlementMonth(sourceRow.year_month);
+    applyCurrentFilters();
+    showMessage("success", `学生月度结算已锁定：${shortId(result?.settlement_id || result?.id)}。`);
+  } catch (error) {
+    showLockError(error.message || String(error));
+  } finally {
+    setLockSubmitting(false);
+  }
+}
+
+function setLockSubmitting(isSubmitting) {
+  isLockSubmitting = isSubmitting;
+  if (dom.lockSubmitButton) {
+    dom.lockSubmitButton.disabled = isSubmitting;
+    dom.lockSubmitButton.textContent = isSubmitting ? "锁定中..." : "确认锁定";
+  }
+  if (dom.lockCancelButton) {
+    dom.lockCancelButton.disabled = isSubmitting;
+  }
+}
+
+function showLockError(message) {
+  dom.lockError.textContent = message;
+  dom.lockError.classList.remove("is-hidden");
+}
+
+function clearLockErrors() {
+  dom.lockError.textContent = "";
+  dom.lockError.classList.add("is-hidden");
+  clearLockFieldInvalid("confirm");
+}
+
+function hideLockErrorIfClean() {
+  if (!dom.lockDialog?.querySelector(".field.is-invalid")) {
+    dom.lockError.textContent = "";
+    dom.lockError.classList.add("is-hidden");
+  }
+}
+
+function setLockFieldInvalid(fieldId, invalid) {
+  const field = dom.lockDialog?.querySelector(`[data-lock-settlement-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearLockFieldInvalid(fieldId) {
+  setLockFieldInvalid(fieldId, false);
 }
 
 function filterSettlements(rows, filters) {
@@ -358,6 +520,11 @@ function noteText(row) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function shortId(value) {
+  const text = safeText(value);
+  return text ? text.slice(0, 8) : "-";
 }
 
 function setLoading(isLoading) {

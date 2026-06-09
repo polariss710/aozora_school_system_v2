@@ -247,3 +247,17 @@ export async function fetchSettlementBusinessEntities() {
 
   return data || [];
 }
+
+export async function lockStudentMonthlySettlement(payload) {
+  const { data, error } = await supabase.rpc("school_lock_student_monthly_settlement", {
+    p_student_id: payload.studentId,
+    p_year_month: payload.yearMonth,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] : data;
+}
