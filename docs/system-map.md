@@ -2,6 +2,8 @@
 
 Status date: 2026-06-09
 
+Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority.
+
 Reference baseline:
 
 - Latest stable code checkpoint reviewed before planned-only lesson batch import: `e1619e1`
