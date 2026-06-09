@@ -4057,14 +4057,9 @@ function renderLessonEditAction(record) {
   return lessonEditController?.renderAction(record) || "";
 }
 
-function renderLessonVoidAction(record) {
-  return lessonVoidController?.renderAction(record) || "";
-}
-
 function renderLessonActions(record) {
   return [
     renderLessonEditAction(record),
-    renderLessonVoidAction(record),
   ].filter(Boolean).join(" ");
 }
 
