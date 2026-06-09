@@ -1,6 +1,6 @@
 # Module Status
 
-Status date: 2026-06-09
+Status date: 2026-06-10
 
 Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-based static overview.
 
@@ -39,13 +39,16 @@ Completion snapshot:
 
 - 状态标签: 已收口
 - 完成度: 13/13
+- V1 边界: 课时管理 V1 基本收口。当前运营主线以 planned-only 课时导入作为核心稳定源头；actual 生成、取消、补课完成和 linked actual 编辑都依托 planned 源头及其 guard 语义。当前运营中生成实际课时后，如发现日期、时间、金额、内容、备注等问题，优先通过 guarded edit 修正，而不是删除重建。
 - 已完成: ordinary list, planned/actual paired view, detail page, planned lesson creation V1, completed/cancelled/makeup_completed actual-from-planned V1, guarded edit V1, planned-only void V1, voided planned readonly filter/detail, lesson import preview, planned-only batch import, planned-only Excel template export, detail return-query navigation, and settlement/wage evidence links.
 - 可写入功能: create planned lesson, create completed actual from planned, create cancelled actual from planned, create makeup_completed actual from planned, planned-only batch import, guarded lesson edit, planned-only void. All exposed writes go through `js/api/lesson-api.js` and verified RPCs.
 - 只读/预览功能: list, paired view, detail, import preview, planned-ID/lock precheck for import, voided planned review, source-chain and settlement/wage reference display.
 - guard/锁定保护: planned/actual write RPCs guard locked student settlement months and locked teacher wage months where applicable; guarded edit blocks voided rows, linked actual/source master-data changes, stale `updated_at`, settlement locks, wage locks, and wage detail snapshots; planned void blocks linked actuals, locked settlement months, stale rows, already-voided rows, invalid lesson type/status, and blank reasons.
-- 未完成: free actual creation outside planned flow, full actual batch import, lesson delete, void restore, `voided_by`, wage lock generation from lessons, settlement adjustment/generation beyond completed settlement V1, auto-matching by student/teacher/subject/date/time, same-file planned/actual linking.
-- 已知限制: planned-only import accepts only planned rows with `planned` / `pending_makeup`; actual rows may still be previewed/prechecked for future design but planned-only submit blocks them. Batch import does not use teacher wage lock protection because planned rows do not set actual teacher settlement month.
-- 后续优先级: keep planned-only import as stable V1; design full actual/history migration import separately; then consider void restore and wage-lock generation only through guarded phases.
+- 当前不处理历史数据: 历史维护继续由 v1 或单独 migration/backlog 处理；full actual import 保持 future/history migration backlog，不进入当前实现。
+- 跨月待补课限制: 数据模型和统计口径可以表达 `lesson_type = actual` + `status = makeup_completed` + `is_billable = false`，但当前 UI 没有完整流程去选择上月 `pending_makeup` 并生成本月 `makeup_completed` actual。跨月待补课完成登记 / 待补课池标记为 future backlog，本轮不实现。
+- 未完成: free actual creation outside planned flow, full actual batch import, lesson delete, void restore, `voided_by`, wage lock generation from lessons, settlement adjustment/generation beyond completed settlement V1, auto-matching by student/teacher/subject/date/time, same-file planned/actual linking, cross-month pending-makeup completion workflow / pending-makeup pool.
+- 已知限制: planned-only import accepts only planned rows with `planned` / `pending_makeup`; actual rows may still be previewed/prechecked for future design but planned-only submit blocks them. Batch import does not use teacher wage lock protection because planned rows do not set actual teacher settlement month. Lesson delete remains backlog but is not a current operational must-have because guarded edit covers ordinary post-generation corrections.
+- 后续优先级: keep planned-only import as stable V1; keep full actual/history migration import out of current implementation; design cross-month pending-makeup pool, void restore, and wage-lock generation only as separate guarded phases.
 
 ## 学生月度结算
 
@@ -154,7 +157,7 @@ Completion snapshot:
 - guard/锁定保护: any row error blocks whole-batch submit; actual/completed/cancelled/makeup_completed rows are blocked in planned-only submit; locked student settlement months are rejected; planned IDs are not written for planned-only import.
 - 未完成: full actual import, history migration import, import undo, richer import result/detail navigation beyond current success links.
 - 已知限制: actual examples may appear only as guide/future backlog context; current supported import is planned-only. Whitelist test data cleanup is intentionally deferred.
-- 后续优先级: keep planned-only stable; design full actual/history migration import separately with settlement/wage guard coverage.
+- 后续优先级: keep planned-only stable as the core lesson source; full actual/history migration import stays future/backlog and must be designed separately with settlement/wage guard coverage.
 
 ## Backlog / 暂不实现
 
@@ -164,6 +167,6 @@ Completion snapshot:
 - 可写入功能: none in this section.
 - 只读/预览功能: docs-only tracking.
 - guard/锁定保护: any future write item must use the full write-RPC workflow and API-layer boundary. Real historical-data repair, destructive cleanup, broad backfill, or non-whitelisted real-data writes remain hard stops unless separately authorized and designed.
-- 未完成: historical data migration/repair, full actual import, multi-version settlement history, settlement adjustment, carryover automatic revoke/rebuild, wage lock generation, lesson delete/restore, wage rule physical delete, payment cancel/restore/reissue retest depth, whitelist test data cleanup.
+- 未完成: historical data migration/repair, full actual import, cross-month pending-makeup completion workflow / pending-makeup pool, multi-version settlement history, settlement adjustment, carryover automatic revoke/rebuild, wage lock generation, lesson delete/restore, wage rule physical delete, payment cancel/restore/reissue retest depth, whitelist test data cleanup.
 - 已知限制: v2 does not replace v1 historical maintenance. `current-status.md` notes payment cancel/restore/reissue UI/API/RPC exist, but future changes around those status actions should retest them explicitly.
-- 后续优先级: first preserve completed V1 surfaces; then handle backlog as small guarded phases, with full actual import/history migration and wage lock generation as separate designs.
+- 后续优先级: first preserve completed V1 surfaces; then handle backlog as small guarded phases, with full actual import/history migration, cross-month pending-makeup pool, and wage lock generation as separate designs.
