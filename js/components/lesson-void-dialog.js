@@ -1,0 +1,339 @@
+import { voidPlannedLesson } from "../api/lesson-api.js";
+import { formatMonth, safeText } from "../utils/format.js";
+
+const VOID_LESSON_FIELD_IDS = ["reason", "confirm"];
+
+export function cacheLessonVoidDialogDom(root = document) {
+  return {
+    dialog: root.querySelector("#voidLessonDialog"),
+    summary: root.querySelector("#voidLessonSummary"),
+    error: root.querySelector("#voidLessonError"),
+    reasonInput: root.querySelector("#voidLessonReasonInput"),
+    confirmCheckbox: root.querySelector("#voidLessonConfirmCheckbox"),
+    submitButton: root.querySelector("#voidLessonSubmitButton"),
+    cancelButton: root.querySelector("#voidLessonCancelButton"),
+  };
+}
+
+export function createLessonVoidDialogController(options) {
+  const {
+    dom,
+    getLessonRecords,
+    hasSupabaseConfig,
+    showMessage,
+    onVoided,
+    setExternalBusy,
+    getLinkedActualExists,
+  } = options;
+  let currentLesson = null;
+  let isSubmitting = false;
+  let closeConfirmPending = false;
+
+  function init() {
+    dom.cancelButton?.addEventListener("click", () => close());
+    dom.submitButton?.addEventListener("click", handleSubmit);
+
+    dom.dialog?.addEventListener("click", (event) => {
+      if (event.target === dom.dialog) {
+        blockDirectDismiss();
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && isDialogOpen()) {
+        event.preventDefault();
+        blockDirectDismiss();
+      }
+    });
+
+    [
+      ["reason", dom.reasonInput],
+      ["confirm", dom.confirmCheckbox],
+    ].forEach(([fieldId, element]) => {
+      element?.addEventListener("input", () => {
+        closeConfirmPending = false;
+        clearFieldInvalid(fieldId);
+        hideErrorIfClean();
+      });
+      element?.addEventListener("change", () => {
+        closeConfirmPending = false;
+        clearFieldInvalid(fieldId);
+        hideErrorIfClean();
+      });
+    });
+  }
+
+  function open(lessonId) {
+    if (!hasSupabaseConfig()) {
+      showMessage("error", "当前 Supabase 配置不可用，不能作废预定课时。");
+      return;
+    }
+
+    const lesson = findLesson(lessonId);
+    if (!lesson) {
+      showMessage("error", "未找到要作废的预定课时。");
+      return;
+    }
+
+    const reason = blockReason(lesson);
+    if (reason) {
+      showMessage("error", reason);
+      return;
+    }
+
+    currentLesson = lesson;
+    resetForm();
+    renderSummary(lesson);
+    clearErrors();
+    setSubmitting(false);
+    dom.dialog.classList.remove("is-hidden");
+    dom.dialog.setAttribute("aria-hidden", "false");
+    dom.reasonInput.focus();
+  }
+
+  function close(force = false) {
+    if (isSubmitting && !force) {
+      return;
+    }
+
+    if (!force && hasFormInput()) {
+      if (!closeConfirmPending) {
+        closeConfirmPending = true;
+        showError("作废原因已有输入或已勾选确认。再次点击取消将关闭窗口。");
+        return;
+      }
+    }
+
+    dom.dialog?.classList.add("is-hidden");
+    dom.dialog?.setAttribute("aria-hidden", "true");
+    currentLesson = null;
+    closeConfirmPending = false;
+  }
+
+  function blockDirectDismiss() {
+    showError("作废窗口不能通过背景或 Esc 关闭，请点击取消。");
+  }
+
+  function renderAction(record) {
+    if (blockReason(record)) {
+      return "";
+    }
+
+    return `<button class="button table-action-button" type="button" data-void-planned-lesson-id="${escapeAttribute(record.id)}">作废</button>`;
+  }
+
+  function blockReason(record) {
+    if (!record || !record.id) {
+      return "缺少课时记录。";
+    }
+
+    if (record.lesson_type !== "planned") {
+      return "只允许作废 planned 预定课时。";
+    }
+
+    if (record.voided_at) {
+      return "该预定课时已作废。";
+    }
+
+    if (!["planned", "pending_makeup"].includes(record.status)) {
+      return `当前 planned 状态不允许作废：${lessonStatusLabel(record.status)}。`;
+    }
+
+    if (hasLinkedActual(record.id)) {
+      return "该 planned 已有关联 actual，不能作废。";
+    }
+
+    if (!safeText(record.updated_at)) {
+      return "缺少 updated_at，不能作废。";
+    }
+
+    return "";
+  }
+
+  function findLesson(lessonId) {
+    return (getLessonRecords() || []).find((record) => record.id === lessonId) || null;
+  }
+
+  function hasLinkedActual(plannedLessonId) {
+    if (typeof getLinkedActualExists === "function") {
+      return getLinkedActualExists(plannedLessonId);
+    }
+
+    return (getLessonRecords() || []).some((record) => (
+      record.lesson_type === "actual"
+      && record.planned_lesson_id === plannedLessonId
+    ));
+  }
+
+  function resetForm() {
+    dom.reasonInput.value = "";
+    dom.confirmCheckbox.checked = false;
+    closeConfirmPending = false;
+  }
+
+  function renderSummary(lesson) {
+    dom.summary.innerHTML = [
+      ["planned id", shortId(lesson.id)],
+      ["当前状态", lessonStatusLabel(lesson.status)],
+      ["课时日期", displayValue(lesson.lesson_date)],
+      ["学生结算月", formatMonth(lesson.year_month)],
+      ["版本", safeText(lesson.updated_at) ? "updated_at 已记录" : "缺少 updated_at"],
+    ].map(([label, value]) => `
+      <div class="dialog-summary-row">
+        <span class="dialog-summary-label">${escapeHtml(label)}</span>
+        <span>${escapeHtml(displayValue(value))}</span>
+      </div>
+    `).join("");
+  }
+
+  async function handleSubmit() {
+    if (isSubmitting) {
+      return;
+    }
+
+    clearErrors();
+    const payload = readPayload();
+    if (!payload) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const sourceLesson = currentLesson;
+      const result = await voidPlannedLesson(payload);
+      close(true);
+      if (typeof onVoided === "function") {
+        try {
+          await onVoided(result, sourceLesson);
+        } catch (refreshError) {
+          showMessage("error", `预定课时已作废，但刷新页面数据失败：${refreshError.message || refreshError}`);
+        }
+      }
+    } catch (error) {
+      showError(error.message || String(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function readPayload() {
+    if (!currentLesson) {
+      showError("缺少要作废的预定课时，请重新打开窗口。");
+      return null;
+    }
+
+    const reason = dom.reasonInput.value.trim();
+    const invalidFields = [];
+    if (!reason) {
+      invalidFields.push("reason");
+    }
+    if (!dom.confirmCheckbox.checked) {
+      invalidFields.push("confirm");
+    }
+
+    if (invalidFields.length) {
+      showError("请填写作废原因，并勾选确认作废。", invalidFields);
+      return null;
+    }
+
+    return {
+      lessonId: currentLesson.id,
+      expectedUpdatedAt: currentLesson.updated_at,
+      voidReason: reason,
+    };
+  }
+
+  function setSubmitting(isBusy) {
+    isSubmitting = isBusy;
+    dom.submitButton.disabled = isBusy;
+    dom.cancelButton.disabled = isBusy;
+    if (typeof setExternalBusy === "function") {
+      setExternalBusy(isBusy);
+    }
+    dom.submitButton.textContent = isBusy ? "作废中..." : "确认作废";
+  }
+
+  function clearErrors() {
+    dom.error.textContent = "";
+    dom.error.classList.add("is-hidden");
+    for (const fieldId of VOID_LESSON_FIELD_IDS) {
+      clearFieldInvalid(fieldId);
+    }
+  }
+
+  function showError(message, fieldIds = []) {
+    dom.error.textContent = message;
+    dom.error.classList.remove("is-hidden");
+    for (const fieldId of fieldIds) {
+      setFieldInvalid(fieldId, true);
+    }
+    dom.dialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function setFieldInvalid(fieldId, invalid) {
+    const field = dom.dialog.querySelector(`[data-void-lesson-field="${fieldId}"]`);
+    field?.classList.toggle("is-invalid", invalid);
+  }
+
+  function clearFieldInvalid(fieldId) {
+    setFieldInvalid(fieldId, false);
+  }
+
+  function hideErrorIfClean() {
+    const hasInvalidField = Boolean(dom.dialog.querySelector(".field.is-invalid"));
+    if (!hasInvalidField) {
+      dom.error.textContent = "";
+      dom.error.classList.add("is-hidden");
+    }
+  }
+
+  function hasFormInput() {
+    return Boolean(dom.reasonInput.value.trim() || dom.confirmCheckbox.checked);
+  }
+
+  function isDialogOpen() {
+    return Boolean(dom.dialog && !dom.dialog.classList.contains("is-hidden"));
+  }
+
+  return {
+    init,
+    open,
+    close,
+    renderAction,
+    blockReason,
+  };
+}
+
+function lessonStatusLabel(value) {
+  const labels = {
+    planned: "待上课",
+    pending_makeup: "待补课",
+    completed: "已完成",
+    cancelled: "已取消",
+    makeup_completed: "补课完成",
+  };
+  return labels[value] || displayValue(value);
+}
+
+function shortId(value) {
+  const text = safeText(value);
+  return text ? text.slice(0, 8) : "-";
+}
+
+function displayValue(value) {
+  return safeText(value) || "-";
+}
+
+function escapeHtml(value) {
+  return safeText(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
+}

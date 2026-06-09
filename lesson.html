@@ -676,9 +676,38 @@
           </div>
         </section>
       </div>
+
+      <div class="dialog-backdrop is-hidden" id="voidLessonDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="voidLessonTitle">
+          <div class="section-heading">
+            <h2 id="voidLessonTitle">作废预定课时</h2>
+            <p class="section-note">仅作废 planned-only 预定课时，保留导入批次和来源痕迹，不生成 actual。</p>
+          </div>
+
+          <div id="voidLessonSummary" class="dialog-summary"></div>
+          <div id="voidLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <div class="lesson-create-field-grid">
+            <label class="field lesson-create-wide-field" data-void-lesson-field="reason">
+              <span>作废原因</span>
+              <textarea id="voidLessonReasonInput" rows="4"></textarea>
+            </label>
+
+            <label class="field lesson-create-wide-field confirm-check" data-void-lesson-field="confirm">
+              <input id="voidLessonConfirmCheckbox" type="checkbox">
+              <span>确认作废该预定课时</span>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button button-danger" id="voidLessonSubmitButton" type="button">确认作废</button>
+            <button class="button" id="voidLessonCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.61.1-lesson-edit-frontend-20260608"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.63.0-lesson-void-frontend-20260609"></script>
   </body>
 </html>

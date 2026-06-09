@@ -1,6 +1,7 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const LESSON_TYPE_LABELS = {
@@ -39,10 +40,12 @@ const dom = {};
 let currentLessonDetailData = null;
 let currentLessonId = "";
 let lessonEditController = null;
+let lessonVoidController = null;
 
 export function initLessonDetailPage() {
   cacheDom();
   setupLessonEditController();
+  setupLessonVoidController();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -70,6 +73,7 @@ function cacheDom() {
   dom.content = document.querySelector("#lessonDetailContent");
   dom.editActionArea = document.querySelector("#lessonDetailEditActionArea");
   dom.editButton = document.querySelector("#lessonDetailEditButton");
+  dom.voidButton = document.querySelector("#lessonDetailVoidButton");
   dom.returnLink = document.querySelector("#lessonDetailReturnLink");
   dom.titleText = document.querySelector("#lessonDetailTitleText");
   dom.basicInfo = document.querySelector("#lessonDetailBasicInfo");
@@ -86,6 +90,23 @@ function cacheDom() {
   dom.wageCount = document.querySelector("#lessonDetailWageCount");
   dom.wageEmpty = document.querySelector("#lessonDetailWageEmpty");
   dom.wageRows = document.querySelector("#lessonDetailWageRows");
+}
+
+function setupLessonVoidController() {
+  lessonVoidController = createLessonVoidDialogController({
+    dom: cacheLessonVoidDialogDom(),
+    getLessonRecords: getDetailLessonRecords,
+    hasSupabaseConfig,
+    showMessage,
+    onVoided: async (result, sourceLesson) => {
+      const nextLessonId = result?.lesson_id || result?.id || sourceLesson?.id || currentLessonId;
+      currentLessonId = nextLessonId;
+      await loadLessonDetail(nextLessonId);
+      showMessage("success", `预定课时已作废：${shortId(nextLessonId)}`);
+    },
+    getLinkedActualExists: hasLinkedActualLesson,
+  });
+  lessonVoidController.init();
 }
 
 function setupLessonEditController() {
@@ -112,6 +133,11 @@ function bindEvents() {
   dom.editButton?.addEventListener("click", () => {
     const lessonId = dom.editButton.dataset.editLessonId || currentLessonId;
     lessonEditController?.open(lessonId);
+  });
+
+  dom.voidButton?.addEventListener("click", () => {
+    const lessonId = dom.voidButton.dataset.voidPlannedLessonId || currentLessonId;
+    lessonVoidController?.open(lessonId);
   });
 }
 
@@ -170,11 +196,12 @@ function renderLessonDetail(data) {
 
   syncReturnLink();
   renderEditAction(lesson);
-  dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}`;
+  dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}${isVoidedPlanned(lesson) ? " / 已作废" : ""}`;
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["lesson id", shortId(lesson.id)],
     ["课时类型", lessonTypeLabel(lesson.lesson_type)],
-    ["状态", lessonStatusLabel(lesson.status)],
+    ["状态", isVoidedPlanned(lesson) ? `${lessonStatusLabel(lesson.status)} / 已作废` : lessonStatusLabel(lesson.status)],
+    ["作废时间", formatDate(lesson.voided_at)],
     ["课时日期", formatDateOnly(lesson.lesson_date)],
     ["结算年月", formatMonth(lesson.year_month)],
     ["开始时间", formatTime(lesson.start_time)],
@@ -207,6 +234,7 @@ function renderLessonDetail(data) {
     ["import_batch_id", displayValue(lesson.import_batch_id)],
     ["import_source", displayValue(lesson.import_source)],
     ["imported_at", formatDate(lesson.imported_at)],
+    ["void_reason", displayValue(lesson.void_reason)],
     ["app_type", displayValue(lesson.app_type)],
     ["created_at", formatDate(lesson.created_at)],
     ["updated_at", formatDate(lesson.updated_at)],
@@ -246,11 +274,25 @@ function renderEditAction(lesson) {
   }
 
   const reason = lessonEditController?.blockReason(lesson) || "";
+  const voidReason = lessonVoidController?.blockReason(lesson) || "";
   dom.editButton.dataset.editLessonId = lesson.id || "";
   dom.editButton.disabled = Boolean(reason);
   dom.editButton.title = reason || "编辑课时";
   dom.editButton.textContent = reason ? "不可编辑" : "编辑";
+  if (dom.voidButton) {
+    dom.voidButton.dataset.voidPlannedLessonId = lesson.id || "";
+    dom.voidButton.classList.toggle("is-hidden", Boolean(voidReason));
+    dom.voidButton.disabled = Boolean(voidReason);
+    dom.voidButton.title = voidReason || "作废预定课时";
+  }
   dom.editActionArea.classList.remove("is-hidden");
+}
+
+function hasLinkedActualLesson(plannedLessonId) {
+  return getDetailLessonRecords().some((record) => (
+    record.lesson_type === "actual"
+    && record.planned_lesson_id === plannedLessonId
+  ));
 }
 
 function renderSourceChain(rows) {
@@ -268,7 +310,7 @@ function renderSourceChain(rows) {
       <td class="lesson-nowrap">${escapeHtml(displayValue(relation))}</td>
       <td class="lesson-nowrap">${escapeHtml(shortId(lesson.id))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(lessonTypeLabel(lesson.lesson_type))}</span></td>
-      <td><span class="status-badge ${escapeAttribute(lessonStatusClass(lesson.status))}">${escapeHtml(lessonStatusLabel(lesson.status))}</span></td>
+      <td>${renderLessonStatusBadges(lesson)}</td>
       <td class="lesson-nowrap">${escapeHtml(formatDateOnly(lesson.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(timeRange(lesson.start_time, lesson.end_time))}</td>
       <td class="number-cell">${escapeHtml(displayValue(lesson.duration_hours))}</td>
@@ -408,6 +450,20 @@ function lessonStatusClass(value) {
   if (value === "planned" || value === "pending_makeup") return "status-pending";
   if (value === "cancelled") return "status-cancelled";
   return "status-neutral";
+}
+
+function renderLessonStatusBadges(lesson) {
+  const badges = [
+    `<span class="status-badge ${escapeAttribute(lessonStatusClass(lesson.status))}">${escapeHtml(lessonStatusLabel(lesson.status))}</span>`,
+  ];
+  if (isVoidedPlanned(lesson)) {
+    badges.push('<span class="status-badge status-cancelled">已作废</span>');
+  }
+  return badges.join(" ");
+}
+
+function isVoidedPlanned(lesson) {
+  return Boolean(lesson && lesson.lesson_type === "planned" && lesson.voided_at);
 }
 
 function settlementStatusLabel(value) {

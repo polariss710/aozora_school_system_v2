@@ -26,6 +26,8 @@ const LESSON_COLUMNS = [
   "lesson_count",
   "actual_minutes",
   "teacher_settlement_month",
+  "voided_at",
+  "void_reason",
   "created_at",
   "updated_at",
 ].join(",");
@@ -54,6 +56,7 @@ export async function fetchLessonRecords(yearMonth) {
     .select(LESSON_COLUMNS)
     .eq("app_type", "school")
     .eq("year_month", yearMonth)
+    .or("lesson_type.neq.planned,voided_at.is.null")
     .order("lesson_date", { ascending: true })
     .order("lesson_count", { ascending: true, nullsFirst: false })
     .order("start_time", { ascending: true, nullsFirst: false })
@@ -334,6 +337,25 @@ export async function updateLessonRecordGuarded(payload) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
     throw new Error("课时编辑失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
+export async function voidPlannedLesson(payload) {
+  const { data, error } = await supabase.rpc("school_void_planned_lesson", {
+    p_lesson_id: payload.lessonId,
+    p_expected_updated_at: payload.expectedUpdatedAt,
+    p_void_reason: payload.voidReason,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("预定课时作废失败：RPC 没有返回结果。");
   }
 
   return result;

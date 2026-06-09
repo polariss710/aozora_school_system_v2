@@ -15,6 +15,7 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -207,6 +208,7 @@ let isMakeupLessonFeeManual = false;
 let createMakeupActualLessonInitialSnapshot = null;
 let isCreateMakeupActualLessonCloseConfirmPending = false;
 let lessonEditController = null;
+let lessonVoidController = null;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
@@ -216,6 +218,7 @@ const successfulLessonImportFileHashes = new Set();
 export function initLessonPage() {
   cacheDom();
   setupLessonEditController();
+  setupLessonVoidController();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   setDefaultFilters();
@@ -231,6 +234,23 @@ export function initLessonPage() {
   }
 
   loadInitialData();
+}
+
+function setupLessonVoidController() {
+  lessonVoidController = createLessonVoidDialogController({
+    dom: cacheLessonVoidDialogDom(),
+    getLessonRecords: () => lessonRecords,
+    hasSupabaseConfig,
+    showMessage,
+    onVoided: refreshAfterVoidLesson,
+    getLinkedActualExists: hasLinkedActualLesson,
+    setExternalBusy: (isBusy) => {
+      if (dom.openCreatePlannedLessonButton) {
+        dom.openCreatePlannedLessonButton.disabled = isBusy;
+      }
+    },
+  });
+  lessonVoidController.init();
 }
 
 function setupLessonEditController() {
@@ -418,6 +438,12 @@ function bindEvents() {
   });
 
   dom.tableBody?.addEventListener("click", (event) => {
+    const voidButton = event.target.closest("[data-void-planned-lesson-id]");
+    if (voidButton) {
+      lessonVoidController?.open(voidButton.dataset.voidPlannedLessonId || "");
+      return;
+    }
+
     const editButton = event.target.closest("[data-edit-lesson-id]");
     if (editButton) {
       lessonEditController?.open(editButton.dataset.editLessonId || "");
@@ -492,6 +518,12 @@ function bindEvents() {
     const makeupButton = event.target.closest("[data-generate-makeup-actual-id]");
     if (makeupButton) {
       openCreateMakeupActualLessonDialog(makeupButton.dataset.generateMakeupActualId || "");
+      return;
+    }
+
+    const voidButton = event.target.closest("[data-void-planned-lesson-id]");
+    if (voidButton) {
+      lessonVoidController?.open(voidButton.dataset.voidPlannedLessonId || "");
       return;
     }
 
@@ -1148,6 +1180,11 @@ function openCreateActualLessonDialog(plannedLessonId) {
     return;
   }
 
+  if (isVoidedPlanned(plannedLesson)) {
+    showMessage("error", "该预定课时已作废，不能生成 actual。");
+    return;
+  }
+
   currentActualSourceLesson = plannedLesson;
   resetCreateActualLessonForm(plannedLesson);
   renderCreateActualLessonSummary(plannedLesson);
@@ -1335,6 +1372,17 @@ async function refreshAfterCreateActualLesson(createdLesson) {
   applyCurrentFilters();
 }
 
+async function refreshAfterVoidLesson(result, sourceLesson) {
+  const targetMonth = result?.year_month || sourceLesson?.year_month || loadedMonth || currentYearMonth();
+  if (targetMonth) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, targetMonth);
+  }
+
+  await loadLessonMonth(targetMonth);
+  applyCurrentFilters();
+  showMessage("success", `预定课时已作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
+}
+
 function setCreateActualLessonSubmitting(isSubmitting) {
   isCreateActualLessonSubmitting = isSubmitting;
   dom.createActualLessonSubmitButton.disabled = isSubmitting;
@@ -1419,6 +1467,11 @@ function openCreateCancelledActualLessonDialog(plannedLessonId) {
 
   if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
     showMessage("error", "当前 planned 状态不能生成 cancelled actual。");
+    return;
+  }
+
+  if (isVoidedPlanned(plannedLesson)) {
+    showMessage("error", "该预定课时已作废，不能生成 cancelled actual。");
     return;
   }
 
@@ -1676,6 +1729,11 @@ function openCreateMakeupActualLessonDialog(plannedLessonId) {
 
   if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
     showMessage("error", "当前 planned 状态不能生成 makeup_completed actual。");
+    return;
+  }
+
+  if (isVoidedPlanned(plannedLesson)) {
+    showMessage("error", "该预定课时已作废，不能生成 makeup_completed actual。");
     return;
   }
 
@@ -3731,7 +3789,7 @@ function renderLessonRecords(records) {
   dom.tableBody.innerHTML = records.map((record) => `
     <tr>
       <td class="lesson-nowrap"><a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "list"))}">查看详情</a></td>
-      <td class="lesson-nowrap">${renderLessonEditAction(record)}</td>
+      <td class="lesson-nowrap">${renderLessonActions(record)}</td>
       <td class="lesson-nowrap">${escapeHtml(formatDateOnly(record.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatWeekday(record.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatTimeRange(record.start_time, record.end_time))}</td>
@@ -3897,11 +3955,34 @@ function renderMissingActualCard(planned) {
 function canGenerateActualFromPlanned(planned) {
   return planned
     && planned.lesson_type === "planned"
-    && ["planned", "pending_makeup"].includes(planned.status);
+    && ["planned", "pending_makeup"].includes(planned.status)
+    && !isVoidedPlanned(planned);
 }
 
 function renderLessonEditAction(record) {
   return lessonEditController?.renderAction(record) || "";
+}
+
+function renderLessonVoidAction(record) {
+  return lessonVoidController?.renderAction(record) || "";
+}
+
+function renderLessonActions(record) {
+  return [
+    renderLessonEditAction(record),
+    renderLessonVoidAction(record),
+  ].filter(Boolean).join(" ");
+}
+
+function hasLinkedActualLesson(plannedLessonId) {
+  return lessonRecords.some((record) => (
+    record.lesson_type === "actual"
+    && record.planned_lesson_id === plannedLessonId
+  ));
+}
+
+function isVoidedPlanned(record) {
+  return Boolean(record && record.lesson_type === "planned" && record.voided_at);
 }
 
 function renderLessonPairCard(record, side) {
@@ -3918,7 +3999,7 @@ function renderLessonPairCard(record, side) {
       <div class="lesson-pair-card-header">
         <div>
           <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "pair"))}">查看详情</a>
-          ${renderLessonEditAction(record)}
+          ${renderLessonActions(record)}
           <span class="lesson-pair-id">${escapeHtml(shortId(record.id))}</span>
         </div>
         <span class="status-badge ${escapeAttribute(statusClass(record.status))}">${escapeHtml(lessonStatusLabel(record.status))}</span>

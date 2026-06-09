@@ -196,6 +196,9 @@ export function createLessonEditDialogController(options) {
     }
 
     if (record.lesson_type === "planned") {
+      if (record.voided_at) {
+        return "该预定课时已作废，不能编辑。";
+      }
       if (!["planned", "pending_makeup"].includes(record.status)) {
         return `当前 planned 状态不允许编辑：${lessonStatusLabel(record.status)}。`;
       }
