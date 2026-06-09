@@ -492,66 +492,68 @@
 
       <div class="dialog-backdrop is-hidden" id="lessonImportPreviewDialog" aria-hidden="true">
         <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonImportPreviewTitle">
-          <div class="section-heading">
-            <h2 id="lessonImportPreviewTitle">导入预定课时</h2>
-            <p class="section-note">可解析本地 Excel/CSV 并预览；提交只写入预定课时，actual 行仅可预览且会在提交前阻止。</p>
-          </div>
-
-          <div id="lessonImportPreviewError" class="dialog-error is-hidden" aria-live="polite"></div>
-
-          <div class="lesson-import-preview-guide">
-            <div>
-              <h3>预定课时模板字段</h3>
-              <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、课时类型、状态、课时、金额、是否计费、内容、备注。</p>
+          <div class="lesson-import-preview-body">
+            <div class="section-heading">
+              <h2 id="lessonImportPreviewTitle">导入预定课时</h2>
+              <p class="section-note">可解析本地 Excel/CSV 并预览；提交只写入预定课时，actual 行仅可预览且会在提交前阻止。</p>
             </div>
-            <div class="lesson-import-preview-guide-grid">
-              <div><strong>课时类型</strong><span>主模板填写预定；actual 仅用于 preview / future backlog。</span></div>
-              <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
-              <div><strong>actual 预览</strong><span>已上课 / 取消 / 已补课可识别，但当前不可提交。</span></div>
-              <div><strong>内部归一化</strong><span>preview 会转为 planned / actual / completed / cancelled / makeup_completed 等内部值。</span></div>
-              <div><strong>导入范围</strong><span>当前提交只支持预定课时；actual 行会在提交前阻止。</span></div>
-              <div><strong>关联预定ID</strong><span>actual 填写后只读检查 planned、重复 actual、主数据一致性和锁定月份；第一版不会写入关联。</span></div>
-              <div><strong>旧模板</strong><span>可识别预定/实际分栏；缺少状态列时只提示补列，不自动猜测。</span></div>
+
+            <div id="lessonImportPreviewError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+            <div class="lesson-import-preview-guide">
+              <div>
+                <h3>预定课时模板字段</h3>
+                <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、课时类型、状态、课时、回数、课时费总额 JPY、是否计费、内容、备注。</p>
+              </div>
+              <div class="lesson-import-preview-guide-grid">
+                <div><strong>课时类型</strong><span>主模板填写预定；actual 仅用于 preview / future backlog。</span></div>
+                <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
+                <div><strong>lookup</strong><span>学生、老师、科目、业务归属只按完全一致匹配，不做模糊猜测。</span></div>
+                <div><strong>金额</strong><span>课时费总额 JPY 是整条课时记录总额，不是单价。</span></div>
+                <div><strong>导入范围</strong><span>当前提交只支持预定课时；actual 行会在提交前阻止。</span></div>
+                <div><strong>旧模板</strong><span>可识别预定/实际分栏；planned 行中的关联预定ID会被忽略。</span></div>
+              </div>
             </div>
-          </div>
 
-          <label class="field lesson-import-file-field">
-            <span>选择文件</span>
-            <input id="lessonImportPreviewFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
-          </label>
+            <label class="field lesson-import-file-field">
+              <span>选择文件</span>
+              <input id="lessonImportPreviewFileInput" type="file" accept=".xlsx,.xls,.csv,.tsv,.txt">
+            </label>
 
-          <div class="lesson-import-preview-template-actions">
-            <button class="button" id="lessonImportTemplateExportButton" type="button">导出预定课时模板</button>
-          </div>
+            <div class="lesson-import-preview-template-actions">
+              <button class="button" id="lessonImportTemplateExportButton" type="button">导出预定课时模板</button>
+            </div>
 
-          <div id="lessonImportPreviewSummary" class="dialog-summary lesson-import-preview-summary is-hidden"></div>
+            <div id="lessonImportPreviewSummary" class="dialog-summary lesson-import-preview-summary is-hidden"></div>
 
-          <div id="lessonImportPreviewEmpty" class="state-text lesson-import-preview-empty">请选择 Excel 或 CSV 文件后查看预定课时导入预览。</div>
+            <div id="lessonImportPreviewEmpty" class="state-text lesson-import-preview-empty">请选择 Excel 或 CSV 文件后查看预定课时导入预览。</div>
 
-          <div class="table-scroll lesson-import-preview-scroll">
-            <table class="payment-table lesson-import-preview-table">
-              <thead>
-                <tr>
-                  <th>原始行</th>
-                  <th>学生</th>
-                  <th>老师</th>
-                  <th>科目</th>
-                  <th>业务归属</th>
-                  <th>日期</th>
-                  <th>时间</th>
-                  <th>课时类型</th>
-                  <th>状态</th>
-                  <th>计费</th>
-                  <th>课时</th>
-                  <th>金额</th>
-                  <th>内容</th>
-                  <th>备注</th>
-                  <th>关联预定ID</th>
-                  <th>错误 / 警告</th>
-                </tr>
-              </thead>
-              <tbody id="lessonImportPreviewRows"></tbody>
-            </table>
+            <div class="table-scroll lesson-import-preview-scroll">
+              <table class="payment-table lesson-import-preview-table">
+                <thead>
+                  <tr>
+                    <th>原始行</th>
+                    <th>学生</th>
+                    <th>老师</th>
+                    <th>科目</th>
+                    <th>业务归属</th>
+                    <th>日期</th>
+                    <th>时间</th>
+                    <th>课时类型</th>
+                    <th>状态</th>
+                    <th>计费</th>
+                    <th>课时</th>
+                    <th>回数</th>
+                    <th>课时费总额 JPY</th>
+                    <th>内容</th>
+                    <th>备注</th>
+                    <th>关联预定ID</th>
+                    <th>错误 / 警告</th>
+                  </tr>
+                </thead>
+                <tbody id="lessonImportPreviewRows"></tbody>
+              </table>
+            </div>
           </div>
 
           <div class="dialog-actions">

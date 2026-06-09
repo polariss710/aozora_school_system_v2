@@ -78,7 +78,8 @@ const LESSON_IMPORT_PREVIEW_FIELD_LABELS = {
   lessonType: "课时类型",
   status: "状态",
   durationHours: "课时",
-  lessonFee: "金额",
+  lessonCount: "回数",
+  lessonFee: "课时费总额 JPY",
 };
 
 const LESSON_IMPORT_REQUIRED_FIELDS = [
@@ -110,25 +111,25 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
   "课时类型",
   "状态",
   "课时",
-  "金额",
+  "回数",
+  "课时费总额 JPY",
   "是否计费",
   "内容",
   "备注",
-  "关联预定ID",
 ];
 
 const LESSON_IMPORT_TEMPLATE_ROWS = [
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "预定", "待上课", 1, 5000, "是", "预定课内容", "预定-待上课 示例", ""],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "预定", "待补课", 1, 5000, "是", "待补课预定内容", "预定-待补课 示例", ""],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "预定", "待补课", 1, 2, 5000, "是", "待补课预定内容", "预定-待补课 示例"],
 ];
 
 const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["字段", "必填", "说明 / 合法值"],
   ["示例值", "说明", "主表只放预定课时示例；模板中的示例学生、示例老师、数学、青空进学塾需要替换为当前系统已有主数据。"],
-  ["学生", "是", "填写学生名称；preview 会用当前学生 lookup 匹配。"],
-  ["老师", "是", "填写老师名称；可兼容 担当老师 / teacher 等表头。"],
-  ["科目", "是", "填写科目名称；可兼容 subject / 講座 等表头。"],
-  ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头。"],
+  ["学生", "是", "填写学生名称；preview 仅按 trim/normalize 后完全一致匹配，不做模糊猜测。"],
+  ["老师", "是", "填写老师名称；可兼容 担当老师 / teacher 等表头；lookup 仅允许完全一致。"],
+  ["科目", "是", "填写科目名称；可兼容 subject / 講座 等表头；lookup 仅允许完全一致。"],
+  ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头；lookup 仅允许完全一致。"],
   ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
   ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
   ["课时类型", "是", "当前提交只支持 预定；preview 仍可识别 实际 / actual 但不会提交。"],
@@ -137,10 +138,11 @@ const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["合法组合", "说明", "当前可提交：预定 + 待上课 / 待补课。"],
   ["当前导入范围", "说明", "第一版提交只支持预定课时；actual 行仅用于 preview，不会写入。"],
   ["课时", "是", "大于 0 的数字。"],
-  ["金额", "建议", "0 或正数；为空时 preview 只提示确认，不写入。"],
+  ["回数", "否", "正整数；为空时不写入 lesson_count。"],
+  ["课时费总额 JPY", "建议", "整条课时记录的课时费总额，不是单价；0 或正数；为空时 preview 只提示确认，不写入。"],
   ["是否计费", "建议", "是 / 否 / true / false。"],
   ["内容 / 备注", "否", "文本。"],
-  ["关联预定ID", "不提交", "当前预定课时导入不需要填写；actual preview 可识别该列，但第一版不会写入关联。"],
+  ["旧模板关联预定ID", "忽略", "planned-only 导入会忽略旧模板中的关联预定ID，不写入关联。"],
   ["future actual 示例", "说明", "完整课时导入仅作为 future/history migration backlog：实际 + 已上课 / completed，关联预定ID 可选。"],
   ["future actual 示例", "说明", "完整课时导入仅作为 future/history migration backlog：实际 + 取消 / cancelled，金额通常为 0。"],
   ["future actual 示例", "说明", "完整课时导入仅作为 future/history migration backlog：实际 + 已补课 / makeup_completed，是否计费需单独规则。"],
@@ -448,12 +450,6 @@ function bindEvents() {
     if (activeDialog) {
       event.preventDefault();
       activeDialog.blockDirectDismiss();
-    }
-  });
-
-  dom.lessonImportPreviewDialog?.addEventListener("click", (event) => {
-    if (event.target === dom.lessonImportPreviewDialog) {
-      closeLessonImportPreviewDialog();
     }
   });
 
@@ -2678,7 +2674,52 @@ function buildLessonImportPreviewRows(rows) {
     }
   }
 
+  previewRows.forEach((row, index) => {
+    row.previewRowNo = index + 1;
+  });
+  addLessonImportPreviewDuplicateIssues(previewRows);
   return previewRows;
+}
+
+function addLessonImportPreviewDuplicateIssues(rows) {
+  const seenRows = new Map();
+
+  for (const row of rows) {
+    if (row.values.lessonType !== "planned") {
+      continue;
+    }
+
+    const key = buildLessonImportPreviewDuplicateKey(row);
+    if (!key) {
+      continue;
+    }
+
+    const firstRow = seenRows.get(key);
+    if (firstRow) {
+      addLessonImportPreviewIssue(row, "error", "lessonType", `与第 ${firstRow.previewRowNo || firstRow.rowNo} 行重复；同一文件内重复预定课时不能提交。`);
+      continue;
+    }
+
+    seenRows.set(key, row);
+  }
+}
+
+function buildLessonImportPreviewDuplicateKey(row) {
+  const values = row.values || {};
+  const parts = [
+    normalizeLessonImportDuplicateText(row.raw.student || values.student),
+    normalizeLessonImportDuplicateText(row.raw.teacher || values.teacher),
+    normalizeLessonImportDuplicateText(row.raw.subject || values.subject),
+    normalizeLessonImportDuplicateText(row.raw.businessEntity || values.businessEntity),
+    normalizeLessonImportDuplicateText(values.lessonDate),
+    normalizeLessonImportDuplicateText(values.startTime),
+    normalizeLessonImportDuplicateText(values.endTime),
+    normalizeLessonImportDuplicateText(values.status),
+    normalizeLessonImportDuplicateNumber(values.durationHours),
+    normalizeLessonImportDuplicateNumber(values.lessonFee),
+  ];
+
+  return parts.some(Boolean) ? parts.join("|") : "";
 }
 
 async function addLessonImportPlannedIdPrecheck(rows) {
@@ -2934,15 +2975,16 @@ function buildLessonImportPreviewColumnMap(header) {
     if (/^(结束时间|结束|終了|end|endtime|end_time)$/.test(key)) set("endTime");
     if (/^(时间|时间段|时段|時間|時間帯|time|timerange|time_range)$/.test(key)) set("timeRange");
     if (/^(课时|课时时长|时长|時間数|授業時間|hours|hour|duration|durationhours|duration_hours)$/.test(key)) set("durationHours");
+    if (/^(回数|回次|课次|課次|lessoncount|lesson_count)$/.test(key)) set("lessonCount");
     if (/^(单价|课程单价|単価|unitprice|unit_price)$/.test(key)) set("unitPrice");
-    if (/^(金额|金額|课时费|授業料|应收|应收课时费|lessonfee|lesson_fee|fee|amount)$/.test(key)) set("lessonFee");
+    if (/^(金额|金額|课时费|课时费总额|课时费总额jpy|課時費總額|授業料|应收|应收课时费|lessonfee|lesson_fee|fee|amount|totalamount|total_amount)$/.test(key)) set("lessonFee");
     if (/^(是否计费|计费|收费|是否收费|請求|請求対象|billable|isbillable|is_billable)$/.test(key)) set("isBillable");
     if (/^(内容|授業内容|上课内容|上课内容及作业|content|lessoncontent|lesson_content)$/.test(key)) set("lessonContent");
     if (/^(备注|備考|メモ|note|memo)$/.test(key)) set("note");
     if (/^(plannedid|planned_id|plannedlessonid|planned_lesson_id|关联预定|关联预定id|预定id|预定课时id|関連予定id|关联标识|关联planned|关联plannedid)$/.test(key)) set("plannedId");
 
     if (/^(预定日期|预定日|予定日|planneddate|planned_date)$/.test(key)) set("plannedDate");
-    if (/^(预定第几回|预定回数|予定回数|回数|回次|课次|plannedcount|planned_count)$/.test(key)) set("plannedCount");
+    if (/^(预定第几回|预定回数|予定回数|plannedcount|planned_count|plannedlessoncount|planned_lesson_count)$/.test(key)) set("plannedCount");
     if (/^(预定开始时间|预定开始|予定開始|plannedstart|planned_start|plannedstarttime|planned_start_time)$/.test(key)) set("plannedStartTime");
     if (/^(预定结束时间|预定结束|予定終了|plannedend|planned_end|plannedendtime|planned_end_time)$/.test(key)) set("plannedEndTime");
     if (/^(预定时间|预定时间段|予定時間帯|plannedtime|planned_time|plannedtimerange|planned_time_range)$/.test(key)) set("plannedTimeRange");
@@ -2978,6 +3020,9 @@ function buildLessonImportPreviewColumnMap(header) {
     if (map.plannedDurationHours === undefined && map.actualDurationHours === undefined && map.durationHours !== undefined) {
       map.plannedDurationHours = map.durationHours;
       map.actualDurationHours = map.durationHours;
+    }
+    if (map.plannedCount === undefined && map.lessonCount !== undefined) {
+      map.plannedCount = map.lessonCount;
     }
     if (map.plannedStartTime === undefined && map.actualStartTime === undefined && map.startTime !== undefined) {
       map.plannedStartTime = map.startTime;
@@ -3026,6 +3071,7 @@ function buildLessonImportPreviewColumnMap(header) {
       map.endTime,
       map.timeRange,
       map.durationHours,
+      map.lessonCount,
       map.lessonFee,
       map.isBillable,
       map.lessonContent,
@@ -3038,6 +3084,7 @@ function buildLessonImportPreviewColumnMap(header) {
       map.plannedEndTime,
       map.plannedTimeRange,
       map.plannedDurationHours,
+      map.plannedCount,
       map.plannedUnitPrice,
       map.plannedLessonFee,
       map.plannedStatus,
@@ -3087,6 +3134,9 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
     durationHours: paired
       ? (mode === "planned" ? columnMap.plannedDurationHours : columnMap.actualDurationHours)
       : columnMap.durationHours,
+    lessonCount: paired
+      ? (mode === "planned" ? columnMap.plannedCount : columnMap.lessonCount)
+      : columnMap.lessonCount,
     unitPrice: paired
       ? (mode === "planned" ? columnMap.plannedUnitPrice : columnMap.unitPrice)
       : columnMap.unitPrice,
@@ -3116,6 +3166,7 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
     endTime: readLessonImportPreviewCell(rawRow, fieldIndexes.endTime),
     timeRange: readLessonImportPreviewCell(rawRow, fieldIndexes.timeRange),
     durationHours: readLessonImportPreviewCell(rawRow, fieldIndexes.durationHours),
+    lessonCount: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonCount),
     unitPrice: readLessonImportPreviewCell(rawRow, fieldIndexes.unitPrice),
     lessonFee: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonFee),
     isBillable: readLessonImportPreviewCell(rawRow, fieldIndexes.isBillable),
@@ -3140,6 +3191,7 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
       startTime: parseLessonImportPreviewTime(raw.startTime),
       endTime: parseLessonImportPreviewTime(raw.endTime),
       durationHours: parseLessonImportPreviewNumber(raw.durationHours),
+      lessonCount: parseLessonImportPreviewInteger(raw.lessonCount),
       unitPrice: parseLessonImportPreviewNumber(raw.unitPrice),
       lessonFee: parseLessonImportPreviewNumber(raw.lessonFee),
       isBillable: normalizeLessonImportPreviewBillable(raw.isBillable),
@@ -3191,6 +3243,10 @@ function validateLessonImportPreviewRow(row, mode) {
     addLessonImportPreviewIssue(row, "error", "lessonType", "lesson_type 只支持 planned / actual。");
   }
 
+  if (values.lessonType === "actual") {
+    addLessonImportPreviewIssue(row, "error", "lessonType", "当前 planned-only 导入不支持 actual / completed / cancelled / makeup_completed 行。");
+  }
+
   if (values.status && !Object.keys(LESSON_STATUS_LABELS).includes(values.status)) {
     addLessonImportPreviewIssue(row, "error", "status", "status 不在 lesson V1 支持范围内。");
   }
@@ -3211,8 +3267,12 @@ function validateLessonImportPreviewRow(row, mode) {
     addLessonImportPreviewIssue(row, "error", "durationHours", "课时必须是大于 0 的数字。");
   }
 
+  if (hasLessonImportPreviewValue(row.raw.lessonCount) && (!Number.isInteger(values.lessonCount) || values.lessonCount <= 0)) {
+    addLessonImportPreviewIssue(row, "error", "lessonCount", "回数必须是大于 0 的整数。");
+  }
+
   if (hasLessonImportPreviewValue(row.raw.lessonFee) && (!Number.isFinite(values.lessonFee) || values.lessonFee < 0)) {
-    addLessonImportPreviewIssue(row, "error", "lessonFee", "金额必须是 0 或正数。");
+    addLessonImportPreviewIssue(row, "error", "lessonFee", "课时费总额必须是 0 或正数。");
   }
 
   if (hasLessonImportPreviewValue(row.raw.isBillable) && values.isBillable === null) {
@@ -3222,9 +3282,9 @@ function validateLessonImportPreviewRow(row, mode) {
   if (!hasLessonImportPreviewValue(row.raw.lessonFee)) {
     if (Number.isFinite(values.durationHours) && Number.isFinite(values.unitPrice) && values.durationHours > 0 && values.unitPrice > 0) {
       values.lessonFee = Math.round(values.durationHours * values.unitPrice);
-      addLessonImportPreviewIssue(row, "warning", "lessonFee", "金额为空，已按课时 x 单价做 preview 估算。");
+      addLessonImportPreviewIssue(row, "warning", "lessonFee", "课时费总额为空，已按课时 x 单价做 preview 估算。");
     } else {
-      addLessonImportPreviewIssue(row, "warning", "lessonFee", "金额为空；preview 阶段不自动写入，后续导入前需确认。");
+      addLessonImportPreviewIssue(row, "warning", "lessonFee", "课时费总额为空；preview 阶段不自动写入，后续导入前需确认。");
     }
   }
 
@@ -3234,6 +3294,10 @@ function validateLessonImportPreviewRow(row, mode) {
 
   if (values.status === "makeup_completed") {
     addLessonImportPreviewIssue(row, "warning", "status", "preview 阶段只标识补课完成，不建立 planned 关联。");
+  }
+
+  if (values.lessonType === "planned") {
+    values.plannedId = "";
   }
 }
 
@@ -3270,7 +3334,7 @@ function validateLessonImportPreviewLookup(row, field, rows, labelGetter) {
 
   const match = findLessonImportPreviewLookup(rawValue, rows, labelGetter);
   if (!match.item) {
-    addLessonImportPreviewIssue(row, "error", field, match.ambiguous ? "匹配到多个主数据，请使用更精确名称。" : "未能在当前主数据 lookup 中识别。");
+    addLessonImportPreviewIssue(row, "error", field, match.ambiguous ? "匹配到多个完全一致的主数据，请使用唯一名称或 ID。" : "未找到完全一致的主数据。");
     return;
   }
 
@@ -3284,34 +3348,28 @@ function validateLessonImportPreviewLookup(row, field, rows, labelGetter) {
 
 function findLessonImportPreviewLookup(value, rows, labelGetter) {
   const text = normalizeLessonImportLookup(value);
-  const candidates = rows
-    .map((item) => ({
-      item,
-      keys: [
-        item.id,
-        item.name,
-        item.display_name,
-        item.full_name,
-        item.code,
-        labelGetter(item),
-      ].map(normalizeLessonImportLookup).filter(Boolean),
-    }))
-    .filter(({ keys }) => keys.length);
+  const exactItems = new Map();
 
-  const exact = candidates.find(({ keys }) => keys.includes(text));
-  if (exact) {
-    return { item: exact.item, ambiguous: false };
+  for (const item of rows || []) {
+    const keys = [
+      item.id,
+      item.name,
+      item.display_name,
+      item.full_name,
+      item.code,
+      labelGetter(item),
+    ].map(normalizeLessonImportLookup).filter(Boolean);
+
+    if (keys.includes(text)) {
+      exactItems.set(item.id, item);
+    }
   }
 
-  const fuzzy = candidates.filter(({ keys }) => (
-    keys.some((key) => key.includes(text) || text.includes(key))
-  ));
-
-  if (fuzzy.length === 1) {
-    return { item: fuzzy[0].item, ambiguous: false };
+  if (exactItems.size === 1) {
+    return { item: Array.from(exactItems.values())[0], ambiguous: false };
   }
 
-  return { item: null, ambiguous: fuzzy.length > 1 };
+  return { item: null, ambiguous: exactItems.size > 1 };
 }
 
 function renderLessonImportPreview() {
@@ -3326,7 +3384,7 @@ function renderLessonImportPreview() {
   dom.lessonImportPreviewSummary.classList.toggle("is-hidden", rows.length === 0);
   dom.lessonImportPreviewRows.innerHTML = rows.map(renderLessonImportPreviewRow).join("");
   if (dom.lessonImportPlannedSubmitButton) {
-    dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0 || hasCommittedPreview;
+    dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0 || errorCount > 0 || hasCommittedPreview;
     dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
   }
   if (dom.lessonImportViewMonthButton) {
@@ -3382,6 +3440,7 @@ function renderLessonImportPreviewRow(row) {
       ${renderLessonImportPreviewCell(row, "status", values.status ? lessonStatusLabel(values.status) : "")}
       ${renderLessonImportPreviewCell(row, "isBillable", displayLessonImportPreviewBillable(values))}
       ${renderLessonImportPreviewCell(row, "durationHours", displayImportPreviewNumber(values.durationHours))}
+      ${renderLessonImportPreviewCell(row, "lessonCount", Number.isInteger(values.lessonCount) ? values.lessonCount : "")}
       ${renderLessonImportPreviewCell(row, "lessonFee", displayImportPreviewNumber(values.lessonFee))}
       <td class="lesson-import-preview-content-cell">${escapeHtml(displayValue(values.lessonContent))}</td>
       <td class="lesson-import-preview-note-cell">${escapeHtml(displayValue(values.note))}</td>
@@ -3494,7 +3553,7 @@ function buildLessonImportSubmitRows(rows) {
     start_time: row.values.startTime || null,
     end_time: row.values.endTime || null,
     duration_hours: row.values.durationHours,
-    lesson_count: null,
+    lesson_count: Number.isInteger(row.values.lessonCount) ? row.values.lessonCount : null,
     unit_price: Number.isFinite(row.values.unitPrice) ? row.values.unitPrice : 0,
     lesson_fee: Number.isFinite(row.values.lessonFee) ? row.values.lessonFee : null,
     is_billable: true,
@@ -3533,7 +3592,8 @@ function setLessonImportSubmitting(isSubmitting) {
   isLessonImportSubmitting = isSubmitting;
   const hasCommittedPreview = Boolean(lastLessonImportResult?.successCount > 0);
   if (dom.lessonImportPlannedSubmitButton) {
-    dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0 || hasCommittedPreview;
+    const hasErrors = importPreviewRows.some((row) => row.errors.length);
+    dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0 || hasErrors || hasCommittedPreview;
     dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
   }
   if (dom.lessonImportViewMonthButton) {
@@ -3587,9 +3647,26 @@ function normalizeLessonImportHeader(value) {
 
 function normalizeLessonImportLookup(value) {
   return String(value || "")
-    .replace(/（.*?）|\(.*?\)|\/.*$/g, "")
-    .replace(/\s+/g, "")
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
     .toLowerCase();
+}
+
+function normalizeLessonImportDuplicateText(value) {
+  return importPreviewCellText(value)
+    .normalize("NFKC")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function normalizeLessonImportDuplicateNumber(value) {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+
+  return String(Number(value));
 }
 
 function isBlankLessonImportPreviewRow(row) {
@@ -3836,6 +3913,20 @@ function parseLessonImportPreviewNumber(value) {
   }
 
   return Number(text.replace(/[,，円￥¥小时時間HhＨ]/g, ""));
+}
+
+function parseLessonImportPreviewInteger(value) {
+  if (typeof value === "number") {
+    return Number.isInteger(value) ? value : Number.NaN;
+  }
+
+  const text = String(value ?? "").trim();
+  if (!text) {
+    return Number.NaN;
+  }
+
+  const number = Number(text.replace(/[,，回次]/g, ""));
+  return Number.isInteger(number) ? number : Number.NaN;
 }
 
 function hasLessonImportPreviewValue(value) {

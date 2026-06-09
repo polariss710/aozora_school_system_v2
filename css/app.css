@@ -781,6 +781,21 @@ h2 {
   }
 }
 
+.lesson-import-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.lesson-import-preview-dialog-panel > .dialog-actions {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding-top: 12px;
+}
+
 .lesson-import-file-field {
   margin-top: 14px;
 }
@@ -860,7 +875,6 @@ h2 {
 }
 
 .lesson-import-preview-scroll {
-  flex: 1 1 auto;
   min-height: 260px;
   margin-top: 14px;
   max-height: none;
@@ -868,7 +882,7 @@ h2 {
 }
 
 .lesson-import-preview-table {
-  min-width: 1880px;
+  min-width: 1980px;
 }
 
 .lesson-import-preview-table th,
