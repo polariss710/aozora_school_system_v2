@@ -23,6 +23,7 @@ const DEFAULT_FILTERS = {
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
+  preview: "未锁定 / 预览",
 };
 
 const dom = {};
@@ -228,7 +229,7 @@ function renderSettlements(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td class="settlement-nowrap"><a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
+      <td class="settlement-nowrap">${renderSettlementDetailAction(row)}</td>
       <td class="settlement-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td>${escapeHtml(nameById(students, row.student_id, studentName))}</td>
       <td>${escapeHtml(nameById(businessEntities, row.business_entity_id, businessEntityName))}</td>
@@ -249,6 +250,14 @@ function renderSettlements(rows) {
       <td class="settlement-note-cell">${escapeHtml(noteText(row))}</td>
     </tr>
   `).join("");
+}
+
+function renderSettlementDetailAction(row) {
+  if (row.is_preview) {
+    return '<span class="status-badge status-pending">预览</span>';
+  }
+
+  return `<a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>`;
 }
 
 function filterSettlements(rows, filters) {
@@ -337,6 +346,9 @@ function settlementStatusLabel(value) {
 }
 
 function statusClass(status) {
+  if (status === "preview") {
+    return "status-pending";
+  }
   return status === "locked" ? "status-paid" : "status-neutral";
 }
 
