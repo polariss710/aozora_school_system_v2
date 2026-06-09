@@ -154,6 +154,15 @@ function syncReturnLink() {
   }
 
   const params = new URLSearchParams(window.location.search);
+  const returnQuery = readLessonReturnQuery(params);
+  if (returnQuery) {
+    dom.returnLink.href = `./lesson.html?${returnQuery.query}`;
+    dom.returnLink.textContent = returnQuery.view === "pair"
+      ? `返回 ${returnQuery.year}-${returnQuery.month} 对应视图`
+      : `返回 ${returnQuery.year}-${returnQuery.month} 课时管理`;
+    return;
+  }
+
   const year = safeText(params.get("returnYear"));
   const month = safeText(params.get("returnMonth")).padStart(2, "0");
   const view = params.get("returnView") === "pair" ? "pair" : "";
@@ -172,6 +181,78 @@ function syncReturnLink() {
   dom.returnLink.textContent = view === "pair"
     ? `返回 ${year}-${month} 对应视图`
     : `返回 ${year}-${month} 课时管理`;
+}
+
+function readLessonReturnQuery(params) {
+  const rawReturnQuery = safeText(params.get("returnQuery"));
+  if (!rawReturnQuery) {
+    return null;
+  }
+
+  const source = new URLSearchParams(rawReturnQuery.replace(/^\?/, ""));
+  const monthInfo = readLessonReturnQueryMonth(source);
+  if (!monthInfo) {
+    return null;
+  }
+
+  const target = new URLSearchParams();
+  target.set("year", monthInfo.year);
+  target.set("month", monthInfo.month);
+  target.set("view", readLessonReturnQueryView(source));
+  [
+    "teacher_id",
+    "student_id",
+    "subject_id",
+    "business_entity_id",
+  ].forEach((name) => {
+    const value = readSafeReturnQueryValue(source.get(name));
+    if (value) {
+      target.set(name, value);
+    }
+  });
+
+  const status = readLessonReturnQueryStatus(source);
+  if (status) {
+    target.set("status", status);
+  }
+
+  return {
+    query: target.toString(),
+    year: monthInfo.year,
+    month: monthInfo.month,
+    view: target.get("view") === "pair" ? "pair" : "list",
+  };
+}
+
+function readLessonReturnQueryMonth(params) {
+  const yearMonth = safeText(params.get("year_month") || params.get("yearMonth"));
+  const yearMonthMatch = yearMonth.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (yearMonthMatch) {
+    return { year: yearMonthMatch[1], month: yearMonthMatch[2] };
+  }
+
+  const year = safeText(params.get("year"));
+  const month = safeText(params.get("month")).padStart(2, "0");
+  if (/^\d{4}$/.test(year) && /^(0[1-9]|1[0-2])$/.test(month)) {
+    return { year, month };
+  }
+  return null;
+}
+
+function readLessonReturnQueryView(params) {
+  return params.get("view") === "pair" ? "pair" : "list";
+}
+
+function readLessonReturnQueryStatus(params) {
+  const status = safeText(params.get("status"));
+  return ["planned", "pending_makeup", "completed", "cancelled", "makeup_completed", "voided"].includes(status)
+    ? status
+    : "";
+}
+
+function readSafeReturnQueryValue(value) {
+  const text = safeText(value);
+  return /^[0-9a-fA-F-]{36}$/.test(text) ? text : "";
 }
 
 function readLessonId() {

@@ -727,6 +727,11 @@ function syncLessonQueryUrl(filters) {
     return;
   }
 
+  const params = buildLessonListQueryParams(filters);
+  window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+}
+
+function buildLessonListQueryParams(filters) {
   const params = new URLSearchParams();
   const monthMatch = safeText(filters.month).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
   if (monthMatch) {
@@ -740,7 +745,7 @@ function syncLessonQueryUrl(filters) {
   if (filters.businessEntityId) params.set("business_entity_id", filters.businessEntityId);
   if (filters.status) params.set("status", filters.status);
 
-  window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  return params;
 }
 
 function clearLessonQueryUrl() {
@@ -2440,7 +2445,22 @@ function createLessonDetailUrl(lessonId, returnMonth = loadedMonth, returnView =
   if (returnView === "pair") {
     params.set("returnView", "pair");
   }
+  const returnQuery = buildLessonReturnQuery(returnMonth, returnView);
+  if (returnQuery) {
+    params.set("returnQuery", returnQuery);
+  }
   return `./lesson-detail.html?${params.toString()}`;
+}
+
+function buildLessonReturnQuery(returnMonth = loadedMonth, returnView = activeView) {
+  const currentFilters = readFilters();
+  const filters = {
+    ...(currentFilters || defaultLessonFilters()),
+    month: safeText(returnMonth) || currentFilters?.month || loadedMonth,
+    view: normalizeLessonView(returnView || currentFilters?.view || activeView),
+  };
+  const query = buildLessonListQueryParams(filters).toString();
+  return query || "";
 }
 
 function handleLessonImportTemplateExport() {
