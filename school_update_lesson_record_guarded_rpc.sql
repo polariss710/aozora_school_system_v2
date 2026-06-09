@@ -2,14 +2,14 @@
 -- RPC: public.school_update_lesson_record_guarded
 -- Purpose: Guarded V1 update for one school lesson record.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested, guard-tested, and commit-tested.
--- Version: v2.61.0-lesson-edit-guarded-rpc-20260608
+-- Version: v2.63.0-lesson-planned-void-schema-rpc-20260609
 --
 -- Scope:
 -- - Update one public.school_lesson_records row only.
 -- - Does not expose lesson_type or planned_lesson_id as editable parameters.
 -- - planned rows may be edited only when current status is planned/pending_makeup,
---   with requested status remaining planned/pending_makeup, no linked actual, and
---   old/new student settlement months unlocked.
+--   voided_at is null, requested status remaining planned/pending_makeup, no
+--   linked actual, and old/new student settlement months unlocked.
 -- - actual rows may be edited only when current status is
 --   completed/cancelled/makeup_completed, requested status is unchanged, old/new
 --   student settlement months and old/new teacher wage months are unlocked, and
@@ -259,6 +259,10 @@ begin
   end if;
 
   if v_lesson.lesson_type = 'planned' then
+    if v_lesson.voided_at is not null then
+      raise exception '该预定课时已作废，不能编辑。';
+    end if;
+
     if v_lesson.status not in ('planned', 'pending_makeup') then
       raise exception '当前 planned 状态不允许编辑：%。', coalesce(v_lesson.status, '');
     end if;
@@ -463,7 +467,7 @@ comment on function public.school_update_lesson_record_guarded(
   text,
   text
 ) is
-  'Guarded V1 update for one school lesson record. Preserves lesson_type and planned_lesson_id, blocks linked planned edits, locked student settlement months, locked teacher wage months, wage detail snapshots, and downstream financial side effects.';
+  'Guarded V1 update for one school lesson record. Preserves lesson_type and planned_lesson_id, blocks voided planned edits, linked planned edits, locked student settlement months, locked teacher wage months, wage detail snapshots, and downstream financial side effects.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

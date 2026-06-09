@@ -2,11 +2,12 @@
 -- RPC: public.school_create_cancelled_actual_lesson_from_planned
 -- Purpose: Create one cancelled actual lesson linked to one planned lesson.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested, guard-tested, and commit-tested.
--- Version: v2.56.0-lesson-cancelled-actual-from-planned-full-autopilot-20260607
+-- Version: v2.63.0-lesson-planned-void-schema-rpc-20260609
 --
 -- Scope:
 -- - Insert one actual row into public.school_lesson_records.
 -- - Source must be one existing school planned lesson.
+-- - Source planned lesson must not be soft-voided.
 -- - The inserted actual row must set planned_lesson_id to the source planned id.
 -- - actual status is fixed to cancelled.
 -- - Cancelled actual rows are fixed to non-billable with lesson_fee = 0
@@ -109,6 +110,10 @@ begin
 
   if v_planned.lesson_type <> 'planned' then
     raise exception '只能从 planned 课时生成取消 actual。';
+  end if;
+
+  if v_planned.voided_at is not null then
+    raise exception '该预定课时已作废，不能生成 cancelled actual。';
   end if;
 
   if v_planned.status not in ('planned', 'pending_makeup') then
@@ -337,7 +342,7 @@ comment on function public.school_create_cancelled_actual_lesson_from_planned(
   text,
   text
 ) is
-  'Creates one non-billable cancelled actual school lesson linked to one planned lesson. Rejects duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not modify planned records or generate settlement, wage, payment, income, expense, account, or account transaction rows.';
+  'Creates one non-billable cancelled actual school lesson linked to one planned lesson. Rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not modify planned records or generate settlement, wage, payment, income, expense, account, or account transaction rows.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

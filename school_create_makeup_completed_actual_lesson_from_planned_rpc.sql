@@ -2,11 +2,12 @@
 -- RPC: public.school_create_makeup_completed_actual_lesson_from_planned
 -- Purpose: Create one makeup_completed actual lesson linked to one planned lesson.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested, guard-tested, and commit-tested.
--- Version: v2.57.0-lesson-makeup-completed-actual-from-planned-full-autopilot-20260607
+-- Version: v2.63.0-lesson-planned-void-schema-rpc-20260609
 --
 -- Scope:
 -- - Insert one actual row into public.school_lesson_records.
 -- - Source must be one existing school planned lesson.
+-- - Source planned lesson must not be soft-voided.
 -- - The inserted actual row must set planned_lesson_id to the source planned id.
 -- - actual status is fixed to makeup_completed.
 -- - is_billable is explicitly supplied by the caller.
@@ -118,6 +119,10 @@ begin
 
   if v_planned.lesson_type <> 'planned' then
     raise exception '只能从 planned 课时生成补课完成 actual。';
+  end if;
+
+  if v_planned.voided_at is not null then
+    raise exception '该预定课时已作废，不能生成 makeup_completed actual。';
   end if;
 
   if v_planned.status not in ('planned', 'pending_makeup') then
@@ -365,7 +370,7 @@ comment on function public.school_create_makeup_completed_actual_lesson_from_pla
   text,
   text
 ) is
-  'Creates one makeup_completed actual school lesson linked to one planned lesson. Supports billable and non-billable makeup completion; non-billable rows use lesson_fee 0. Rejects duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not modify planned records or generate settlement, wage, payment, income, expense, account, or account transaction rows.';
+  'Creates one makeup_completed actual school lesson linked to one planned lesson. Supports billable and non-billable makeup completion; non-billable rows use lesson_fee 0. Rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not modify planned records or generate settlement, wage, payment, income, expense, account, or account transaction rows.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately
