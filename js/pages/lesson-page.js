@@ -352,7 +352,6 @@ function cacheDom() {
   dom.tableBody = document.querySelector("#lessonTableBody");
   dom.loadingState = document.querySelector("#lessonLoadingState");
   dom.emptyState = document.querySelector("#lessonEmptyState");
-  dom.lessonCount = document.querySelector("#lessonCount");
   dom.statsPlannedHours = document.querySelector("#lessonStatsPlannedHours");
   dom.statsActualHours = document.querySelector("#lessonStatsActualHours");
   dom.statsPlannedFee = document.querySelector("#lessonStatsPlannedFee");
@@ -1102,7 +1101,7 @@ function renderMasterOptions() {
 }
 
 function renderDataOptions(records) {
-  renderValueOptions(dom.lessonTypeSelect, distinctValues(records, "lesson_type"), lessonTypeLabel);
+  renderValueOptions(dom.lessonTypeSelect, ["planned", "actual"], lessonTypeLabel);
   renderLessonStatusFilterOptions(dom.statusSelect);
 }
 
@@ -1299,9 +1298,10 @@ async function handleCreatePlannedLessonSubmit() {
   setCreatePlannedLessonSubmitting(true);
 
   try {
+    const filtersBeforeSubmit = readFilters();
     const createdLesson = await createPlannedLessonRecord(payload);
     closeCreatePlannedLessonDialog(true);
-    await refreshAfterCreatePlannedLesson(createdLesson);
+    await refreshAfterCreatePlannedLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `预定课时已新增：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
     const message = error.message || String(error);
@@ -1374,31 +1374,9 @@ function readCreatePlannedLessonPayload() {
   };
 }
 
-async function refreshAfterCreatePlannedLesson(createdLesson) {
+async function refreshAfterCreatePlannedLesson(createdLesson, previousFilters = null) {
   const createdMonth = createdLesson.year_month || safeText(createdLesson.lesson_date).slice(0, 7);
-  if (createdMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
-  }
-
-  dom.lessonTypeSelect.value = "";
-  dom.statusSelect.value = "";
-  dom.billableSelect.value = "";
-  dom.keywordInput.value = "";
-
-  await loadLessonMonth(createdMonth || currentYearMonth(), { status: "" });
-  renderDataOptions(lessonRecords);
-  restoreFilterSelections({
-    month: createdMonth || loadedMonth,
-    studentId: createdLesson.student_id || "",
-    teacherId: "",
-    subjectId: "",
-    businessEntityId: "",
-    lessonType: "",
-    status: "",
-    isBillable: "",
-    keyword: "",
-  });
-  applyCurrentFilters();
+  await refreshLessonMonthPreservingFilters(createdMonth || currentYearMonth(), previousFilters);
 }
 
 function setCreatePlannedLessonSubmitting(isSubmitting) {
@@ -1591,9 +1569,10 @@ async function handleCreateActualLessonSubmit() {
   setCreateActualLessonSubmitting(true);
 
   try {
+    const filtersBeforeSubmit = readFilters();
     const createdLesson = await createActualLessonFromPlanned(payload);
     closeCreateActualLessonDialog(true);
-    await refreshAfterCreateActualLesson(createdLesson);
+    await refreshAfterCreateActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `实际课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
     const message = error.message || String(error);
@@ -1657,32 +1636,9 @@ function readCreateActualLessonPayload() {
   };
 }
 
-async function refreshAfterCreateActualLesson(createdLesson) {
+async function refreshAfterCreateActualLesson(createdLesson, previousFilters = null) {
   const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  if (createdMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
-  }
-
-  dom.lessonTypeSelect.value = "";
-  dom.statusSelect.value = "";
-  dom.billableSelect.value = "";
-  dom.keywordInput.value = "";
-
-  await loadLessonMonth(createdMonth, { status: "" });
-  renderDataOptions(lessonRecords);
-  restoreFilterSelections({
-    month: createdMonth,
-    studentId: createdLesson.student_id || currentActualSourceLesson?.student_id || "",
-    teacherId: "",
-    subjectId: "",
-    businessEntityId: "",
-    lessonType: "",
-    status: "",
-    isBillable: "",
-    keyword: "",
-  });
-  setActiveView("pair");
-  applyCurrentFilters();
+  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
 }
 
 async function refreshAfterVoidLesson(result, sourceLesson) {
@@ -1884,9 +1840,10 @@ async function handleCreateCancelledActualLessonSubmit() {
   setCreateCancelledActualLessonSubmitting(true);
 
   try {
+    const filtersBeforeSubmit = readFilters();
     const createdLesson = await createCancelledActualLessonFromPlanned(payload);
     closeCreateCancelledActualLessonDialog(true);
-    await refreshAfterCreateCancelledActualLesson(createdLesson);
+    await refreshAfterCreateCancelledActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `取消课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
     const message = error.message || String(error);
@@ -1947,32 +1904,9 @@ function readCreateCancelledActualLessonPayload() {
   };
 }
 
-async function refreshAfterCreateCancelledActualLesson(createdLesson) {
+async function refreshAfterCreateCancelledActualLesson(createdLesson, previousFilters = null) {
   const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  if (createdMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
-  }
-
-  dom.lessonTypeSelect.value = "";
-  dom.statusSelect.value = "";
-  dom.billableSelect.value = "";
-  dom.keywordInput.value = "";
-
-  await loadLessonMonth(createdMonth, { status: "" });
-  renderDataOptions(lessonRecords);
-  restoreFilterSelections({
-    month: createdMonth,
-    studentId: createdLesson.student_id || currentCancelledActualSourceLesson?.student_id || "",
-    teacherId: "",
-    subjectId: "",
-    businessEntityId: "",
-    lessonType: "",
-    status: "",
-    isBillable: "",
-    keyword: "",
-  });
-  setActiveView("pair");
-  applyCurrentFilters();
+  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
 }
 
 function setCreateCancelledActualLessonSubmitting(isSubmitting) {
@@ -2151,9 +2085,10 @@ async function handleCreateMakeupActualLessonSubmit() {
   setCreateMakeupActualLessonSubmitting(true);
 
   try {
+    const filtersBeforeSubmit = readFilters();
     const createdLesson = await createMakeupCompletedActualLessonFromPlanned(payload);
     closeCreateMakeupActualLessonDialog(true);
-    await refreshAfterCreateMakeupActualLesson(createdLesson);
+    await refreshAfterCreateMakeupActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `补课完成已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
     const message = error.message || String(error);
@@ -2220,32 +2155,9 @@ function readCreateMakeupActualLessonPayload() {
   };
 }
 
-async function refreshAfterCreateMakeupActualLesson(createdLesson) {
+async function refreshAfterCreateMakeupActualLesson(createdLesson, previousFilters = null) {
   const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  if (createdMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
-  }
-
-  dom.lessonTypeSelect.value = "";
-  dom.statusSelect.value = "";
-  dom.billableSelect.value = "";
-  dom.keywordInput.value = "";
-
-  await loadLessonMonth(createdMonth, { status: "" });
-  renderDataOptions(lessonRecords);
-  restoreFilterSelections({
-    month: createdMonth,
-    studentId: createdLesson.student_id || currentMakeupActualSourceLesson?.student_id || "",
-    teacherId: "",
-    subjectId: "",
-    businessEntityId: "",
-    lessonType: "",
-    status: "",
-    isBillable: "",
-    keyword: "",
-  });
-  setActiveView("pair");
-  applyCurrentFilters();
+  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
 }
 
 function setCreateMakeupActualLessonSubmitting(isSubmitting) {
@@ -2613,17 +2525,21 @@ function readCreateCrossMonthMakeupActualPayload() {
 
 async function refreshAfterCreateCrossMonthMakeupActual(createdLesson, previousFilters = null) {
   const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  if (createdMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
-  }
+  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
+}
 
+async function refreshLessonMonthPreservingFilters(targetMonth, previousFilters = null) {
+  const baseFilters = previousFilters || readFilters() || defaultLessonFilters();
+  const month = targetMonth || baseFilters.month || loadedMonth || currentYearMonth();
   const nextFilters = {
-    ...(previousFilters || readFilters() || defaultLessonFilters()),
-    month: createdMonth,
+    ...defaultLessonFilters(),
+    ...baseFilters,
+    month,
+    view: normalizeLessonView(baseFilters.view || activeView),
   };
 
-  await loadLessonMonth(createdMonth, nextFilters);
-  renderDataOptions(lessonRecords);
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, month);
+  await loadLessonMonth(month, nextFilters);
   restoreFilterSelections(nextFilters);
   syncLessonQueryUrl(nextFilters);
   applyCurrentFilters();
@@ -4818,9 +4734,6 @@ function displayImportPreviewNumber(value) {
 }
 
 function renderLessonRecords(records) {
-  if (dom.lessonCount) {
-    dom.lessonCount.textContent = `${records.length} 条`;
-  }
   dom.emptyState.classList.toggle("is-hidden", records.length > 0);
   syncViewVisibility();
 
