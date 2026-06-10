@@ -91,6 +91,24 @@ export async function fetchWageDetailPage(wageLockId) {
   };
 }
 
+export async function createTeacherWagePaymentRequest({
+  wageLockId,
+  dueDate = null,
+  note = null,
+}) {
+  const { data, error } = await supabase.rpc("school_create_teacher_wage_payment_request", {
+    p_wage_lock_id: wageLockId,
+    p_due_date: dueDate || null,
+    p_note: note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.[0] || null;
+}
+
 async function fetchWageLock(wageLockId) {
   const { data, error } = await supabase
     .from("school_teacher_wage_locks")

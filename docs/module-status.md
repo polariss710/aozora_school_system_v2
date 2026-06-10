@@ -25,7 +25,7 @@ Completion snapshot:
 | --- | --- | --- |
 | 课时管理 | 已收口 | 13/13 |
 | 学生月度结算 | 已收口 | 8/8 |
-| 老师工资结算 | V1 可用 | 6/6 |
+| 老师工资结算 | V1 可用 | 7/7 |
 | 账户管理 | V1 可用 | 8/9 |
 | 收入记录 | V1 可用 | 3/6 |
 | 支出记录 | V1 可用 | 5/9 |
@@ -67,14 +67,14 @@ Completion snapshot:
 ## 老师工资结算
 
 - 状态标签: V1 可用
-- 完成度: 6/6
-- 已完成: wage lock list and wage lock detail are complete; detail shows saved wage lock snapshot, wage lock details, and related payment requests. Teacher wage generation MVP is available from `wage.html` through API-layer wrapper `generateTeacherMonthlyWage` and verified RPC `school_generate_teacher_monthly_wage`.
-- 可写入功能: `wage.html` can generate a locked teacher wage snapshot for the selected month and optional selected teacher. Page writes go through `js/api/wage-api.js`; the page module does not call `.rpc()` directly and does not directly insert/update/delete/upsert rows. Teacher wage payment actions are handled by the payment module, not wage detail.
+- 完成度: 7/7
+- 已完成: wage lock list and wage lock detail are complete; detail shows saved wage lock snapshot, wage lock details, and related payment requests. Teacher wage generation MVP is available from `wage.html` through API-layer wrapper `generateTeacherMonthlyWage` and verified RPC `school_generate_teacher_monthly_wage`. Teacher wage payment request generation from a wage lock is available from `wage-detail.html` through API-layer wrapper `createTeacherWagePaymentRequest` and verified RPC `school_create_teacher_wage_payment_request`.
+- 可写入功能: `wage.html` can generate a locked teacher wage snapshot for the selected month and optional selected teacher. `wage-detail.html` can generate one pending teacher wage payment request from a locked, non-voided wage lock that has no existing teacher_wage payment request. Page writes go through `js/api/wage-api.js` / `js/api/wage-detail-api.js`; page modules do not call `.rpc()` directly and do not directly insert/update/delete/upsert rows. Payment confirmation and payment status actions are handled by the payment module.
 - 只读/预览功能: monthly wage lock list, teacher/business filters, wage detail snapshot, payment request references.
 - guard/锁定保护: wage detail must not recalculate locks from current rules/lessons or mutate payment status. Lesson actual-from-planned and guarded edit flows guard locked teacher wage months and wage detail snapshots. The generation RPC rejects existing same-teacher same-month wage records, already-wage-detailed actual lessons, missing/duplicate active wage-rule matches, planned/cancelled/voided lessons, and same-teacher same-month candidates spanning multiple business entities.
 - 未完成: wage lock void/relock, wage recalculation/preview UI beyond the guarded generator, wage detail edit.
-- 已知限制: saved wage locks are treated as audit snapshots. Generation MVP has no preview UI, no payment request generation, no expense/account/income/student-settlement writes, no CNY/FX, no transport fee, and no classroom fee. Generated `lesson_count` equals detail row count; `is_billable=false` does not exclude teacher wage candidates.
-- 后续优先级: payment request generation remains a later payment-management phase. Wage void/relock, preview UI, multi-business same-teacher-month handling, CNY/FX, transport/classroom fee handling, and historical/backfill workflows remain backlog.
+- 已知限制: saved wage locks are treated as audit snapshots. Generation MVP has no preview UI, no expense/account/income/student-settlement writes, no CNY/FX, no transport fee, and no classroom fee. Payment request generation only creates a pending request; it does not confirm payment, generate expenses, write account transactions, change account balances, write income, or write student settlements. Generated `lesson_count` equals detail row count; `is_billable=false` does not exclude teacher wage candidates.
+- 后续优先级: payment confirmation remains in the existing payment module. Wage void/relock, preview UI, multi-business same-teacher-month handling, CNY/FX, transport/classroom fee handling, and historical/backfill workflows remain backlog.
 
 ## 账户管理
 

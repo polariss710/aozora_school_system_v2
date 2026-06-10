@@ -1,11 +1,61 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: MVP implemented; payment request generation not implemented
+Status: MVP implemented; payment request generation implemented; payment confirmation remains separate
 Date: 2026-06-10
 
 ## 目标
 
-本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`。预览 UI、支付请求生成、工资锁扩展生命周期仍未实现。
+本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资锁生成待支付请求接入 `wage-detail.html`。预览 UI、支付确认、工资锁扩展生命周期仍未实现。
+
+## Payment request generation checkpoint
+
+2026-06-10 已新增并执行 `school_create_teacher_wage_payment_request_rpc.sql`，创建 verified RPC:
+
+`public.school_create_teacher_wage_payment_request(p_wage_lock_id uuid, p_due_date date default null, p_note text default null)`
+
+实现范围：
+
+- 来源为一条 `school_teacher_wage_locks` 工资锁快照。
+- 只接受 `status = locked` 且 `voided_at is null` 的工资锁。
+- 只写一条 `school_payment_requests`。
+- `source_type = teacher_wage`。
+- `source_id = wage_lock.id`。
+- `request_month = wage_lock.settlement_month`。
+- `payee_type = teacher`。
+- `payee_id = wage_lock.teacher_id`。
+- `payee_name = wage_lock.teacher_name`。
+- `business_entity_id` / `business_name` 来自工资锁。
+- `currency = JPY`，`amount = amount_jpy = wage_lock.total_jpy`，`amount_cny = wage_lock.total_cny`。
+- `status = pending`。
+- 拒绝已有任意 `source_type = teacher_wage` 且 `source_id = wage_lock.id` 的支付请求。
+- 拒绝 `total_jpy <= 0` 的工资锁，避免生成无法确认支付的 0 金额请求。
+
+边界：
+
+- 不确认支付。
+- 不生成支出。
+- 不写账户流水。
+- 不扣账户余额。
+- 不写收入。
+- 不写学生结算。
+- 不修改课时、工资锁或工资明细。
+- 不新增 DB-level source unique 约束，因为现有 reissue 链路允许同源历史请求链。
+
+页面接入：
+
+- `wage-detail.html` 在无关联支付请求、工资锁已锁定且金额大于 0 时显示 `生成支付请求`。
+- 页面通过 `js/api/wage-detail-api.js` 的 `createTeacherWagePaymentRequest` 调用 RPC。
+- 页面模块不直接 `.rpc()`，也不直接 insert/update/delete/upsert。
+- 成功后刷新工资详情，关联支付请求区域显示待支付请求，并提供 `payment-detail.html` 链接。
+- 生成后隐藏入口，避免同一工资锁重复生成初始支付请求。
+
+验证记录：
+
+- Rollback test 使用 wage lock `7c367bf0-a2c8-467f-91c8-fb1e237fac51`，临时 payment request `969968cd-6f06-4bae-adde-3d3567b97fb1`，验证字段、重复 guard 和保护表计数，然后 rollback 后 source payment residue 为 `0`。
+- Whitelist SQL commit test 使用 wage lock `f5fe1fe3-f9e1-45d4-ac50-270c9b609d58`，创建 payment request `753d043d-9b3e-47c0-8e0c-e8d5a582aa42`。
+- Browser UI commit test 使用 wage lock `7c367bf0-a2c8-467f-91c8-fb1e237fac51`，创建 payment request `8421a278-2e84-4f8b-ba01-6e9869f0bd3c`。
+- 两条持久请求均为 `pending`，金额 `JPY 15400`，无 `paid_expense_id`、`paid_account_transaction_id`、`account_id`。
+- Protected counts after SQL + UI commits: payment requests `68`, expenses `44`, accounts `12`, account transactions `235`, income `17`, student monthly settlements `14`.
 
 ## API/UI MVP checkpoint
 
@@ -91,7 +141,7 @@ Guard：
 后续仍需：
 
 - 只读候选/错误预览 UI。
-- 支付请求生成独立阶段。
+- 支付确认、支出生成、账户流水生成仍是独立阶段。
 - 多业务归属同老师同月、CNY/FX、交通费、教室费、void/relock、历史 backfill/cleanup 的单独设计。
 
 ## 已确认现状

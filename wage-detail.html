@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">工资快照</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -77,9 +77,12 @@
           </section>
 
           <section class="panel" aria-labelledby="wageDetailPaymentTitle">
-            <div class="section-heading">
-              <h2 id="wageDetailPaymentTitle">关联支付请求</h2>
-              <p class="section-note">仅显示 source_type = teacher_wage 且 source_id 为当前工资锁定记录的支付请求。这里不提供确认支付、撤销或重新生成操作。</p>
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="wageDetailPaymentTitle">关联支付请求</h2>
+                <p class="section-note">仅显示 source_type = teacher_wage 且 source_id 为当前工资锁定记录的支付请求。支付确认、撤销、取消、恢复和重新生成仍在老师工资支付模块处理。</p>
+              </div>
+              <button class="button button-primary is-hidden" id="openCreatePaymentRequestButton" type="button">生成支付请求</button>
             </div>
             <div id="wageDetailPaymentRequests" class="detail-list"></div>
           </section>
@@ -123,6 +126,33 @@
       </main>
     </div>
 
-    <script type="module" src="./js/wage-detail-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="createPaymentRequestDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createPaymentRequestTitle">
+        <div class="section-heading">
+          <h2 id="createPaymentRequestTitle">生成老师工资支付请求</h2>
+          <p class="section-note">从当前老师工资锁定快照生成一条待支付请求。</p>
+        </div>
+
+        <div id="createPaymentRequestSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning">
+          本操作只写入支付请求。不会确认支付，不会生成支出，不会写账户流水，不会扣账户余额，不会写收入或学生结算。生成后请到老师工资支付模块继续处理支付确认。
+        </div>
+
+        <div id="createPaymentRequestError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <label class="field confirm-check" data-create-payment-request-field="confirm">
+          <input id="createPaymentRequestConfirmCheckbox" type="checkbox">
+          <span>我确认从当前工资锁定记录生成一条待支付请求，且理解同一工资锁不能重复生成初始支付请求。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="createPaymentRequestSubmitButton" type="button">确认生成</button>
+          <button class="button" id="createPaymentRequestCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/wage-detail-app.js?v=v2.82.0-wage-payment-request-ui-20260610"></script>
   </body>
 </html>

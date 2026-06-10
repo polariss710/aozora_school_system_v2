@@ -1,5 +1,8 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchWageDetailPage } from "../api/wage-detail-api.js";
+import {
+  createTeacherWagePaymentRequest,
+  fetchWageDetailPage,
+} from "../api/wage-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const WAGE_STATUS_LABELS = {
@@ -26,9 +29,11 @@ const PAYMENT_REQUEST_STATUS_LABELS = {
 };
 
 const dom = {};
+let detailData = null;
 
 export function initWageDetailPage() {
   cacheDom();
+  bindEvents();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -59,9 +64,31 @@ function cacheDom() {
   dom.summaryInfo = document.querySelector("#wageDetailSummaryInfo");
   dom.systemInfo = document.querySelector("#wageDetailSystemInfo");
   dom.paymentRequests = document.querySelector("#wageDetailPaymentRequests");
+  dom.openCreatePaymentRequestButton = document.querySelector("#openCreatePaymentRequestButton");
+  dom.createPaymentRequestDialog = document.querySelector("#createPaymentRequestDialog");
+  dom.createPaymentRequestSummary = document.querySelector("#createPaymentRequestSummary");
+  dom.createPaymentRequestError = document.querySelector("#createPaymentRequestError");
+  dom.createPaymentRequestConfirmCheckbox = document.querySelector("#createPaymentRequestConfirmCheckbox");
+  dom.createPaymentRequestSubmitButton = document.querySelector("#createPaymentRequestSubmitButton");
+  dom.createPaymentRequestCancelButton = document.querySelector("#createPaymentRequestCancelButton");
   dom.rowCount = document.querySelector("#wageDetailRowCount");
   dom.rowEmpty = document.querySelector("#wageDetailRowEmpty");
   dom.rows = document.querySelector("#wageDetailRows");
+}
+
+function bindEvents() {
+  dom.openCreatePaymentRequestButton?.addEventListener("click", openCreatePaymentRequestDialog);
+  dom.createPaymentRequestCancelButton?.addEventListener("click", closeCreatePaymentRequestDialog);
+  dom.createPaymentRequestSubmitButton?.addEventListener("click", submitCreatePaymentRequest);
+  dom.createPaymentRequestDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.createPaymentRequestDialog) {
+      closeCreatePaymentRequestDialog();
+    }
+  });
+  dom.createPaymentRequestConfirmCheckbox?.addEventListener("change", () => {
+    setCreatePaymentRequestFieldInvalid("confirm", false);
+    hideCreatePaymentRequestErrorIfClean();
+  });
 }
 
 function readWageLockId() {
@@ -75,11 +102,12 @@ async function loadWageDetail(wageLockId) {
   showMessage("info", "正在加载老师工资结算详情...");
 
   try {
-    const data = await fetchWageDetailPage(wageLockId);
-    renderWageDetail(data);
+    detailData = await fetchWageDetailPage(wageLockId);
+    renderWageDetail(detailData);
     setContentVisible(true);
     showMessage("success", "老师工资结算详情已加载。");
   } catch (error) {
+    detailData = null;
     setContentVisible(false);
     showMessage("error", `读取老师工资结算详情失败：${error.message || error}`);
   } finally {
@@ -143,12 +171,99 @@ function renderWageDetail(data) {
   ]);
 
   renderPaymentRequests(paymentRequests);
+  renderCreatePaymentRequestAction(wageLock, paymentRequests);
   renderDetailRows(details);
+}
+
+function renderCreatePaymentRequestAction(wageLock, paymentRequests) {
+  const canCreate = wageLock.status === "locked"
+    && !wageLock.voided_at
+    && Number(wageLock.total_jpy || 0) > 0
+    && paymentRequests.length === 0;
+
+  dom.openCreatePaymentRequestButton.classList.toggle("is-hidden", !canCreate);
+}
+
+function openCreatePaymentRequestDialog() {
+  const wageLock = detailData?.wageLock;
+  const paymentRequests = detailData?.paymentRequests || [];
+
+  if (!wageLock) {
+    showMessage("error", "工资锁定记录尚未加载。");
+    return;
+  }
+
+  if (paymentRequests.length > 0) {
+    showMessage("error", "该工资锁定记录已有关联支付请求，不能重复生成。");
+    return;
+  }
+
+  if (wageLock.status !== "locked" || wageLock.voided_at) {
+    showMessage("error", "只有未作废的已锁定工资记录可以生成支付请求。");
+    return;
+  }
+
+  if (Number(wageLock.total_jpy || 0) <= 0) {
+    showMessage("error", "工资结算金额为 0，不能生成支付请求。");
+    return;
+  }
+
+  hideCreatePaymentRequestError();
+  setCreatePaymentRequestFieldInvalid("confirm", false);
+  dom.createPaymentRequestConfirmCheckbox.checked = false;
+  dom.createPaymentRequestSummary.innerHTML = renderCreatePaymentRequestSummary(wageLock);
+  dom.createPaymentRequestDialog.classList.remove("is-hidden");
+  dom.createPaymentRequestDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeCreatePaymentRequestDialog(force = false) {
+  if (!force && dom.createPaymentRequestSubmitButton.disabled) {
+    return;
+  }
+
+  dom.createPaymentRequestDialog.classList.add("is-hidden");
+  dom.createPaymentRequestDialog.setAttribute("aria-hidden", "true");
+  dom.createPaymentRequestConfirmCheckbox.checked = false;
+  hideCreatePaymentRequestError();
+  setCreatePaymentRequestFieldInvalid("confirm", false);
+}
+
+async function submitCreatePaymentRequest() {
+  const wageLock = detailData?.wageLock;
+  if (!wageLock) {
+    showCreatePaymentRequestError("工资锁定记录尚未加载。");
+    return;
+  }
+
+  if (!dom.createPaymentRequestConfirmCheckbox.checked) {
+    showCreatePaymentRequestError("请先勾选确认说明。", ["confirm"]);
+    return;
+  }
+
+  setCreatePaymentRequestSubmitting(true);
+  hideCreatePaymentRequestError();
+
+  try {
+    const paymentRequest = await createTeacherWagePaymentRequest({
+      wageLockId: wageLock.id,
+    });
+
+    await loadWageDetail(wageLock.id);
+    closeCreatePaymentRequestDialog(true);
+    showMessage(
+      "success",
+      `老师工资支付请求已生成：${shortId(paymentRequest?.payment_request_id)} / ${formatCurrency(paymentRequest?.amount, paymentRequest?.currency || "JPY")}。`
+    );
+  } catch (error) {
+    showCreatePaymentRequestError(formatCreatePaymentRequestError(error));
+  } finally {
+    setCreatePaymentRequestSubmitting(false);
+  }
 }
 
 function renderPaymentRequests(requests) {
   if (!requests.length) {
-    dom.paymentRequests.innerHTML = '<div class="state-text">无关联支付请求。</div>';
+    dom.paymentRequests.innerHTML = '<div class="state-text">尚未生成支付请求。</div>';
     return;
   }
 
@@ -158,6 +273,7 @@ function renderPaymentRequests(requests) {
         <strong>${escapeHtml(shortId(request.id))}</strong>
         <span class="status-badge ${escapeAttribute(paymentRequestStatusClass(request.status))}">${escapeHtml(paymentRequestStatusLabel(request.status))}</span>
       </div>
+      <p><a class="table-action-button" href="./payment-detail.html?id=${encodeURIComponent(request.id)}">支付请求详情</a></p>
       ${request.status === "reversed" || request.status === "void" ? '<p class="section-note">该支付请求已撤销或作废；本页仅展示工资支付状态链，不提供任何支付操作。</p>' : ""}
       ${renderDefinitionList([
         ["请求月份", formatMonth(request.request_month)],
@@ -177,6 +293,73 @@ function renderPaymentRequests(requests) {
       ${request.paid_expense_id ? `<p><a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(request.paid_expense_id)}">支出详情</a></p>` : ""}
     </article>
   `).join("");
+}
+
+function renderCreatePaymentRequestSummary(wageLock) {
+  return [
+    renderDialogSummaryRow("工资月份", formatMonth(wageLock.settlement_month)),
+    renderDialogSummaryRow("老师", displayValue(wageLock.teacher_name)),
+    renderDialogSummaryRow("业务归属", displayValue(wageLock.business_name)),
+    renderDialogSummaryRow("支付对象", "老师"),
+    renderDialogSummaryRow("请求金额", formatCurrency(wageLock.total_jpy, "JPY")),
+    renderDialogSummaryRow("来源", `工资锁 ${shortId(wageLock.id)}`),
+  ].join("");
+}
+
+function renderDialogSummaryRow(label, value) {
+  return `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(value)}</span>
+    </div>
+  `;
+}
+
+function formatCreatePaymentRequestError(error) {
+  const message = error?.message || String(error || "");
+
+  if (message.includes("already exists")) {
+    return `生成失败：该工资锁定记录已有关联支付请求，不能重复生成。${message}`;
+  }
+
+  if (message.includes("total_jpy")) {
+    return `生成失败：工资结算金额必须大于 0。${message}`;
+  }
+
+  return `生成失败：${message}`;
+}
+
+function setCreatePaymentRequestSubmitting(isSubmitting) {
+  dom.createPaymentRequestSubmitButton.disabled = isSubmitting;
+  dom.createPaymentRequestCancelButton.disabled = isSubmitting;
+  dom.openCreatePaymentRequestButton.disabled = isSubmitting;
+  dom.createPaymentRequestSubmitButton.textContent = isSubmitting ? "生成中..." : "确认生成";
+}
+
+function showCreatePaymentRequestError(message, fieldIds = []) {
+  dom.createPaymentRequestError.textContent = message;
+  dom.createPaymentRequestError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreatePaymentRequestFieldInvalid(fieldId, true);
+  }
+  dom.createPaymentRequestDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function hideCreatePaymentRequestError() {
+  dom.createPaymentRequestError.textContent = "";
+  dom.createPaymentRequestError.classList.add("is-hidden");
+}
+
+function hideCreatePaymentRequestErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createPaymentRequestDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    hideCreatePaymentRequestError();
+  }
+}
+
+function setCreatePaymentRequestFieldInvalid(fieldId, isInvalid) {
+  const field = dom.createPaymentRequestDialog.querySelector(`[data-create-payment-request-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", isInvalid);
 }
 
 function renderDetailRows(rows) {
