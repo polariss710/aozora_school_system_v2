@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.80.0-cross-month-makeup-ui-20260610">
+    <link rel="stylesheet" href="./css/app.css?v=v2.82.0-lesson-settlement-core-20260610">
   </head>
   <body>
     <div class="app-shell">
@@ -121,6 +121,41 @@
           </form>
         </section>
 
+        <section class="summary-grid lesson-stats-grid" aria-label="课时统计">
+          <div class="summary-card">
+            <span>预定课时</span>
+            <strong id="lessonStatsPlannedHours">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>实际课时</span>
+            <strong id="lessonStatsActualHours">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>预定课时费</span>
+            <strong id="lessonStatsPlannedFee">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>实际课时费</span>
+            <strong id="lessonStatsActualFee">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>已上课数量</span>
+            <strong id="lessonStatsCompletedCount">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>取消数量</span>
+            <strong id="lessonStatsCancelledCount">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>待补课数量</span>
+            <strong id="lessonStatsPendingMakeupCount">-</strong>
+          </div>
+          <div class="summary-card">
+            <span>记录数量</span>
+            <strong id="lessonStatsRecordCount">-</strong>
+          </div>
+        </section>
+
         <section class="panel" aria-labelledby="lessonListTitle">
           <div class="section-heading section-heading-row lesson-list-heading">
             <div>
@@ -133,9 +168,9 @@
                 <button class="button view-toggle-button" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="false">普通列表</button>
               </div>
               <button class="button" id="openLessonImportPreviewButton" type="button">导入预定课时</button>
+              <button class="button" id="openLessonPdfExportButton" type="button">导出学生课时 PDF</button>
               <button class="button" id="openCrossMonthMakeupDialogButton" type="button">登记跨月补课完成</button>
-              <button class="button button-primary" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
-              <span id="lessonCount" class="record-count">0 条</span>
+              <button class="button button-primary lesson-create-primary-button" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
             </div>
           </div>
 
@@ -179,6 +214,37 @@
           </div>
         </section>
       </main>
+
+      <div class="dialog-backdrop is-hidden" id="lessonPdfExportDialog" aria-hidden="true">
+        <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonPdfExportTitle">
+          <div class="section-heading">
+            <h2 id="lessonPdfExportTitle">导出学生课时 PDF</h2>
+            <p class="section-note">按 DB 课时记录和统计口径生成打印页；浏览器打印时选择保存为 PDF。</p>
+          </div>
+
+          <div id="lessonPdfExportError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <label class="field" data-lesson-pdf-export-field="student">
+            <span>学生</span>
+            <select id="lessonPdfExportStudentSelect"></select>
+          </label>
+
+          <label class="field" data-lesson-pdf-export-field="mode">
+            <span>导出内容</span>
+            <select id="lessonPdfExportModeSelect">
+              <option value="actual_current">本月实际课时</option>
+              <option value="planned_next">下个月预定课时</option>
+            </select>
+          </label>
+
+          <div id="lessonPdfExportSummary" class="dialog-summary"></div>
+
+          <div class="dialog-actions">
+            <button class="button button-primary" id="lessonPdfExportSubmitButton" type="button">生成打印页</button>
+            <button class="button" id="lessonPdfExportCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
 
       <div class="dialog-backdrop is-hidden" id="createPlannedLessonDialog" aria-hidden="true">
         <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createPlannedLessonTitle">
@@ -833,6 +899,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.80.0-cross-month-makeup-ui-20260610"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.82.0-lesson-settlement-core-20260610"></script>
   </body>
 </html>

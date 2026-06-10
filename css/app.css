@@ -268,6 +268,23 @@ h2 {
   gap: 8px;
 }
 
+.lesson-stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.lesson-list-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lesson-create-primary-button {
+  min-width: 180px;
+}
+
 .student-filter-actions,
 .income-filter-actions,
 .expense-filter-actions,
@@ -338,6 +355,23 @@ h2 {
   border-radius: 8px;
   padding: 14px;
   background: #fbfcfe;
+}
+
+.summary-card > span {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.summary-card > strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .summary-card-title {
@@ -1845,6 +1879,10 @@ h2 {
   }
 
   .filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .month-select-group {
     grid-template-columns: minmax(0, 1fr);
   }
 

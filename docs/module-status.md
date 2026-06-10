@@ -23,8 +23,8 @@ Completion snapshot:
 
 | Module | Status | Completion |
 | --- | --- | --- |
-| 课时管理 | 已收口 | 13/13 |
-| 学生月度结算 | 已收口 | 8/8 |
+| 课时管理 | 已收口 | 15/15 |
+| 学生月度结算 | 已收口 | 10/10 |
 | 老师工资结算 | V1 可用 | 7/7 |
 | 账户管理 | V1 可用 | 8/9 |
 | 收入记录 | V1 可用 | 3/6 |
@@ -38,31 +38,31 @@ Completion snapshot:
 ## 课时管理
 
 - 状态标签: 已收口
-- 完成度: 13/13
+- 完成度: 15/15
 - V1 边界: 课时管理 V1 基本收口。当前运营主线以 planned-only 课时导入作为核心稳定源头；当前 v2 普通新增/导入仍保持 planned-only，不恢复 v1 那种普通新增时自由选择预定/实际的宽入口。actual 生成、取消、补课完成和 linked actual 编辑都依托 planned 源头及其 guard 语义。当前运营中生成实际课时后，如发现日期、时间、金额、内容、备注等问题，优先通过 guarded edit 修正，而不是删除重建。
-- 已完成: ordinary list, planned/actual paired view, detail page, planned lesson creation V1, completed/cancelled/makeup_completed actual-from-planned V1, guarded edit V1, planned-only void V1, cross-month makeup_completed API/UI V1, voided planned readonly filter/detail, lesson import preview, planned-only batch import, planned-only Excel template export, detail return-query navigation, and settlement/wage evidence links.
+- 已完成: ordinary list, planned/actual paired view, DB-sourced top stats, student lesson PDF print export, detail page, planned lesson creation V1, completed/cancelled/makeup_completed actual-from-planned V1, guarded edit V1, planned-only void V1, cross-month makeup_completed API/UI V1, voided planned readonly filter/detail, lesson import preview, planned-only batch import, planned-only Excel template export, detail return-query navigation, and settlement/wage evidence links.
 - 可写入功能: create planned lesson, create completed actual from planned, create cancelled actual from planned, makeup_completed actual from planned, cross-month makeup_completed actual from earlier pending_makeup planned, planned-only batch import, guarded lesson edit, planned-only void. All exposed page writes go through `js/api/lesson-api.js` and verified RPCs.
-- 只读/预览功能: list, paired view, detail, cross-month makeup source candidate lookup, cross-month source/target reference display, import preview, planned-ID/lock precheck for import, voided planned review, source-chain and settlement/wage reference display.
+- 只读/预览功能: list, paired view, DB-sourced lesson stats, student actual/planned lesson PDF print export, detail, cross-month makeup source candidate lookup, cross-month source/target reference display, import preview, planned-ID/lock precheck for import, voided planned review, source-chain and settlement/wage reference display.
 - guard/锁定保护: planned/actual write RPCs guard locked student settlement months and locked teacher wage months where applicable; guarded edit blocks voided rows, linked actual/source master-data changes, stale `updated_at`, settlement locks, wage locks, and wage detail snapshots; planned void blocks linked actuals, locked settlement months, stale rows, already-voided rows, invalid lesson type/status, and blank reasons.
 - 当前不处理历史数据: 历史维护继续由 v1 或单独 migration/backlog 处理；full actual import 保持 future/history migration backlog，不进入当前实现。
 - 跨月待补课高优先级: 已完成 DB/RPC + API/UI V1。`school_create_cross_month_makeup_completed_actual_from_planned` 选择原月份 `pending_makeup` planned，并在补课月份生成 `makeup_completed` actual，`planned_lesson_id` 指向原 planned，不复制 planned/actual，不修改来源 planned，默认 `is_billable = false` 且页面固定金额 `0`，按目标 actual 月检查学生结算锁和老师工资锁。`lesson.html` 的独立入口从目标月份打开，来源范围只列出以前月份、未作废、无 linked actual 的 `pending_makeup` planned；原月份 paired view 显示 `已于 YYYY-MM 完成`，补课月份 paired view 显示 `来源：YYYY-MM 待补课`。
 - 跨月补课收口回归: 2026-06-10 rollback tests verified source-month student settlement lock is allowed when target month is unlocked, target-month student settlement lock is rejected, and target-month teacher wage lock is rejected; browser read-only regression verified linked sources disappear from candidates, source month hides `补课完成`, target/source paired references render correctly, and non-billable cross-month actuals do not enter student settlement actual fee/hours.
 - 完成态 checkpoint: 2026-06-10 docs-only consistency pass explicitly marks 课时管理 V1 = 完成 / 已验证, planned-only 导入 = 完成 / 当前稳定源头, 学生月度结算 V1 = 完成 / 已验证, and 跨月补课完成登记 = 完成 / 已验证. Full actual import remains future/history migration backlog; whitelist/codex-test cleanup remains deferred cleanup.
-- 未完成: free actual creation outside planned flow, full actual batch import, lesson delete, void restore, `voided_by`, expanded wage-lock lifecycle beyond the completed generation MVP, settlement adjustment/generation beyond completed settlement V1, auto-matching by student/teacher/subject/date/time, same-file planned/actual linking.
+- 未完成: free actual creation outside planned flow, full actual batch import, lesson delete, void restore, `voided_by`, expanded wage-lock lifecycle beyond the completed generation MVP, auto-matching by student/teacher/subject/date/time, same-file planned/actual linking.
 - 已知限制: planned-only import accepts only planned rows with `planned` / `pending_makeup`; actual rows may still be previewed/prechecked for future design but planned-only submit blocks them. Batch import does not use teacher wage lock protection because planned rows do not set actual teacher settlement month. Lesson delete remains backlog but is not a current operational must-have because guarded edit covers ordinary post-generation corrections.
 - 后续优先级: keep planned-only import, cross-month makeup completion, and teacher wage generation MVP as stable V1 surfaces; next-stage candidates are payment management follow-up enhancements, weekly plan image export, full actual import / history migration, whitelist/codex-test deferred cleanup, and DB-level linked-actual unique/index only after read-only duplicate-risk verification. Each remains a separate guarded phase.
 
 ## 学生月度结算
 
 - 状态标签: 已收口
-- 完成度: 8/8
-- 已完成: V1 is closed for current/future operations: realtime preview, preview -> locked snapshot, soft unlock, same-row relock, list/detail status display, guard documentation, and closure self-check.
-- 可写入功能: lock from preview, unlock locked settlement, relock unlocked settlement. Writes are centralized in `js/api/settlement-api.js` through `school_lock_student_monthly_settlement`, `school_unlock_student_monthly_settlement`, and `school_relock_student_monthly_settlement`.
-- 只读/预览功能: settlement list, detail page, realtime preview rows, read-only summary RPC `school_get_student_monthly_settlement_summary`, saved snapshot detail plus matching lesson/income references.
-- guard/锁定保护: locked settlements block lesson edit, planned void, actual generation, tuition income create, and tuition income reverse through existing RPC guards; unlocked settlements release those guards until relock. Active carryovers using the settlement as source block unlock/relock.
-- 未完成: multi-version snapshot/history, adjustment editing, carryover automatic revoke/rebuild, historical migration/repair, whitelist test data cleanup.
-- 已知限制: current unique key remains `student_id + year_month`; lock remains insert-only; unlock/relock reuse the same snapshot row and do not mutate lesson/income/account/wage/payment/expense rows. Historical maintenance remains in v1.
-- 后续优先级: no immediate V1 work; future adjustment or carryover automation must be separately designed.
+- 完成度: 10/10
+- 已完成: V1 is closed for current/future operations: realtime preview, preview -> locked snapshot, soft unlock, same-row relock, guarded difference adjustment audit, previous locked snapshot carryover reading, list/detail status display, guard documentation, and closure self-check.
+- 可写入功能: lock from preview, unlock locked settlement, relock unlocked settlement, and append posted difference adjustment records. Writes are centralized in `js/api/settlement-api.js` through `school_lock_student_monthly_settlement`, `school_unlock_student_monthly_settlement`, `school_relock_student_monthly_settlement`, and `school_apply_student_monthly_settlement_adjustment`.
+- 只读/预览功能: settlement list, detail page, realtime preview rows, read-only summary RPC `school_get_student_monthly_settlement_summary`, saved snapshot detail plus matching lesson/income/adjustment references.
+- guard/锁定保护: locked settlements block lesson edit, planned void, actual generation, tuition income create, and tuition income reverse through existing RPC guards; unlocked settlements release those guards until relock. Active carryovers using the settlement as source block unlock/relock and block new adjustments. Posted adjustment records block unlock/relock recalculation for that snapshot.
+- 未完成: multi-version snapshot/history, adjustment reversal/void, carryover automatic revoke/rebuild, historical migration/repair, whitelist test data cleanup.
+- 已知限制: current unique key remains `student_id + year_month`; lock remains insert-only; unlock/relock reuse the same snapshot row and do not mutate lesson/income/account/wage/payment/expense rows. Difference adjustment is append-only posted audit in `school_student_settlement_adjustments`; it updates only the settlement adjustment/carryover fields. Historical maintenance remains in v1.
+- 后续优先级: no immediate V1 work; future adjustment reversal, carryover rebuild, or multi-version history must be separately designed.
 
 ## 老师工资结算
 

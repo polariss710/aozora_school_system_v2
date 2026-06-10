@@ -83,13 +83,30 @@ const INCOME_COLUMNS = [
   "include_in_student_settlement",
 ].join(",");
 
+const ADJUSTMENT_COLUMNS = [
+  "id",
+  "settlement_id",
+  "student_id",
+  "year_month",
+  "business_entity_id",
+  "adjustment_amount_cny",
+  "adjustment_source",
+  "adjustment_reason",
+  "note",
+  "status",
+  "created_by",
+  "created_at",
+  "updated_at",
+].join(",");
+
 export async function fetchSettlementDetailPage(settlementId) {
   const settlement = await fetchSettlement(settlementId);
 
-  const [lookups, lessons, incomes] = await Promise.all([
+  const [lookups, lessons, incomes, adjustments] = await Promise.all([
     fetchSettlementDetailLookups(),
     fetchLessonReferences(settlement),
     fetchIncomeReferences(settlement),
+    fetchAdjustmentReferences(settlement.id),
   ]);
 
   return {
@@ -97,6 +114,7 @@ export async function fetchSettlementDetailPage(settlementId) {
     lookups,
     lessons,
     incomes,
+    adjustments,
   };
 }
 
@@ -148,6 +166,21 @@ async function fetchIncomeReferences(settlement) {
     .eq("include_in_student_settlement", true)
     .order("income_date", { ascending: true })
     .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function fetchAdjustmentReferences(settlementId) {
+  const { data, error } = await supabase
+    .from("school_student_settlement_adjustments")
+    .select(ADJUSTMENT_COLUMNS)
+    .eq("settlement_id", settlementId)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) {
     throw error;

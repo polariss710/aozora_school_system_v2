@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生月度结算详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.82.0-lesson-settlement-core-20260610">
   </head>
   <body>
     <div class="app-shell">
@@ -46,6 +46,7 @@
             </div>
             <div class="table-action-group">
               <span id="settlementDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button is-hidden" id="openSettlementAdjustmentButton" type="button">差额调整</button>
               <button class="button button-danger is-hidden" id="openUnlockSettlementButton" type="button">撤销锁定</button>
               <button class="button button-primary is-hidden" id="openRelockSettlementButton" type="button">重新锁定</button>
               <a class="button" href="./settlement.html">返回学生月度结算</a>
@@ -94,6 +95,33 @@
               <h2 id="settlementDetailNoteTitle">备注 / 调整理由</h2>
             </div>
             <div id="settlementDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="settlementDetailAdjustmentTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="settlementDetailAdjustmentTitle">差额调整记录</h2>
+                <p class="section-note">以下为当前结算快照的差额调整审计记录；本页不根据记录重新计算结算结果。</p>
+              </div>
+              <span id="settlementDetailAdjustmentCount" class="record-count">0 条</span>
+            </div>
+            <div id="settlementDetailAdjustmentEmpty" class="state-text is-hidden">无差额调整记录。</div>
+            <div class="table-scroll">
+              <table class="payment-table settlement-detail-income-table">
+                <thead>
+                  <tr>
+                    <th>创建时间</th>
+                    <th>金额 CNY</th>
+                    <th>来源</th>
+                    <th>理由</th>
+                    <th>备注</th>
+                    <th>状态</th>
+                    <th>调整 ID</th>
+                  </tr>
+                </thead>
+                <tbody id="settlementDetailAdjustmentRows"></tbody>
+              </table>
+            </div>
           </section>
 
           <section class="panel" aria-labelledby="settlementDetailLessonTitle">
@@ -194,7 +222,7 @@
 
         <label class="field confirm-check" data-detail-settlement-status-action-field="confirm">
           <input id="detailSettlementStatusActionConfirmCheckbox" type="checkbox">
-          <span>我确认只变更当前结算快照状态，不创建历史版本、不处理结转或调整。</span>
+          <span>我确认只变更当前结算快照状态，不创建历史版本；已有差额调整或有效结转时 RPC 会拒绝。</span>
         </label>
 
         <div class="dialog-actions">
@@ -204,6 +232,48 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-detail-app.js?v=v2.76.0-settlement-unlock-relock-frontend-20260609"></script>
+    <div id="detailSettlementAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="detailSettlementAdjustmentTitle">
+        <div class="section-heading">
+          <h2 id="detailSettlementAdjustmentTitle">记录差额调整</h2>
+          <p class="section-note">只写差额调整审计记录，并更新当前结算快照的调整金额与本月结转；不会修改课时、收入、账户、支出或工资。</p>
+        </div>
+
+        <div id="detailSettlementAdjustmentSummary" class="dialog-summary"></div>
+        <div id="detailSettlementAdjustmentError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <label class="field" data-detail-settlement-adjustment-field="amount">
+          <span>调整金额 CNY</span>
+          <input id="detailSettlementAdjustmentAmountInput" type="number" step="0.01" inputmode="decimal">
+        </label>
+
+        <label class="field" data-detail-settlement-adjustment-field="source">
+          <span>调整来源</span>
+          <input id="detailSettlementAdjustmentSourceInput" type="text" placeholder="例如：实际收款差额 / 手工调整">
+        </label>
+
+        <label class="field" data-detail-settlement-adjustment-field="reason">
+          <span>调整理由</span>
+          <textarea id="detailSettlementAdjustmentReasonInput" rows="3"></textarea>
+        </label>
+
+        <label class="field" data-detail-settlement-adjustment-field="note">
+          <span>备注</span>
+          <textarea id="detailSettlementAdjustmentNoteInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-detail-settlement-adjustment-field="confirm">
+          <input id="detailSettlementAdjustmentConfirmCheckbox" type="checkbox">
+          <span>确认该调整只用于当前学生月度结算快照；后续结转以调整后的本月结转为准。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="detailSettlementAdjustmentSubmitButton" type="button">确认记录调整</button>
+          <button class="button" id="detailSettlementAdjustmentCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/settlement-detail-app.js?v=v2.82.0-lesson-settlement-core-20260610"></script>
   </body>
 </html>

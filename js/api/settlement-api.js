@@ -291,3 +291,19 @@ export async function relockStudentMonthlySettlement(payload) {
 
   return Array.isArray(data) ? data[0] : data;
 }
+
+export async function applyStudentMonthlySettlementAdjustment(payload) {
+  const { data, error } = await supabase.rpc("school_apply_student_monthly_settlement_adjustment", {
+    p_settlement_id: payload.settlementId,
+    p_adjustment_amount_cny: payload.adjustmentAmountCny,
+    p_adjustment_source: payload.adjustmentSource || "manual",
+    p_adjustment_reason: payload.adjustmentReason,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] : data;
+}

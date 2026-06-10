@@ -11,8 +11,10 @@ import {
   fetchLessonBusinessEntities,
   fetchLessonImportLockPrecheck,
   fetchLessonImportPlannedReferences,
+  fetchLessonManagementStats,
   fetchLessonRecords,
   fetchLessonStudents,
+  fetchStudentLessonPdfExport,
   fetchLessonSubjects,
   fetchLessonTeachers,
   importPlannedLessonRecordsBatch,
@@ -248,6 +250,8 @@ let lessonEditController = null;
 let lessonVoidController = null;
 let isLessonPageInitialized = false;
 let initialLessonQueryFilters = null;
+let lessonStatsRequestId = 0;
+let isLessonPdfExportSubmitting = false;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
@@ -339,6 +343,7 @@ function cacheDom() {
   dom.listViewButton = document.querySelector("#lessonListViewButton");
   dom.pairViewButton = document.querySelector("#lessonPairViewButton");
   dom.openLessonImportPreviewButton = document.querySelector("#openLessonImportPreviewButton");
+  dom.openLessonPdfExportButton = document.querySelector("#openLessonPdfExportButton");
   dom.openCrossMonthMakeupDialogButton = document.querySelector("#openCrossMonthMakeupDialogButton");
   dom.openCreatePlannedLessonButton = document.querySelector("#openCreatePlannedLessonButton");
   dom.listView = document.querySelector("#lessonListView");
@@ -348,6 +353,21 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#lessonLoadingState");
   dom.emptyState = document.querySelector("#lessonEmptyState");
   dom.lessonCount = document.querySelector("#lessonCount");
+  dom.statsPlannedHours = document.querySelector("#lessonStatsPlannedHours");
+  dom.statsActualHours = document.querySelector("#lessonStatsActualHours");
+  dom.statsPlannedFee = document.querySelector("#lessonStatsPlannedFee");
+  dom.statsActualFee = document.querySelector("#lessonStatsActualFee");
+  dom.statsCompletedCount = document.querySelector("#lessonStatsCompletedCount");
+  dom.statsCancelledCount = document.querySelector("#lessonStatsCancelledCount");
+  dom.statsPendingMakeupCount = document.querySelector("#lessonStatsPendingMakeupCount");
+  dom.statsRecordCount = document.querySelector("#lessonStatsRecordCount");
+  dom.lessonPdfExportDialog = document.querySelector("#lessonPdfExportDialog");
+  dom.lessonPdfExportError = document.querySelector("#lessonPdfExportError");
+  dom.lessonPdfExportStudentSelect = document.querySelector("#lessonPdfExportStudentSelect");
+  dom.lessonPdfExportModeSelect = document.querySelector("#lessonPdfExportModeSelect");
+  dom.lessonPdfExportSummary = document.querySelector("#lessonPdfExportSummary");
+  dom.lessonPdfExportSubmitButton = document.querySelector("#lessonPdfExportSubmitButton");
+  dom.lessonPdfExportCancelButton = document.querySelector("#lessonPdfExportCancelButton");
   dom.lessonImportPreviewDialog = document.querySelector("#lessonImportPreviewDialog");
   dom.lessonImportPreviewError = document.querySelector("#lessonImportPreviewError");
   dom.lessonImportPreviewFileInput = document.querySelector("#lessonImportPreviewFileInput");
@@ -489,6 +509,20 @@ function bindEvents() {
   });
 
   dom.openLessonImportPreviewButton?.addEventListener("click", openLessonImportPreviewDialog);
+  dom.openLessonPdfExportButton?.addEventListener("click", openLessonPdfExportDialog);
+  dom.lessonPdfExportCancelButton?.addEventListener("click", () => closeLessonPdfExportDialog());
+  dom.lessonPdfExportSubmitButton?.addEventListener("click", handleLessonPdfExportSubmit);
+  dom.lessonPdfExportModeSelect?.addEventListener("change", renderLessonPdfExportSummary);
+  dom.lessonPdfExportStudentSelect?.addEventListener("change", () => {
+    clearLessonPdfExportFieldInvalid("student");
+    hideLessonPdfExportErrorIfClean();
+    renderLessonPdfExportSummary();
+  });
+  dom.lessonPdfExportDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.lessonPdfExportDialog) {
+      closeLessonPdfExportDialog();
+    }
+  });
   dom.lessonImportPreviewCloseButton?.addEventListener("click", closeLessonImportPreviewDialog);
   dom.lessonImportPreviewClearButton?.addEventListener("click", clearLessonImportPreview);
   dom.lessonImportPreviewFileInput?.addEventListener("change", handleLessonImportPreviewFileChange);
@@ -786,7 +820,10 @@ function readInitialLessonQuery() {
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
   filters.subjectId = readLessonQueryValue(params, "subject_id", "subjectId");
   filters.businessEntityId = readLessonQueryValue(params, "business_entity_id", "businessEntityId");
+  filters.lessonType = readLessonQueryLessonType(params);
   filters.status = normalizeLessonStatusFilter(params.get("status"));
+  filters.isBillable = readLessonQueryBillable(params);
+  filters.keyword = safeText(params.get("keyword")).trim();
   return filters;
 }
 
@@ -815,6 +852,16 @@ function normalizeLessonStatusFilter(value) {
   return LESSON_STATUS_FILTER_OPTIONS.some(([optionValue]) => optionValue === status) ? status : "";
 }
 
+function readLessonQueryLessonType(params) {
+  const value = safeText(params.get("lesson_type") || params.get("lessonType"));
+  return ["planned", "actual"].includes(value) ? value : "";
+}
+
+function readLessonQueryBillable(params) {
+  const value = safeText(params.get("is_billable") || params.get("isBillable"));
+  return ["true", "false"].includes(value) ? value : "";
+}
+
 function syncLessonQueryUrl(filters) {
   if (!window.history?.replaceState) {
     return;
@@ -836,7 +883,10 @@ function buildLessonListQueryParams(filters) {
   if (filters.studentId) params.set("student_id", filters.studentId);
   if (filters.subjectId) params.set("subject_id", filters.subjectId);
   if (filters.businessEntityId) params.set("business_entity_id", filters.businessEntityId);
+  if (filters.lessonType) params.set("lesson_type", filters.lessonType);
   if (filters.status) params.set("status", filters.status);
+  if (filters.isBillable) params.set("is_billable", filters.isBillable);
+  if (filters.keyword) params.set("keyword", filters.keyword);
 
   return params;
 }
@@ -876,6 +926,7 @@ async function loadInitialData() {
     renderMasterOptions();
     renderDataOptions([]);
     renderLessonRecords([]);
+    renderLessonStats(null);
     showMessage("error", `读取课时管理数据失败：${error.message || error}`);
   } finally {
     setLoading(false);
@@ -967,6 +1018,45 @@ function applyCurrentFilters() {
 
   restoreFilterSelections(filters);
   renderLessonRecords(filterLessonRecords(lessonRecords, filters));
+  refreshLessonManagementStats(filters);
+}
+
+async function refreshLessonManagementStats(filters) {
+  const requestId = ++lessonStatsRequestId;
+  renderLessonStats(null, { loading: true });
+
+  try {
+    const stats = await fetchLessonManagementStats(filters);
+    if (requestId !== lessonStatsRequestId) {
+      return;
+    }
+    renderLessonStats(stats || {});
+  } catch (error) {
+    if (requestId !== lessonStatsRequestId) {
+      return;
+    }
+    renderLessonStats(null);
+    showMessage("error", `读取课时统计失败：${error.message || error}`);
+  }
+}
+
+function renderLessonStats(stats, options = {}) {
+  const loadingText = options.loading ? "..." : "-";
+  const values = stats || {};
+  setText(dom.statsPlannedHours, stats ? displayValue(values.planned_hours) : loadingText);
+  setText(dom.statsActualHours, stats ? displayValue(values.actual_hours) : loadingText);
+  setText(dom.statsPlannedFee, stats ? formatCurrency(values.planned_fee_jpy, "JPY") : loadingText);
+  setText(dom.statsActualFee, stats ? formatCurrency(values.actual_fee_jpy, "JPY") : loadingText);
+  setText(dom.statsCompletedCount, stats ? displayValue(values.completed_count) : loadingText);
+  setText(dom.statsCancelledCount, stats ? displayValue(values.cancelled_count) : loadingText);
+  setText(dom.statsPendingMakeupCount, stats ? displayValue(values.pending_makeup_count) : loadingText);
+  setText(dom.statsRecordCount, stats ? displayValue(values.record_count) : loadingText);
+}
+
+function setText(element, value) {
+  if (element) {
+    element.textContent = value;
+  }
 }
 
 function readFilters() {
@@ -2456,9 +2546,10 @@ async function handleCreateCrossMonthMakeupActualSubmit() {
   setCreateCrossMonthMakeupActualSubmitting(true);
 
   try {
+    const filtersBeforeSubmit = readFilters();
     const createdLesson = await createCrossMonthMakeupCompletedActualFromPlanned(payload);
     closeCreateCrossMonthMakeupActualDialog(true);
-    await refreshAfterCreateCrossMonthMakeupActual(createdLesson);
+    await refreshAfterCreateCrossMonthMakeupActual(createdLesson, filtersBeforeSubmit);
     showMessage("success", `跨月补课完成已登记：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
     const message = error.message || String(error);
@@ -2520,26 +2611,21 @@ function readCreateCrossMonthMakeupActualPayload() {
   };
 }
 
-async function refreshAfterCreateCrossMonthMakeupActual(createdLesson) {
+async function refreshAfterCreateCrossMonthMakeupActual(createdLesson, previousFilters = null) {
   const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
   if (createdMonth) {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
   }
 
-  await loadLessonMonth(createdMonth, { status: "" });
-  renderDataOptions(lessonRecords);
-  restoreFilterSelections({
+  const nextFilters = {
+    ...(previousFilters || readFilters() || defaultLessonFilters()),
     month: createdMonth,
-    studentId: createdLesson.student_id || currentCrossMonthMakeupSourceLesson?.student_id || "",
-    teacherId: "",
-    subjectId: "",
-    businessEntityId: "",
-    lessonType: "",
-    status: "",
-    isBillable: "",
-    keyword: "",
-  });
-  setActiveView("pair");
+  };
+
+  await loadLessonMonth(createdMonth, nextFilters);
+  renderDataOptions(lessonRecords);
+  restoreFilterSelections(nextFilters);
+  syncLessonQueryUrl(nextFilters);
   applyCurrentFilters();
 }
 
@@ -2772,6 +2858,223 @@ function renderLessonStatusFilterOptions(selectEl) {
   selectEl.innerHTML = LESSON_STATUS_FILTER_OPTIONS
     .map(([value, label]) => `<option value="${escapeAttribute(value)}">${escapeHtml(label)}</option>`)
     .join("");
+}
+
+function openLessonPdfExportDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能导出学生课时 PDF。");
+    return;
+  }
+
+  renderEntityOptionsWithPlaceholder(dom.lessonPdfExportStudentSelect, students, studentName, "请选择学生");
+  dom.lessonPdfExportStudentSelect.value = dom.studentSelect.value || "";
+  dom.lessonPdfExportModeSelect.value = "actual_current";
+  clearLessonPdfExportErrors();
+  renderLessonPdfExportSummary();
+  setLessonPdfExportSubmitting(false);
+  dom.lessonPdfExportDialog.classList.remove("is-hidden");
+  dom.lessonPdfExportDialog.setAttribute("aria-hidden", "false");
+  dom.lessonPdfExportStudentSelect.focus();
+}
+
+function closeLessonPdfExportDialog(force = false) {
+  if (isLessonPdfExportSubmitting && !force) {
+    return;
+  }
+
+  dom.lessonPdfExportDialog?.classList.add("is-hidden");
+  dom.lessonPdfExportDialog?.setAttribute("aria-hidden", "true");
+  clearLessonPdfExportErrors();
+}
+
+function renderLessonPdfExportSummary() {
+  const exportTarget = lessonPdfExportTarget();
+  dom.lessonPdfExportSummary.innerHTML = [
+    ["学生", nameById(students, dom.lessonPdfExportStudentSelect?.value, studentName)],
+    ["导出月份", formatMonth(exportTarget.yearMonth)],
+    ["导出内容", exportTarget.mode === "planned" ? "下个月预定课时" : "本月实际课时"],
+    ["数据来源", "DB 课时记录 + DB 统计 RPC"],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("");
+}
+
+function lessonPdfExportTarget() {
+  const baseMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
+  const selectedMode = dom.lessonPdfExportModeSelect?.value === "planned_next" ? "planned_next" : "actual_current";
+  return {
+    mode: selectedMode === "planned_next" ? "planned" : "actual",
+    yearMonth: selectedMode === "planned_next" ? addMonthsToYearMonth(baseMonth, 1) : baseMonth,
+  };
+}
+
+async function handleLessonPdfExportSubmit() {
+  if (isLessonPdfExportSubmitting) {
+    return;
+  }
+
+  clearLessonPdfExportErrors();
+  const studentId = dom.lessonPdfExportStudentSelect.value;
+  const target = lessonPdfExportTarget();
+  if (!studentId) {
+    setLessonPdfExportFieldInvalid("student", true);
+    showLessonPdfExportError("请选择学生。");
+    return;
+  }
+
+  setLessonPdfExportSubmitting(true);
+
+  try {
+    const exportData = await fetchStudentLessonPdfExport({
+      studentId,
+      yearMonth: target.yearMonth,
+      mode: target.mode,
+    });
+    openLessonPdfPrintPage({
+      studentId,
+      yearMonth: target.yearMonth,
+      mode: target.mode,
+      rows: exportData.rows || [],
+      stats: exportData.stats || {},
+    });
+    closeLessonPdfExportDialog(true);
+    showMessage("success", "学生课时打印页已生成，可在浏览器打印窗口保存为 PDF。");
+  } catch (error) {
+    showLessonPdfExportError(error.message || String(error));
+  } finally {
+    setLessonPdfExportSubmitting(false);
+  }
+}
+
+function openLessonPdfPrintPage({ studentId, yearMonth, mode, rows, stats }) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    throw new Error("浏览器阻止了打印页窗口，请允许弹窗后重试。");
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, stats }));
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.setTimeout(() => printWindow.print(), 250);
+}
+
+function renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, stats }) {
+  const title = mode === "planned" ? "下个月预定课时" : "本月实际课时";
+  const statRows = mode === "planned"
+    ? [
+      ["预定课时", displayValue(stats.planned_hours)],
+      ["预定课时费", formatCurrency(stats.planned_fee_jpy, "JPY")],
+      ["记录数量", displayValue(stats.record_count)],
+    ]
+    : [
+      ["实际课时", displayValue(stats.actual_hours)],
+      ["实际课时费", formatCurrency(stats.actual_fee_jpy, "JPY")],
+      ["已上课数量", displayValue(stats.completed_count)],
+      ["取消数量", displayValue(stats.cancelled_count)],
+      ["记录数量", displayValue(stats.record_count)],
+    ];
+
+  return `<!doctype html>
+    <html lang="zh-CN">
+      <head>
+        <meta charset="utf-8">
+        <title>${escapeHtml(nameById(students, studentId, studentName))} / ${escapeHtml(formatMonth(yearMonth))} / ${escapeHtml(title)}</title>
+        <style>
+          body { color: #111827; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; }
+          h1 { font-size: 22px; margin: 0 0 8px; }
+          .meta, .summary { color: #475569; font-size: 13px; margin-bottom: 14px; }
+          .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+          .summary div { border: 1px solid #d8dee8; padding: 8px; }
+          table { border-collapse: collapse; width: 100%; font-size: 12px; }
+          th, td { border: 1px solid #d8dee8; padding: 6px; text-align: left; vertical-align: top; }
+          th { background: #f8fafc; }
+          .number { text-align: right; white-space: nowrap; }
+          @media print { body { margin: 12mm; } }
+        </style>
+      </head>
+      <body>
+        <h1>${escapeHtml(title)}</h1>
+        <div class="meta">
+          ${escapeHtml(nameById(students, studentId, studentName))} / ${escapeHtml(formatMonth(yearMonth))} / 数据来源：DB 课时记录与统计 RPC
+        </div>
+        <section class="summary">
+          ${statRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><br>${escapeHtml(value)}</div>`).join("")}
+        </section>
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>星期</th>
+              <th>时间</th>
+              <th>老师</th>
+              <th>科目</th>
+              <th>状态</th>
+              <th>计费</th>
+              <th>课时</th>
+              <th>金额</th>
+              <th>内容</th>
+              <th>备注</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.length ? rows.map((row) => `
+              <tr>
+                <td>${escapeHtml(formatDateOnly(row.lesson_date))}</td>
+                <td>${escapeHtml(formatWeekday(row.lesson_date))}</td>
+                <td>${escapeHtml(formatTimeRange(row.start_time, row.end_time))}</td>
+                <td>${escapeHtml(nameById(teachers, row.teacher_id, teacherName))}</td>
+                <td>${escapeHtml(nameById(subjects, row.subject_id, subjectName))}</td>
+                <td>${escapeHtml(lessonStatusLabel(row.status))}</td>
+                <td>${escapeHtml(billableLabel(row.is_billable))}</td>
+                <td class="number">${escapeHtml(displayValue(row.duration_hours))}</td>
+                <td class="number">${escapeHtml(formatCurrency(row.lesson_fee, "JPY"))}</td>
+                <td>${escapeHtml(displayValue(row.lesson_content))}</td>
+                <td>${escapeHtml(displayValue(row.note))}</td>
+              </tr>
+            `).join("") : '<tr><td colspan="11">暂无记录。</td></tr>'}
+          </tbody>
+        </table>
+      </body>
+    </html>`;
+}
+
+function setLessonPdfExportSubmitting(isSubmitting) {
+  isLessonPdfExportSubmitting = isSubmitting;
+  dom.lessonPdfExportSubmitButton.disabled = isSubmitting;
+  dom.lessonPdfExportCancelButton.disabled = isSubmitting;
+  dom.openLessonPdfExportButton.disabled = isSubmitting;
+  dom.lessonPdfExportSubmitButton.textContent = isSubmitting ? "生成中..." : "生成打印页";
+}
+
+function clearLessonPdfExportErrors() {
+  dom.lessonPdfExportError.textContent = "";
+  dom.lessonPdfExportError.classList.add("is-hidden");
+  clearLessonPdfExportFieldInvalid("student");
+}
+
+function showLessonPdfExportError(message) {
+  dom.lessonPdfExportError.textContent = message;
+  dom.lessonPdfExportError.classList.remove("is-hidden");
+}
+
+function hideLessonPdfExportErrorIfClean() {
+  if (!dom.lessonPdfExportDialog?.querySelector(".field.is-invalid")) {
+    dom.lessonPdfExportError.textContent = "";
+    dom.lessonPdfExportError.classList.add("is-hidden");
+  }
+}
+
+function setLessonPdfExportFieldInvalid(fieldId, invalid) {
+  const field = dom.lessonPdfExportDialog?.querySelector(`[data-lesson-pdf-export-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearLessonPdfExportFieldInvalid(fieldId) {
+  setLessonPdfExportFieldInvalid(fieldId, false);
 }
 
 function openLessonImportPreviewDialog() {
@@ -4515,7 +4818,9 @@ function displayImportPreviewNumber(value) {
 }
 
 function renderLessonRecords(records) {
-  dom.lessonCount.textContent = `${records.length} 条`;
+  if (dom.lessonCount) {
+    dom.lessonCount.textContent = `${records.length} 条`;
+  }
   dom.emptyState.classList.toggle("is-hidden", records.length > 0);
   syncViewVisibility();
 

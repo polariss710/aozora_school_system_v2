@@ -204,8 +204,11 @@ function readLessonReturnQuery(params) {
     "student_id",
     "subject_id",
     "business_entity_id",
+    "lesson_type",
+    "is_billable",
+    "keyword",
   ].forEach((name) => {
-    const value = readSafeReturnQueryValue(source.get(name));
+    const value = readSafeReturnQueryValue(name, source.get(name));
     if (value) {
       target.set(name, value);
     }
@@ -250,8 +253,17 @@ function readLessonReturnQueryStatus(params) {
     : "";
 }
 
-function readSafeReturnQueryValue(value) {
+function readSafeReturnQueryValue(name, value) {
   const text = safeText(value);
+  if (name === "lesson_type") {
+    return ["planned", "actual"].includes(text) ? text : "";
+  }
+  if (name === "is_billable") {
+    return ["true", "false"].includes(text) ? text : "";
+  }
+  if (name === "keyword") {
+    return text.slice(0, 120);
+  }
   return /^[0-9a-fA-F-]{36}$/.test(text) ? text : "";
 }
 

@@ -78,6 +78,77 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
   return data || [];
 }
 
+export async function fetchLessonManagementStats(filters = {}) {
+  const { data, error } = await supabase.rpc("school_get_lesson_management_stats_filtered", {
+    p_year_month: filters.month || null,
+    p_student_id: filters.studentId || null,
+    p_teacher_id: filters.teacherId || null,
+    p_subject_id: filters.subjectId || null,
+    p_lesson_type: filters.lessonType || null,
+    p_status: filters.status || null,
+    p_business_entity_id: filters.businessEntityId || null,
+    p_is_billable: parseBillableFilter(filters.isBillable),
+    p_keyword: filters.keyword || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function fetchStudentLessonPdfExport({ studentId, yearMonth, mode } = {}) {
+  const normalizedMonth = normalizeYearMonth(yearMonth);
+  const normalizedMode = mode === "planned" ? "planned" : "actual";
+  if (!studentId || !normalizedMonth) {
+    return {
+      rows: [],
+      stats: null,
+    };
+  }
+
+  const [rows, stats] = await Promise.all([
+    fetchStudentLessonPdfRows({ studentId, yearMonth: normalizedMonth, lessonType: normalizedMode }),
+    fetchLessonManagementStats({
+      month: normalizedMonth,
+      studentId,
+      lessonType: normalizedMode,
+    }),
+  ]);
+
+  return {
+    rows,
+    stats,
+  };
+}
+
+async function fetchStudentLessonPdfRows({ studentId, yearMonth, lessonType }) {
+  let query = supabase
+    .from("school_lesson_records")
+    .select(LESSON_COLUMNS)
+    .eq("app_type", "school")
+    .eq("student_id", studentId)
+    .eq("year_month", yearMonth)
+    .eq("lesson_type", lessonType);
+
+  if (lessonType === "planned") {
+    query = query.is("voided_at", null);
+  }
+
+  const { data, error } = await query
+    .order("lesson_date", { ascending: true })
+    .order("lesson_count", { ascending: true, nullsFirst: false })
+    .order("start_time", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
 export async function fetchLessonImportPlannedReferences(plannedIds) {
   const ids = normalizeIdList(plannedIds);
   if (!ids.length) {
@@ -290,6 +361,16 @@ function uniqueTextList(values) {
 function normalizeYearMonth(value) {
   const text = String(value || "").trim();
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(text) ? text : "";
+}
+
+function parseBillableFilter(value) {
+  if (value === true || value === "true") {
+    return true;
+  }
+  if (value === false || value === "false") {
+    return false;
+  }
+  return null;
 }
 
 function nullSafeEqual(left, right) {
