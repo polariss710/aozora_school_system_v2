@@ -2808,7 +2808,7 @@ function renderLessonPdfExportSummary() {
   dom.lessonPdfExportSummary.innerHTML = [
     ["学生", nameById(students, dom.lessonPdfExportStudentSelect?.value, studentName)],
     ["导出月份", formatMonth(exportTarget.yearMonth)],
-    ["导出内容", exportTarget.mode === "planned" ? "下个月预定课时" : "本月实际课时"],
+    ["导出内容", exportTarget.mode === "planned" ? "下月预定课时" : "本月实际课时"],
     ["数据来源", "DB 课时记录 + DB 统计 RPC"],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
@@ -2854,6 +2854,8 @@ async function handleLessonPdfExportSubmit() {
       yearMonth: target.yearMonth,
       mode: target.mode,
       rows: exportData.rows || [],
+      plannedRows: exportData.plannedRows || [],
+      actualRows: exportData.actualRows || [],
       stats: exportData.stats || {},
     });
     closeLessonPdfExportDialog(true);
@@ -2865,97 +2867,372 @@ async function handleLessonPdfExportSubmit() {
   }
 }
 
-function openLessonPdfPrintPage({ studentId, yearMonth, mode, rows, stats }) {
+function openLessonPdfPrintPage({ studentId, yearMonth, mode, rows, plannedRows, actualRows, stats }) {
   const printWindow = window.open("", "_blank");
   if (!printWindow) {
     throw new Error("浏览器阻止了打印页窗口，请允许弹窗后重试。");
   }
 
   printWindow.document.open();
-  printWindow.document.write(renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, stats }));
+  printWindow.document.write(renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, plannedRows, actualRows, stats }));
   printWindow.document.close();
   printWindow.focus();
   printWindow.setTimeout(() => printWindow.print(), 250);
 }
 
-function renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, stats }) {
-  const title = mode === "planned" ? "下个月预定课时" : "本月实际课时";
-  const statRows = mode === "planned"
-    ? [
-      ["预定课时", displayValue(stats.planned_hours)],
-      ["预定课时费", formatCurrency(stats.planned_fee_jpy, "JPY")],
-      ["记录数量", displayValue(stats.record_count)],
-    ]
-    : [
-      ["实际课时", displayValue(stats.actual_hours)],
-      ["实际课时费", formatCurrency(stats.actual_fee_jpy, "JPY")],
-      ["已上课数量", displayValue(stats.completed_count)],
-      ["取消数量", displayValue(stats.cancelled_count)],
-      ["记录数量", displayValue(stats.record_count)],
-    ];
+function renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, plannedRows, actualRows, stats }) {
+  const title = mode === "planned" ? "下月预定课时" : "本月实际课时";
+  const studentDisplayName = nameById(students, studentId, studentName);
+  const normalizedPlannedRows = Array.isArray(plannedRows)
+    ? plannedRows
+    : (mode === "planned" && Array.isArray(rows) ? rows : []);
+  const normalizedActualRows = Array.isArray(actualRows)
+    ? actualRows
+    : (mode === "actual" && Array.isArray(rows) ? rows : []);
+  const printedAt = new Date().toLocaleString("ja-JP");
 
   return `<!doctype html>
     <html lang="zh-CN">
       <head>
         <meta charset="utf-8">
-        <title>${escapeHtml(nameById(students, studentId, studentName))} / ${escapeHtml(formatMonth(yearMonth))} / ${escapeHtml(title)}</title>
-        <style>
-          body { color: #111827; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 24px; }
-          h1 { font-size: 22px; margin: 0 0 8px; }
-          .meta, .summary { color: #475569; font-size: 13px; margin-bottom: 14px; }
-          .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-          .summary div { border: 1px solid #d8dee8; padding: 8px; }
-          table { border-collapse: collapse; width: 100%; font-size: 12px; }
-          th, td { border: 1px solid #d8dee8; padding: 6px; text-align: left; vertical-align: top; }
-          th { background: #f8fafc; }
-          .number { text-align: right; white-space: nowrap; }
-          @media print { body { margin: 12mm; } }
-        </style>
+        <title>${escapeHtml(studentDisplayName)} / ${escapeHtml(formatMonth(yearMonth))} / ${escapeHtml(title)}</title>
+        <style>${renderLessonPdfPrintStyles()}</style>
       </head>
       <body>
-        <h1>${escapeHtml(title)}</h1>
-        <div class="meta">
-          ${escapeHtml(nameById(students, studentId, studentName))} / ${escapeHtml(formatMonth(yearMonth))} / 数据来源：DB 课时记录与统计 RPC
-        </div>
-        <section class="summary">
-          ${statRows.map(([label, value]) => `<div><strong>${escapeHtml(label)}</strong><br>${escapeHtml(value)}</div>`).join("")}
-        </section>
-        <table>
-          <thead>
-            <tr>
-              <th>日期</th>
-              <th>星期</th>
-              <th>时间</th>
-              <th>老师</th>
-              <th>科目</th>
-              <th>状态</th>
-              <th>计费</th>
-              <th>课时</th>
-              <th>金额</th>
-              <th>内容</th>
-              <th>备注</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.length ? rows.map((row) => `
-              <tr>
-                <td>${escapeHtml(formatDateOnly(row.lesson_date))}</td>
-                <td>${escapeHtml(formatWeekday(row.lesson_date))}</td>
-                <td>${escapeHtml(formatTimeRange(row.start_time, row.end_time))}</td>
-                <td>${escapeHtml(nameById(teachers, row.teacher_id, teacherName))}</td>
-                <td>${escapeHtml(nameById(subjects, row.subject_id, subjectName))}</td>
-                <td>${escapeHtml(lessonStatusLabel(row.status))}</td>
-                <td>${escapeHtml(billableLabel(row.is_billable))}</td>
-                <td class="number">${escapeHtml(displayValue(row.duration_hours))}</td>
-                <td class="number">${escapeHtml(formatCurrency(row.lesson_fee, "JPY"))}</td>
-                <td>${escapeHtml(displayValue(row.lesson_content))}</td>
-                <td>${escapeHtml(displayValue(row.note))}</td>
-              </tr>
-            `).join("") : '<tr><td colspan="11">暂无记录。</td></tr>'}
-          </tbody>
-        </table>
+        <main class="lesson-pdf-page">
+          <header class="lesson-pdf-header">
+            <div class="lesson-pdf-kicker">学生月度结算通知单</div>
+            <h1>${escapeHtml(title)}</h1>
+            <div class="lesson-pdf-meta">
+              <span>${escapeHtml(studentDisplayName)}</span>
+              <span>${escapeHtml(formatMonth(yearMonth))}</span>
+              <span>数据来源：DB 课时记录与统计 RPC</span>
+            </div>
+          </header>
+          ${renderLessonPdfSummaryCards(stats)}
+          ${mode === "planned"
+            ? renderLessonPdfPlannedSection(normalizedPlannedRows)
+            : renderLessonPdfActualSection(normalizedPlannedRows, normalizedActualRows)}
+          <footer class="lesson-pdf-footer">输出时间：${escapeHtml(printedAt)}</footer>
+        </main>
       </body>
     </html>`;
+}
+
+function renderLessonPdfPrintStyles() {
+  return `
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body {
+      color: #172033;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "Meiryo", sans-serif;
+      font-size: 11px;
+      line-height: 1.55;
+      margin: 0;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    .lesson-pdf-page { width: 100%; }
+    .lesson-pdf-header { text-align: center; margin: 0 0 10px; }
+    .lesson-pdf-kicker { color: #64748b; font-size: 11px; letter-spacing: 0; margin-bottom: 2px; }
+    h1 { color: #0f172a; font-size: 20px; line-height: 1.25; margin: 0 0 5px; }
+    .lesson-pdf-meta { color: #64748b; display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; }
+    .lesson-pdf-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+    .lesson-pdf-summary-card {
+      background: #f8fbff;
+      border: 1px solid #cfe0f3;
+      border-radius: 8px;
+      padding: 8px 9px;
+      min-height: 54px;
+    }
+    .lesson-pdf-summary-label { color: #64748b; display: block; font-size: 10px; margin-bottom: 3px; }
+    .lesson-pdf-summary-value { color: #111827; display: block; font-size: 15px; font-weight: 700; line-height: 1.2; }
+    .lesson-pdf-section-title {
+      align-items: center;
+      background: #eef6ff;
+      border-left: 4px solid #3b82f6;
+      color: #0f172a;
+      display: flex;
+      font-size: 14px;
+      font-weight: 700;
+      justify-content: space-between;
+      margin: 12px 0 7px;
+      padding: 5px 8px;
+    }
+    .lesson-pdf-section-count { color: #64748b; font-size: 10px; font-weight: 500; }
+    .lesson-pdf-pair-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 9px;
+      margin-bottom: 5px;
+    }
+    .lesson-pdf-pair-head div {
+      background: #f8fafc;
+      border: 1px solid #d8dee8;
+      border-radius: 6px;
+      color: #334155;
+      font-weight: 700;
+      padding: 5px 8px;
+      text-align: center;
+    }
+    .lesson-pdf-pairs { display: grid; gap: 8px; }
+    .lesson-pdf-pair {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 9px;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .lesson-pdf-card {
+      background: #ffffff;
+      border: 1px solid #d8dee8;
+      border-radius: 8px;
+      min-height: 112px;
+      padding: 8px 9px;
+    }
+    .lesson-pdf-card.is-empty {
+      align-items: center;
+      background: #f8fafc;
+      color: #94a3b8;
+      display: flex;
+      justify-content: center;
+      text-align: center;
+    }
+    .lesson-pdf-card-main {
+      align-items: baseline;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .lesson-pdf-card-date { color: #0f172a; font-size: 12px; font-weight: 700; }
+    .lesson-pdf-card-subject { color: #0f172a; font-weight: 700; text-align: right; }
+    .lesson-pdf-chip-row { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 6px; }
+    .lesson-pdf-chip {
+      background: #eef2ff;
+      border: 1px solid #d9e0ff;
+      border-radius: 999px;
+      color: #334155;
+      display: inline-block;
+      font-size: 9.5px;
+      line-height: 1.25;
+      padding: 2px 6px;
+      white-space: normal;
+    }
+    .lesson-pdf-chip.is-money { background: #eefdf4; border-color: #bbf7d0; color: #065f46; }
+    .lesson-pdf-field { display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 6px; margin-top: 3px; }
+    .lesson-pdf-field-label { color: #64748b; }
+    .lesson-pdf-field-value { color: #1f2937; min-width: 0; }
+    .lesson-pdf-empty { border: 1px dashed #cbd5e1; border-radius: 8px; color: #64748b; padding: 18px 10px; text-align: center; }
+    table.lesson-pdf-planned-table {
+      border-collapse: collapse;
+      font-size: 10.5px;
+      table-layout: fixed;
+      width: 100%;
+    }
+    .lesson-pdf-planned-table th,
+    .lesson-pdf-planned-table td {
+      border: 1px solid #d8dee8;
+      padding: 6px 7px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .lesson-pdf-planned-table th { background: #eef6ff; color: #334155; font-weight: 700; }
+    .lesson-pdf-planned-table .number { text-align: right; white-space: nowrap; }
+    .lesson-pdf-planned-table .compact { color: #64748b; font-size: 9.5px; margin-top: 2px; }
+    .lesson-pdf-footer { color: #94a3b8; font-size: 9px; margin-top: 12px; text-align: right; }
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .lesson-pdf-section-title,
+      .lesson-pdf-pair-head,
+      .lesson-pdf-card,
+      tr { break-inside: avoid; page-break-inside: avoid; }
+      h1, .lesson-pdf-section-title { break-after: avoid; page-break-after: avoid; }
+    }
+  `;
+}
+
+function renderLessonPdfSummaryCards(stats = {}) {
+  const statRows = [
+    ["预定课时", displayValue(stats.planned_hours)],
+    ["实际课时", displayValue(stats.actual_hours)],
+    ["预定课时费", formatCurrency(stats.planned_fee_jpy, "JPY")],
+    ["实际课时费", formatCurrency(stats.actual_fee_jpy, "JPY")],
+  ];
+
+  return `
+    <section class="lesson-pdf-summary" aria-label="课时汇总">
+      ${statRows.map(([label, value]) => `
+        <div class="lesson-pdf-summary-card">
+          <span class="lesson-pdf-summary-label">${escapeHtml(label)}</span>
+          <span class="lesson-pdf-summary-value">${escapeHtml(value)}</span>
+        </div>
+      `).join("")}
+    </section>
+  `;
+}
+
+function renderLessonPdfActualSection(plannedRows, actualRows) {
+  const pairs = buildLessonPdfPairs(plannedRows, actualRows);
+  return `
+    <section>
+      <div class="lesson-pdf-section-title">
+        <span>本月课时明细</span>
+        <span class="lesson-pdf-section-count">${escapeHtml(String(actualRows.length))} 条实际课时</span>
+      </div>
+      <div class="lesson-pdf-pair-head" aria-hidden="true">
+        <div>预定课时</div>
+        <div>实际课时</div>
+      </div>
+      ${pairs.length ? `
+        <div class="lesson-pdf-pairs">
+          ${pairs.map(({ planned, actual }) => `
+            <div class="lesson-pdf-pair">
+              ${planned ? renderLessonPdfLessonCard(planned) : renderLessonPdfEmptyCard("未关联同月预定课时")}
+              ${actual ? renderLessonPdfLessonCard(actual) : renderLessonPdfEmptyCard("尚未登记实际课时")}
+            </div>
+          `).join("")}
+        </div>
+      ` : '<div class="lesson-pdf-empty">暂无本月实际课时。</div>'}
+    </section>
+  `;
+}
+
+function renderLessonPdfPlannedSection(plannedRows) {
+  return `
+    <section>
+      <div class="lesson-pdf-section-title">
+        <span>下月预定课时</span>
+        <span class="lesson-pdf-section-count">${escapeHtml(String(plannedRows.length))} 条预定课时</span>
+      </div>
+      ${plannedRows.length ? renderLessonPdfPlannedTable(plannedRows) : '<div class="lesson-pdf-empty">没有下月预定课时。</div>'}
+    </section>
+  `;
+}
+
+function buildLessonPdfPairs(plannedRows, actualRows) {
+  const plannedById = new Map();
+  for (const row of plannedRows) {
+    if (row?.id) {
+      plannedById.set(row.id, row);
+    }
+  }
+
+  const actualByPlannedId = new Map();
+  const unlinkedActuals = [];
+  for (const actual of actualRows) {
+    const plannedId = actual?.planned_lesson_id;
+    if (plannedId && plannedById.has(plannedId)) {
+      if (!actualByPlannedId.has(plannedId)) {
+        actualByPlannedId.set(plannedId, []);
+      }
+      actualByPlannedId.get(plannedId).push(actual);
+    } else {
+      unlinkedActuals.push(actual);
+    }
+  }
+
+  const pairs = [];
+  for (const planned of plannedRows) {
+    const actuals = actualByPlannedId.get(planned.id) || [];
+    if (!actuals.length) {
+      pairs.push({ planned, actual: null });
+      continue;
+    }
+    actuals.forEach((actual, index) => {
+      pairs.push({ planned: index === 0 ? planned : null, actual });
+    });
+  }
+
+  unlinkedActuals.forEach((actual) => {
+    pairs.push({ planned: null, actual });
+  });
+  return pairs;
+}
+
+function renderLessonPdfLessonCard(row) {
+  return `
+    <article class="lesson-pdf-card">
+      <div class="lesson-pdf-card-main">
+        <span class="lesson-pdf-card-date">${escapeHtml(formatDateOnly(row.lesson_date))}（${escapeHtml(formatWeekday(row.lesson_date))}）</span>
+        <span class="lesson-pdf-card-subject">${escapeHtml(nameById(subjects, row.subject_id, subjectName))}</span>
+      </div>
+      <div class="lesson-pdf-chip-row">
+        <span class="lesson-pdf-chip">${escapeHtml(nameById(teachers, row.teacher_id, teacherName))}</span>
+        <span class="lesson-pdf-chip">${escapeHtml(formatTimeRange(row.start_time, row.end_time))}</span>
+        <span class="lesson-pdf-chip">${escapeHtml(displayValue(row.duration_hours))}课时</span>
+        <span class="lesson-pdf-chip">${escapeHtml(lessonStatusLabel(row.status))}</span>
+        <span class="lesson-pdf-chip">${escapeHtml(billableLabel(row.is_billable))}</span>
+        <span class="lesson-pdf-chip is-money">${escapeHtml(formatCurrency(row.lesson_fee, "JPY"))}</span>
+      </div>
+      ${renderLessonPdfField("内容", row.lesson_content)}
+      ${renderLessonPdfField("备注", row.note)}
+    </article>
+  `;
+}
+
+function renderLessonPdfEmptyCard(message) {
+  return `<div class="lesson-pdf-card is-empty">${escapeHtml(message)}</div>`;
+}
+
+function renderLessonPdfField(label, value) {
+  return `
+    <div class="lesson-pdf-field">
+      <span class="lesson-pdf-field-label">${escapeHtml(label)}</span>
+      <span class="lesson-pdf-field-value">${escapeHtml(displayValue(value))}</span>
+    </div>
+  `;
+}
+
+function renderLessonPdfPlannedTable(rows) {
+  return `
+    <table class="lesson-pdf-planned-table">
+      <colgroup>
+        <col style="width: 17%;">
+        <col style="width: 18%;">
+        <col style="width: 18%;">
+        <col style="width: 10%;">
+        <col style="width: 15%;">
+        <col style="width: 22%;">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>科目 / 老师</th>
+          <th>时间</th>
+          <th>课时</th>
+          <th>课时费</th>
+          <th>内容 / 备注</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((row) => `
+          <tr>
+            <td>
+              <strong>${escapeHtml(formatDateOnly(row.lesson_date))}</strong>
+              <div class="compact">${escapeHtml(formatWeekday(row.lesson_date))}</div>
+            </td>
+            <td>
+              <strong>${escapeHtml(nameById(subjects, row.subject_id, subjectName))}</strong>
+              <div class="compact">${escapeHtml(nameById(teachers, row.teacher_id, teacherName))}</div>
+            </td>
+            <td>${escapeHtml(formatTimeRange(row.start_time, row.end_time))}</td>
+            <td class="number">${escapeHtml(displayValue(row.duration_hours))}</td>
+            <td class="number">${escapeHtml(formatCurrency(row.lesson_fee, "JPY"))}</td>
+            <td>
+              ${escapeHtml(displayValue(row.lesson_content))}
+              ${row.note ? `<div class="compact">${escapeHtml(row.note)}</div>` : ""}
+            </td>
+          </tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `;
 }
 
 function setLessonPdfExportSubmitting(isSubmitting) {

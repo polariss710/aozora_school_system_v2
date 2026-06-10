@@ -104,21 +104,27 @@ export async function fetchStudentLessonPdfExport({ studentId, yearMonth, mode }
   if (!studentId || !normalizedMonth) {
     return {
       rows: [],
+      plannedRows: [],
+      actualRows: [],
       stats: null,
     };
   }
 
-  const [rows, stats] = await Promise.all([
-    fetchStudentLessonPdfRows({ studentId, yearMonth: normalizedMonth, lessonType: normalizedMode }),
+  const [plannedRows, actualRows, stats] = await Promise.all([
+    fetchStudentLessonPdfRows({ studentId, yearMonth: normalizedMonth, lessonType: "planned" }),
+    normalizedMode === "actual"
+      ? fetchStudentLessonPdfRows({ studentId, yearMonth: normalizedMonth, lessonType: "actual" })
+      : Promise.resolve([]),
     fetchLessonManagementStats({
       month: normalizedMonth,
       studentId,
-      lessonType: normalizedMode,
     }),
   ]);
 
   return {
-    rows,
+    rows: normalizedMode === "planned" ? plannedRows : actualRows,
+    plannedRows,
+    actualRows,
     stats,
   };
 }
