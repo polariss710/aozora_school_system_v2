@@ -6,7 +6,7 @@ import {
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const WAGE_STATUS_LABELS = {
-  locked: "已锁定",
+  locked: "已生成快照",
   void: "已作废",
 };
 
@@ -33,6 +33,7 @@ let detailData = null;
 
 export function initWageDetailPage() {
   cacheDom();
+  configureReturnLink();
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -46,7 +47,7 @@ export function initWageDetailPage() {
 
   const wageLockId = readWageLockId();
   if (!wageLockId) {
-    showMessage("error", "缺少老师工资锁定记录 ID，请从老师工资结算一览进入详情页。");
+    showMessage("error", "缺少老师工资快照记录 ID，请从老师工资结算一览进入详情页。");
     setContentVisible(false);
     return;
   }
@@ -58,6 +59,7 @@ function cacheDom() {
   dom.messageArea = document.querySelector("#wageDetailMessageArea");
   dom.loadingState = document.querySelector("#wageDetailLoadingState");
   dom.content = document.querySelector("#wageDetailContent");
+  dom.returnLink = document.querySelector("#wageDetailReturnLink");
   dom.titleText = document.querySelector("#wageDetailTitleText");
   dom.basicInfo = document.querySelector("#wageDetailBasicInfo");
   dom.amountInfo = document.querySelector("#wageDetailAmountInfo");
@@ -96,6 +98,36 @@ function readWageLockId() {
   return params.get("id") || "";
 }
 
+function configureReturnLink() {
+  if (dom.returnLink) {
+    dom.returnLink.href = buildReturnUrl();
+  }
+}
+
+function buildReturnUrl() {
+  const sourceParams = new URLSearchParams(window.location.search);
+  const targetParams = new URLSearchParams();
+  const filterKeys = [
+    "year",
+    "month",
+    "teacherId",
+    "businessEntityId",
+    "settlementType",
+    "status",
+    "keyword",
+  ];
+
+  for (const key of filterKeys) {
+    const value = safeText(sourceParams.get(key)).trim();
+    if (value) {
+      targetParams.set(key, value);
+    }
+  }
+
+  const query = targetParams.toString();
+  return query ? `./wage.html?${query}` : "./wage.html";
+}
+
 async function loadWageDetail(wageLockId) {
   setLoading(true);
   setContentVisible(false);
@@ -130,7 +162,7 @@ function renderWageDetail(data) {
     ["业务归属", displayValue(wageLock.business_name)],
     ["结算类型", settlementTypeLabel(wageLock.settlement_type)],
     ["状态", wageStatusLabel(wageLock.status)],
-    ["锁定时间", formatDate(wageLock.locked_at)],
+    ["生成时间", formatDate(wageLock.locked_at)],
     ["作废时间", formatDate(wageLock.voided_at)],
     ["创建时间", formatDate(wageLock.created_at)],
     ["更新时间", formatDate(wageLock.updated_at)],
@@ -159,7 +191,7 @@ function renderWageDetail(data) {
       ["主表合计 CNY", formatCurrency(wageLock.total_cny, "CNY")],
       ["CNY 差异", formatCurrency(totalCnyDifference, "CNY")],
     ])}
-    <p class="section-note">本区仅用于明细对账辅助，不重新计算或覆盖工资锁定主表金额。</p>
+    <p class="section-note">本区仅用于明细对账辅助，不重新计算或覆盖工资快照主表金额。</p>
   `;
 
   dom.systemInfo.innerHTML = renderDefinitionList([
@@ -189,17 +221,17 @@ function openCreatePaymentRequestDialog() {
   const paymentRequests = detailData?.paymentRequests || [];
 
   if (!wageLock) {
-    showMessage("error", "工资锁定记录尚未加载。");
+    showMessage("error", "工资快照记录尚未加载。");
     return;
   }
 
   if (paymentRequests.length > 0) {
-    showMessage("error", "该工资锁定记录已有关联支付请求，不能重复生成。");
+    showMessage("error", "该工资快照记录已有关联支付请求，不能重复生成。");
     return;
   }
 
   if (wageLock.status !== "locked" || wageLock.voided_at) {
-    showMessage("error", "只有未作废的已锁定工资记录可以生成支付请求。");
+    showMessage("error", "只有未作废的已生成工资快照可以生成支付请求。");
     return;
   }
 
@@ -231,7 +263,7 @@ function closeCreatePaymentRequestDialog(force = false) {
 async function submitCreatePaymentRequest() {
   const wageLock = detailData?.wageLock;
   if (!wageLock) {
-    showCreatePaymentRequestError("工资锁定记录尚未加载。");
+    showCreatePaymentRequestError("工资快照记录尚未加载。");
     return;
   }
 
@@ -302,7 +334,7 @@ function renderCreatePaymentRequestSummary(wageLock) {
     renderDialogSummaryRow("业务归属", displayValue(wageLock.business_name)),
     renderDialogSummaryRow("支付对象", "老师"),
     renderDialogSummaryRow("请求金额", formatCurrency(wageLock.total_jpy, "JPY")),
-    renderDialogSummaryRow("来源", `工资锁 ${shortId(wageLock.id)}`),
+    renderDialogSummaryRow("来源", `工资快照 ${shortId(wageLock.id)}`),
   ].join("");
 }
 
@@ -319,7 +351,7 @@ function formatCreatePaymentRequestError(error) {
   const message = error?.message || String(error || "");
 
   if (message.includes("already exists")) {
-    return `生成失败：该工资锁定记录已有关联支付请求，不能重复生成。${message}`;
+    return `生成失败：该工资快照记录已有关联支付请求，不能重复生成。${message}`;
   }
 
   if (message.includes("total_jpy")) {

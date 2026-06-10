@@ -2,7 +2,7 @@
 -- RPC: public.school_generate_teacher_monthly_wage
 -- Purpose: Generate teacher monthly wage locks and details from actual lessons.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested and commit-tested.
--- Version: v2.80.0-teacher-wage-generation-mvp-20260610
+-- Version: v2.83.0-teacher-wage-guard-order-20260610
 --
 -- Scope:
 -- - Generate saved teacher wage snapshots for one settlement month.
@@ -44,6 +44,8 @@
 --   f5fe1fe3-f9e1-45d4-ac50-270c9b609d58 and detail ids
 --   aad48406-c0cc-499b-b2a5-0fd7e1709688 /
 --   1ad4f156-e869-4a36-aa47-c12edaa18da6.
+-- - 2026-06-10 follow-up changed guard order so existing same-teacher/month
+--   wage snapshots are rejected before missing-field actual validation.
 -- - Protected payment, expense, account, account transaction, income, and
 --   student settlement table counts stayed unchanged.
 
@@ -127,17 +129,21 @@ begin
       and (p_teacher_id is null or lr.teacher_id = p_teacher_id)
   )
   select count(*)
-  into v_bad_actual_count
-  from raw_candidates c
-  where c.teacher_id is null
-     or c.student_id is null
-     or c.subject_id is null
-     or c.business_entity_id is null
-     or c.actual_minutes is null
-     or c.actual_minutes < 0;
+  into v_existing_lock_count
+  from (
+    select distinct c.teacher_id
+    from raw_candidates c
+    where c.teacher_id is not null
+  ) target_teachers
+  where exists (
+    select 1
+    from public.school_teacher_wage_locks w
+    where w.teacher_id = target_teachers.teacher_id
+      and w.settlement_month = v_year_month
+  );
 
-  if v_bad_actual_count > 0 then
-    raise exception '存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时，不能生成工资。';
+  if v_existing_lock_count > 0 then
+    raise exception '目标老师月份已有工资记录，不能重复生成。';
   end if;
 
   with raw_candidates as (
@@ -174,20 +180,17 @@ begin
       and (p_teacher_id is null or lr.teacher_id = p_teacher_id)
   )
   select count(*)
-  into v_existing_lock_count
-  from (
-    select distinct c.teacher_id
-    from raw_candidates c
-  ) target_teachers
-  where exists (
-    select 1
-    from public.school_teacher_wage_locks w
-    where w.teacher_id = target_teachers.teacher_id
-      and w.settlement_month = v_year_month
-  );
+  into v_bad_actual_count
+  from raw_candidates c
+  where c.teacher_id is null
+     or c.student_id is null
+     or c.subject_id is null
+     or c.business_entity_id is null
+     or c.actual_minutes is null
+     or c.actual_minutes < 0;
 
-  if v_existing_lock_count > 0 then
-    raise exception '目标老师月份已有工资记录，不能重复生成。';
+  if v_bad_actual_count > 0 then
+    raise exception '存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时，不能生成工资。';
   end if;
 
   with raw_candidates as (

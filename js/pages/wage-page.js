@@ -24,7 +24,7 @@ const DEFAULT_FILTERS = {
 };
 
 const WAGE_STATUS_LABELS = {
-  locked: "已锁定",
+  locked: "已生成快照",
   void: "已作废",
 };
 
@@ -38,12 +38,15 @@ let teachers = [];
 let businessEntities = [];
 let wageLocks = [];
 let loadedMonth = "";
+let activeFilters = null;
+let startupFilters = null;
 
 export function initWagePage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
-  setDefaultFilters();
+  startupFilters = readFiltersFromUrl();
+  setDefaultFilters(startupFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -107,13 +110,14 @@ function bindEvents() {
   });
 }
 
-function setDefaultFilters() {
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
-  dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
-  dom.settlementTypeSelect.value = DEFAULT_FILTERS.settlementType;
-  dom.statusSelect.value = DEFAULT_FILTERS.status;
-  dom.keywordInput.value = DEFAULT_FILTERS.keyword;
+function setDefaultFilters(overrides = null) {
+  const filters = {
+    ...DEFAULT_FILTERS,
+    ...(overrides || {}),
+    month: overrides?.month || currentYearMonth(),
+  };
+
+  restoreFilterSelections(filters);
 }
 
 async function loadInitialData() {
@@ -127,7 +131,14 @@ async function loadInitialData() {
     ]);
 
     renderMasterOptions();
-    await loadWageMonth(currentYearMonth());
+    const filters = {
+      ...DEFAULT_FILTERS,
+      ...(startupFilters || {}),
+      month: startupFilters?.month || currentYearMonth(),
+    };
+    restoreFilterSelections(filters);
+    await loadWageMonth(filters.month);
+    restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "老师工资结算数据已加载。");
   } catch (error) {
@@ -156,19 +167,19 @@ async function applyQuery() {
 
   if (filters.month !== loadedMonth) {
     setLoading(true);
-    showMessage("info", "正在加载老师工资锁定记录...");
+    showMessage("info", "正在加载老师工资快照记录...");
 
     try {
       await loadWageMonth(filters.month);
       restoreFilterSelections(filters);
       applyCurrentFilters();
-      showMessage("success", "老师工资锁定记录已加载。");
+      showMessage("success", "老师工资快照记录已加载。");
     } catch (error) {
       wageLocks = [];
       loadedMonth = "";
       renderDataOptions([]);
       renderWageLocks([]);
-      showMessage("error", `读取老师工资锁定记录失败：${error.message || error}`);
+      showMessage("error", `读取老师工资快照记录失败：${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -254,6 +265,8 @@ function applyCurrentFilters() {
   }
 
   restoreFilterSelections(filters);
+  activeFilters = filters;
+  updateUrlFromFilters(filters);
   renderWageLocks(filterWageLocks(wageLocks, filters));
 }
 
@@ -290,7 +303,7 @@ function renderMasterOptions() {
 
 function renderDataOptions(rows) {
   renderValueOptions(dom.settlementTypeSelect, distinctValues(rows, "settlement_type"), settlementTypeLabel);
-  renderValueOptions(dom.statusSelect, distinctValues(rows, "status"), wageStatusLabel);
+  renderWageStatusOptions(distinctValues(rows, "status"));
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -317,6 +330,19 @@ function renderValueOptions(selectEl, values, labelGetter) {
   selectEl.innerHTML = options.join("");
 }
 
+function renderWageStatusOptions(values) {
+  const normalizedValues = Array.from(new Set(["locked", "void", ...values.filter(Boolean)]));
+  const options = ['<option value="">默认（不显示已作废）</option>'];
+
+  for (const value of normalizedValues) {
+    options.push(
+      `<option value="${escapeAttribute(value)}">${escapeHtml(wageStatusLabel(value))}</option>`
+    );
+  }
+
+  dom.statusSelect.innerHTML = options.join("");
+}
+
 function renderWageLocks(rows) {
   dom.wageCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
@@ -328,7 +354,7 @@ function renderWageLocks(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td class="wage-nowrap"><a class="table-action-button" href="./wage-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
+      <td class="wage-nowrap"><a class="table-action-button" href="${escapeAttribute(buildWageDetailHref(row.id))}">详情</a></td>
       <td class="wage-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
       <td>${escapeHtml(displayTeacherName(row))}</td>
       <td>${escapeHtml(displayBusinessName(row))}</td>
@@ -355,7 +381,7 @@ function renderGenerateSummary(filters) {
   return [
     renderDialogSummaryRow("工资月份", formatMonth(filters.month)),
     renderDialogSummaryRow("生成范围", teacherLabel),
-    renderDialogSummaryRow("生成内容", "工资锁主表 + 工资明细"),
+    renderDialogSummaryRow("生成内容", "工资快照主表 + 工资明细"),
     renderDialogSummaryRow("支付/账户", "不生成支付请求、支出或账户流水"),
   ].join("");
 }
@@ -378,8 +404,78 @@ function filterWageLocks(rows, filters) {
       return false;
     }
 
+    if (!filters.status && row.status === "void") {
+      return false;
+    }
+
     return matchesKeyword(row, filters.keyword);
   });
+}
+
+function readFiltersFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const year = safeText(params.get("year")).trim();
+  const monthPart = safeText(params.get("month")).trim();
+  const parsedMonth = year && monthPart ? `${year}-${monthPart.padStart(2, "0")}` : "";
+
+  const filters = {
+    month: /^\d{4}-(0[1-9]|1[0-2])$/.test(parsedMonth) ? parsedMonth : "",
+    teacherId: safeText(params.get("teacherId")).trim(),
+    businessEntityId: safeText(params.get("businessEntityId")).trim(),
+    settlementType: safeText(params.get("settlementType")).trim(),
+    status: safeText(params.get("status")).trim(),
+    keyword: safeText(params.get("keyword")).trim(),
+  };
+
+  const hasAnyFilter = Object.values(filters).some(Boolean);
+  return hasAnyFilter ? filters : null;
+}
+
+function updateUrlFromFilters(filters) {
+  if (!window.history?.replaceState) {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  const params = buildWageFilterParams(filters);
+  url.search = params.toString();
+  window.history.replaceState({}, "", url);
+}
+
+function buildWageDetailHref(wageLockId) {
+  const params = new URLSearchParams();
+  params.set("id", wageLockId);
+
+  for (const [key, value] of buildWageFilterParams(activeFilters).entries()) {
+    params.set(key, value);
+  }
+
+  return `./wage-detail.html?${params.toString()}`;
+}
+
+function buildWageFilterParams(filters) {
+  const params = new URLSearchParams();
+  const [year = "", monthPart = ""] = safeText(filters?.month).split("-");
+
+  if (year && monthPart) {
+    params.set("year", year);
+    params.set("month", monthPart);
+  }
+
+  appendFilterParam(params, "teacherId", filters?.teacherId);
+  appendFilterParam(params, "businessEntityId", filters?.businessEntityId);
+  appendFilterParam(params, "settlementType", filters?.settlementType);
+  appendFilterParam(params, "status", filters?.status);
+  appendFilterParam(params, "keyword", filters?.keyword);
+
+  return params;
+}
+
+function appendFilterParam(params, key, value) {
+  const text = safeText(value).trim();
+  if (text) {
+    params.set(key, text);
+  }
 }
 
 function matchesKeyword(row, keyword) {
@@ -497,7 +593,7 @@ function formatGenerateSuccess(rows) {
   const totalMinutes = rows.reduce((sum, row) => sum + Number(row.total_minutes || 0), 0);
   const totalJpy = rows.reduce((sum, row) => sum + Number(row.total_jpy || 0), 0);
 
-  return `老师工资已生成：${count} 条工资锁，${totalLessons} 条明细，${totalMinutes} 分钟，合计 ${formatCurrency(totalJpy, "JPY")}。`;
+  return `老师工资已生成：${count} 条工资快照，${totalLessons} 条明细，${totalMinutes} 分钟，合计 ${formatCurrency(totalJpy, "JPY")}。`;
 }
 
 function formatGenerateError(error) {

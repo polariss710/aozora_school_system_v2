@@ -1,11 +1,23 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: MVP implemented; payment request generation implemented; payment confirmation remains separate
+Status: MVP implemented; payment request generation implemented; closure fixes verified; payment confirmation remains separate
 Date: 2026-06-10
 
 ## 目标
 
 本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资锁生成待支付请求接入 `wage-detail.html`。预览 UI、支付确认、工资锁扩展生命周期仍未实现。
+
+## Closure fix checkpoint
+
+2026-06-10 收口修正已完成并验证：
+
+- `school_generate_teacher_monthly_wage` 的 guard 顺序已调整为先检查目标候选老师同月是否已有工资快照，再检查候选 actual 缺字段。
+- 这样 `2026-05` 这类已有工资快照的月份会优先提示不能重复生成，不再被缺少老师/学生/科目/业务归属/实际分钟的 historical actual 校验掩盖。
+- 缺字段 actual guard 保留；rollback-only codex-test lesson `83000000-0000-4000-8000-000000012001` 验证仍会拒绝缺少 `actual_minutes` 的候选课时，并在 rollback 后零残留。
+- `wage.html` 默认不显示 `status = void` 的工资快照，只有显式选择 `已作废` 状态筛选才查看作废记录。
+- `wage-detail.html` 返回 `wage.html` 时保留原列表筛选参数：年份、月份、老师、业务归属、结算类型、状态和关键字。
+- 用户可见文案统一为“工资快照 / 已生成快照”，避免把当前 MVP 误表达成完整的工资锁定生命周期。
+- 本修正不实现支付确认，不写支出、账户流水、收入、学生结算，不修改课时核心口径。
 
 ## Payment request generation checkpoint
 

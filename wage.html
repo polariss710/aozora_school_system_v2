@@ -95,8 +95,8 @@
         <section class="panel" aria-labelledby="wageListTitle">
           <div class="section-heading section-heading-row">
             <div>
-              <h2 id="wageListTitle">老师工资锁定记录</h2>
-              <p class="section-note">本页显示已保存的老师工资锁定记录，不代表实时工资预览或重新计算结果。</p>
+              <h2 id="wageListTitle">老师工资快照记录</h2>
+              <p class="section-note">本页默认显示未作废的已生成工资快照，不代表实时工资预览或重新计算结果。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="openWageGenerateDialogButton" type="button">生成老师工资</button>
@@ -105,7 +105,7 @@
           </div>
 
           <div id="wageLoadingState" class="state-text is-hidden">正在加载老师工资结算...</div>
-          <div id="wageEmptyState" class="state-text is-hidden">暂无符合条件的老师工资锁定记录。</div>
+          <div id="wageEmptyState" class="state-text is-hidden">暂无符合条件的老师工资快照。</div>
           <div class="table-scroll">
             <table class="payment-table wage-table">
               <thead>
@@ -125,7 +125,7 @@
                   <th>课时工资 CNY</th>
                   <th>合计 JPY</th>
                   <th>合计 CNY</th>
-                  <th>锁定时间</th>
+                  <th>生成时间</th>
                   <th>作废时间</th>
                 </tr>
               </thead>
@@ -140,7 +140,7 @@
       <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="wageGenerateTitle">
         <div class="section-heading">
           <h2 id="wageGenerateTitle">生成老师工资</h2>
-          <p class="section-note">生成后会写入老师工资锁主表和明细，并作为已生成快照保存。</p>
+          <p class="section-note">生成后会写入老师工资快照主表和明细，并作为已生成快照保存；本阶段不提供完整锁定生命周期操作。</p>
         </div>
 
         <div id="wageGenerateSummary" class="dialog-summary"></div>
@@ -153,7 +153,7 @@
 
         <label class="field confirm-check" data-wage-generate-field="confirm">
           <input id="wageGenerateConfirmCheckbox" type="checkbox">
-          <span>我确认按当前筛选月份生成老师工资快照，且理解已生成/已锁定月份不能重复生成。</span>
+          <span>我确认按当前筛选月份生成老师工资快照，且理解已生成快照的月份不能重复生成。</span>
         </label>
 
         <div class="dialog-actions">
@@ -163,6 +163,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-app.js?v=v2.81.0-teacher-wage-generation-ui-20260610"></script>
+    <script type="module" src="./js/wage-app.js?v=v2.83.0-teacher-wage-closure-fixes-20260610"></script>
   </body>
 </html>
