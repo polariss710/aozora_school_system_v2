@@ -73,8 +73,8 @@ Completion snapshot:
 - 只读/预览功能: monthly wage lock list, teacher/business filters, wage detail snapshot, payment request references.
 - guard/锁定保护: wage detail must not recalculate locks from current rules/lessons or mutate payment status. Lesson actual-from-planned and guarded edit flows guard locked teacher wage months and wage detail snapshots.
 - 未完成: wage lock generation, wage lock void/relock, wage recalculation, wage detail edit.
-- 已知限制: saved wage locks are treated as audit snapshots. Future wage-generation work needs a separate full write-RPC workflow.
-- 后续优先级: only after lesson/settlement inputs are stable, design wage lock generation as a guarded write phase.
+- 已知限制: saved wage locks are treated as audit snapshots. Future wage-generation work needs a separate full write-RPC workflow. 2026-06-10 design-only checkpoint is recorded in `docs/teacher-wage-generation-design.md`; implementation is not started.
+- 后续优先级: before implementation, confirm cancelled actual wage treatment, draft/locked status model, CNY/FX formula, transport/classroom fee frequency, lesson_count meaning, and whether payment requests are generated separately. Recommended MVP is a guarded month generator that writes only wage locks/details from actual completed/makeup_completed lessons and does not touch payment, expense, account, income, or student settlement chains.
 
 ## 账户管理
 
