@@ -3,8 +3,11 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createActualLessonFromPlanned,
   createCancelledActualLessonFromPlanned,
+  createCrossMonthMakeupCompletedActualFromPlanned,
   createMakeupCompletedActualLessonFromPlanned,
   createPlannedLessonRecord,
+  fetchCrossMonthMakeupReferences,
+  fetchCrossMonthMakeupSourceLessons,
   fetchLessonBusinessEntities,
   fetchLessonImportLockPrecheck,
   fetchLessonImportPlannedReferences,
@@ -195,12 +198,25 @@ const CREATE_MAKEUP_ACTUAL_LESSON_FIELD_IDS = [
   "lessonCount",
 ];
 
+const CREATE_CROSS_MONTH_MAKEUP_ACTUAL_FIELD_IDS = [
+  "sourceMonthFrom",
+  "sourceMonthTo",
+  "sourceLesson",
+  "lessonDate",
+  "startTime",
+  "endTime",
+  "durationHours",
+  "unitPrice",
+  "lessonCount",
+];
+
 const dom = {};
 let students = [];
 let teachers = [];
 let subjects = [];
 let businessEntities = [];
 let lessonRecords = [];
+let crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
 let loadedMonth = "";
 let loadedLessonRecordMode = "";
 let activeView = DEFAULT_LESSON_VIEW;
@@ -222,6 +238,12 @@ let isCreateMakeupActualLessonSubmitting = false;
 let isMakeupLessonFeeManual = false;
 let createMakeupActualLessonInitialSnapshot = null;
 let isCreateMakeupActualLessonCloseConfirmPending = false;
+let crossMonthMakeupSourceLessons = [];
+let currentCrossMonthMakeupSourceLesson = null;
+let isCrossMonthMakeupSourceLoading = false;
+let isCreateCrossMonthMakeupActualSubmitting = false;
+let createCrossMonthMakeupActualInitialSnapshot = null;
+let isCreateCrossMonthMakeupActualCloseConfirmPending = false;
 let lessonEditController = null;
 let lessonVoidController = null;
 let isLessonPageInitialized = false;
@@ -243,6 +265,14 @@ export function initLessonPage() {
   setupLessonVoidController();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
+  [
+    dom.crossMonthMakeupSourceFromYearSelect,
+    dom.crossMonthMakeupSourceToYearSelect,
+  ].forEach((select) => populateYearSelect(select, PAYMENT_MONTH_FILTER_YEAR_RANGE));
+  [
+    dom.crossMonthMakeupSourceFromMonthSelect,
+    dom.crossMonthMakeupSourceToMonthSelect,
+  ].forEach((select) => populateMonthSelect(select));
   setDefaultFilters();
   bindEvents();
 
@@ -309,6 +339,7 @@ function cacheDom() {
   dom.listViewButton = document.querySelector("#lessonListViewButton");
   dom.pairViewButton = document.querySelector("#lessonPairViewButton");
   dom.openLessonImportPreviewButton = document.querySelector("#openLessonImportPreviewButton");
+  dom.openCrossMonthMakeupDialogButton = document.querySelector("#openCrossMonthMakeupDialogButton");
   dom.openCreatePlannedLessonButton = document.querySelector("#openCreatePlannedLessonButton");
   dom.listView = document.querySelector("#lessonListView");
   dom.pairView = document.querySelector("#lessonPairView");
@@ -390,6 +421,28 @@ function cacheDom() {
   dom.createMakeupActualLessonNoteInput = document.querySelector("#createMakeupActualLessonNoteInput");
   dom.createMakeupActualLessonSubmitButton = document.querySelector("#createMakeupActualLessonSubmitButton");
   dom.createMakeupActualLessonCancelButton = document.querySelector("#createMakeupActualLessonCancelButton");
+  dom.createCrossMonthMakeupActualDialog = document.querySelector("#createCrossMonthMakeupActualDialog");
+  dom.createCrossMonthMakeupActualSummary = document.querySelector("#createCrossMonthMakeupActualSummary");
+  dom.createCrossMonthMakeupActualSourceSummary = document.querySelector("#createCrossMonthMakeupActualSourceSummary");
+  dom.createCrossMonthMakeupActualError = document.querySelector("#createCrossMonthMakeupActualError");
+  dom.crossMonthMakeupSourceFromYearSelect = document.querySelector("#crossMonthMakeupSourceFromYearSelect");
+  dom.crossMonthMakeupSourceFromMonthSelect = document.querySelector("#crossMonthMakeupSourceFromMonthSelect");
+  dom.crossMonthMakeupSourceToYearSelect = document.querySelector("#crossMonthMakeupSourceToYearSelect");
+  dom.crossMonthMakeupSourceToMonthSelect = document.querySelector("#crossMonthMakeupSourceToMonthSelect");
+  dom.crossMonthMakeupSourceRefreshButton = document.querySelector("#crossMonthMakeupSourceRefreshButton");
+  dom.crossMonthMakeupSourceSelect = document.querySelector("#crossMonthMakeupSourceSelect");
+  dom.crossMonthMakeupSourceCount = document.querySelector("#crossMonthMakeupSourceCount");
+  dom.createCrossMonthMakeupActualDateInput = document.querySelector("#createCrossMonthMakeupActualDateInput");
+  dom.createCrossMonthMakeupActualStartTimeInput = document.querySelector("#createCrossMonthMakeupActualStartTimeInput");
+  dom.createCrossMonthMakeupActualEndTimeInput = document.querySelector("#createCrossMonthMakeupActualEndTimeInput");
+  dom.createCrossMonthMakeupActualDurationInput = document.querySelector("#createCrossMonthMakeupActualDurationInput");
+  dom.createCrossMonthMakeupActualUnitPriceInput = document.querySelector("#createCrossMonthMakeupActualUnitPriceInput");
+  dom.createCrossMonthMakeupActualFeeInput = document.querySelector("#createCrossMonthMakeupActualFeeInput");
+  dom.createCrossMonthMakeupActualCountInput = document.querySelector("#createCrossMonthMakeupActualCountInput");
+  dom.createCrossMonthMakeupActualContentInput = document.querySelector("#createCrossMonthMakeupActualContentInput");
+  dom.createCrossMonthMakeupActualNoteInput = document.querySelector("#createCrossMonthMakeupActualNoteInput");
+  dom.createCrossMonthMakeupActualSubmitButton = document.querySelector("#createCrossMonthMakeupActualSubmitButton");
+  dom.createCrossMonthMakeupActualCancelButton = document.querySelector("#createCrossMonthMakeupActualCancelButton");
   dom.editLessonDialog = document.querySelector("#editLessonDialog");
   dom.editLessonSummary = document.querySelector("#editLessonSummary");
   dom.editLessonWarning = document.querySelector("#editLessonWarning");
@@ -443,6 +496,7 @@ function bindEvents() {
   dom.lessonImportPlannedSubmitButton?.addEventListener("click", handleLessonImportPlannedSubmit);
   dom.lessonImportViewMonthButton?.addEventListener("click", handleLessonImportViewMonthClick);
   dom.lessonImportViewFirstDetailButton?.addEventListener("click", handleLessonImportViewFirstDetailClick);
+  dom.openCrossMonthMakeupDialogButton?.addEventListener("click", openCreateCrossMonthMakeupActualDialog);
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") {
@@ -667,6 +721,47 @@ function bindEvents() {
     isMakeupLessonFeeManual = dom.createMakeupActualLessonFeeInput.value.trim() !== "";
   });
 
+  dom.createCrossMonthMakeupActualCancelButton?.addEventListener("click", () => closeCreateCrossMonthMakeupActualDialog());
+  dom.createCrossMonthMakeupActualSubmitButton?.addEventListener("click", handleCreateCrossMonthMakeupActualSubmit);
+  dom.crossMonthMakeupSourceRefreshButton?.addEventListener("click", loadCrossMonthMakeupSourceCandidates);
+  dom.crossMonthMakeupSourceSelect?.addEventListener("change", handleCrossMonthMakeupSourceSelectionChange);
+
+  dom.createCrossMonthMakeupActualDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.createCrossMonthMakeupActualDialog) {
+      blockCreateCrossMonthMakeupActualDirectDismiss();
+    }
+  });
+
+  [
+    ["sourceMonthFrom", dom.crossMonthMakeupSourceFromYearSelect],
+    ["sourceMonthFrom", dom.crossMonthMakeupSourceFromMonthSelect],
+    ["sourceMonthTo", dom.crossMonthMakeupSourceToYearSelect],
+    ["sourceMonthTo", dom.crossMonthMakeupSourceToMonthSelect],
+    ["sourceLesson", dom.crossMonthMakeupSourceSelect],
+    ["lessonDate", dom.createCrossMonthMakeupActualDateInput],
+    ["startTime", dom.createCrossMonthMakeupActualStartTimeInput],
+    ["endTime", dom.createCrossMonthMakeupActualEndTimeInput],
+    ["durationHours", dom.createCrossMonthMakeupActualDurationInput],
+    ["unitPrice", dom.createCrossMonthMakeupActualUnitPriceInput],
+    ["lessonCount", dom.createCrossMonthMakeupActualCountInput],
+  ].forEach(([fieldId, element]) => {
+    element?.addEventListener("input", () => {
+      isCreateCrossMonthMakeupActualCloseConfirmPending = false;
+      clearCreateCrossMonthMakeupActualFieldInvalid(fieldId);
+      hideCreateCrossMonthMakeupActualErrorIfClean();
+    });
+    element?.addEventListener("change", () => {
+      isCreateCrossMonthMakeupActualCloseConfirmPending = false;
+      clearCreateCrossMonthMakeupActualFieldInvalid(fieldId);
+      hideCreateCrossMonthMakeupActualErrorIfClean();
+    });
+  });
+
+  dom.createCrossMonthMakeupActualStartTimeInput?.addEventListener("input", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
+  dom.createCrossMonthMakeupActualStartTimeInput?.addEventListener("change", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
+  dom.createCrossMonthMakeupActualEndTimeInput?.addEventListener("input", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
+  dom.createCrossMonthMakeupActualEndTimeInput?.addEventListener("change", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
+
 }
 
 function setDefaultFilters(filters = readInitialLessonQuery()) {
@@ -776,6 +871,7 @@ async function loadInitialData() {
     subjects = [];
     businessEntities = [];
     lessonRecords = [];
+    crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
     loadedMonth = "";
     renderMasterOptions();
     renderDataOptions([]);
@@ -811,6 +907,7 @@ async function applyQuery(options = {}) {
       showMessage("success", "课时记录已加载。");
     } catch (error) {
       lessonRecords = [];
+      crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
       loadedMonth = "";
       renderDataOptions([]);
       renderLessonRecords([]);
@@ -827,6 +924,9 @@ async function applyQuery(options = {}) {
 async function loadLessonMonth(month, filters = {}) {
   const queryMode = lessonRecordQueryMode(filters);
   lessonRecords = sortLessonRecords(await fetchLessonRecords(month, { status: filters.status }));
+  crossMonthMakeupReferences = buildCrossMonthMakeupReferenceMaps(
+    await fetchCrossMonthMakeupReferences(month, lessonRecords)
+  );
   loadedMonth = month;
   loadedLessonRecordMode = queryMode;
   renderDataOptions(lessonRecords);
@@ -834,6 +934,29 @@ async function loadLessonMonth(month, filters = {}) {
 
 function lessonRecordQueryMode(filters = {}) {
   return filters.status === "voided" ? "voided" : "active";
+}
+
+function emptyCrossMonthMakeupReferences() {
+  return {
+    actualsBySourcePlannedId: new Map(),
+    sourcePlannedById: new Map(),
+  };
+}
+
+function buildCrossMonthMakeupReferenceMaps(references = {}) {
+  const maps = emptyCrossMonthMakeupReferences();
+  for (const actual of references.sourceMonthActuals || []) {
+    if (!actual.planned_lesson_id) {
+      continue;
+    }
+    const actuals = maps.actualsBySourcePlannedId.get(actual.planned_lesson_id) || [];
+    actuals.push(actual);
+    maps.actualsBySourcePlannedId.set(actual.planned_lesson_id, actuals);
+  }
+  for (const planned of references.targetMonthSources || []) {
+    maps.sourcePlannedById.set(planned.id, planned);
+  }
+  return maps;
 }
 
 function applyCurrentFilters() {
@@ -922,6 +1045,9 @@ function activeLessonCreateDialog() {
   if (isDialogOpen(dom.createMakeupActualLessonDialog)) {
     return { blockDirectDismiss: blockCreateMakeupActualLessonDirectDismiss };
   }
+  if (isDialogOpen(dom.createCrossMonthMakeupActualDialog)) {
+    return { blockDirectDismiss: blockCreateCrossMonthMakeupActualDirectDismiss };
+  }
   return null;
 }
 
@@ -955,6 +1081,13 @@ function blockCreateMakeupActualLessonDirectDismiss() {
     return;
   }
   showCreateMakeupActualLessonError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
+}
+
+function blockCreateCrossMonthMakeupActualDirectDismiss() {
+  if (!isDialogOpen(dom.createCrossMonthMakeupActualDialog) || isCreateCrossMonthMakeupActualSubmitting) {
+    return;
+  }
+  showCreateCrossMonthMakeupActualError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
 }
 
 function openCreatePlannedLessonDialog() {
@@ -2114,6 +2247,405 @@ function updateCreateMakeupActualLessonFeePreview() {
   }
 
   dom.createMakeupActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
+}
+
+function openCreateCrossMonthMakeupActualDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能登记跨月补课完成。");
+    return;
+  }
+
+  const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (!targetMonth) {
+    showMessage("error", "请先选择补课完成月份。");
+    return;
+  }
+
+  currentCrossMonthMakeupSourceLesson = null;
+  crossMonthMakeupSourceLessons = [];
+  resetCreateCrossMonthMakeupActualForm(targetMonth);
+  clearCreateCrossMonthMakeupActualErrors();
+  renderCrossMonthMakeupSourceOptions();
+  renderCreateCrossMonthMakeupActualSummary();
+  setCreateCrossMonthMakeupActualSubmitting(false);
+  dom.createCrossMonthMakeupActualDialog.classList.remove("is-hidden");
+  dom.createCrossMonthMakeupActualDialog.setAttribute("aria-hidden", "false");
+  dom.crossMonthMakeupSourceRefreshButton.focus();
+  loadCrossMonthMakeupSourceCandidates();
+}
+
+function closeCreateCrossMonthMakeupActualDialog(force = false) {
+  if (isCreateCrossMonthMakeupActualSubmitting && !force) {
+    return;
+  }
+
+  if (!force && hasCreateCrossMonthMakeupActualFormChanged()) {
+    if (!isCreateCrossMonthMakeupActualCloseConfirmPending) {
+      isCreateCrossMonthMakeupActualCloseConfirmPending = true;
+      showCreateCrossMonthMakeupActualError("表单已有修改。再次点击取消将放弃输入。");
+      return;
+    }
+  }
+
+  dom.createCrossMonthMakeupActualDialog.classList.add("is-hidden");
+  dom.createCrossMonthMakeupActualDialog.setAttribute("aria-hidden", "true");
+  currentCrossMonthMakeupSourceLesson = null;
+  crossMonthMakeupSourceLessons = [];
+  createCrossMonthMakeupActualInitialSnapshot = null;
+  isCreateCrossMonthMakeupActualCloseConfirmPending = false;
+}
+
+function resetCreateCrossMonthMakeupActualForm(targetMonth) {
+  const previousMonth = addMonthsToYearMonth(targetMonth, -1) || targetMonth;
+  const defaultFromMonth = addMonthsToYearMonth(targetMonth, -3) || previousMonth;
+  setYearMonthSelectValue(dom.crossMonthMakeupSourceFromYearSelect, dom.crossMonthMakeupSourceFromMonthSelect, defaultFromMonth);
+  setYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect, previousMonth);
+  dom.crossMonthMakeupSourceSelect.value = "";
+  dom.createCrossMonthMakeupActualDateInput.value = firstDateOfMonth(targetMonth);
+  dom.createCrossMonthMakeupActualStartTimeInput.value = "";
+  dom.createCrossMonthMakeupActualEndTimeInput.value = "";
+  dom.createCrossMonthMakeupActualDurationInput.value = "";
+  dom.createCrossMonthMakeupActualUnitPriceInput.value = "0";
+  dom.createCrossMonthMakeupActualFeeInput.value = "0";
+  dom.createCrossMonthMakeupActualCountInput.value = "";
+  dom.createCrossMonthMakeupActualContentInput.value = "";
+  dom.createCrossMonthMakeupActualNoteInput.value = "";
+  dom.createCrossMonthMakeupActualFeeInput.readOnly = true;
+  isCreateCrossMonthMakeupActualCloseConfirmPending = false;
+  createCrossMonthMakeupActualInitialSnapshot = readCreateCrossMonthMakeupActualFormSnapshot();
+}
+
+async function loadCrossMonthMakeupSourceCandidates() {
+  if (isCrossMonthMakeupSourceLoading) {
+    return;
+  }
+
+  clearCreateCrossMonthMakeupActualErrors();
+  const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  const fromMonth = getYearMonthSelectValue(dom.crossMonthMakeupSourceFromYearSelect, dom.crossMonthMakeupSourceFromMonthSelect);
+  const toMonth = getYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect);
+  const invalidFields = [];
+  if (!fromMonth) invalidFields.push("sourceMonthFrom");
+  if (!toMonth) invalidFields.push("sourceMonthTo");
+  if (fromMonth && toMonth && fromMonth > toMonth) invalidFields.push("sourceMonthFrom", "sourceMonthTo");
+  if (toMonth && targetMonth && toMonth >= targetMonth) invalidFields.push("sourceMonthTo");
+
+  if (invalidFields.length) {
+    crossMonthMakeupSourceLessons = [];
+    currentCrossMonthMakeupSourceLesson = null;
+    renderCrossMonthMakeupSourceOptions();
+    renderCreateCrossMonthMakeupActualSummary();
+    showCreateCrossMonthMakeupActualError("原月份范围必须早于当前补课月份。", invalidFields);
+    return;
+  }
+
+  isCrossMonthMakeupSourceLoading = true;
+  dom.crossMonthMakeupSourceRefreshButton.disabled = true;
+  dom.crossMonthMakeupSourceSelect.disabled = true;
+  dom.crossMonthMakeupSourceCount.textContent = "正在读取来源...";
+
+  try {
+    crossMonthMakeupSourceLessons = sortLessonRecords(await fetchCrossMonthMakeupSourceLessons({
+      fromMonth,
+      toMonth,
+      targetMonth,
+    }));
+    currentCrossMonthMakeupSourceLesson = null;
+    renderCrossMonthMakeupSourceOptions();
+    renderCreateCrossMonthMakeupActualSummary();
+    createCrossMonthMakeupActualInitialSnapshot = readCreateCrossMonthMakeupActualFormSnapshot();
+  } catch (error) {
+    crossMonthMakeupSourceLessons = [];
+    currentCrossMonthMakeupSourceLesson = null;
+    renderCrossMonthMakeupSourceOptions();
+    renderCreateCrossMonthMakeupActualSummary();
+    showCreateCrossMonthMakeupActualError(`读取跨月补课来源失败：${error.message || error}`);
+  } finally {
+    isCrossMonthMakeupSourceLoading = false;
+    dom.crossMonthMakeupSourceRefreshButton.disabled = false;
+    dom.crossMonthMakeupSourceSelect.disabled = false;
+    setCreateCrossMonthMakeupActualSubmitting(false);
+  }
+}
+
+function renderCrossMonthMakeupSourceOptions() {
+  const options = ['<option value="">请选择原月份待补课 planned</option>'];
+  for (const lesson of crossMonthMakeupSourceLessons) {
+    const label = [
+      lesson.year_month,
+      formatDateOnly(lesson.lesson_date),
+      formatTimeRange(lesson.start_time, lesson.end_time),
+      nameById(students, lesson.student_id, studentName),
+      nameById(teachers, lesson.teacher_id, teacherName),
+      nameById(subjects, lesson.subject_id, subjectName),
+      shortId(lesson.id),
+    ].filter((value) => safeText(value) && value !== "-").join(" / ");
+    options.push(`<option value="${escapeAttribute(lesson.id)}">${escapeHtml(label)}</option>`);
+  }
+  dom.crossMonthMakeupSourceSelect.innerHTML = options.join("");
+  dom.crossMonthMakeupSourceCount.textContent = `${crossMonthMakeupSourceLessons.length} 条可选来源`;
+}
+
+function handleCrossMonthMakeupSourceSelectionChange() {
+  const sourceId = dom.crossMonthMakeupSourceSelect.value;
+  currentCrossMonthMakeupSourceLesson = crossMonthMakeupSourceLessons.find((lesson) => lesson.id === sourceId) || null;
+  if (currentCrossMonthMakeupSourceLesson) {
+    fillCreateCrossMonthMakeupActualFromSource(currentCrossMonthMakeupSourceLesson);
+  }
+  renderCreateCrossMonthMakeupActualSummary();
+  setCreateCrossMonthMakeupActualSubmitting(false);
+  clearCreateCrossMonthMakeupActualFieldInvalid("sourceLesson");
+  hideCreateCrossMonthMakeupActualErrorIfClean();
+  createCrossMonthMakeupActualInitialSnapshot = readCreateCrossMonthMakeupActualFormSnapshot();
+}
+
+function fillCreateCrossMonthMakeupActualFromSource(sourceLesson) {
+  dom.createCrossMonthMakeupActualStartTimeInput.value = formatInputTime(sourceLesson.start_time);
+  dom.createCrossMonthMakeupActualEndTimeInput.value = formatInputTime(sourceLesson.end_time);
+  dom.createCrossMonthMakeupActualDurationInput.value = displayInputNumber(sourceLesson.duration_hours);
+  dom.createCrossMonthMakeupActualUnitPriceInput.value = displayInputNumber(sourceLesson.unit_price || 0);
+  dom.createCrossMonthMakeupActualFeeInput.value = "0";
+  dom.createCrossMonthMakeupActualCountInput.value = sourceLesson.lesson_count ? String(sourceLesson.lesson_count) : "";
+  dom.createCrossMonthMakeupActualContentInput.value = safeText(sourceLesson.lesson_content);
+  dom.createCrossMonthMakeupActualNoteInput.value = safeText(sourceLesson.note);
+}
+
+function renderCreateCrossMonthMakeupActualSummary() {
+  const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  dom.createCrossMonthMakeupActualSummary.innerHTML = [
+    ["补课月份", formatMonth(targetMonth)],
+    ["写入结果", "只在当前月份生成一条补课完成 actual"],
+    ["计费", "默认不计费；课时费固定 0"],
+    ["planned", "不会复制 planned"],
+    ["来源 planned", "不会修改来源 planned"],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("");
+
+  const source = currentCrossMonthMakeupSourceLesson;
+  dom.createCrossMonthMakeupActualSourceSummary.innerHTML = source ? [
+    ["来源月份", formatMonth(source.year_month)],
+    ["来源日期", formatDateOnly(source.lesson_date)],
+    ["学生", nameById(students, source.student_id, studentName)],
+    ["老师", nameById(teachers, source.teacher_id, teacherName)],
+    ["科目", nameById(subjects, source.subject_id, subjectName)],
+    ["业务归属", nameById(businessEntities, source.business_entity_id, businessEntityName)],
+    ["planned id", shortId(source.id)],
+  ].map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(displayValue(value))}</span>
+    </div>
+  `).join("") : '<div class="state-text">请选择一个原月份待补课 planned。</div>';
+}
+
+async function handleCreateCrossMonthMakeupActualSubmit() {
+  if (isCreateCrossMonthMakeupActualSubmitting) {
+    return;
+  }
+
+  clearCreateCrossMonthMakeupActualErrors();
+  const payload = readCreateCrossMonthMakeupActualPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCreateCrossMonthMakeupActualSubmitting(true);
+
+  try {
+    const createdLesson = await createCrossMonthMakeupCompletedActualFromPlanned(payload);
+    closeCreateCrossMonthMakeupActualDialog(true);
+    await refreshAfterCreateCrossMonthMakeupActual(createdLesson);
+    showMessage("success", `跨月补课完成已登记：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
+  } catch (error) {
+    const message = error.message || String(error);
+    showCreateCrossMonthMakeupActualError(message, createCrossMonthMakeupActualFieldIdsForError(message));
+  } finally {
+    setCreateCrossMonthMakeupActualSubmitting(false);
+  }
+}
+
+function readCreateCrossMonthMakeupActualPayload() {
+  const source = currentCrossMonthMakeupSourceLesson;
+  const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  const lessonDate = dom.createCrossMonthMakeupActualDateInput.value;
+  const lessonMonth = safeText(lessonDate).slice(0, 7);
+  const startTime = dom.createCrossMonthMakeupActualStartTimeInput.value;
+  const endTime = dom.createCrossMonthMakeupActualEndTimeInput.value;
+  const durationHours = numberFromInput(dom.createCrossMonthMakeupActualDurationInput.value);
+  const unitPrice = numberFromInput(dom.createCrossMonthMakeupActualUnitPriceInput.value);
+  const lessonCount = nullableIntegerFromInput(dom.createCrossMonthMakeupActualCountInput.value);
+  const invalidFields = [];
+
+  if (!source) invalidFields.push("sourceLesson");
+  if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
+  if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
+  if (source?.year_month && targetMonth && source.year_month >= targetMonth) invalidFields.push("sourceLesson");
+  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  const timeValidation = validateLessonTimeRange(startTime, endTime);
+  let validationMessage = "";
+  if (timeValidation.status === "error") {
+    invalidFields.push("startTime", "endTime", "durationHours");
+    validationMessage = timeValidation.message;
+  } else if (
+    timeValidation.status === "valid"
+    && (!Number.isFinite(durationHours) || !numbersEqual(durationHours, timeValidation.durationHours))
+  ) {
+    invalidFields.push("durationHours");
+    validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
+  }
+  if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
+  if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
+
+  if (invalidFields.length) {
+    showCreateCrossMonthMakeupActualError(validationMessage || "请检查跨月补课完成表单；补课完成日期必须在当前页面月份，来源必须早于当前月份。", invalidFields);
+    return null;
+  }
+
+  return {
+    plannedLessonId: source.id,
+    lessonDate,
+    startTime,
+    endTime,
+    durationHours,
+    unitPrice,
+    lessonCount,
+    lessonContent: dom.createCrossMonthMakeupActualContentInput.value.trim(),
+    note: dom.createCrossMonthMakeupActualNoteInput.value.trim(),
+  };
+}
+
+async function refreshAfterCreateCrossMonthMakeupActual(createdLesson) {
+  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
+  if (createdMonth) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, createdMonth);
+  }
+
+  await loadLessonMonth(createdMonth, { status: "" });
+  renderDataOptions(lessonRecords);
+  restoreFilterSelections({
+    month: createdMonth,
+    studentId: createdLesson.student_id || currentCrossMonthMakeupSourceLesson?.student_id || "",
+    teacherId: "",
+    subjectId: "",
+    businessEntityId: "",
+    lessonType: "",
+    status: "",
+    isBillable: "",
+    keyword: "",
+  });
+  setActiveView("pair");
+  applyCurrentFilters();
+}
+
+function setCreateCrossMonthMakeupActualSubmitting(isSubmitting) {
+  isCreateCrossMonthMakeupActualSubmitting = isSubmitting;
+  dom.createCrossMonthMakeupActualSubmitButton.disabled = (
+    isSubmitting
+    || isCrossMonthMakeupSourceLoading
+    || !currentCrossMonthMakeupSourceLesson
+  );
+  dom.createCrossMonthMakeupActualCancelButton.disabled = isSubmitting;
+  dom.crossMonthMakeupSourceRefreshButton.disabled = isSubmitting || isCrossMonthMakeupSourceLoading;
+  dom.crossMonthMakeupSourceSelect.disabled = isSubmitting || isCrossMonthMakeupSourceLoading;
+  dom.openCreatePlannedLessonButton.disabled = isSubmitting;
+  dom.openCrossMonthMakeupDialogButton.disabled = isSubmitting;
+  dom.createCrossMonthMakeupActualSubmitButton.textContent = isSubmitting ? "登记中..." : "登记跨月补课完成";
+}
+
+function readCreateCrossMonthMakeupActualFormSnapshot() {
+  return JSON.stringify({
+    sourceMonthFrom: getYearMonthSelectValue(dom.crossMonthMakeupSourceFromYearSelect, dom.crossMonthMakeupSourceFromMonthSelect),
+    sourceMonthTo: getYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect),
+    sourceLesson: dom.crossMonthMakeupSourceSelect.value,
+    lessonDate: dom.createCrossMonthMakeupActualDateInput.value,
+    startTime: dom.createCrossMonthMakeupActualStartTimeInput.value,
+    endTime: dom.createCrossMonthMakeupActualEndTimeInput.value,
+    durationHours: dom.createCrossMonthMakeupActualDurationInput.value,
+    unitPrice: dom.createCrossMonthMakeupActualUnitPriceInput.value,
+    lessonCount: dom.createCrossMonthMakeupActualCountInput.value,
+    lessonContent: dom.createCrossMonthMakeupActualContentInput.value,
+    note: dom.createCrossMonthMakeupActualNoteInput.value,
+  });
+}
+
+function hasCreateCrossMonthMakeupActualFormChanged() {
+  return Boolean(
+    createCrossMonthMakeupActualInitialSnapshot
+    && readCreateCrossMonthMakeupActualFormSnapshot() !== createCrossMonthMakeupActualInitialSnapshot
+  );
+}
+
+function clearCreateCrossMonthMakeupActualErrors() {
+  dom.createCrossMonthMakeupActualError.textContent = "";
+  dom.createCrossMonthMakeupActualError.classList.add("is-hidden");
+  for (const fieldId of CREATE_CROSS_MONTH_MAKEUP_ACTUAL_FIELD_IDS) {
+    clearCreateCrossMonthMakeupActualFieldInvalid(fieldId);
+  }
+}
+
+function showCreateCrossMonthMakeupActualError(message, fieldIds = []) {
+  dom.createCrossMonthMakeupActualError.textContent = message;
+  dom.createCrossMonthMakeupActualError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCreateCrossMonthMakeupActualFieldInvalid(fieldId, true);
+  }
+  dom.createCrossMonthMakeupActualDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function createCrossMonthMakeupActualFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("来源") || text.includes("planned") || text.includes("关联 actual")) fields.push("sourceLesson");
+  if (text.includes("日期") || text.includes("月份") || text.includes("学生月度结算") || text.includes("老师工资")) fields.push("lessonDate");
+  if (text.includes("开始时间")) fields.push("startTime");
+  if (text.includes("结束时间")) fields.push("endTime");
+  if (text.includes("时长")) fields.push("durationHours");
+  if (text.includes("单价")) fields.push("unitPrice");
+  if (text.includes("回数")) fields.push("lessonCount");
+  return fields;
+}
+
+function setCreateCrossMonthMakeupActualFieldInvalid(fieldId, invalid) {
+  const field = dom.createCrossMonthMakeupActualDialog.querySelector(`[data-create-cross-month-makeup-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearCreateCrossMonthMakeupActualFieldInvalid(fieldId) {
+  setCreateCrossMonthMakeupActualFieldInvalid(fieldId, false);
+}
+
+function hideCreateCrossMonthMakeupActualErrorIfClean() {
+  const hasInvalidField = Boolean(dom.createCrossMonthMakeupActualDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.createCrossMonthMakeupActualError.textContent = "";
+    dom.createCrossMonthMakeupActualError.classList.add("is-hidden");
+  }
+}
+
+function syncCreateCrossMonthMakeupActualDurationFromTimeRange() {
+  const result = validateLessonTimeRange(
+    dom.createCrossMonthMakeupActualStartTimeInput.value,
+    dom.createCrossMonthMakeupActualEndTimeInput.value
+  );
+  if (result.status === "incomplete") {
+    return;
+  }
+  if (result.status === "error") {
+    showCreateCrossMonthMakeupActualError(result.message, ["startTime", "endTime", "durationHours"]);
+    return;
+  }
+
+  dom.createCrossMonthMakeupActualDurationInput.value = displayInputNumber(result.durationHours);
+  clearCreateCrossMonthMakeupActualFieldInvalid("startTime");
+  clearCreateCrossMonthMakeupActualFieldInvalid("endTime");
+  clearCreateCrossMonthMakeupActualFieldInvalid("durationHours");
+  hideCreateCrossMonthMakeupActualErrorIfClean();
 }
 
 function syncCreatePlannedLessonDurationFromTimeRange() {
@@ -4077,6 +4609,7 @@ function buildLessonPairs(records) {
     pairs: plannedRecords.map((planned) => ({
       planned,
       actuals: actualsByPlannedId.get(planned.id) || [],
+      crossMonthActuals: crossMonthMakeupReferences.actualsBySourcePlannedId.get(planned.id) || [],
     })),
     unlinkedActuals,
     otherRecords,
@@ -4084,9 +4617,11 @@ function buildLessonPairs(records) {
 }
 
 function renderLessonPairRow(pair) {
-  const actualHtml = pair.actuals.length
-    ? pair.actuals.map((actual) => renderLessonPairCard(actual, "actual")).join("")
-    : renderMissingActualCard(pair.planned);
+  const actualCards = [
+    ...pair.actuals.map((actual) => renderLessonPairCard(actual, "actual")),
+    ...pair.crossMonthActuals.map((actual) => renderCrossMonthMakeupCompletedReferenceCard(actual)),
+  ];
+  const actualHtml = actualCards.length ? actualCards.join("") : renderMissingActualCard(pair.planned);
 
   return `
     <article class="lesson-pair-row">
@@ -4112,16 +4647,75 @@ function renderPairSection(title, rowsHtml) {
 }
 
 function renderUnlinkedActualRow(actual) {
+  const sourcePlanned = actual.planned_lesson_id
+    ? crossMonthMakeupReferences.sourcePlannedById.get(actual.planned_lesson_id)
+    : null;
+  const plannedHtml = sourcePlanned
+    ? renderCrossMonthMakeupSourceReferenceCard(sourcePlanned)
+    : '<div class="lesson-pair-placeholder">未找到对应 planned 记录</div>';
+
   return `
     <article class="lesson-pair-row lesson-pair-row-unlinked">
       <div class="lesson-pair-column lesson-pair-column-empty">
         <div class="lesson-pair-column-title">planned</div>
-        <div class="lesson-pair-placeholder">未找到对应 planned 记录</div>
+        ${plannedHtml}
       </div>
       <div class="lesson-pair-column lesson-pair-column-actual">
         <div class="lesson-pair-column-title">actual</div>
         ${renderLessonPairCard(actual, "actual")}
       </div>
+    </article>
+  `;
+}
+
+function renderCrossMonthMakeupCompletedReferenceCard(actual) {
+  return `
+    <article class="lesson-pair-card lesson-pair-card-makeup lesson-pair-card-reference">
+      <div class="lesson-pair-card-header">
+        <div>
+          <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(actual.id, actual.year_month, "pair"))}">查看详情</a>
+          <span class="lesson-pair-id">${escapeHtml(shortId(actual.id))}</span>
+        </div>
+        <span class="status-badge ${escapeAttribute(statusClass(actual.status))}">已于 ${escapeHtml(formatMonth(actual.year_month))} 完成</span>
+      </div>
+      <div class="lesson-pair-main">
+        <strong>${escapeHtml(formatDateOnly(actual.lesson_date))}</strong>
+        <span>${escapeHtml(formatWeekday(actual.lesson_date))}</span>
+        <span>${escapeHtml(formatTimeRange(actual.start_time, actual.end_time))}</span>
+      </div>
+      <dl class="lesson-pair-meta">
+        <div><dt>计费</dt><dd>${escapeHtml(actualBillableSummary(actual))}</dd></div>
+        <div><dt>时长</dt><dd>${escapeHtml(displayValue(actual.duration_hours))}</dd></div>
+        <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(actual.lesson_fee, "JPY"))}</dd></div>
+        <div><dt>老师结算月</dt><dd>${escapeHtml(formatMonth(actual.teacher_settlement_month))}</dd></div>
+      </dl>
+      <div class="lesson-pair-reference-note">已于 ${escapeHtml(formatMonth(actual.year_month))} 完成；来源 planned 不会在原月份被修改。</div>
+    </article>
+  `;
+}
+
+function renderCrossMonthMakeupSourceReferenceCard(sourcePlanned) {
+  return `
+    <article class="lesson-pair-card lesson-pair-card-reference">
+      <div class="lesson-pair-card-header">
+        <div>
+          <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(sourcePlanned.id, sourcePlanned.year_month, "pair"))}">查看详情</a>
+          <span class="lesson-pair-id">${escapeHtml(shortId(sourcePlanned.id))}</span>
+        </div>
+        <span class="status-badge ${escapeAttribute(statusClass(sourcePlanned.status))}">来源：${escapeHtml(formatMonth(sourcePlanned.year_month))} 待补课</span>
+      </div>
+      <div class="lesson-pair-main">
+        <strong>${escapeHtml(formatDateOnly(sourcePlanned.lesson_date))}</strong>
+        <span>${escapeHtml(formatWeekday(sourcePlanned.lesson_date))}</span>
+        <span>${escapeHtml(formatTimeRange(sourcePlanned.start_time, sourcePlanned.end_time))}</span>
+      </div>
+      <dl class="lesson-pair-meta">
+        <div><dt>学生</dt><dd>${escapeHtml(nameById(students, sourcePlanned.student_id, studentName))}</dd></div>
+        <div><dt>老师</dt><dd>${escapeHtml(nameById(teachers, sourcePlanned.teacher_id, teacherName))}</dd></div>
+        <div><dt>科目</dt><dd>${escapeHtml(nameById(subjects, sourcePlanned.subject_id, subjectName))}</dd></div>
+        <div><dt>业务归属</dt><dd>${escapeHtml(nameById(businessEntities, sourcePlanned.business_entity_id, businessEntityName))}</dd></div>
+      </dl>
+      <div class="lesson-pair-reference-note">来源：${escapeHtml(formatMonth(sourcePlanned.year_month))} 待补课；当前月份只保存补课完成 actual。</div>
     </article>
   `;
 }
@@ -4534,6 +5128,21 @@ function formatTime(value) {
 function formatInputTime(value) {
   const text = safeText(value);
   return text ? text.slice(0, 5) : "";
+}
+
+function addMonthsToYearMonth(yearMonth, offset) {
+  const match = safeText(yearMonth).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  if (!match) {
+    return "";
+  }
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1 + offset;
+  const date = new Date(year, monthIndex, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function firstDateOfMonth(yearMonth) {
+  return yearMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth) ? `${yearMonth}-01` : "";
 }
 
 function displayInputNumber(value) {

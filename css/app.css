@@ -1041,6 +1041,11 @@ h2 {
   border-style: dashed;
 }
 
+.lesson-pair-card-reference {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
 .lesson-pair-card-header,
 .lesson-pair-main {
   display: flex;
@@ -1134,6 +1139,14 @@ h2 {
   justify-self: start;
   min-height: 28px;
   padding: 4px 10px;
+}
+
+.lesson-pair-reference-note {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .lesson-pair-placeholder {
@@ -1585,6 +1598,20 @@ h2 {
 .reimbursement-create-wide-field,
 .lesson-create-wide-field {
   grid-column: 1 / -1;
+}
+
+.lesson-source-select-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .lesson-edit-dialog-panel .section-heading {

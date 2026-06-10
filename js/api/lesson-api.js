@@ -117,6 +117,81 @@ export async function fetchLessonImportLockPrecheck(targets) {
   };
 }
 
+export async function fetchCrossMonthMakeupSourceLessons({ fromMonth, toMonth, targetMonth } = {}) {
+  const normalizedFrom = normalizeYearMonth(fromMonth);
+  const normalizedTo = normalizeYearMonth(toMonth);
+  const normalizedTarget = normalizeYearMonth(targetMonth);
+  if (!normalizedFrom || !normalizedTo || !normalizedTarget || normalizedFrom > normalizedTo) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("school_lesson_records")
+    .select(LESSON_COLUMNS)
+    .eq("app_type", "school")
+    .eq("lesson_type", "planned")
+    .eq("status", "pending_makeup")
+    .is("voided_at", null)
+    .gte("year_month", normalizedFrom)
+    .lte("year_month", normalizedTo)
+    .lt("year_month", normalizedTarget)
+    .order("year_month", { ascending: true })
+    .order("lesson_date", { ascending: true })
+    .order("lesson_count", { ascending: true, nullsFirst: false })
+    .order("start_time", { ascending: true, nullsFirst: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const candidates = data || [];
+  if (!candidates.length) {
+    return [];
+  }
+
+  const linkedActuals = await fetchActualLessonsByPlannedIds(candidates.map((row) => row.id));
+  const linkedPlannedIds = new Set(linkedActuals.map((row) => row.planned_lesson_id).filter(Boolean));
+  return candidates.filter((row) => !linkedPlannedIds.has(row.id));
+}
+
+export async function fetchCrossMonthMakeupReferences(yearMonth, records = []) {
+  const normalizedMonth = normalizeYearMonth(yearMonth);
+  if (!normalizedMonth || !Array.isArray(records) || !records.length) {
+    return {
+      sourceMonthActuals: [],
+      targetMonthSources: [],
+    };
+  }
+
+  const plannedIds = normalizeIdList(
+    records
+      .filter((row) => row.lesson_type === "planned")
+      .map((row) => row.id)
+  );
+  const targetActualSourceIds = normalizeIdList(
+    records
+      .filter((row) => row.lesson_type === "actual" && row.status === "makeup_completed")
+      .map((row) => row.planned_lesson_id)
+  );
+
+  const [sourceMonthActuals, targetMonthSources] = await Promise.all([
+    plannedIds.length ? fetchActualLessonsByPlannedIds(plannedIds) : Promise.resolve([]),
+    targetActualSourceIds.length ? fetchLessonsByIds(targetActualSourceIds) : Promise.resolve([]),
+  ]);
+
+  return {
+    sourceMonthActuals: sourceMonthActuals.filter((row) => (
+      row.status === "makeup_completed"
+      && row.year_month !== normalizedMonth
+    )),
+    targetMonthSources: targetMonthSources.filter((row) => (
+      row.lesson_type === "planned"
+      && row.status === "pending_makeup"
+      && row.year_month !== normalizedMonth
+    )),
+  };
+}
+
 async function fetchLessonsByIds(ids) {
   const { data, error } = await supabase
     .from("school_lesson_records")
@@ -210,6 +285,11 @@ function normalizeIdList(values) {
 
 function uniqueTextList(values) {
   return normalizeIdList(values);
+}
+
+function normalizeYearMonth(value) {
+  const text = String(value || "").trim();
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(text) ? text : "";
 }
 
 function nullSafeEqual(left, right) {
@@ -443,6 +523,33 @@ export async function createMakeupCompletedActualLessonFromPlanned(payload) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
     throw new Error("补课完成课时生成失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
+export async function createCrossMonthMakeupCompletedActualFromPlanned(payload) {
+  const { data, error } = await supabase.rpc("school_create_cross_month_makeup_completed_actual_from_planned", {
+    p_planned_lesson_id: payload.plannedLessonId,
+    p_lesson_date: payload.lessonDate,
+    p_start_time: payload.startTime || null,
+    p_end_time: payload.endTime || null,
+    p_duration_hours: payload.durationHours,
+    p_unit_price: payload.unitPrice,
+    p_lesson_fee: 0,
+    p_is_billable: false,
+    p_lesson_count: payload.lessonCount,
+    p_lesson_content: payload.lessonContent || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("跨月补课完成登记失败：RPC 没有返回结果。");
   }
 
   return result;
