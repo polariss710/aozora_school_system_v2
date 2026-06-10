@@ -16,6 +16,7 @@ Reference baseline:
 - Page modules must not directly `insert`, `update`, `delete`, or `upsert` database rows.
 - All write operations currently exposed by pages go through `js/api/*-api.js` wrappers and verified RPCs.
 - Historical records are audit data. Current write flows must preserve original records and use status, reversal fields, related records, and account transactions instead of deletion or historical rewrite.
+- The 2026-05 teacher wage duplicate reconciliation was completed through service-role-only one-time RPC `school_fix_202605_teacher_wage_duplicate_cong_qirun`; it is not a page/API write surface and not a general wage void/relock lifecycle. It left the older wage/payment effective, voided only the confirmed duplicate wage snapshot, cancelled only the confirmed duplicate pending payment request, and kept effective 2026-05 wage locks at `locked:9 / void:13`.
 - Profit analysis is read-only and uses effective income/expense records for operating profit. Reimbursement, account adjustment, account transfer, and payment-request state changes are audit references unless they materialize as effective income/expense.
 
 ## Module Map

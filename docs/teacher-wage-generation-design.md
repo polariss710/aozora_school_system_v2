@@ -7,6 +7,17 @@ Date: 2026-06-10
 
 本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资锁生成待支付请求接入 `wage-detail.html`。预览 UI、支付确认、工资锁扩展生命周期仍未实现。
 
+## 2026-05 historical reconciliation checkpoint
+
+2026-06-10 对 2026-05 丛琪润 / 青空进学塾工资重复锁定做了用户授权的定点历史修正：
+
+- 新增并执行一次性 guarded RPC `public.school_fix_202605_teacher_wage_duplicate_cong_qirun()`，SQL archive 为 `school_fix_202605_teacher_wage_duplicate_cong_qirun_rpc.sql`。
+- 函数只授予 `service_role` 和 owner 执行权限，不暴露给 `anon` / `authenticated`，也没有页面/API 接入。
+- guard 精确验证 older wage lock `dacc2887-f039-4dcb-861b-6ec36e51bace`、duplicate wage lock `4af1b55e-ece1-47a1-a350-5bb0f2e111ca`、older payment request `a2794694-9bb0-411f-9f66-ae1fc174a646`、duplicate payment request `c8280c86-15f9-410b-b9ac-3588b780b3b0`、2026-05 执行前计数 `locked:10 / void:12`，以及两条 wage lock 完全相同的 3 条 detail lesson ids。
+- Rollback test 验证事务内可把 duplicate payment request `pending -> cancelled`、duplicate wage lock `locked -> void` 并设置 `voided_at`，2026-05 计数变为 `locked:9 / void:13`，随后 rollback 恢复原状态。
+- Commit test 持久完成同一修正。修正后 effective 2026-05 wage locks 为 `locked:9 / void:13`；older wage lock 与 older payment request 保持有效；两条 wage lock 的 detail rows 仍保留；重复调用被 guard 拒绝。
+- 本次没有重算 2026-05 工资，没有修改 lesson records 或 wage details，没有写支出、账户、账户流水、收入、学生月度结算，也没有进入 broad history repair / backfill / cleanup。
+
 ## Closure fix checkpoint
 
 2026-06-10 收口修正已完成并验证：
