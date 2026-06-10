@@ -25,7 +25,7 @@ Completion snapshot:
 | --- | --- | --- |
 | 课时管理 | 已收口 | 13/13 |
 | 学生月度结算 | 已收口 | 8/8 |
-| 老师工资结算 | 只读/预览 | 4/4 |
+| 老师工资结算 | 只读/预览 + DB/RPC checkpoint | 5/5 |
 | 账户管理 | V1 可用 | 8/9 |
 | 收入记录 | V1 可用 | 3/6 |
 | 支出记录 | V1 可用 | 5/9 |
@@ -48,9 +48,9 @@ Completion snapshot:
 - 跨月待补课高优先级: 已完成 DB/RPC + API/UI V1。`school_create_cross_month_makeup_completed_actual_from_planned` 选择原月份 `pending_makeup` planned，并在补课月份生成 `makeup_completed` actual，`planned_lesson_id` 指向原 planned，不复制 planned/actual，不修改来源 planned，默认 `is_billable = false` 且页面固定金额 `0`，按目标 actual 月检查学生结算锁和老师工资锁。`lesson.html` 的独立入口从目标月份打开，来源范围只列出以前月份、未作废、无 linked actual 的 `pending_makeup` planned；原月份 paired view 显示 `已于 YYYY-MM 完成`，补课月份 paired view 显示 `来源：YYYY-MM 待补课`。
 - 跨月补课收口回归: 2026-06-10 rollback tests verified source-month student settlement lock is allowed when target month is unlocked, target-month student settlement lock is rejected, and target-month teacher wage lock is rejected; browser read-only regression verified linked sources disappear from candidates, source month hides `补课完成`, target/source paired references render correctly, and non-billable cross-month actuals do not enter student settlement actual fee/hours.
 - 完成态 checkpoint: 2026-06-10 docs-only consistency pass explicitly marks 课时管理 V1 = 完成 / 已验证, planned-only 导入 = 完成 / 当前稳定源头, 学生月度结算 V1 = 完成 / 已验证, and 跨月补课完成登记 = 完成 / 已验证. Full actual import remains future/history migration backlog; whitelist/codex-test cleanup remains deferred cleanup.
-- 未完成: free actual creation outside planned flow, full actual batch import, lesson delete, void restore, `voided_by`, wage lock generation from lessons, settlement adjustment/generation beyond completed settlement V1, auto-matching by student/teacher/subject/date/time, same-file planned/actual linking.
+- 未完成: free actual creation outside planned flow, full actual batch import, lesson delete, void restore, `voided_by`, wage generation API/UI from lessons beyond the completed DB/RPC checkpoint, settlement adjustment/generation beyond completed settlement V1, auto-matching by student/teacher/subject/date/time, same-file planned/actual linking.
 - 已知限制: planned-only import accepts only planned rows with `planned` / `pending_makeup`; actual rows may still be previewed/prechecked for future design but planned-only submit blocks them. Batch import does not use teacher wage lock protection because planned rows do not set actual teacher settlement month. Lesson delete remains backlog but is not a current operational must-have because guarded edit covers ordinary post-generation corrections.
-- 后续优先级: keep planned-only import and cross-month makeup completion as stable V1 surfaces; next-stage candidates are teacher wage generation / wage lock generation, payment management follow-up enhancements, weekly plan image export, full actual import / history migration, whitelist/codex-test deferred cleanup, and DB-level linked-actual unique/index only after read-only duplicate-risk verification. Each remains a separate guarded phase and is not implemented in this checkpoint.
+- 后续优先级: keep planned-only import and cross-month makeup completion as stable V1 surfaces; next-stage candidates are teacher wage generation API/UI, payment management follow-up enhancements, weekly plan image export, full actual import / history migration, whitelist/codex-test deferred cleanup, and DB-level linked-actual unique/index only after read-only duplicate-risk verification. Each remains a separate guarded phase.
 
 ## 学生月度结算
 
@@ -66,15 +66,15 @@ Completion snapshot:
 
 ## 老师工资结算
 
-- 状态标签: 只读/预览
-- 完成度: 4/4
-- 已完成: wage lock list and wage lock detail are read-only and complete; detail shows saved wage lock snapshot, wage lock details, and related payment requests.
-- 可写入功能: none from `wage.html` / `wage-detail.html`. Teacher wage payment actions are handled by the payment module, not wage detail.
+- 状态标签: 只读/预览 + DB/RPC checkpoint
+- 完成度: 5/5
+- 已完成: wage lock list and wage lock detail are read-only and complete; detail shows saved wage lock snapshot, wage lock details, and related payment requests. Teacher wage generation MVP DB/RPC layer is complete through verified RPC `school_generate_teacher_monthly_wage`; API wrapper and UI entry are not implemented yet.
+- 可写入功能: none from `wage.html` / `wage-detail.html`. Teacher wage payment actions are handled by the payment module, not wage detail. Backend RPC `school_generate_teacher_monthly_wage` can generate a locked snapshot from actual `completed` / `makeup_completed` lessons for a guarded month, but it is not exposed to pages until a later API/UI phase.
 - 只读/预览功能: monthly wage lock list, teacher/business filters, wage detail snapshot, payment request references.
-- guard/锁定保护: wage detail must not recalculate locks from current rules/lessons or mutate payment status. Lesson actual-from-planned and guarded edit flows guard locked teacher wage months and wage detail snapshots.
-- 未完成: wage lock generation, wage lock void/relock, wage recalculation, wage detail edit.
-- 已知限制: saved wage locks are treated as audit snapshots. Future wage-generation work needs a separate full write-RPC workflow. 2026-06-10 design-only checkpoint is recorded in `docs/teacher-wage-generation-design.md`; implementation is not started.
-- 后续优先级: before implementation, confirm cancelled actual wage treatment, draft/locked status model, CNY/FX formula, transport/classroom fee frequency, lesson_count meaning, and whether payment requests are generated separately. Recommended MVP is a guarded month generator that writes only wage locks/details from actual completed/makeup_completed lessons and does not touch payment, expense, account, income, or student settlement chains.
+- guard/锁定保护: wage detail must not recalculate locks from current rules/lessons or mutate payment status. Lesson actual-from-planned and guarded edit flows guard locked teacher wage months and wage detail snapshots. The generation RPC rejects existing same-teacher same-month wage records, already-wage-detailed actual lessons, missing/duplicate active wage-rule matches, planned/cancelled/voided lessons, and same-teacher same-month candidates spanning multiple business entities.
+- 未完成: wage generation API wrapper and UI entry, wage lock void/relock, wage recalculation/preview UI beyond the guarded RPC, wage detail edit.
+- 已知限制: saved wage locks are treated as audit snapshots. Generation MVP is DB/RPC-only: no page entry, no API wrapper, no preview UI, no payment request generation, no expense/account/income/student-settlement writes, no CNY/FX, no transport fee, and no classroom fee. Generated `lesson_count` equals detail row count; `is_billable=false` does not exclude teacher wage candidates.
+- 后续优先级: implement API wrapper and `wage.html` UI entry as a separate phase; payment request generation remains a later payment-management phase. Wage void/relock, preview UI, multi-business same-teacher-month handling, CNY/FX, transport/classroom fee handling, and historical/backfill workflows remain backlog.
 
 ## 账户管理
 
@@ -169,6 +169,6 @@ Completion snapshot:
 - 可写入功能: none in this section.
 - 只读/预览功能: docs-only tracking.
 - guard/锁定保护: any future write item must use the full write-RPC workflow and API-layer boundary. Real historical-data repair, destructive cleanup, broad backfill, or non-whitelisted real-data writes remain hard stops unless separately authorized and designed.
-- 未完成: historical data migration/repair, full actual import, multi-version settlement history, settlement adjustment, carryover automatic revoke/rebuild, teacher wage generation / wage lock generation, lesson delete/restore, wage rule physical delete, payment management follow-up enhancements, payment cancel/restore/reissue retest depth, weekly plan image export, whitelist/codex-test deferred cleanup, and DB-level linked-actual unique/index consideration only after read-only duplicate-risk verification.
+- 未完成: historical data migration/repair, full actual import, multi-version settlement history, settlement adjustment, carryover automatic revoke/rebuild, teacher wage generation API/UI and expanded wage-lock lifecycle beyond the completed DB/RPC checkpoint, lesson delete/restore, wage rule physical delete, payment management follow-up enhancements, payment cancel/restore/reissue retest depth, weekly plan image export, whitelist/codex-test deferred cleanup, and DB-level linked-actual unique/index consideration only after read-only duplicate-risk verification.
 - 已知限制: v2 does not replace v1 historical maintenance. `current-status.md` notes payment cancel/restore/reissue UI/API/RPC exist, but future changes around those status actions should retest them explicitly.
 - 后续优先级: first preserve completed V1 surfaces; then handle teacher wage generation, payment management follow-up enhancements, weekly plan image export, full actual import/history migration, whitelist/codex-test cleanup, DB-level linked-actual unique/index review, and other backlog as separate guarded phases.

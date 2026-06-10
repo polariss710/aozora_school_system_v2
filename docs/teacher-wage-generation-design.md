@@ -1,11 +1,64 @@
-# 老师工资生成只读设计
+# 老师工资生成设计与 DB/RPC checkpoint
 
-Status: design-only / not implemented
+Status: DB/RPC MVP implemented; API/UI not implemented
 Date: 2026-06-10
 
 ## 目标
 
-本设计用于启动“老师工资生成”模块的后续 guarded workflow。当前阶段只调查现状、整理边界和建议 MVP，不实现代码、不写 SQL draft、不执行 SQL/RPC、不写 DB。
+本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC。API wrapper、页面入口、预览 UI、支付请求生成仍未实现。
+
+## DB/RPC MVP checkpoint
+
+2026-06-10 已新增并执行 `school_generate_teacher_monthly_wage_rpc.sql`，创建 verified RPC:
+
+`public.school_generate_teacher_monthly_wage(p_year_month text, p_teacher_id uuid default null)`
+
+实现范围：
+
+- 只读取 `lesson_type = actual` 的课时。
+- 只纳入 `status in ('completed', 'makeup_completed')`。
+- 排除 `planned`、`cancelled`、`voided_at is not null`。
+- 按 `coalesce(teacher_settlement_month, year_month) = p_year_month` 进入工资月份；跨月补课 actual 因已落在补课月份，所以进入补课月份工资。
+- `is_billable` 不影响老师工资；非计费 `makeup_completed` actual 仍计入。
+- 直接生成 `status = locked` 的工资快照，不做 draft。
+- 只写 `school_teacher_wage_locks` 和 `school_teacher_wage_lock_details`。
+- 不修改 `school_lesson_records`。
+- 不写 `school_payment_requests`、`school_expense_records`、`school_accounts`、`school_account_transactions`、`school_income_records`、`school_student_monthly_settlements`。
+
+金额口径：
+
+- 只处理 JPY hourly / no_wage。
+- `pay_hours = actual_minutes / 60`。
+- `lesson_wage_jpy = round(pay_hours * hourly_rate_jpy)`。
+- 本阶段不处理 CNY/汇率、交通费、教室费；生成的 `lesson_wage_cny`、`total_cny`、`exchange_rate`、`transport_fee_jpy`、`classroom_fee_jpy`、`fee_jpy` 固定为 `0`。
+- `total_jpy = lesson_wage_jpy`。
+- `lesson_count = 生成的工资明细条数`。
+
+Guard：
+
+- `p_year_month` 必须是 `YYYY-MM`。
+- 可选 `p_teacher_id` 必须存在。
+- 候选 actual 必须有老师、学生、科目、业务归属和 `actual_minutes`。
+- 同一 actual 已存在 `school_teacher_wage_lock_details.lesson_record_id` 时拒绝。
+- 目标候选老师在同一月份已存在任何 `school_teacher_wage_locks` 时拒绝重复生成。
+- 每条 actual 必须命中且只命中一条启用工资规则。
+- 同一老师同月候选 actual 跨多个业务归属时拒绝；当前工资锁主表只有一个 `business_entity_id` 字段，多业务归属需要后续单独设计。
+
+验证记录：
+
+- 只读 DB verification 确认历史 388 条工资明细均符合 `lesson_wage_jpy = round(pay_hours * hourly_rate_jpy)`，70 个工资锁主表金额/课时字段均与明细聚合一致。
+- Rollback test 使用 codex-test lesson ids `80000000-0000-4000-8000-000000008001`、`80000000-0000-4000-8000-000000008002`、`80000000-0000-4000-8000-000000008003`，生成临时 wage lock `3184381f-fafe-458a-ae93-30bceda3cc6c`，验证 completed / non-billable makeup_completed 计入、cancelled 排除、重复生成拒绝、已有 locked wage record 拒绝、保护表计数不变，并 rollback 后 lessons/locks/details residue 为 `0`。
+- Whitelist commit test 使用 teacher `12f6d142-b90b-4da2-be88-310414000bd1`、month `2028-10`、lesson ids `81000000-0000-4000-8000-000000010001` completed、`81000000-0000-4000-8000-000000010002` non-billable makeup_completed、`81000000-0000-4000-8000-000000010003` cancelled，创建 wage lock `f5fe1fe3-f9e1-45d4-ac50-270c9b609d58` 和 detail ids `aad48406-c0cc-499b-b2a5-0fd7e1709688`、`1ad4f156-e869-4a36-aa47-c12edaa18da6`。
+- Commit test totals: `lesson_count = 2`、`total_minutes = 210`、`pay_hours = 3.5`、`lesson_wage_jpy = total_jpy = 15400`、`fee_jpy = total_cny = 0`，cancelled detail count `0`。
+- Protected counts stayed unchanged: payment requests `66`、expenses `44`、accounts `12`、account transactions `235`、income `17`、student monthly settlements `14`。
+
+后续仍需：
+
+- API wrapper，页面不得直接 `.rpc()`。
+- `wage.html` 生成入口与提交文案。
+- 只读候选/错误预览 UI。
+- 支付请求生成独立阶段。
+- 多业务归属同老师同月、CNY/FX、交通费、教室费、void/relock、历史 backfill/cleanup 的单独设计。
 
 ## 已确认现状
 
@@ -224,16 +277,16 @@ RPC guard：
 
 ## Hard Stop / 待确认点
 
-以下点无法从当前仓库中已实现的工资生成逻辑确认，进入实现前必须确认：
+以下点在只读设计阶段无法从仓库实现确认；本轮 DB/RPC phase 已按用户确认的 MVP 口径处理：
 
-- `cancelled actual` 是否应进入老师工资。当前明细 UI 只标注 `completed` / `makeup_completed`，且 cancelled actual `actual_minutes = 0`；建议 MVP 暂不纳入，但这是业务口径确认点。
-- 是否需要 draft / preview / locked 三态。当前只看到 `locked` / `void` 展示，未看到 draft 实现。
-- 是否生成工资时同时生成 `school_payment_requests`。建议不做；若要求直接生成支付请求，应停止并单独设计。
-- `lesson_wage_cny`、`total_cny` 的公式与汇率使用方式需要按历史工资口径确认。
-- 交通费、教室费是否每节 actual 都加一次，还是按老师/月聚合一次；当前规则字段在 detail 上存在，但业务频率需确认。
-- `lesson_count` 在工资中只是统计还是参与工资公式，需要确认。
-- 是否允许按老师单独生成，还是必须整月全量生成，需要确认。
-- 是否允许 void/relock 已生成工资锁。当前不是 MVP。
+- `cancelled actual`: MVP 不计入工资。
+- draft / preview / locked: MVP 不做 draft，生成即 `locked` snapshot。
+- payment requests: 工资生成阶段不生成，后续支付管理阶段另做。
+- CNY/FX: MVP 不处理，CNY/汇率字段为 `0`。
+- 交通费、教室费: MVP 不处理，相关字段为 `0`。
+- `lesson_count`: MVP 定义为工资明细条数。
+- 生成范围: RPC 支持指定 month，可选 teacher；同老师同月已有工资记录时拒绝。
+- void/relock: 不属于 MVP。
 
 Hard stop：
 
