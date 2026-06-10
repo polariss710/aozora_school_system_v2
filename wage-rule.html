@@ -111,7 +111,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageRuleListTitle">规则列表</h2>
-              <p class="section-note">本页显示、新增并编辑老师工资规则基础配置；只影响未来工资锁定，不重新计算已锁定工资，也不影响老师工资支付、支出记录或账户流水。已有规则匹配键不可编辑。</p>
+              <p class="section-note">本页显示、新增并编辑老师工资规则基础配置；只影响未来工资快照生成，不重新计算历史工资快照，也不影响老师工资支付、支出记录或账户流水。已有规则匹配键不可编辑。</p>
             </div>
             <div class="header-meta">
               <span id="wageRuleCount" class="record-count">0 条</span>
@@ -157,7 +157,7 @@
       <section class="dialog-panel wage-rule-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="createWageRuleConfigTitle">新增工资规则</h2>
-          <p class="section-note">仅新增未来使用的老师工资规则配置；不会回算历史工资，也不会修改工资锁定、支付请求、支出或账户流水。</p>
+          <p class="section-note">仅新增未来使用的老师工资规则配置；不会回算历史工资快照，也不会修改支付请求、支出或账户流水。</p>
         </div>
 
         <div id="createWageRuleConfigError" class="dialog-error is-hidden"></div>
@@ -228,7 +228,7 @@
           <textarea id="createWageRuleNoteInput" rows="3"></textarea>
         </label>
 
-        <div class="dialog-warning">新增后不会重算历史工资锁定，也不会修改支付请求、支出或账户流水；老师、学生、科目、业务归属作为匹配键保存后不可在编辑 dialog 修改。</div>
+        <div class="dialog-warning">新增后不会重算历史工资快照，也不会修改支付请求、支出或账户流水；老师、学生、科目、业务归属作为匹配键保存后不可在编辑 dialog 修改。</div>
 
         <div class="dialog-actions">
           <button class="button button-primary" id="createWageRuleSubmitButton" type="button">新增</button>
@@ -241,7 +241,7 @@
       <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="editWageRuleConfigTitle">编辑工资规则基础配置</h2>
-          <p class="section-note">仅允许编辑结算类型、费率、汇率、费用和备注；老师、学生、科目、业务归属不可编辑。启用状态请使用列表中的停用 / 恢复操作。修改只影响未来工资锁定，不重算历史工资。</p>
+          <p class="section-note">仅允许编辑结算类型、费率、汇率、费用和备注；老师、学生、科目、业务归属不可编辑。启用状态请使用列表中的停用 / 恢复操作。修改只影响未来工资快照生成，不重算历史工资快照。</p>
         </div>
 
         <div id="editWageRuleConfigSummary" class="dialog-summary"></div>
@@ -293,7 +293,7 @@
           <textarea id="editWageRuleNoteInput" rows="3"></textarea>
         </label>
 
-        <div class="dialog-warning">保存后不会重算历史工资锁定，也不会修改支付请求、支出或账户流水。</div>
+        <div class="dialog-warning">保存后不会重算历史工资快照，也不会修改支付请求、支出或账户流水。</div>
 
         <div class="dialog-actions">
           <button class="button button-primary" id="editWageRuleSubmitButton" type="button">保存</button>
@@ -319,7 +319,7 @@
 
         <label class="field confirm-check" data-wage-rule-active-state-field="confirmCheck">
           <input id="wageRuleActiveStateConfirmCheck" type="checkbox">
-          <span>我确认本次操作不删除工资规则，不回算历史工资，不修改工资锁定、支付请求、支出或账户流水。</span>
+          <span>我确认本次操作不删除工资规则，不回算历史工资快照，不修改支付请求、支出或账户流水。</span>
         </label>
 
         <div class="dialog-actions">
@@ -329,6 +329,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=v2.52.0-wage-rule-soft-disable-restore-20260607"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=v2.84.0-wage-snapshot-copy-20260610"></script>
   </body>
 </html>

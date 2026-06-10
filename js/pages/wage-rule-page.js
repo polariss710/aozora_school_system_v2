@@ -414,7 +414,7 @@ async function submitCreateDialog() {
     await createWageRuleConfig(payload);
     closeCreateDialog({ force: true });
     await loadWageRuleData();
-    showMessage("success", "老师工资规则已新增；仅影响未来工资锁定。");
+    showMessage("success", "老师工资规则已新增；仅影响未来工资快照生成。");
   } catch (error) {
     showCreateError(error.message || String(error), createFieldIdsForError(error));
   } finally {
@@ -501,8 +501,8 @@ function openActiveStateDialog(wageRuleId) {
   const willActivate = rule.is_active === false;
   dom.activeStateTitle.textContent = willActivate ? "恢复工资规则" : "停用工资规则";
   dom.activeStateDescription.textContent = willActivate
-    ? "恢复后该规则会重新参与未来工资规则匹配；不会重算历史工资锁定，也不会修改支付、支出或账户流水。"
-    : "停用后该规则不会参与未来工资规则匹配；历史工资锁定、支付请求、支出和账户流水都会保留。";
+    ? "恢复后该规则会重新参与未来工资规则匹配；不会重算历史工资快照，也不会修改支付、支出或账户流水。"
+    : "停用后该规则不会参与未来工资规则匹配；历史工资快照、支付请求、支出和账户流水都会保留。";
   dom.activeStateSummary.innerHTML = renderActiveStateSummary(rule);
   dom.activeStateNoteInput.value = activeStateDefaultNote(rule, willActivate);
   dom.activeStateConfirmCheck.checked = false;
@@ -551,7 +551,7 @@ async function submitActiveStateDialog() {
     await setWageRuleActiveState(payload);
     closeActiveStateDialog({ force: true });
     await loadWageRuleData();
-    showMessage("success", payload.isActive ? "老师工资规则已恢复；仅影响未来工资锁定。" : "老师工资规则已停用；历史数据已保留。");
+    showMessage("success", payload.isActive ? "老师工资规则已恢复；仅影响未来工资快照生成。" : "老师工资规则已停用；历史数据已保留。");
   } catch (error) {
     showActiveStateError(error.message || String(error));
   } finally {
@@ -613,7 +613,7 @@ async function submitEditDialog() {
     await updateWageRuleConfig(payload);
     closeEditDialog({ force: true });
     await loadWageRuleData();
-    showMessage("success", "老师工资规则配置已更新；仅影响未来工资锁定。");
+    showMessage("success", "老师工资规则配置已更新；仅影响未来工资快照生成。");
   } catch (error) {
     showEditError(error.message || String(error), editFieldIdsForError(error));
   } finally {
@@ -657,7 +657,7 @@ function renderEditSummary(rule) {
     ["学生", studentNameById(rule.student_id)],
     ["科目", subjectNameById(rule.subject_id)],
     ["业务归属", businessNameById(rule.business_entity_id)],
-    ["不可编辑字段", "老师、学生、科目、业务归属、历史工资锁定、支付请求、支出、账户流水"],
+    ["不可编辑字段", "老师、学生、科目、业务归属、历史工资快照、支付请求、支出、账户流水"],
   ];
 
   return `

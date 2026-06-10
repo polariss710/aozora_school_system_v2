@@ -140,13 +140,13 @@
       <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="wageGenerateTitle">
         <div class="section-heading">
           <h2 id="wageGenerateTitle">生成老师工资</h2>
-          <p class="section-note">生成后会写入老师工资快照主表和明细，并作为已生成快照保存；本阶段不提供完整锁定生命周期操作。</p>
+          <p class="section-note">生成后会写入老师工资快照主表和明细，并作为已生成快照保存；生成动作本身即固化工资结算快照，不需要额外步骤。</p>
         </div>
 
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。不会生成支付请求、支出、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。确认金额后请从工资快照生成支付请求；本操作不会生成支付请求、支出、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>

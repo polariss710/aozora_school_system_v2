@@ -19,7 +19,7 @@ const PAYEE_TYPE_LABELS = {
 };
 
 const WAGE_STATUS_LABELS = {
-  locked: "已锁定",
+  locked: "已生成快照",
   void: "已作废",
 };
 
@@ -171,7 +171,7 @@ function renderPaymentDetail(data) {
 function renderWageLock(wageLock, paymentRequest) {
   if (!wageLock) {
     dom.wageLock.innerHTML = paymentRequest.source_type === "teacher_wage"
-      ? '<div class="state-text">未找到关联工资锁定记录。</div>'
+      ? '<div class="state-text">未找到关联工资快照记录。</div>'
       : '<div class="state-text">当前请求不是老师工资来源。</div>';
     return;
   }
@@ -192,7 +192,7 @@ function renderWageLock(wageLock, paymentRequest) {
         ["支付小时", displayValue(wageLock.pay_hours)],
         ["合计 JPY", formatCurrency(wageLock.total_jpy, "JPY")],
         ["合计 CNY", formatCurrency(wageLock.total_cny, "CNY")],
-        ["锁定时间", formatDate(wageLock.locked_at)],
+        ["快照生成时间", formatDate(wageLock.locked_at)],
         ["作废时间", formatDate(wageLock.voided_at)],
       ])}
     </article>

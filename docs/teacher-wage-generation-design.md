@@ -1,11 +1,25 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: MVP implemented; payment request generation implemented; closure fixes verified; payment confirmation remains separate
+Status: MVP implemented; payment request generation implemented; payment confirmation account-type boundary verified; snapshot wording aligned
 Date: 2026-06-10
 
 ## 目标
 
-本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资锁生成待支付请求接入 `wage-detail.html`。预览 UI、支付确认、工资锁扩展生命周期仍未实现。
+本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资快照生成待支付请求接入 `wage-detail.html`。v2 不再提供单独的用户侧二次固化步骤：生成工资本身就是生成并固化工资结算快照。预览 UI、工资快照 void/reissue 生命周期仍未实现。
+
+## Snapshot wording and flow checkpoint
+
+2026-06-10 UI/docs 文案已统一到工资快照流程：
+
+- `actual` 课时进入工资口径。
+- `wage.html` 生成老师工资快照，生成动作本身即固化工资结算快照。
+- `wage-detail.html` 从工资快照生成一条待支付请求。
+- `index.html` 老师工资支付页面确认支付并选择账户。
+- 支付确认生成 teacher_wage 支出和账户流水。
+- 公司账户支付工资：支出 `reimbursement_status = not_required`。
+- 垫付/个人账户支付工资：支出 `reimbursement_status = pending`。
+- 报销流程只处理公司账户归还垫付账户，不再次生成 teacher_wage 工资支出。
+- 底层表名、字段名和状态值仍保留 `school_teacher_wage_locks`、`locked_at`、`status = locked`，这是当前 schema 实现细节，不代表 UI 还有一个单独锁定操作。
 
 ## 2026-05 historical reconciliation checkpoint
 
@@ -27,7 +41,7 @@ Date: 2026-06-10
 - 缺字段 actual guard 保留；rollback-only codex-test lesson `83000000-0000-4000-8000-000000012001` 验证仍会拒绝缺少 `actual_minutes` 的候选课时，并在 rollback 后零残留。
 - `wage.html` 默认不显示 `status = void` 的工资快照，只有显式选择 `已作废` 状态筛选才查看作废记录。
 - `wage-detail.html` 返回 `wage.html` 时保留原列表筛选参数：年份、月份、老师、业务归属、结算类型、状态和关键字。
-- 用户可见文案统一为“工资快照 / 已生成快照”，避免把当前 MVP 误表达成完整的工资锁定生命周期。
+- 用户可见文案统一为“工资快照 / 已生成快照”，避免把当前 MVP 误表达成完整的工资快照 void/reissue 生命周期。
 - 本修正不实现支付确认，不写支出、账户流水、收入、学生结算，不修改课时核心口径。
 
 ## Payment request generation checkpoint
@@ -38,8 +52,8 @@ Date: 2026-06-10
 
 实现范围：
 
-- 来源为一条 `school_teacher_wage_locks` 工资锁快照。
-- 只接受 `status = locked` 且 `voided_at is null` 的工资锁。
+- 来源为一条 `school_teacher_wage_locks` 工资结算快照。
+- 只接受底层 `status = locked` 且 `voided_at is null` 的已生成快照。
 - 只写一条 `school_payment_requests`。
 - `source_type = teacher_wage`。
 - `source_id = wage_lock.id`。
@@ -47,11 +61,11 @@ Date: 2026-06-10
 - `payee_type = teacher`。
 - `payee_id = wage_lock.teacher_id`。
 - `payee_name = wage_lock.teacher_name`。
-- `business_entity_id` / `business_name` 来自工资锁。
+- `business_entity_id` / `business_name` 来自工资快照。
 - `currency = JPY`，`amount = amount_jpy = wage_lock.total_jpy`，`amount_cny = wage_lock.total_cny`。
 - `status = pending`。
 - 拒绝已有任意 `source_type = teacher_wage` 且 `source_id = wage_lock.id` 的支付请求。
-- 拒绝 `total_jpy <= 0` 的工资锁，避免生成无法确认支付的 0 金额请求。
+- 拒绝 `total_jpy <= 0` 的工资快照，避免生成无法确认支付的 0 金额请求。
 
 边界：
 
@@ -61,16 +75,16 @@ Date: 2026-06-10
 - 不扣账户余额。
 - 不写收入。
 - 不写学生结算。
-- 不修改课时、工资锁或工资明细。
+- 不修改课时、工资快照或工资明细。
 - 不新增 DB-level source unique 约束，因为现有 reissue 链路允许同源历史请求链。
 
 页面接入：
 
-- `wage-detail.html` 在无关联支付请求、工资锁已锁定且金额大于 0 时显示 `生成支付请求`。
+- `wage-detail.html` 在无关联支付请求、工资快照已生成且金额大于 0 时显示 `生成支付请求`。
 - 页面通过 `js/api/wage-detail-api.js` 的 `createTeacherWagePaymentRequest` 调用 RPC。
 - 页面模块不直接 `.rpc()`，也不直接 insert/update/delete/upsert。
 - 成功后刷新工资详情，关联支付请求区域显示待支付请求，并提供 `payment-detail.html` 链接。
-- 生成后隐藏入口，避免同一工资锁重复生成初始支付请求。
+- 生成后隐藏入口，避免同一工资快照重复生成初始支付请求。
 
 验证记录：
 
@@ -111,8 +125,8 @@ Date: 2026-06-10
 - `wage.html` 新增 `生成老师工资` 主操作。
 - 弹窗使用当前筛选月份；如果筛选了老师，则按该老师生成，否则按该月份全部候选老师生成。
 - 页面通过 API wrapper 调用 `school_generate_teacher_monthly_wage`，页面模块不直接 `.rpc()`，也不直接 insert/update/delete/upsert。
-- 成功后刷新工资锁列表，生成的工资锁可进入 `wage-detail.html` 查看只读明细。
-- 重复生成或已生成月份由 RPC 拒绝，页面在弹窗内显示错误，不静默吞错。
+- 成功后刷新工资快照列表，生成的工资快照可进入 `wage-detail.html` 查看只读明细。
+- 重复生成或已生成快照月份由 RPC 拒绝，页面在弹窗内显示错误，不静默吞错。
 
 弹窗文案明确：
 
@@ -120,7 +134,7 @@ Date: 2026-06-10
 - cancelled 不计入。
 - planned 不计入。
 - `is_billable=false` 仍可能计入老师工资。
-- 生成后写入工资锁主表和工资明细。
+- 生成后写入工资快照主表和工资明细。
 - 不生成支付请求。
 - 不生成支出。
 - 不写账户流水。
@@ -149,7 +163,7 @@ UI 验证记录：
 - 排除 `planned`、`cancelled`、`voided_at is not null`。
 - 按 `coalesce(teacher_settlement_month, year_month) = p_year_month` 进入工资月份；跨月补课 actual 因已落在补课月份，所以进入补课月份工资。
 - `is_billable` 不影响老师工资；非计费 `makeup_completed` actual 仍计入。
-- 直接生成 `status = locked` 的工资快照，不做 draft。
+- 直接生成底层 `status = locked` 的工资快照，不做 draft。
 - 只写 `school_teacher_wage_locks` 和 `school_teacher_wage_lock_details`。
 - 不修改 `school_lesson_records`。
 - 不写 `school_payment_requests`、`school_expense_records`、`school_accounts`、`school_account_transactions`、`school_income_records`、`school_student_monthly_settlements`。
@@ -171,12 +185,12 @@ Guard：
 - 同一 actual 已存在 `school_teacher_wage_lock_details.lesson_record_id` 时拒绝。
 - 目标候选老师在同一月份已存在任何 `school_teacher_wage_locks` 时拒绝重复生成。
 - 每条 actual 必须命中且只命中一条启用工资规则。
-- 同一老师同月候选 actual 跨多个业务归属时拒绝；当前工资锁主表只有一个 `business_entity_id` 字段，多业务归属需要后续单独设计。
+- 同一老师同月候选 actual 跨多个业务归属时拒绝；当前工资快照主表只有一个 `business_entity_id` 字段，多业务归属需要后续单独设计。
 
 验证记录：
 
-- 只读 DB verification 确认历史 388 条工资明细均符合 `lesson_wage_jpy = round(pay_hours * hourly_rate_jpy)`，70 个工资锁主表金额/课时字段均与明细聚合一致。
-- Rollback test 使用 codex-test lesson ids `80000000-0000-4000-8000-000000008001`、`80000000-0000-4000-8000-000000008002`、`80000000-0000-4000-8000-000000008003`，生成临时 wage lock `3184381f-fafe-458a-ae93-30bceda3cc6c`，验证 completed / non-billable makeup_completed 计入、cancelled 排除、重复生成拒绝、已有 locked wage record 拒绝、保护表计数不变，并 rollback 后 lessons/locks/details residue 为 `0`。
+- 只读 DB verification 确认历史 388 条工资明细均符合 `lesson_wage_jpy = round(pay_hours * hourly_rate_jpy)`，70 个工资快照主表金额/课时字段均与明细聚合一致。
+- Rollback test 使用 codex-test lesson ids `80000000-0000-4000-8000-000000008001`、`80000000-0000-4000-8000-000000008002`、`80000000-0000-4000-8000-000000008003`，生成临时 wage snapshot `3184381f-fafe-458a-ae93-30bceda3cc6c`，验证 completed / non-billable makeup_completed 计入、cancelled 排除、重复生成拒绝、已有 generated wage snapshot 拒绝、保护表计数不变，并 rollback 后 lessons/locks/details residue 为 `0`。
 - Whitelist commit test 使用 teacher `12f6d142-b90b-4da2-be88-310414000bd1`、month `2028-10`、lesson ids `81000000-0000-4000-8000-000000010001` completed、`81000000-0000-4000-8000-000000010002` non-billable makeup_completed、`81000000-0000-4000-8000-000000010003` cancelled，创建 wage lock `f5fe1fe3-f9e1-45d4-ac50-270c9b609d58` 和 detail ids `aad48406-c0cc-499b-b2a5-0fd7e1709688`、`1ad4f156-e869-4a36-aa47-c12edaa18da6`。
 - Commit test totals: `lesson_count = 2`、`total_minutes = 210`、`pay_hours = 3.5`、`lesson_wage_jpy = total_jpy = 15400`、`fee_jpy = total_cny = 0`，cancelled detail count `0`。
 - Protected counts stayed unchanged: payment requests `66`、expenses `44`、accounts `12`、account transactions `235`、income `17`、student monthly settlements `14`。
@@ -184,15 +198,15 @@ Guard：
 后续仍需：
 
 - 只读候选/错误预览 UI。
-- 支付确认、支出生成、账户流水生成仍是独立阶段。
-- 多业务归属同老师同月、CNY/FX、交通费、教室费、void/relock、历史 backfill/cleanup 的单独设计。
+- 支付确认、支出生成、账户流水生成已经由支付模块处理，后续变更仍需在支付模块内单独 guarded 设计。
+- 多业务归属同老师同月、CNY/FX、交通费、教室费、工资快照 void/reissue、历史 backfill/cleanup 的单独设计。
 
 ## 已确认现状
 
 ### 页面与 API
 
-- `wage.html` / `js/pages/wage-page.js` / `js/api/wage-api.js` 目前是只读工资锁列表。
-- `wage-detail.html` / `js/pages/wage-detail-page.js` / `js/api/wage-detail-api.js` 目前是只读工资锁详情。
+- `wage.html` / `js/pages/wage-page.js` / `js/api/wage-api.js` 是工资快照列表和生成入口。
+- `wage-detail.html` / `js/pages/wage-detail-page.js` / `js/api/wage-detail-api.js` 是只读工资快照详情和支付请求生成入口。
 - 工资详情读取 `school_teacher_wage_locks`、`school_teacher_wage_lock_details` 和 `source_type = teacher_wage` 的 `school_payment_requests`。
 - `wage-rule.html` / `wage-rule-detail.html` 支持工资规则配置的读取、新增、编辑、停用/恢复；写入只影响 `school_teacher_wage_rules`，不重算历史工资。
 - `payment` 页面处理老师工资支付请求确认、撤销、取消、恢复、重发；支付确认后才进入支出与账户流水链路。
@@ -201,12 +215,12 @@ Guard：
 
 从前端 select 字段和现有 RPC archive 可确认：
 
-- `school_teacher_wage_locks` 是工资锁主表快照，包含 `teacher_id`, `teacher_name`, `settlement_month`, `business_entity_id`, `business_name`, `settlement_type`, `exchange_rate`, `lesson_count`, `total_minutes`, `pay_hours`, `fee_jpy`, `lesson_wage_jpy`, `lesson_wage_cny`, `total_jpy`, `total_cny`, `status`, `locked_at`, `voided_at`, `created_at`, `updated_at`。
+- `school_teacher_wage_locks` 是底层工资快照主表，包含 `teacher_id`, `teacher_name`, `settlement_month`, `business_entity_id`, `business_name`, `settlement_type`, `exchange_rate`, `lesson_count`, `total_minutes`, `pay_hours`, `fee_jpy`, `lesson_wage_jpy`, `lesson_wage_cny`, `total_jpy`, `total_cny`, `status`, `locked_at`, `voided_at`, `created_at`, `updated_at`。
 - `school_teacher_wage_lock_details` 是工资明细快照，包含 `lock_id`, `lesson_record_id`, `lesson_date`, `start_time`, `end_time`, `student_id`, `student_name`, `subject_id`, `subject_name`, `business_entity_id`, `business_name`, `pay_hours`, `lesson_wage_jpy`, `lesson_wage_cny`, `transport_fee_jpy`, `classroom_fee_jpy`, `total_jpy`, `total_cny`, `settlement_type`, `exchange_rate`, `is_no_wage`, `status`, `lesson_content`, `created_at`。
-- `school_teacher_wage_rules` 是未来锁定配置源，当前支持匹配键 `teacher_id + student_id + subject_id + business_entity_id`，配置字段包括 `settlement_type`, `hourly_rate_jpy`, `hourly_rate_cny`, `exchange_rate`, `transport_fee_jpy`, `classroom_fee_jpy`, `is_active`, `note`。
+- `school_teacher_wage_rules` 是未来工资快照生成配置源，当前支持匹配键 `teacher_id + student_id + subject_id + business_entity_id`，配置字段包括 `settlement_type`, `hourly_rate_jpy`, `hourly_rate_cny`, `exchange_rate`, `transport_fee_jpy`, `classroom_fee_jpy`, `is_active`, `note`。
 - 当前已验证的 `settlement_type` 只有 `jpy_hourly` 和 `no_wage`。
 
-### 现有锁定逻辑
+### 现有快照保护逻辑
 
 - 课时 actual 生成 RPC 会检查目标老师工资月份是否已有 `school_teacher_wage_locks.status = locked`，匹配 `teacher_id + business_entity_id + teacher_settlement_month`。
 - guarded lesson edit 对 actual 会：
@@ -214,7 +228,7 @@ Guard：
   - 检查原老师工资月份和目标老师工资月份是否 locked。
   - 更新 actual 时重新派生 `teacher_settlement_month = lesson_date YYYY-MM`。
 - `wage.html` 与 `wage-detail.html` 不提供任何重新计算、编辑工资明细或支付操作。
-- `wage-detail.html` 明确把工资锁作为已保存快照，不用当前工资规则重算历史锁定工资。
+- `wage-detail.html` 明确把老师工资作为已保存快照，不用当前工资规则重算历史工资快照。
 
 ## 课时进入工资口径的当前事实
 
@@ -264,7 +278,7 @@ MVP 应只读取 `school_lesson_records` 中的 actual 行，候选条件建议�
 - `duration_hours`: 可作为只读校验或 fallback 候选，不应替代已写好的 `actual_minutes` 口径。
 - `is_billable`: 学生收费口径，不应默认排除老师工资；跨月补课的 non-billable actual 仍应作为老师已上课事实进入候选，除非业务另行确认排除。
 - `lesson_fee`: 学生学费口径，不应用于老师工资计算。
-- `lesson_count`: 当前工资锁主表有 `lesson_count`，但工资规则是 hourly 口径；MVP 应明确是否只是统计字段，不作为金额计算来源。
+- `lesson_count`: 当前工资快照主表有 `lesson_count`，但工资规则是 hourly 口径；MVP 应明确是否只是统计字段，不作为金额计算来源。
 
 ## 规则匹配与金额建议
 
@@ -293,17 +307,17 @@ MVP 建议：
   - 金额字段为 0
   - 是否生成明细用于审计，建议生成 0 金额明细，避免“漏算还是无工资”无法区分。
 
-## 锁定与重复生成建议
+## 快照生成与重复生成建议
 
-现有系统只有 saved wage lock 快照；未发现 draft 表或 draft 状态的已实现入口。
+现有系统只有 saved wage snapshot；未发现 draft 表或 draft 状态的已实现入口。
 
-MVP 建议选择“直接生成 locked snapshot”，不引入 draft：
+MVP 选择“直接生成工资结算快照”，不引入 draft：
 
 - 输入：指定 `settlement_month`，可选 `teacher_id` / `business_entity_id`。
 - 输出：为每个 `teacher_id + business_entity_id + settlement_month` 生成一条 `school_teacher_wage_locks` 和对应明细。
 - 已存在 `status = locked` 的同一老师/业务归属/月应拒绝重新生成。
-- 已存在 payment request、paid expense、account transaction 的工资锁绝对不能被重算或覆盖。
-- 不删除旧 detail，不覆盖旧 lock，不做历史重算。
+- 已存在 payment request、paid expense、account transaction 的工资快照绝对不能被重算或覆盖。
+- 不删除旧 detail，不覆盖旧 snapshot，不做历史重算。
 - 如果未来需要 draft，必须新增单独设计：明确 draft 表/状态、覆盖规则、旧 draft 删除/替换规则，以及与 lesson edit guard 的关系。
 
 不建议在 MVP 做“先删除旧 draft 明细再生成”，因为仓库没有现有 draft 概念，且 `delete` 是项目 hard stop 类操作。
@@ -377,28 +391,28 @@ RPC guard：
 
 入口建议放在 `wage.html`：
 
-- 页面仍以工资锁列表为主。
+- 页面仍以工资快照列表为主。
 - 新增主操作：`生成老师工资`
 - 弹窗文案：
   - `只基于 actual 课时生成工资快照`
   - `不会修改课时`
   - `不会生成支付请求`
   - `不会写入支出或账户流水`
-  - `已锁定月份不能重新生成`
+  - `已生成快照的月份不能重新生成`
 - 弹窗先显示候选月份、老师、业务归属、actual 数、缺规则数、将生成的锁数。
-- 若存在缺规则、重复规则、已锁定、已被 wage detail 使用的 actual，应阻止提交并显示明细。
+- 若存在缺规则、重复规则、已生成快照、已被 wage detail 使用的 actual，应阻止提交并显示明细。
 
 ## MVP 范围建议
 
 第一版只做：
 
-- 指定月份生成老师工资锁主表与明细快照。
+- 指定月份生成老师工资快照主表与明细快照。
 - 只基于 actual lesson records。
 - 只纳入 `completed` 和 `makeup_completed`。
 - 跨月补课 actual 按 `teacher_settlement_month` 进入补课月份老师工资。
 - `is_billable = false` 不默认排除老师工资。
 - 生成后 locked，不提供 draft。
-- 已锁定后禁止重新生成。
+- 已生成快照后禁止重新生成。
 - 不碰支付、不碰支出、不碰账户、不碰收入、不碰学生结算。
 - 不做历史 backfill，不处理真实历史修复。
 

@@ -195,7 +195,7 @@ function renderWageDetail(data) {
   `;
 
   dom.systemInfo.innerHTML = renderDefinitionList([
-    ["wage lock id", shortId(wageLock.id)],
+    ["wage snapshot id", shortId(wageLock.id)],
     ["teacher_id", shortId(wageLock.teacher_id)],
     ["business_entity_id", shortId(wageLock.business_entity_id)],
     ["created_at", formatDate(wageLock.created_at)],
