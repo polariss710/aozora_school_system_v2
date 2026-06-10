@@ -80,6 +80,26 @@ Date: 2026-06-10
 - 两条持久请求均为 `pending`，金额 `JPY 15400`，无 `paid_expense_id`、`paid_account_transaction_id`、`account_id`。
 - Protected counts after SQL + UI commits: payment requests `68`, expenses `44`, accounts `12`, account transactions `235`, income `17`, student monthly settlements `14`.
 
+## Payment confirmation account-type checkpoint
+
+2026-06-10 复核老师工资支付确认后的账户类型边界，并重建 verified RPC `public.school_confirm_payment_request(...)`，SQL archive 为 `school_confirm_payment_request_rpc.sql`。
+
+现状与修正：
+
+- 支付页面确认支付时已要求选择账户，并通过 `js/api/payment-api.js` 的 `confirmPaymentRequest` 调用 RPC；页面模块不直接 `.rpc()`，也不直接写表。
+- 修正前 DB RPC 创建 `teacher_wage` 支出时未显式写 `reimbursement_status`，会落到 `school_expense_records` 默认值 `pending`。
+- 修正后 RPC 只接受 `pending` 的 `teacher_wage` payment request，要求请求无既有支付 side effects，账户为 active school account，业务归属和币种与请求一致，支付金额等于请求金额。
+- 公司账户支付：生成一条 `teacher_wage` 支出、一条账户流水、更新支付请求为 `paid`，并设置支出 `reimbursement_status = not_required`。
+- 垫付/个人账户支付：生成一条 `teacher_wage` 支出、一条垫付账户流水、更新支付请求为 `paid`，并设置支出 `reimbursement_status = pending`。
+- 报销流程边界不变：报销候选 API 排除 `teacher_wage`，`school_create_reimbursement_record` 也拒绝 `teacher_wage`，所以报销只处理公司账户归还垫付账户，不会再次生成工资支出。
+
+验证记录：
+
+- Rollback test 使用临时 accounts `91000000-0000-4000-8000-000000013001` / `91000000-0000-4000-8000-000000013002` 和 payment requests `91000000-0000-4000-8000-000000013101` / `91000000-0000-4000-8000-000000013102`，验证公司账户 `not_required`、垫付账户 `pending`、报销候选为 `0`、报销 RPC 拒绝 `teacher_wage`，rollback 后 residue `0`。
+- Whitelist commit test 使用 active codex-test business `2fa5bd72-7ba5-48f3-91dd-b56f978c56e6`，创建 accounts `91000000-0000-4000-8000-000000014001` company and `91000000-0000-4000-8000-000000014002` advance，确认 payment requests `91000000-0000-4000-8000-000000014101` and `91000000-0000-4000-8000-000000014102`。
+- Commit test 生成 expenses `9939dfc0-9f00-4e91-8c39-f18e70b95b2a` (`not_required`) and `72633214-2424-4b18-9dd8-7994c3e1e34b` (`pending`)，account transactions `37c74735-fbe8-4c91-b288-d5fca751d6bd` and `31c6e09e-22bc-4cac-9225-63c4608afd71`。
+- Duplicate confirm was rejected because the request is no longer pending; reimbursement RPC rejected the pending advance teacher_wage expense and created no reimbursement records/items/transactions.
+
 ## API/UI MVP checkpoint
 
 2026-06-10 已在 `js/api/wage-api.js` 新增 API wrapper:

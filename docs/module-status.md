@@ -121,7 +121,7 @@ Completion snapshot:
 - 已完成: reimbursement list/detail, reimbursement confirmation from candidate paid non-teacher-wage expenses, reimbursement reversal from detail.
 - 可写入功能: create reimbursement record and reverse reimbursement record through API-layer RPC wrappers.
 - 只读/预览功能: list/detail, candidate expense loading, reimbursement item counts, transaction counts, linked expense/account references.
-- guard/锁定保护: reimbursement is not operating expense; reversal creates opposite account transactions, restores balances, and returns linked expenses to pending reimbursement without deleting records/items/original transactions.
+- guard/锁定保护: reimbursement is not operating expense and must not recreate teacher wage expense. Reimbursement candidates exclude `expense_category = teacher_wage`, and `school_create_reimbursement_record` rejects teacher_wage expenses even if their `reimbursement_status = pending`. Reversal creates opposite account transactions, restores balances, and returns linked non-teacher-wage expenses to pending reimbursement without deleting records/items/original transactions.
 - 未完成: edit flow, partial reimbursement, attachments, reimbursement-page statistics.
 - 已知限制: current flow expects candidate paid non-teacher-wage expenses and full reversal semantics.
 - 后续优先级: partial reimbursement/edit requires separate guarded design because it touches expenses, accounts, and transactions.
