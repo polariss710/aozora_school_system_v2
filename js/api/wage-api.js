@@ -62,3 +62,16 @@ export async function fetchWageBusinessEntities() {
 
   return data || [];
 }
+
+export async function generateTeacherMonthlyWage({ yearMonth, teacherId = null }) {
+  const { data, error } = await supabase.rpc("school_generate_teacher_monthly_wage", {
+    p_year_month: yearMonth,
+    p_teacher_id: teacherId || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}

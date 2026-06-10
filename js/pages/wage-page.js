@@ -4,6 +4,7 @@ import {
   fetchWageBusinessEntities,
   fetchWageLocks,
   fetchWageTeachers,
+  generateTeacherMonthlyWage,
 } from "../api/wage-api.js";
 import {
   currentYearMonth,
@@ -72,6 +73,13 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageLoadingState");
   dom.emptyState = document.querySelector("#wageEmptyState");
   dom.wageCount = document.querySelector("#wageCount");
+  dom.openGenerateDialogButton = document.querySelector("#openWageGenerateDialogButton");
+  dom.generateDialog = document.querySelector("#wageGenerateDialog");
+  dom.generateSummary = document.querySelector("#wageGenerateSummary");
+  dom.generateError = document.querySelector("#wageGenerateError");
+  dom.generateConfirmCheckbox = document.querySelector("#wageGenerateConfirmCheckbox");
+  dom.generateSubmitButton = document.querySelector("#wageGenerateSubmitButton");
+  dom.generateCancelButton = document.querySelector("#wageGenerateCancelButton");
 }
 
 function bindEvents() {
@@ -83,6 +91,19 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyQuery();
+  });
+
+  dom.openGenerateDialogButton?.addEventListener("click", openGenerateDialog);
+  dom.generateCancelButton?.addEventListener("click", closeGenerateDialog);
+  dom.generateSubmitButton?.addEventListener("click", handleGenerateSubmit);
+  dom.generateDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.generateDialog) {
+      closeGenerateDialog();
+    }
+  });
+  dom.generateConfirmCheckbox?.addEventListener("change", () => {
+    setGenerateFieldInvalid("confirm", false);
+    hideGenerateErrorIfClean();
   });
 }
 
@@ -155,6 +176,69 @@ async function applyQuery() {
   }
 
   applyCurrentFilters();
+}
+
+function openGenerateDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  hideGenerateError();
+  setGenerateFieldInvalid("confirm", false);
+  dom.generateConfirmCheckbox.checked = false;
+  dom.generateSummary.innerHTML = renderGenerateSummary(filters);
+  dom.generateDialog.classList.remove("is-hidden");
+  dom.generateDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeGenerateDialog(force = false) {
+  if (!force && dom.generateSubmitButton.disabled) {
+    return;
+  }
+
+  dom.generateDialog.classList.add("is-hidden");
+  dom.generateDialog.setAttribute("aria-hidden", "true");
+  hideGenerateError();
+  setGenerateFieldInvalid("confirm", false);
+  dom.generateConfirmCheckbox.checked = false;
+}
+
+async function handleGenerateSubmit() {
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  if (!dom.generateConfirmCheckbox.checked) {
+    showGenerateError("请先勾选确认说明。", ["confirm"]);
+    return;
+  }
+
+  setGenerateSubmitting(true);
+  hideGenerateError();
+
+  try {
+    const generatedRows = await generateTeacherMonthlyWage({
+      yearMonth: filters.month,
+      teacherId: filters.teacherId || null,
+    });
+
+    await loadWageMonth(filters.month);
+    restoreFilterSelections(filters);
+    applyCurrentFilters();
+    closeGenerateDialog(true);
+    showMessage("success", formatGenerateSuccess(generatedRows));
+  } catch (error) {
+    showGenerateError(formatGenerateError(error));
+  } finally {
+    setGenerateSubmitting(false);
+  }
 }
 
 async function loadWageMonth(month) {
@@ -263,6 +347,17 @@ function renderWageLocks(rows) {
       <td class="wage-nowrap">${escapeHtml(formatDate(row.voided_at))}</td>
     </tr>
   `).join("");
+}
+
+function renderGenerateSummary(filters) {
+  const teacherLabel = filters.teacherId ? teacherNameById(filters.teacherId) : "全部老师";
+
+  return [
+    renderDialogSummaryRow("工资月份", formatMonth(filters.month)),
+    renderDialogSummaryRow("生成范围", teacherLabel),
+    renderDialogSummaryRow("生成内容", "工资锁主表 + 工资明细"),
+    renderDialogSummaryRow("支付/账户", "不生成支付请求、支出或账户流水"),
+  ].join("");
 }
 
 function filterWageLocks(rows, filters) {
@@ -394,6 +489,67 @@ function statusClass(status) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function formatGenerateSuccess(rows) {
+  const count = rows.length;
+  const totalLessons = rows.reduce((sum, row) => sum + Number(row.lesson_count || 0), 0);
+  const totalMinutes = rows.reduce((sum, row) => sum + Number(row.total_minutes || 0), 0);
+  const totalJpy = rows.reduce((sum, row) => sum + Number(row.total_jpy || 0), 0);
+
+  return `老师工资已生成：${count} 条工资锁，${totalLessons} 条明细，${totalMinutes} 分钟，合计 ${formatCurrency(totalJpy, "JPY")}。`;
+}
+
+function formatGenerateError(error) {
+  const message = error?.message || String(error || "");
+
+  if (message.includes("已有工资记录") || message.includes("已经进入老师工资明细")) {
+    return `生成失败：该月份已有工资记录或课时已进入工资明细，不能重复生成。${message}`;
+  }
+
+  return `生成失败：${message}`;
+}
+
+function setGenerateSubmitting(isSubmitting) {
+  dom.generateSubmitButton.disabled = isSubmitting;
+  dom.generateCancelButton.disabled = isSubmitting;
+  dom.openGenerateDialogButton.disabled = isSubmitting;
+  dom.generateSubmitButton.textContent = isSubmitting ? "生成中..." : "确认生成";
+}
+
+function showGenerateError(message, fieldIds = []) {
+  dom.generateError.textContent = message;
+  dom.generateError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setGenerateFieldInvalid(fieldId, true);
+  }
+  dom.generateDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function hideGenerateError() {
+  dom.generateError.textContent = "";
+  dom.generateError.classList.add("is-hidden");
+}
+
+function hideGenerateErrorIfClean() {
+  const hasInvalidField = Boolean(dom.generateDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    hideGenerateError();
+  }
+}
+
+function setGenerateFieldInvalid(fieldId, isInvalid) {
+  const field = dom.generateDialog.querySelector(`[data-wage-generate-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", isInvalid);
+}
+
+function renderDialogSummaryRow(label, value) {
+  return `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <span>${escapeHtml(value)}</span>
+    </div>
+  `;
 }
 
 function setLoading(isLoading) {

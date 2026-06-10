@@ -1,11 +1,47 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: DB/RPC MVP implemented; API/UI not implemented
+Status: MVP implemented; payment request generation not implemented
 Date: 2026-06-10
 
 ## 目标
 
-本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC。API wrapper、页面入口、预览 UI、支付请求生成仍未实现。
+本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`。预览 UI、支付请求生成、工资锁扩展生命周期仍未实现。
+
+## API/UI MVP checkpoint
+
+2026-06-10 已在 `js/api/wage-api.js` 新增 API wrapper:
+
+`generateTeacherMonthlyWage({ yearMonth, teacherId })`
+
+页面接入：
+
+- `wage.html` 新增 `生成老师工资` 主操作。
+- 弹窗使用当前筛选月份；如果筛选了老师，则按该老师生成，否则按该月份全部候选老师生成。
+- 页面通过 API wrapper 调用 `school_generate_teacher_monthly_wage`，页面模块不直接 `.rpc()`，也不直接 insert/update/delete/upsert。
+- 成功后刷新工资锁列表，生成的工资锁可进入 `wage-detail.html` 查看只读明细。
+- 重复生成或已生成月份由 RPC 拒绝，页面在弹窗内显示错误，不静默吞错。
+
+弹窗文案明确：
+
+- 只基于 actual completed / makeup_completed 课时。
+- cancelled 不计入。
+- planned 不计入。
+- `is_billable=false` 仍可能计入老师工资。
+- 生成后写入工资锁主表和工资明细。
+- 不生成支付请求。
+- 不生成支出。
+- 不写账户流水。
+- 不写收入。
+- 不写学生结算。
+
+UI 验证记录：
+
+- Browser validation used teacher `12f6d142-b90b-4da2-be88-310414000bd1`, month `2028-11`, setup lesson ids `82000000-0000-4000-8000-000000011001` completed, `82000000-0000-4000-8000-000000011002` non-billable `makeup_completed`, and `82000000-0000-4000-8000-000000011003` cancelled.
+- UI generation created wage lock `7c367bf0-a2c8-467f-91c8-fb1e237fac51` and details `9e26d6ab-acd5-45e1-8972-8ec2d13505ab`, `dfb642ee-6b33-4621-8679-a31a629db6f1`.
+- Verified totals: `lesson_count = 2`, `total_minutes = 210`, `pay_hours = 3.5`, `lesson_wage_jpy = total_jpy = 15400`, `fee_jpy = 0`, cancelled detail count `0`.
+- Desktop browser verified list refresh, generated row visibility, duplicate generation error, and detail page completed / makeup_completed rows.
+- 390px browser verified generation dialog visibility and `documentElement.scrollWidth = body.scrollWidth = 390`.
+- Protected counts stayed unchanged after UI generation: payment requests `66`, expenses `44`, accounts `12`, account transactions `235`, income `17`, student monthly settlements `14`.
 
 ## DB/RPC MVP checkpoint
 
@@ -54,8 +90,6 @@ Guard：
 
 后续仍需：
 
-- API wrapper，页面不得直接 `.rpc()`。
-- `wage.html` 生成入口与提交文案。
 - 只读候选/错误预览 UI。
 - 支付请求生成独立阶段。
 - 多业务归属同老师同月、CNY/FX、交通费、教室费、void/relock、历史 backfill/cleanup 的单独设计。

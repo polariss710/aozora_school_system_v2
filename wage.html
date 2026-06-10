@@ -30,7 +30,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">工资快照</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -98,7 +98,10 @@
               <h2 id="wageListTitle">老师工资锁定记录</h2>
               <p class="section-note">本页显示已保存的老师工资锁定记录，不代表实时工资预览或重新计算结果。</p>
             </div>
-            <span id="wageCount" class="record-count">0 条</span>
+            <div class="table-actions">
+              <button class="button button-primary" id="openWageGenerateDialogButton" type="button">生成老师工资</button>
+              <span id="wageCount" class="record-count">0 条</span>
+            </div>
           </div>
 
           <div id="wageLoadingState" class="state-text is-hidden">正在加载老师工资结算...</div>
@@ -133,6 +136,33 @@
       </main>
     </div>
 
-    <script type="module" src="./js/wage-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <div id="wageGenerateDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="wageGenerateTitle">
+        <div class="section-heading">
+          <h2 id="wageGenerateTitle">生成老师工资</h2>
+          <p class="section-note">生成后会写入老师工资锁主表和明细，并作为已生成快照保存。</p>
+        </div>
+
+        <div id="wageGenerateSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning">
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。不会生成支付请求、支出、账户流水、收入或学生结算。
+        </div>
+
+        <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <label class="field confirm-check" data-wage-generate-field="confirm">
+          <input id="wageGenerateConfirmCheckbox" type="checkbox">
+          <span>我确认按当前筛选月份生成老师工资快照，且理解已生成/已锁定月份不能重复生成。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="wageGenerateSubmitButton" type="button">确认生成</button>
+          <button class="button" id="wageGenerateCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/wage-app.js?v=v2.81.0-teacher-wage-generation-ui-20260610"></script>
   </body>
 </html>
