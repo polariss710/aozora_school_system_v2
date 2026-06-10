@@ -1,11 +1,11 @@
 # 跨月补课完成登记设计
 
-Status: design-only / not implemented
+Status: design complete; DB/RPC phase implemented; API/UI not implemented
 Date: 2026-06-10
 
 ## 目标
 
-为后续“跨月补课完成登记”实现建立只读设计边界。本文只识别 UI / API / RPC / DB 触点，不新增功能代码、不执行 SQL/RPC、不写入数据库。
+为“跨月补课完成登记”建立设计边界，并记录后续 DB/RPC 阶段落地结果。本文仍用于约束 UI / API / RPC / DB 触点；截至 2026-06-10，专用写 RPC 已实现并验证，API wrapper、页面入口和跨月引用展示尚未实现。
 
 ## 业务边界
 
@@ -17,7 +17,7 @@ Date: 2026-06-10
 - 跨月补课不复制 `actual`。
 - 原月份页面只引用显示“已于补课月份完成”。
 - 补课月份页面只引用显示“来源：原月份待补课”。
-- 该功能只处理 `pending_makeup planned.year_month` 与 `makeup_completed actual.year_month` 不同的情况。
+- 该功能只处理 `pending_makeup planned.year_month` 早于 `makeup_completed actual.year_month` 的情况。
 
 ## 当前实现差异
 
@@ -28,7 +28,15 @@ Date: 2026-06-10
 - 当前学生结算锁检查只看来源 planned 月；跨月实现必须按补课月份 actual 月检查写入保护，同时不能因来源月已锁定而修改来源 planned。
 - 当前页面只在当前加载记录里做 planned/actual 左右配对；跨月时原月份或补课月份可能只加载到链路的一侧，需要跨月引用展示。
 
-因此后续实现建议新增专用 RPC，而不是改变现有当月补课 RPC 的口径。
+因此实现时新增专用 RPC，而不是改变现有当月补课 RPC 的口径。
+
+## 实现检查点
+
+- 2026-06-10 已新增并执行 `public.school_create_cross_month_makeup_completed_actual_from_planned`，SQL archive 为 `school_create_cross_month_makeup_completed_actual_from_planned_rpc.sql`。
+- RPC 阶段只新增写 RPC，不接 API/UI，不新增 DB-level unique/index 约束。
+- 只读预检发现 existing linked-actual duplicate group 为 `1`，existing cross-month linked actual count 为 `0`。
+- Rollback tests 覆盖成功默认不计费插入、重复 linked actual guard、同月 guard、目标学生结算锁 guard、目标老师工资锁 guard，并确认无 rollback residue。
+- Whitelist commit test 创建 source planned `19b574d5-78e0-43fb-8248-e2cd9c2c68af` 和 actual `8baa4f13-f290-4332-819c-d8ba20906df4`；actual `year_month = 2027-10`、`planned_lesson_id` 指向 source、`is_billable = false`、`lesson_fee = 0`、`actual_minutes = 120`。
 
 ## DB 设计触点
 
@@ -47,7 +55,7 @@ Date: 2026-06-10
 
 ## RPC 设计触点
 
-建议新增写 RPC：
+已新增写 RPC（API/UI 尚未接入）：
 
 `public.school_create_cross_month_makeup_completed_actual_from_planned(...)`
 
@@ -56,11 +64,12 @@ Date: 2026-06-10
 - `p_planned_lesson_id` 必填，来源必须是 school `planned`。
 - 来源 `status` 必须是 `pending_makeup`。
 - 来源 `voided_at` 必须为空。
-- `p_lesson_date` 必填，且 `to_char(p_lesson_date, 'YYYY-MM') <> source.year_month`。
+- `p_lesson_date` 必填，且 `to_char(p_lesson_date, 'YYYY-MM') > source.year_month`。
 - 目标 actual 固定为 `lesson_type = actual`, `status = makeup_completed`。
 - 目标 actual 的 `planned_lesson_id = source.id`。
 - 目标 actual 的 `year_month = to_char(p_lesson_date, 'YYYY-MM')`。
 - 目标 actual 的学生、老师、科目、业务归属从来源 planned 继承。
+- 默认 `is_billable = false`；只有调用方显式传入 `p_is_billable = true` 时才登记为计费。
 - 拒绝任何已存在 `lesson_type = actual and planned_lesson_id = source.id` 的重复生成。
 - 不更新来源 planned，不更新结算、工资、收入、支出、账户或流水。
 
@@ -70,18 +79,18 @@ Date: 2026-06-10
 - 老师工资锁：检查目标 `teacher_settlement_month`。
 - 若后续统计要求原月份也展示引用，该展示必须是只读引用，不得修改来源月历史数据。
 
-回滚/commit 测试设计：
+已执行的回滚/commit 测试：
 
-- rollback：从 whitelisted `codex-test / v2-test / sandbox` 的跨月 `pending_makeup planned` 生成目标月 actual，确认 `actual.year_month` 为目标月、`planned_lesson_id` 指向来源、来源 planned 未变化，然后 rollback。
+- rollback：从 whitelisted `codex-test / v2-test / sandbox` 临时 `pending_makeup planned` 生成目标月 actual，确认 `actual.year_month` 为目标月、`planned_lesson_id` 指向来源、来源 planned 未变化，然后 rollback；rollback residue 为 `0`。
 - duplicate guard：同一来源已有 actual 时拒绝。
 - same-month guard：`p_lesson_date` 落在来源 `year_month` 时拒绝，引导使用现有当月补课流程。
 - locked target settlement guard：目标学生结算月锁定时拒绝。
 - locked target wage guard：目标老师工资月锁定时拒绝。
-- whitelist commit：仅使用 whitelisted 测试数据，提交一条跨月 actual，并记录测试 id。
+- whitelist commit：仅使用 whitelisted 测试数据，提交 source planned `19b574d5-78e0-43fb-8248-e2cd9c2c68af` 与 actual `8baa4f13-f290-4332-819c-d8ba20906df4`。
 
 ## API 设计触点
 
-新增 API-layer wrapper，页面不得直接 `.rpc()`：
+后续新增 API-layer wrapper，页面不得直接 `.rpc()`：
 
 - `createCrossMonthMakeupCompletedActualFromPlanned(payload)`：调用新写 RPC。
 - `fetchCrossMonthMakeupLinks(yearMonth, filters?)` 或合并到 `fetchLessonRecords` 的辅助读取：读取当前月份相关跨月引用摘要。
@@ -125,7 +134,7 @@ API 返回建议：
 ## 统计与结算口径
 
 - 学生月度结算：目标 actual 计入补课月份 actual 口径；来源月份 planned 仍作为原月份 planned 引用存在，不通过写入修改。
-- 补以前月份已收费课时的默认建议为 `is_billable = false`，但最终可计费规则应在实现阶段明确字段默认值和 UI 说明。
+- 补以前月份已收费课时的默认值为 `is_billable = false`；若后续 UI 允许计费，必须显式选择并传入 `p_is_billable = true`。
 - 老师工资：目标 actual 的 `teacher_settlement_month` 为补课月份。
 - 导入：不进入 planned-only 导入；full actual import 仍是 future/history migration backlog。
 
@@ -141,8 +150,8 @@ API 返回建议：
 
 ## 后续实现最小切片
 
-1. 读侧：跨月引用查询与左右对应视图只读显示。
-2. 写侧：新增专用跨月补课完成 RPC、API wrapper、rollback/commit whitelist 测试。
+1. API：新增 `createCrossMonthMakeupCompletedActualFromPlanned(payload)` wrapper，页面仍不得直接 `.rpc()`。
+2. 读侧：跨月引用查询与左右对应视图只读显示。
 3. UI：目标月份的独立登记入口和来源选择器。
 4. 详情：原 planned 与目标 actual 的跨月引用展示。
-5. 文档：更新 `system-map.md`、`module-status.md`、`current-status.md`，记录测试 id、SQL 文件、RPC 名称和 commit。
+5. 文档：后续 API/UI phase 继续更新 `system-map.md`、`module-status.md`、`current-status.md`，记录测试 id、SQL/RPC 名称和 commit。
