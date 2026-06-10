@@ -1,6 +1,6 @@
 # v2 System Map
 
-Status date: 2026-06-09
+Status date: 2026-06-10
 
 Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority. For a visual static overview, open `docs/module-status-dashboard.html` locally.
 
@@ -8,7 +8,7 @@ Reference baseline:
 
 - Latest stable code checkpoint reviewed before planned-only lesson batch import: `e1619e1`
 - Lesson RPC SQL archive commits reviewed: `ce5ed9c` planned lesson create, `513dcd0` completed actual from planned, `ccaf087` cancelled actual from planned, and `ea8d9fb` makeup_completed actual from planned.
-- This map reflects the current repository state after planned lesson creation V1, completed actual generation from planned V1, cancelled actual generation from planned V1, makeup_completed actual generation from planned V1, the planned/actual paired readonly view with expandable compact content/note text and desktop equal-height paired cards, the lesson import preview/usability/template-export/human-readable-values/planned-ID-precheck checkpoints, the verified planned-only lesson batch import RPC/frontend checkpoint, the planned-only import UX/template cleanup checkpoint, the verified guarded lesson edit RPC/frontend checkpoint on list/detail, and the 2026-06-07 master-data create dialog UI polish checkpoint.
+- This map reflects the current repository state after planned lesson creation V1, completed actual generation from planned V1, cancelled actual generation from planned V1, makeup_completed actual generation from planned V1, the planned/actual paired readonly view with expandable compact content/note text and desktop equal-height paired cards, the verified planned-only lesson batch import RPC/frontend checkpoint, the planned-only import UX/template cleanup checkpoint, the verified guarded lesson edit RPC/frontend checkpoint on list/detail, planned-only void, default paired view, cross-month makeup completion DB/RPC + API/UI + regression closure, student monthly settlement V1 closure, and the 2026-06-07 master-data create dialog UI polish checkpoint.
 
 ## Global Boundaries
 
@@ -62,4 +62,5 @@ Reference baseline:
 - Payment cancel/restore/reissue actions are present in current UI/API and SQL files, while `current-status.md` only names teacher wage payment confirmation and reversal in the completed write-flow summary. Treat any future change around these status actions as requiring explicit retest against the full write-RPC workflow.
 - Account transfer/reversal and profit summary filters/drilldown now have real browser verification recorded in `current-status.md`; future changes around these surfaces should retest the same workflows.
 - No standalone account transfer detail page exists; account transaction detail is the current audit surface.
-- Planned lesson creation V1, completed actual generation from planned V1, cancelled actual generation from planned V1, makeup_completed actual generation from planned V1, lesson import preview, planned-only batch import, and guarded lesson edit RPC/frontend on `lesson.html` / `lesson-detail.html` are complete. No completed write flow exists for free actual creation outside planned-only import, actual batch import, lesson delete, wage lock generation, settlement generation/adjustment, or wage rule physical deletion.
+- Lesson management V1, planned-only import, student monthly settlement V1, and cross-month makeup completion are complete/verified. Planned and actual lessons stay strictly separated; planned-only import does not import actual rows; same-month pending_makeup completion uses the existing same-month makeup_completed actual-from-planned flow; cross-month makeup completion uses dedicated guarded RPC `school_create_cross_month_makeup_completed_actual_from_planned`, does not copy planned/actual rows, does not modify the source planned row, defaults non-billable, and must remain behind API-layer wrappers rather than page-level `.rpc()` calls.
+- No completed write flow exists for free actual creation outside planned flow, actual batch import, lesson delete, teacher wage generation / wage lock generation, settlement adjustment beyond completed V1, or wage rule physical deletion. Next-stage backlog candidates are teacher wage generation, payment management follow-up enhancements, weekly plan image export, full actual import / history migration, whitelist/codex-test deferred cleanup, and DB-level linked-actual unique/index only after read-only duplicate-risk verification.
