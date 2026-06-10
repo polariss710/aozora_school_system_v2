@@ -1,7 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js";
 import {
-  applyStudentMonthlySettlementAdjustment,
   relockStudentMonthlySettlement,
   unlockStudentMonthlySettlement,
 } from "../api/settlement-api.js";
@@ -45,7 +44,6 @@ const dom = {};
 let detailData = null;
 let currentStatusAction = "";
 let isStatusActionSubmitting = false;
-let isAdjustmentSubmitting = false;
 
 export function initSettlementDetailPage() {
   cacheDom();
@@ -76,7 +74,6 @@ function cacheDom() {
   dom.actionStatus = document.querySelector("#settlementDetailActionStatus");
   dom.unlockButton = document.querySelector("#openUnlockSettlementButton");
   dom.relockButton = document.querySelector("#openRelockSettlementButton");
-  dom.adjustmentButton = document.querySelector("#openSettlementAdjustmentButton");
   dom.titleText = document.querySelector("#settlementDetailTitleText");
   dom.basicInfo = document.querySelector("#settlementDetailBasicInfo");
   dom.feeInfo = document.querySelector("#settlementDetailFeeInfo");
@@ -107,23 +104,12 @@ function cacheDom() {
   dom.statusActionConfirmCheckbox = document.querySelector("#detailSettlementStatusActionConfirmCheckbox");
   dom.statusActionSubmitButton = document.querySelector("#detailSettlementStatusActionSubmitButton");
   dom.statusActionCancelButton = document.querySelector("#detailSettlementStatusActionCancelButton");
-  dom.adjustmentDialog = document.querySelector("#detailSettlementAdjustmentDialog");
-  dom.adjustmentSummary = document.querySelector("#detailSettlementAdjustmentSummary");
-  dom.adjustmentError = document.querySelector("#detailSettlementAdjustmentError");
-  dom.adjustmentAmountInput = document.querySelector("#detailSettlementAdjustmentAmountInput");
-  dom.adjustmentSourceInput = document.querySelector("#detailSettlementAdjustmentSourceInput");
-  dom.adjustmentReasonInput = document.querySelector("#detailSettlementAdjustmentReasonInput");
-  dom.adjustmentNoteInput = document.querySelector("#detailSettlementAdjustmentNoteInput");
-  dom.adjustmentConfirmCheckbox = document.querySelector("#detailSettlementAdjustmentConfirmCheckbox");
-  dom.adjustmentSubmitButton = document.querySelector("#detailSettlementAdjustmentSubmitButton");
-  dom.adjustmentCancelButton = document.querySelector("#detailSettlementAdjustmentCancelButton");
   bindEvents();
 }
 
 function bindEvents() {
   dom.unlockButton?.addEventListener("click", () => openStatusActionDialog("unlock"));
   dom.relockButton?.addEventListener("click", () => openStatusActionDialog("relock"));
-  dom.adjustmentButton?.addEventListener("click", openAdjustmentDialog);
   dom.statusActionCancelButton?.addEventListener("click", () => closeStatusActionDialog());
   dom.statusActionSubmitButton?.addEventListener("click", handleStatusActionSubmit);
   dom.statusActionDialog?.addEventListener("click", (event) => {
@@ -139,28 +125,6 @@ function bindEvents() {
   dom.statusActionConfirmCheckbox?.addEventListener("change", () => {
     clearStatusActionFieldInvalid("confirm");
     hideStatusActionErrorIfClean();
-  });
-  dom.adjustmentCancelButton?.addEventListener("click", () => closeAdjustmentDialog());
-  dom.adjustmentSubmitButton?.addEventListener("click", handleAdjustmentSubmit);
-  dom.adjustmentDialog?.addEventListener("click", (event) => {
-    if (event.target === dom.adjustmentDialog) {
-      closeAdjustmentDialog();
-    }
-  });
-  [
-    ["amount", dom.adjustmentAmountInput],
-    ["source", dom.adjustmentSourceInput],
-    ["reason", dom.adjustmentReasonInput],
-    ["note", dom.adjustmentNoteInput],
-  ].forEach(([fieldId, element]) => {
-    element?.addEventListener("input", () => {
-      clearAdjustmentFieldInvalid(fieldId);
-      hideAdjustmentErrorIfClean();
-    });
-  });
-  dom.adjustmentConfirmCheckbox?.addEventListener("change", () => {
-    clearAdjustmentFieldInvalid("confirm");
-    hideAdjustmentErrorIfClean();
   });
 }
 
@@ -255,7 +219,6 @@ function renderActionControls(settlement) {
   const status = settlement.settlement_status;
   dom.actionStatus.textContent = settlementStatusLabel(status);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
-  dom.adjustmentButton.classList.toggle("is-hidden", status !== "locked");
   dom.unlockButton.classList.toggle("is-hidden", status !== "locked");
   dom.relockButton.classList.toggle("is-hidden", status !== "unlocked");
 }
@@ -518,137 +481,6 @@ function setStatusActionFieldInvalid(fieldId, invalid) {
 
 function clearStatusActionFieldInvalid(fieldId) {
   setStatusActionFieldInvalid(fieldId, false);
-}
-
-function openAdjustmentDialog() {
-  const settlement = detailData?.settlement;
-  if (!settlement) {
-    showMessage("error", "未找到可调整的结算快照。");
-    return;
-  }
-  if (settlement.settlement_status !== "locked") {
-    showMessage("error", "只有已锁定的学生月度结算快照可以记录差额调整。");
-    return;
-  }
-
-  dom.adjustmentAmountInput.value = "";
-  dom.adjustmentSourceInput.value = "manual";
-  dom.adjustmentReasonInput.value = "";
-  dom.adjustmentNoteInput.value = "";
-  dom.adjustmentConfirmCheckbox.checked = false;
-  clearAdjustmentErrors();
-  renderAdjustmentSummary(settlement);
-  setAdjustmentSubmitting(false);
-  dom.adjustmentDialog.classList.remove("is-hidden");
-  dom.adjustmentDialog.setAttribute("aria-hidden", "false");
-  dom.adjustmentAmountInput.focus();
-}
-
-function closeAdjustmentDialog(force = false) {
-  if (isAdjustmentSubmitting && !force) {
-    return;
-  }
-
-  dom.adjustmentDialog?.classList.add("is-hidden");
-  dom.adjustmentDialog?.setAttribute("aria-hidden", "true");
-  clearAdjustmentErrors();
-}
-
-function renderAdjustmentSummary(settlement) {
-  dom.adjustmentSummary.innerHTML = [
-    ["学生", studentNameById(settlement.student_id)],
-    ["结算月份", formatMonth(settlement.year_month)],
-    ["业务归属", businessNameById(settlement.business_entity_id)],
-    ["系统差额", formatCurrency(settlement.system_difference_cny, "CNY")],
-    ["当前调整", formatCurrency(settlement.adjustment_amount_cny, "CNY")],
-    ["当前结转", formatCurrency(settlement.carryover_amount_cny, "CNY")],
-  ].map(([label, value]) => `
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">${escapeHtml(label)}</span>
-      <span>${escapeHtml(displayValue(value))}</span>
-    </div>
-  `).join("");
-}
-
-async function handleAdjustmentSubmit() {
-  if (isAdjustmentSubmitting) {
-    return;
-  }
-
-  clearAdjustmentErrors();
-  const settlement = detailData?.settlement;
-  if (!settlement) {
-    showAdjustmentError("未找到可调整的结算快照。");
-    return;
-  }
-
-  const amount = Number(dom.adjustmentAmountInput.value);
-  const source = dom.adjustmentSourceInput.value.trim();
-  const reason = dom.adjustmentReasonInput.value.trim();
-  const invalidFields = [];
-  if (!Number.isFinite(amount)) invalidFields.push("amount");
-  if (!source) invalidFields.push("source");
-  if (!reason) invalidFields.push("reason");
-  if (!dom.adjustmentConfirmCheckbox.checked) invalidFields.push("confirm");
-
-  if (invalidFields.length) {
-    invalidFields.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
-    showAdjustmentError("请填写差额调整金额、来源、理由，并勾选确认。");
-    return;
-  }
-
-  setAdjustmentSubmitting(true);
-
-  try {
-    const result = await applyStudentMonthlySettlementAdjustment({
-      settlementId: settlement.id,
-      adjustmentAmountCny: amount,
-      adjustmentSource: source,
-      adjustmentReason: reason,
-      note: dom.adjustmentNoteInput.value.trim(),
-    });
-    closeAdjustmentDialog(true);
-    await loadSettlementDetail(settlement.id);
-    showMessage("success", `差额调整已记录：${shortId(result?.adjustment_id)}；本月结转已更新。`);
-  } catch (error) {
-    showAdjustmentError(error.message || String(error));
-  } finally {
-    setAdjustmentSubmitting(false);
-  }
-}
-
-function setAdjustmentSubmitting(isSubmitting) {
-  isAdjustmentSubmitting = isSubmitting;
-  dom.adjustmentSubmitButton.disabled = isSubmitting;
-  dom.adjustmentCancelButton.disabled = isSubmitting;
-  dom.adjustmentSubmitButton.textContent = isSubmitting ? "记录中..." : "确认记录调整";
-}
-
-function clearAdjustmentErrors() {
-  dom.adjustmentError.textContent = "";
-  dom.adjustmentError.classList.add("is-hidden");
-  ["amount", "source", "reason", "confirm"].forEach(clearAdjustmentFieldInvalid);
-}
-
-function showAdjustmentError(message) {
-  dom.adjustmentError.textContent = message;
-  dom.adjustmentError.classList.remove("is-hidden");
-}
-
-function hideAdjustmentErrorIfClean() {
-  if (!dom.adjustmentDialog?.querySelector(".field.is-invalid")) {
-    dom.adjustmentError.textContent = "";
-    dom.adjustmentError.classList.add("is-hidden");
-  }
-}
-
-function setAdjustmentFieldInvalid(fieldId, invalid) {
-  const field = dom.adjustmentDialog?.querySelector(`[data-detail-settlement-adjustment-field="${fieldId}"]`);
-  field?.classList.toggle("is-invalid", invalid);
-}
-
-function clearAdjustmentFieldInvalid(fieldId) {
-  setAdjustmentFieldInvalid(fieldId, false);
 }
 
 function renderDefinitionList(items) {

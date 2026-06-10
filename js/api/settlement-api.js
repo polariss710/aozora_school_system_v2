@@ -63,7 +63,7 @@ async function fetchStudentSettlementSnapshots(yearMonth) {
     throw error;
   }
 
-  return data || [];
+  return mergeUnlockedSnapshotPreviews(data || []);
 }
 
 async function fetchStudentSettlementPreviewCandidates(yearMonth) {
@@ -173,7 +173,7 @@ async function fetchStudentDefaultBusinessEntities(studentIds) {
 }
 
 async function fetchStudentSettlementPreviewSummary(studentId, yearMonth) {
-  const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_summary", {
+  const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_preview", {
     p_student_id: studentId,
     p_year_month: yearMonth,
   });
@@ -183,6 +183,46 @@ async function fetchStudentSettlementPreviewSummary(studentId, yearMonth) {
   }
 
   return Array.isArray(data) ? data[0] : data;
+}
+
+async function mergeUnlockedSnapshotPreviews(rows) {
+  const mergedRows = [];
+  for (const row of rows) {
+    if (row.settlement_status !== "unlocked") {
+      mergedRows.push(row);
+      continue;
+    }
+
+    const summary = await fetchStudentSettlementPreviewSummary(row.student_id, row.year_month);
+    if (!summary) {
+      mergedRows.push(row);
+      continue;
+    }
+
+    mergedRows.push({
+      ...row,
+      business_entity_id: summary.business_entity_id || row.business_entity_id,
+      preset_exchange_rate: summary.exchange_rate,
+      planned_lesson_fee_jpy: summary.planned_fee_jpy,
+      planned_lesson_fee_cny: summary.planned_fee_cny,
+      actual_lesson_fee_jpy: summary.actual_fee_jpy,
+      actual_lesson_fee_cny: summary.actual_fee_cny,
+      previous_balance_cny: summary.carryover_cny,
+      received_jpy: summary.received_jpy,
+      received_cny: summary.received_cny,
+      received_equivalent_cny: summary.received_equivalent_cny,
+      system_difference_cny: summary.final_due_cny,
+      adjustment_amount_cny: summary.adjustment_amount_cny,
+      adjustment_source: summary.adjustment_source,
+      adjustment_reason: summary.adjustment_reason,
+      adjustment_note: summary.adjustment_note,
+      carryover_amount_cny: summary.locked_carryover_cny,
+      adjustment_draft_id: summary.draft_id,
+      adjustment_draft_status: summary.draft_status,
+      adjustment_draft_updated_at: summary.draft_updated_at,
+    });
+  }
+  return mergedRows;
 }
 
 function normalizeSnapshotRow(row) {
@@ -197,7 +237,7 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
     id: `preview:${summary.student_id}:${summary.year_month}`,
     student_id: summary.student_id,
     year_month: summary.year_month,
-    business_entity_id: businessEntityId,
+    business_entity_id: summary.business_entity_id || businessEntityId,
     preset_exchange_rate: summary.exchange_rate,
     planned_lesson_fee_jpy: summary.planned_fee_jpy,
     planned_lesson_fee_cny: summary.planned_fee_cny,
@@ -208,9 +248,14 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
     received_cny: summary.received_cny,
     received_equivalent_cny: summary.received_equivalent_cny,
     system_difference_cny: summary.final_due_cny,
-    adjustment_amount_cny: 0,
-    adjustment_reason: "",
+    adjustment_amount_cny: summary.adjustment_amount_cny,
+    adjustment_source: summary.adjustment_source,
+    adjustment_reason: summary.adjustment_reason,
+    adjustment_note: summary.adjustment_note,
     carryover_amount_cny: summary.locked_carryover_cny,
+    adjustment_draft_id: summary.draft_id,
+    adjustment_draft_status: summary.draft_status,
+    adjustment_draft_updated_at: summary.draft_updated_at,
     settlement_status: "preview",
     locked_at: null,
     unlocked_at: null,
@@ -295,6 +340,23 @@ export async function relockStudentMonthlySettlement(payload) {
 export async function applyStudentMonthlySettlementAdjustment(payload) {
   const { data, error } = await supabase.rpc("school_apply_student_monthly_settlement_adjustment", {
     p_settlement_id: payload.settlementId,
+    p_adjustment_amount_cny: payload.adjustmentAmountCny,
+    p_adjustment_source: payload.adjustmentSource || "manual",
+    p_adjustment_reason: payload.adjustmentReason,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function setStudentMonthlySettlementDraftAdjustment(payload) {
+  const { data, error } = await supabase.rpc("school_set_student_monthly_settlement_draft_adjustment", {
+    p_student_id: payload.studentId,
+    p_year_month: payload.yearMonth,
     p_adjustment_amount_cny: payload.adjustmentAmountCny,
     p_adjustment_source: payload.adjustmentSource || "manual",
     p_adjustment_reason: payload.adjustmentReason,

@@ -1,12 +1,12 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
-  applyStudentMonthlySettlementAdjustment,
   fetchSettlementBusinessEntities,
   fetchSettlementStudents,
   fetchStudentSettlements,
   lockStudentMonthlySettlement,
   relockStudentMonthlySettlement,
+  setStudentMonthlySettlementDraftAdjustment,
   unlockStudentMonthlySettlement,
 } from "../api/settlement-api.js";
 import {
@@ -374,6 +374,7 @@ function renderSettlementDetailAction(row) {
     return `
       <div class="table-action-group">
         <span class="status-badge status-pending">预览</span>
+        <button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">差额调整</button>
         <button class="button table-action-button button-primary" type="button" data-lock-settlement-id="${escapeAttribute(row.id)}">锁定</button>
       </div>
     `;
@@ -392,11 +393,6 @@ function renderSettlementStatusAction(row) {
   if (row.settlement_status === "locked") {
     return `
       <button
-        class="button table-action-button"
-        type="button"
-        data-settlement-adjustment-id="${escapeAttribute(row.id)}"
-      >差额调整</button>
-      <button
         class="button table-action-button button-danger"
         type="button"
         data-settlement-action-id="${escapeAttribute(row.id)}"
@@ -407,6 +403,11 @@ function renderSettlementStatusAction(row) {
 
   if (row.settlement_status === "unlocked") {
     return `
+      <button
+        class="button table-action-button"
+        type="button"
+        data-settlement-adjustment-id="${escapeAttribute(row.id)}"
+      >差额调整</button>
       <button
         class="button table-action-button button-primary"
         type="button"
@@ -461,6 +462,8 @@ function renderLockSummary(row) {
     ["预定课时费", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
     ["实际课时费", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
     ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
+    ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
+    ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -606,10 +609,10 @@ function renderStatusActionDialog(row, action) {
   dom.statusActionTitle.textContent = isUnlock ? "撤销锁定学生月度结算" : "重新锁定学生月度结算";
   dom.statusActionDescription.textContent = isUnlock
     ? "撤销锁定会把当前快照状态改为锁定已撤销，保留同一条结算记录和撤销原因。"
-    : "重新锁定会复用当前实时结算口径覆盖同一条快照金额，不创建历史版本。";
+    : "重新锁定会复用当前实时结算口径和锁定前差额调整覆盖同一条快照金额，不创建历史版本。";
   dom.statusActionWarning.textContent = isUnlock
     ? "撤销锁定后，该学生该月份的课时和学费收入写入 guard 会放开；如果该结算已作为有效结转来源，RPC 会拒绝本操作。"
-    : "重新锁定后，该学生该月份的课时和学费收入写入 guard 会恢复；本操作不会自动撤销或重建结转。";
+    : "重新锁定后，该学生该月份的课时和学费收入写入 guard 会恢复；差额调整会随本次重新锁定固化为只读快照。";
   dom.statusActionReasonField.classList.toggle("is-hidden", !isUnlock);
   dom.statusActionNoteField.classList.toggle("is-hidden", isUnlock);
   dom.statusActionSubmitButton.classList.toggle("button-danger", isUnlock);
@@ -627,6 +630,8 @@ function renderStatusActionSummary(row) {
     ["锁定时间", formatDate(row.locked_at)],
     ["撤销时间", formatDate(row.unlocked_at)],
     ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
+    ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
+    ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -738,26 +743,28 @@ function clearStatusActionFieldInvalid(fieldId) {
 
 function openAdjustmentDialog(settlementId) {
   if (!hasSupabaseConfig()) {
-    showMessage("error", "当前 Supabase 配置不可用，不能记录差额调整。");
+    showMessage("error", "当前 Supabase 配置不可用，不能保存差额调整。");
     return;
   }
 
   const row = settlements.find((item) => item.id === settlementId);
-  if (!row || row.is_preview) {
-    showMessage("error", "未找到可调整的结算快照。");
+  if (!row) {
+    showMessage("error", "未找到可调整的结算预览。");
     return;
   }
 
-  if (row.settlement_status !== "locked") {
-    showMessage("error", "只有已锁定的学生月度结算快照可以记录差额调整。");
+  if (!row.is_preview && row.settlement_status !== "unlocked") {
+    showMessage("error", "差额调整只能在锁定前录入或修改；已锁定结算只能只读查看。");
     return;
   }
 
   currentAdjustmentSettlement = row;
-  dom.adjustmentAmountInput.value = "";
-  dom.adjustmentSourceInput.value = "manual";
-  dom.adjustmentReasonInput.value = "";
-  dom.adjustmentNoteInput.value = "";
+  dom.adjustmentAmountInput.value = Number.isFinite(Number(row.adjustment_amount_cny))
+    ? String(row.adjustment_amount_cny)
+    : "";
+  dom.adjustmentSourceInput.value = row.adjustment_source || "manual";
+  dom.adjustmentReasonInput.value = row.adjustment_reason || "";
+  dom.adjustmentNoteInput.value = row.adjustment_note || "";
   dom.adjustmentConfirmCheckbox.checked = false;
   clearAdjustmentErrors();
   renderAdjustmentSummary(row);
@@ -802,7 +809,7 @@ async function handleAdjustmentSubmit() {
   clearAdjustmentErrors();
 
   if (!currentAdjustmentSettlement) {
-    showAdjustmentError("未找到可调整的结算快照。");
+    showAdjustmentError("未找到可调整的结算预览。");
     return;
   }
 
@@ -825,8 +832,9 @@ async function handleAdjustmentSubmit() {
 
   try {
     const sourceRow = currentAdjustmentSettlement;
-    const result = await applyStudentMonthlySettlementAdjustment({
-      settlementId: sourceRow.id,
+    const result = await setStudentMonthlySettlementDraftAdjustment({
+      studentId: sourceRow.student_id,
+      yearMonth: sourceRow.year_month,
       adjustmentAmountCny: amount,
       adjustmentSource: source,
       adjustmentReason: reason,
@@ -835,7 +843,7 @@ async function handleAdjustmentSubmit() {
     closeAdjustmentDialog(true);
     await loadSettlementMonth(sourceRow.year_month);
     applyCurrentFilters();
-    showMessage("success", `差额调整已记录：${shortId(result?.adjustment_id)}；本月结转已更新。`);
+    showMessage("success", `锁定前差额调整已保存：${shortId(result?.draft_id)}；预览结转已更新。`);
   } catch (error) {
     showAdjustmentError(error.message || String(error));
   } finally {
@@ -847,7 +855,7 @@ function setAdjustmentSubmitting(isSubmitting) {
   isAdjustmentSubmitting = isSubmitting;
   dom.adjustmentSubmitButton.disabled = isSubmitting;
   dom.adjustmentCancelButton.disabled = isSubmitting;
-  dom.adjustmentSubmitButton.textContent = isSubmitting ? "记录中..." : "确认记录调整";
+  dom.adjustmentSubmitButton.textContent = isSubmitting ? "保存中..." : "保存差额调整";
 }
 
 function clearAdjustmentErrors() {
