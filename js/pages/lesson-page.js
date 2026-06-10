@@ -2841,6 +2841,15 @@ async function handleLessonPdfExportSubmit() {
     return;
   }
 
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) {
+    showLessonPdfExportError("浏览器阻止了打印页窗口，请允许弹窗后重试。");
+    return;
+  }
+  printWindow.document.open();
+  printWindow.document.write(renderLessonPdfLoadingHtml());
+  printWindow.document.close();
+
   setLessonPdfExportSubmitting(true);
 
   try {
@@ -2857,18 +2866,21 @@ async function handleLessonPdfExportSubmit() {
       plannedRows: exportData.plannedRows || [],
       actualRows: exportData.actualRows || [],
       stats: exportData.stats || {},
+      printWindow,
     });
     closeLessonPdfExportDialog(true);
     showMessage("success", "学生课时打印页已生成，可在浏览器打印窗口保存为 PDF。");
   } catch (error) {
+    if (!printWindow.closed) {
+      printWindow.close();
+    }
     showLessonPdfExportError(error.message || String(error));
   } finally {
     setLessonPdfExportSubmitting(false);
   }
 }
 
-function openLessonPdfPrintPage({ studentId, yearMonth, mode, rows, plannedRows, actualRows, stats }) {
-  const printWindow = window.open("", "_blank");
+function openLessonPdfPrintPage({ studentId, yearMonth, mode, rows, plannedRows, actualRows, stats, printWindow }) {
   if (!printWindow) {
     throw new Error("浏览器阻止了打印页窗口，请允许弹窗后重试。");
   }
@@ -2878,6 +2890,19 @@ function openLessonPdfPrintPage({ studentId, yearMonth, mode, rows, plannedRows,
   printWindow.document.close();
   printWindow.focus();
   printWindow.setTimeout(() => printWindow.print(), 250);
+}
+
+function renderLessonPdfLoadingHtml() {
+  return `<!doctype html>
+    <html lang="zh-CN">
+      <head>
+        <meta charset="utf-8">
+        <title>生成学生课时打印页</title>
+      </head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; padding: 24px;">
+        正在读取 DB 课时记录与统计 RPC...
+      </body>
+    </html>`;
 }
 
 function renderLessonPdfPrintHtml({ studentId, yearMonth, mode, rows, plannedRows, actualRows, stats }) {
