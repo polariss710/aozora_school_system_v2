@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchWageBusinessEntities,
+  fetchWageDetailFeeSummaries,
   fetchWageLocks,
   fetchWagePaymentRequests,
   fetchWageTeachers,
@@ -86,6 +87,7 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageLoadingState");
   dom.emptyState = document.querySelector("#wageEmptyState");
   dom.wageCount = document.querySelector("#wageCount");
+  dom.exportMonthlySummaryButton = document.querySelector("#wageMonthlySummaryExportButton");
   dom.openGenerateDialogButton = document.querySelector("#openWageGenerateDialogButton");
   dom.generateDialog = document.querySelector("#wageGenerateDialog");
   dom.generateSummary = document.querySelector("#wageGenerateSummary");
@@ -107,6 +109,7 @@ function bindEvents() {
   });
 
   dom.openGenerateDialogButton?.addEventListener("click", openGenerateDialog);
+  dom.exportMonthlySummaryButton?.addEventListener("click", handleMonthlySummaryExport);
   dom.generateCancelButton?.addEventListener("click", closeGenerateDialog);
   dom.generateSubmitButton?.addEventListener("click", handleGenerateSubmit);
   dom.generateDialog?.addEventListener("click", (event) => {
@@ -458,6 +461,271 @@ function effectivePaymentRequestStatus(requests) {
   return requests[requests.length - 1]?.status || "";
 }
 
+async function handleMonthlySummaryExport() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  if (!window.XLSX?.utils?.aoa_to_sheet || !window.XLSX?.writeFile) {
+    showMessage("error", "Excel 导出库尚未加载，请刷新页面后重试。");
+    return;
+  }
+
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  if (filters.month !== loadedMonth) {
+    showMessage("error", "请先查询当前筛选月份，再导出月度汇总。");
+    return;
+  }
+
+  const rows = effectiveMonthlyWageLocks();
+  if (!rows.length) {
+    showMessage("error", `${formatMonth(filters.month)} 没有可导出的未作废工资快照。`);
+    return;
+  }
+
+  setMonthlyExportSubmitting(true);
+  showMessage("info", "正在生成老师工资月度汇总 Excel...");
+
+  try {
+    const feeSummaries = await fetchWageDetailFeeSummaries(rows.map((row) => row.id));
+    exportMonthlySummaryWorkbook({
+      month: filters.month,
+      rows,
+      feeSummaries,
+    });
+    showMessage("success", "老师工资月度汇总 Excel 已导出。");
+  } catch (error) {
+    showMessage("error", `导出老师工资月度汇总失败：${error.message || error}`);
+  } finally {
+    setMonthlyExportSubmitting(false);
+  }
+}
+
+function effectiveMonthlyWageLocks() {
+  return sortWageLocks(wageLocks).filter((row) => row.status !== "void" && !row.voided_at);
+}
+
+function exportMonthlySummaryWorkbook({ month, rows, feeSummaries }) {
+  const xlsx = window.XLSX;
+  const workbook = xlsx.utils.book_new();
+  const report = buildMonthlySummaryReport({ month, rows, feeSummaries });
+  const sheet = xlsx.utils.aoa_to_sheet(report.rows);
+
+  sheet["!merges"] = report.merges.map((range) => xlsx.utils.decode_range(range));
+  sheet["!cols"] = [
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 22 },
+    { wch: 10 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 16 },
+    { wch: 16 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 34 },
+  ];
+  sheet["!rows"] = report.rows.map((_, index) => ({ hpt: index === 0 ? 26 : index <= 3 ? 20 : 18 }));
+
+  styleMonthlySummarySheet(sheet, report);
+  xlsx.utils.book_append_sheet(workbook, sheet, "月度汇总");
+  xlsx.writeFile(workbook, buildMonthlySummaryFileName(month), {
+    bookType: "xlsx",
+    cellStyles: true,
+  });
+}
+
+function buildMonthlySummaryReport({ month, rows, feeSummaries }) {
+  const exportRows = rows.map((row, index) => buildMonthlySummaryRow(row, index + 1, feeSummaries));
+  const header = [
+    "序号",
+    "月份",
+    "老师",
+    "业务归属",
+    "结算课时合计",
+    "课时工资 JPY",
+    "交通费 JPY",
+    "教室费 JPY",
+    "调整后费用合计 JPY",
+    "调整后应付合计 JPY",
+    "处理状态",
+    "支付请求状态",
+    "支付/确认日期",
+    "备注",
+  ];
+
+  const firstDataRowNumber = 5;
+  const totalRowNumber = firstDataRowNumber + exportRows.length;
+  const rowsWithSummary = [
+    [`老师工资月度汇总 / ${formatMonth(month)}`, "", "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["用途", "发工资前内部核对", "", "导出范围", "当前月份未作废工资快照", "", "", "生成时间", formatDate(new Date().toISOString()), "", "", "", "", ""],
+    ["说明", "本表来自已保存工资快照和同月 teacher_wage 支付请求；不包含系统 UUID，不代表重新计算结果。", "", "", "", "", "", "", "", "", "", "", "", ""],
+    header,
+    ...exportRows,
+    [
+      "合计",
+      "",
+      "",
+      "",
+      { f: `SUM(E${firstDataRowNumber}:E${totalRowNumber - 1})` },
+      { f: `SUM(F${firstDataRowNumber}:F${totalRowNumber - 1})` },
+      { f: `SUM(G${firstDataRowNumber}:G${totalRowNumber - 1})` },
+      { f: `SUM(H${firstDataRowNumber}:H${totalRowNumber - 1})` },
+      { f: `SUM(I${firstDataRowNumber}:I${totalRowNumber - 1})` },
+      { f: `SUM(J${firstDataRowNumber}:J${totalRowNumber - 1})` },
+      "",
+      "",
+      "",
+      "",
+    ],
+  ];
+
+  return {
+    rows: rowsWithSummary,
+    firstDataRowIndex: firstDataRowNumber - 1,
+    totalRowIndex: totalRowNumber - 1,
+    merges: [
+      "A1:N1",
+      "B2:C2",
+      "E2:G2",
+      "I2:N2",
+      "B3:N3",
+    ],
+  };
+}
+
+function buildMonthlySummaryRow(row, index, feeSummaries) {
+  const paymentRequests = paymentRequestsForWageLock(row.id);
+  const paymentStatus = effectivePaymentRequestStatus(paymentRequests);
+  const paymentRequest = effectivePaymentRequest(paymentRequests);
+  const processState = wageProcessState(row);
+  const feeSummary = feeSummaries.get(row.id) || {
+    transportFeeJpy: 0,
+    classroomFeeJpy: 0,
+  };
+  const transportFeeJpy = roundNumber(feeSummary.transportFeeJpy);
+  const classroomFeeJpy = roundNumber(feeSummary.classroomFeeJpy);
+  const feeTotalJpy = roundNumber(transportFeeJpy + classroomFeeJpy);
+
+  return [
+    index,
+    formatMonth(row.settlement_month),
+    displayTeacherName(row),
+    displayBusinessName(row),
+    numberOrZero(row.pay_hours),
+    roundNumber(row.lesson_wage_jpy),
+    transportFeeJpy,
+    classroomFeeJpy,
+    feeTotalJpy,
+    roundNumber(row.total_jpy),
+    processState.label,
+    paymentStatus ? paymentRequestStatusLabel(paymentStatus) : "未生成支付请求",
+    dateOnly(paymentRequest?.paid_at),
+    monthlySummaryNote(row, paymentStatus),
+  ];
+}
+
+function effectivePaymentRequest(requests) {
+  return requests.find((request) => request.status === "paid")
+    || requests.find((request) => request.status === "pending")
+    || requests.find((request) => request.status === "reversed")
+    || requests.find((request) => request.status === "cancelled")
+    || requests.find((request) => request.status === "void")
+    || requests[requests.length - 1]
+    || null;
+}
+
+function monthlySummaryNote(row, paymentStatus) {
+  if (!paymentStatus && Number(row.total_jpy || 0) <= 0) {
+    return "0 元快照，无可支付金额；如需支付请先在详情页受控调整。";
+  }
+
+  if (!paymentStatus) {
+    return "未生成支付请求；发工资前仍可在详情页受控调整。";
+  }
+
+  if (paymentStatus === "pending") {
+    return "已生成支付请求，工资明细只读；请到老师工资支付模块确认。";
+  }
+
+  if (paymentStatus === "paid") {
+    return "已支付，工资明细只读。";
+  }
+
+  return "存在支付请求历史，工资明细只读；请按支付流程处理。";
+}
+
+function styleMonthlySummarySheet(sheet, report) {
+  const allRange = `A1:N${report.rows.length}`;
+  const baseStyle = {
+    font: { name: "Arial", sz: 10 },
+    alignment: { vertical: "center", wrapText: true },
+    border: {
+      top: { style: "thin", color: { rgb: "D9D9D9" } },
+      bottom: { style: "thin", color: { rgb: "D9D9D9" } },
+      left: { style: "thin", color: { rgb: "D9D9D9" } },
+      right: { style: "thin", color: { rgb: "D9D9D9" } },
+    },
+  };
+  const headerStyle = {
+    ...baseStyle,
+    font: { name: "Arial", sz: 10, bold: true },
+    fill: { fgColor: { rgb: "D9EAF7" } },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+  };
+  const totalStyle = {
+    ...baseStyle,
+    font: { name: "Arial", sz: 10, bold: true },
+    fill: { fgColor: { rgb: "E2F0D9" } },
+  };
+
+  applyCellStyle(sheet, allRange, baseStyle);
+  applyCellStyle(sheet, "A1:N1", {
+    ...baseStyle,
+    font: { name: "Arial", sz: 16, bold: true },
+    fill: { fgColor: { rgb: "D9EAF7" } },
+    alignment: { horizontal: "center", vertical: "center" },
+  });
+  applyCellStyle(sheet, "A2:N3", {
+    ...baseStyle,
+    fill: { fgColor: { rgb: "F7F9FC" } },
+  });
+  applyCellStyle(sheet, "A4:N4", headerStyle);
+  applyCellStyle(sheet, `A${report.totalRowIndex + 1}:N${report.totalRowIndex + 1}`, totalStyle);
+
+  applyNumberFormat(sheet, `E${report.firstDataRowIndex + 1}:E${report.totalRowIndex + 1}`, "0.##");
+  applyNumberFormat(sheet, `F${report.firstDataRowIndex + 1}:J${report.totalRowIndex + 1}`, "#,##0");
+
+  for (let row = report.firstDataRowIndex + 1; row <= report.totalRowIndex; row += 1) {
+    const processCell = sheet[`K${row}`];
+    const paymentCell = sheet[`L${row}`];
+    if (safeText(processCell?.v).includes("只读")) {
+      processCell.s = { ...(processCell.s || {}), fill: { fgColor: { rgb: "FFF2CC" } } };
+    }
+    if (safeText(processCell?.v).includes("可调整")) {
+      processCell.s = { ...(processCell.s || {}), fill: { fgColor: { rgb: "E2F0D9" } } };
+    }
+    if (safeText(paymentCell?.v).includes("已支付")) {
+      paymentCell.s = { ...(paymentCell.s || {}), fill: { fgColor: { rgb: "D9EAD3" } } };
+    } else if (safeText(paymentCell?.v).includes("待支付")) {
+      paymentCell.s = { ...(paymentCell.s || {}), fill: { fgColor: { rgb: "FFF2CC" } } };
+    }
+  }
+
+  sheet["!autofilter"] = {
+    ref: `A4:N${report.totalRowIndex + 1}`,
+  };
+  sheet["!freeze"] = { xSplit: 0, ySplit: 4 };
+}
+
 function renderGenerateSummary(filters) {
   const teacherLabel = filters.teacherId ? teacherNameById(filters.teacherId) : "全部老师";
 
@@ -552,6 +820,16 @@ function buildWageFilterParams(filters) {
   appendFilterParam(params, "keyword", filters?.keyword);
 
   return params;
+}
+
+function setMonthlyExportSubmitting(isSubmitting) {
+  if (dom.exportMonthlySummaryButton) {
+    dom.exportMonthlySummaryButton.disabled = isSubmitting;
+    dom.exportMonthlySummaryButton.textContent = isSubmitting ? "导出中..." : "月度汇总导出";
+  }
+  if (dom.openGenerateDialogButton) {
+    dom.openGenerateDialogButton.disabled = isSubmitting;
+  }
 }
 
 function appendFilterParam(params, key, value) {
@@ -681,6 +959,57 @@ function displayValue(value) {
   return safeText(value) || "-";
 }
 
+function numberOrZero(value) {
+  const numberValue = Number(value || 0);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function roundNumber(value) {
+  return Math.round(numberOrZero(value));
+}
+
+function dateOnly(value) {
+  const text = safeText(value);
+  if (!text) {
+    return "";
+  }
+  return text.slice(0, 10);
+}
+
+function buildMonthlySummaryFileName(month) {
+  const normalizedMonth = formatMonth(month).replaceAll("/", "-");
+  return `老师工资_${sanitizeFileName(normalizedMonth)}_月度汇总.xlsx`;
+}
+
+function sanitizeFileName(value) {
+  return safeText(value).replace(/[\\/:*?"<>|]/g, "-").trim();
+}
+
+function applyCellStyle(sheet, range, style) {
+  const decodedRange = window.XLSX.utils.decode_range(range);
+  for (let row = decodedRange.s.r; row <= decodedRange.e.r; row += 1) {
+    for (let column = decodedRange.s.c; column <= decodedRange.e.c; column += 1) {
+      const address = window.XLSX.utils.encode_cell({ r: row, c: column });
+      if (!sheet[address]) {
+        sheet[address] = { t: "s", v: "" };
+      }
+      sheet[address].s = { ...(sheet[address].s || {}), ...style };
+    }
+  }
+}
+
+function applyNumberFormat(sheet, range, format) {
+  const decodedRange = window.XLSX.utils.decode_range(range);
+  for (let row = decodedRange.s.r; row <= decodedRange.e.r; row += 1) {
+    for (let column = decodedRange.s.c; column <= decodedRange.e.c; column += 1) {
+      const address = window.XLSX.utils.encode_cell({ r: row, c: column });
+      if (sheet[address]) {
+        sheet[address].z = format;
+      }
+    }
+  }
+}
+
 function formatGenerateSuccess(rows) {
   const count = rows.length;
   const totalLessons = rows.reduce((sum, row) => sum + Number(row.lesson_count || 0), 0);
@@ -760,6 +1089,9 @@ function renderDialogSummaryRow(label, value) {
 
 function setLoading(isLoading) {
   dom.loadingState.classList.toggle("is-hidden", !isLoading);
+  if (dom.exportMonthlySummaryButton) {
+    dom.exportMonthlySummaryButton.disabled = isLoading;
+  }
 }
 
 function showMessage(type, text) {

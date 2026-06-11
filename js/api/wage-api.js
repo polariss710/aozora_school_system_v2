@@ -34,6 +34,12 @@ const PAYMENT_REQUEST_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const WAGE_DETAIL_FEE_COLUMNS = [
+  "lock_id",
+  "transport_fee_jpy",
+  "classroom_fee_jpy",
+].join(",");
+
 export async function fetchWageLocks(month) {
   const { data, error } = await supabase
     .from("school_teacher_wage_locks")
@@ -45,6 +51,36 @@ export async function fetchWageLocks(month) {
   }
 
   return data || [];
+}
+
+export async function fetchWageDetailFeeSummaries(wageLockIds) {
+  const lockIds = Array.from(new Set((wageLockIds || []).filter(Boolean)));
+  if (!lockIds.length) {
+    return new Map();
+  }
+
+  const { data, error } = await supabase
+    .from("school_teacher_wage_lock_details")
+    .select(WAGE_DETAIL_FEE_COLUMNS)
+    .in("lock_id", lockIds);
+
+  if (error) {
+    throw error;
+  }
+
+  const summaryByLockId = new Map();
+  for (const row of data || []) {
+    const current = summaryByLockId.get(row.lock_id) || {
+      transportFeeJpy: 0,
+      classroomFeeJpy: 0,
+    };
+
+    current.transportFeeJpy += Number(row.transport_fee_jpy || 0);
+    current.classroomFeeJpy += Number(row.classroom_fee_jpy || 0);
+    summaryByLockId.set(row.lock_id, current);
+  }
+
+  return summaryByLockId;
 }
 
 export async function fetchWagePaymentRequests(month) {

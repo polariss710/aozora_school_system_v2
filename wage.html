@@ -99,6 +99,7 @@
               <p class="section-note">本页默认显示未作废的已生成工资快照，不代表实时工资预览或重新计算结果。</p>
             </div>
             <div class="table-actions">
+              <button class="button" id="wageMonthlySummaryExportButton" type="button">月度汇总导出</button>
               <button class="button button-primary" id="openWageGenerateDialogButton" type="button">生成老师工资</button>
               <span id="wageCount" class="record-count">0 条</span>
             </div>
@@ -164,6 +165,7 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-app.js?v=v2.88.0-wage-business-usability-polish-20260611"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script type="module" src="./js/wage-app.js?v=v2.89.0-wage-monthly-summary-export-20260611"></script>
   </body>
 </html>
