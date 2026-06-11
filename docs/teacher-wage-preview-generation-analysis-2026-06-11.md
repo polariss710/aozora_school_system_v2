@@ -228,3 +228,46 @@ Still not implemented in this checkpoint:
 - No business-entity scoped generation RPC.
 - No general unpaid wage snapshot void/reissue RPC or UI.
 - No real 2026-06 wage generation or repair.
+
+## Wu Feng 2026-06 Blocker Rollback Checkpoint
+
+2026-06-11 follow-up guarded maintenance handled the user-authorized Wu Feng blocker only; it did not regenerate real June wages.
+
+Confirmed blocker state before repair:
+
+- `2af31792-6d52-49fc-85a4-a915bd5d12ba` / 吴峰 / 个人名义 / `void` / 3 details / JPY `0`.
+- `aa301221-5fab-424a-830c-f5dcf7681783` / 吴峰 / 青空进学塾 / `locked` / 1 detail / JPY `9000`.
+- Downstream dependencies were all `0`: teacher_wage payment requests, wage detail adjustments, paid expenses through payment requests, direct salary-payment expenses, and account transactions.
+- Source actual lessons were intact: 4 completed actuals, `480` actual minutes, no missing `actual_minutes`, no voided source lessons.
+
+Generation blocker root cause:
+
+- The current deployed `school_generate_teacher_monthly_wage(text, uuid)` checks for any existing same teacher + business entity + month row in `school_teacher_wage_locks`; it does not filter out `status = void`.
+- It also checks any existing `school_teacher_wage_lock_details.lesson_record_id`; it does not filter parent lock status.
+- Therefore removing only the locked Aozora row would not have cleared generation for Wu Feng. The void personal row and its three detail references also blocked generation.
+
+v1 / v2 difference:
+
+- v1 `teacher-wage-locks.js` loads existing locks with `.neq("status", "void")`, so voided locks are hidden by default.
+- v1 unlock marks `school_teacher_wage_locks.status = void` and matching payment requests `status = void`; it does not delete wage detail rows.
+- v2 generation reads the shared underlying lock/detail tables through the RPC guard, so records hidden by v1 can still block v2 generation.
+
+Executed guarded rollback:
+
+- SQL file: `school_rollback_wufeng_202606_wage_blockers.sql`.
+- Rollback test: inside a transaction, deleted 4 target details and 2 target locks, confirmed Wu Feng candidate actuals remained `4` / `480` minutes and lock/detail blockers became `0`, then rolled back to the original state.
+- Committed run: deleted only the exact two target lock rows and four target detail rows.
+- No `school_lesson_records`, `actual_minutes`, payment requests, expenses, account transactions, accounts, income, or settlements were updated.
+
+Post-repair validation:
+
+- Target locks/details: `0`.
+- Wu Feng 2026-06 candidates: `4` rows, `480` actual minutes, missing `actual_minutes = 0`, lock blockers `0`, detail blockers `0`.
+- Full real 2026-06 candidate actuals: `24` rows, `2775` actual minutes, missing `actual_minutes = 0`, lock/detail blockers `0`.
+- Real 2026-06 wage locks/details are now `0`, so the wage page returns to the no-snapshot candidate-preview state until business formally generates June wages.
+- Browser read-only validation at 390px confirmed candidate preview is visible for Wu Feng and full June, snapshot rows are `0`, generation-scope warning remains visible, and document/body `scrollWidth = 390`.
+
+Remaining design note:
+
+- This was a one-time rollback for known mistaken current-month test residues, not a general wage snapshot void/reissue lifecycle.
+- Future work should still design a guarded unpaid wage snapshot void/reissue RPC that explicitly defines whether voided detail references should block regeneration. Until that exists, current/unclosed real months must not be used for generation tests.
