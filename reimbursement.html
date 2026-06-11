@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 报销管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.95.0-reimbursement-candidate-list-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -117,14 +117,47 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="reimbursementListTitle">
+        <section class="panel" aria-labelledby="reimbursementCandidateListTitle">
           <div class="section-heading section-heading-row">
             <div>
-              <h2 id="reimbursementListTitle">报销记录</h2>
-              <p class="section-note">本页显示已登记报销记录；确认报销会通过 RPC 创建报销记录、关联支出明细和账户流水，不从账户流水反推报销金额。表格可横向滚动查看更多列。</p>
+              <h2 id="reimbursementCandidateListTitle">待报销支出</h2>
+              <p class="section-note">本区直接显示当前筛选下已支付、待报销、非老师工资的普通支出。老师工资不进入普通报销管理。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="openCreateReimbursementButton" type="button">确认报销</button>
+              <span id="reimbursementCandidateListCount" class="record-count">0 条</span>
+            </div>
+          </div>
+
+          <div id="reimbursementCandidateListLoadingState" class="state-text is-hidden">正在加载待报销支出...</div>
+          <div id="reimbursementCandidateListEmptyState" class="state-text is-hidden">暂无符合条件的待报销支出。</div>
+          <div class="table-scroll">
+            <table class="payment-table reimbursement-candidate-list-table">
+              <thead>
+                <tr>
+                  <th>详情</th>
+                  <th>日期</th>
+                  <th>支出分类</th>
+                  <th>摘要 / 内容</th>
+                  <th>金额</th>
+                  <th>支付账户</th>
+                  <th>业务归属</th>
+                  <th>报销状态</th>
+                  <th>备注</th>
+                </tr>
+              </thead>
+              <tbody id="reimbursementCandidateListTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="reimbursementListTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="reimbursementListTitle">报销历史</h2>
+              <p class="section-note">本区显示已生成报销记录；确认报销会通过 RPC 创建报销记录、关联支出明细和账户流水，不从账户流水反推报销金额。</p>
+            </div>
+            <div class="table-actions">
               <span id="reimbursementCount" class="record-count">0 条</span>
             </div>
           </div>
@@ -249,6 +282,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/reimbursement-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <script type="module" src="./js/reimbursement-app.js?v=v2.95.0-reimbursement-candidate-list-20260612"></script>
   </body>
 </html>

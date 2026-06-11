@@ -30,6 +30,9 @@ const DEFAULT_FILTERS = {
 
 const REIMBURSEMENT_STATUS_LABELS = {
   paid: "已支付",
+  pending: "待报销",
+  reimbursed: "已报销",
+  not_required: "无需报销",
 };
 
 const EXPENSE_CATEGORY_LABELS = {
@@ -52,6 +55,7 @@ const dom = {};
 let businessEntities = [];
 let accounts = [];
 let reimbursementRecords = [];
+let reimbursementCandidateExpenses = [];
 let itemCounts = new Map();
 let transactionCounts = new Map();
 let loadedMonth = "";
@@ -71,6 +75,7 @@ export function initReimbursementPage() {
       "error",
       "请先在 js/config.js 填写 Supabase URL 和 anon key。当前页面不会发起数据请求。"
     );
+    renderCandidateExpenses([]);
     renderReimbursements([]);
     return;
   }
@@ -96,6 +101,10 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#reimbursementLoadingState");
   dom.emptyState = document.querySelector("#reimbursementEmptyState");
   dom.reimbursementCount = document.querySelector("#reimbursementCount");
+  dom.candidateListTableBody = document.querySelector("#reimbursementCandidateListTableBody");
+  dom.candidateListLoadingState = document.querySelector("#reimbursementCandidateListLoadingState");
+  dom.candidateListEmptyState = document.querySelector("#reimbursementCandidateListEmptyState");
+  dom.candidateListCount = document.querySelector("#reimbursementCandidateListCount");
   dom.openCreateReimbursementButton = document.querySelector("#openCreateReimbursementButton");
   dom.createReimbursementDialog = document.querySelector("#createReimbursementDialog");
   dom.createReimbursementError = document.querySelector("#createReimbursementError");
@@ -176,11 +185,13 @@ async function loadInitialData() {
     businessEntities = [];
     accounts = [];
     reimbursementRecords = [];
+    reimbursementCandidateExpenses = [];
     itemCounts = new Map();
     transactionCounts = new Map();
     loadedMonth = "";
     renderMasterOptions();
-    renderDataOptions([]);
+    renderDataOptions([], []);
+    renderCandidateExpenses([]);
     renderReimbursements([]);
     showMessage("error", `读取报销管理数据失败：${error.message || error}`);
   } finally {
@@ -206,15 +217,17 @@ async function applyQuery() {
       await loadReimbursementMonth(filters.month);
       restoreFilterSelections(filters);
       applyCurrentFilters();
-      showMessage("success", "报销记录已加载。");
+      showMessage("success", "报销管理数据已加载。");
     } catch (error) {
       reimbursementRecords = [];
+      reimbursementCandidateExpenses = [];
       itemCounts = new Map();
       transactionCounts = new Map();
       loadedMonth = "";
-      renderDataOptions([]);
+      renderDataOptions([], []);
+      renderCandidateExpenses([]);
       renderReimbursements([]);
-      showMessage("error", `读取报销记录失败：${error.message || error}`);
+      showMessage("error", `读取报销管理数据失败：${error.message || error}`);
     } finally {
       setLoading(false);
     }
@@ -225,7 +238,12 @@ async function applyQuery() {
 }
 
 async function loadReimbursementMonth(month) {
-  reimbursementRecords = await fetchReimbursementRecords(month);
+  const [records, candidates] = await Promise.all([
+    fetchReimbursementRecords(month),
+    fetchReimbursementCandidateExpenses({ month }),
+  ]);
+  reimbursementRecords = records;
+  reimbursementCandidateExpenses = candidates;
   const ids = reimbursementRecords.map((row) => row.id).filter(Boolean);
   const [itemRows, transactionRows] = await Promise.all([
     fetchReimbursementItemCounts(ids),
@@ -235,7 +253,7 @@ async function loadReimbursementMonth(month) {
   itemCounts = countByKey(itemRows, "reimbursement_id");
   transactionCounts = countByKey(transactionRows, "related_id");
   loadedMonth = month;
-  renderDataOptions(reimbursementRecords);
+  renderDataOptions(reimbursementRecords, reimbursementCandidateExpenses);
 }
 
 function applyCurrentFilters() {
@@ -245,6 +263,7 @@ function applyCurrentFilters() {
   }
 
   restoreFilterSelections(filters);
+  renderCandidateExpenses(filterCandidateExpenses(reimbursementCandidateExpenses, filters));
   renderReimbursements(filterReimbursements(reimbursementRecords, filters));
 }
 
@@ -286,9 +305,20 @@ function renderMasterOptions() {
   renderEntityOptions(dom.toAccountSelect, accounts, accountName);
 }
 
-function renderDataOptions(rows) {
-  renderValueOptions(dom.currencySelect, distinctValues(rows, "currency"), displayValue);
-  renderValueOptions(dom.statusSelect, distinctValues(rows, "status"), reimbursementStatusLabel);
+function renderDataOptions(reimbursementRows, candidateRows) {
+  renderValueOptions(
+    dom.currencySelect,
+    distinctValues([...reimbursementRows, ...candidateRows], "currency"),
+    displayValue
+  );
+  renderValueOptions(
+    dom.statusSelect,
+    uniqueValues([
+      ...distinctValues(reimbursementRows, "status"),
+      ...distinctValues(candidateRows, "reimbursement_status"),
+    ]),
+    reimbursementStatusLabel
+  );
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -340,6 +370,30 @@ function renderReimbursements(rows) {
       <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
+    </tr>
+  `).join("");
+}
+
+function renderCandidateExpenses(rows) {
+  dom.candidateListCount.textContent = `${rows.length} 条`;
+  dom.candidateListEmptyState.classList.toggle("is-hidden", rows.length > 0);
+
+  if (!rows.length) {
+    dom.candidateListTableBody.innerHTML = "";
+    return;
+  }
+
+  dom.candidateListTableBody.innerHTML = rows.map((row) => `
+    <tr>
+      <td class="reimbursement-nowrap"><a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
+      <td class="reimbursement-nowrap">${escapeHtml(formatDateOnly(row.expense_date))}</td>
+      <td class="reimbursement-nowrap">${escapeHtml(expenseCategoryLabel(row.expense_category))}</td>
+      <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.description))}</span></td>
+      <td class="number-cell reimbursement-nowrap">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
+      <td>${escapeHtml(accountNameById(row.account_id))}</td>
+      <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
+      <td><span class="status-badge ${escapeAttribute(statusClass(row.reimbursement_status))}">${escapeHtml(reimbursementStatusLabel(row.reimbursement_status))}</span></td>
+      <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
     </tr>
   `).join("");
 }
@@ -749,6 +803,29 @@ function filterReimbursements(rows, filters) {
   });
 }
 
+function filterCandidateExpenses(rows, filters) {
+  return rows.filter((row) => {
+    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
+      return false;
+    }
+
+    const accountFilters = [filters.fromAccountId, filters.toAccountId].filter(Boolean);
+    if (accountFilters.length && !accountFilters.includes(row.account_id)) {
+      return false;
+    }
+
+    if (filters.currency && row.currency !== filters.currency) {
+      return false;
+    }
+
+    if (filters.status && row.reimbursement_status !== filters.status) {
+      return false;
+    }
+
+    return matchesCandidateKeyword(row, filters.keyword);
+  });
+}
+
 function matchesKeyword(row, keyword) {
   if (!keyword) {
     return true;
@@ -762,6 +839,26 @@ function matchesKeyword(row, keyword) {
     row.currency,
     reimbursementStatusLabel(row.status),
     row.status,
+    row.note,
+  ]
+    .map((value) => safeText(value).toLowerCase())
+    .some((value) => value.includes(normalizedKeyword));
+}
+
+function matchesCandidateKeyword(row, keyword) {
+  if (!keyword) {
+    return true;
+  }
+
+  const normalizedKeyword = keyword.toLowerCase();
+  return [
+    businessNameById(row.business_entity_id),
+    accountNameById(row.account_id),
+    expenseCategoryLabel(row.expense_category),
+    reimbursementStatusLabel(row.reimbursement_status),
+    row.reimbursement_status,
+    row.description,
+    row.currency,
     row.note,
   ]
     .map((value) => safeText(value).toLowerCase())
@@ -815,6 +912,10 @@ function distinctValues(rows, key) {
         .filter(Boolean)
     )
   ).sort((left, right) => left.localeCompare(right, "zh-CN"));
+}
+
+function uniqueValues(values) {
+  return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
 function businessNameById(id) {
@@ -888,6 +989,7 @@ function displayValue(value) {
 
 function setLoading(isLoading) {
   dom.loadingState.classList.toggle("is-hidden", !isLoading);
+  dom.candidateListLoadingState.classList.toggle("is-hidden", !isLoading);
 }
 
 function showMessage(type, text) {

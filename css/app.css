@@ -797,6 +797,10 @@ h2 {
   min-width: 1460px;
 }
 
+.reimbursement-candidate-list-table {
+  min-width: 1280px;
+}
+
 .reimbursement-detail-expense-table {
   min-width: 1680px;
 }
