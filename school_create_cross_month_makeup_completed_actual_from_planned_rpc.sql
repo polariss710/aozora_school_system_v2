@@ -3,7 +3,7 @@
 -- Purpose: Create one cross-month makeup_completed actual lesson linked to one
 --          previous-month pending_makeup planned lesson.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested, guard-tested, and commit-tested.
--- Version: v2.79.0-cross-month-makeup-rpc-20260610
+-- Version: v2.93.0-actual-required-fields-20260611
 --
 -- Scope:
 -- - Insert one actual row into public.school_lesson_records.
@@ -182,6 +182,18 @@ begin
   v_lesson_count := coalesce(p_lesson_count, v_planned.lesson_count);
   v_lesson_content := coalesce(nullif(trim(coalesce(p_lesson_content, '')), ''), v_planned.lesson_content);
   v_note := coalesce(nullif(trim(coalesce(p_note, '')), ''), v_planned.note);
+
+  if v_start_time is null then
+    raise exception '开始时间必填。';
+  end if;
+
+  if v_end_time is null then
+    raise exception '结束时间必填。';
+  end if;
+
+  if nullif(trim(coalesce(v_lesson_content, '')), '') is null then
+    raise exception '内容必填。';
+  end if;
 
   if v_duration_hours <= 0 then
     raise exception '跨月补课完成时长必须大于 0。';

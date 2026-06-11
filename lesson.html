@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.83.1-student-line-rc-20260610">
+    <link rel="stylesheet" href="./css/app.css?v=v2.93.0-lesson-actual-required-fields-20260611">
   </head>
   <body>
     <div class="app-shell">
@@ -388,7 +388,7 @@
               <input id="createActualLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
             </label>
 
-            <label class="field lesson-create-wide-field">
+            <label class="field lesson-create-wide-field" data-create-actual-lesson-field="lessonContent">
               <span>内容</span>
               <textarea id="createActualLessonContentInput" rows="3"></textarea>
             </label>
@@ -539,7 +539,7 @@
               <input id="createMakeupActualLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
             </label>
 
-            <label class="field lesson-create-wide-field">
+            <label class="field lesson-create-wide-field" data-create-makeup-actual-lesson-field="lessonContent">
               <span>内容</span>
               <textarea id="createMakeupActualLessonContentInput" rows="3"></textarea>
             </label>
@@ -655,7 +655,7 @@
               </div>
             </div>
 
-            <label class="field lesson-create-wide-field">
+            <label class="field lesson-create-wide-field" data-create-cross-month-makeup-field="lessonContent">
               <span>内容</span>
               <textarea id="createCrossMonthMakeupActualContentInput" rows="3"></textarea>
             </label>
@@ -899,6 +899,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v2.83.1-student-line-rc-20260610"></script>
+    <script type="module" src="./js/lesson-app.js?v=v2.93.0-lesson-actual-required-fields-20260611"></script>
   </body>
 </html>

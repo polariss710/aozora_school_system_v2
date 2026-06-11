@@ -178,6 +178,7 @@ const CREATE_ACTUAL_LESSON_FIELD_IDS = [
   "unitPrice",
   "lessonFee",
   "lessonCount",
+  "lessonContent",
 ];
 
 const CREATE_CANCELLED_ACTUAL_LESSON_FIELD_IDS = [
@@ -655,6 +656,7 @@ function bindEvents() {
     ["unitPrice", dom.createActualLessonUnitPriceInput],
     ["lessonFee", dom.createActualLessonFeeInput],
     ["lessonCount", dom.createActualLessonCountInput],
+    ["lessonContent", dom.createActualLessonContentInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
       isCreateActualLessonCloseConfirmPending = false;
@@ -730,6 +732,7 @@ function bindEvents() {
     ["unitPrice", dom.createMakeupActualLessonUnitPriceInput],
     ["lessonFee", dom.createMakeupActualLessonFeeInput],
     ["lessonCount", dom.createMakeupActualLessonCountInput],
+    ["lessonContent", dom.createMakeupActualLessonContentInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
       isCreateMakeupActualLessonCloseConfirmPending = false;
@@ -777,6 +780,7 @@ function bindEvents() {
     ["durationHours", dom.createCrossMonthMakeupActualDurationInput],
     ["unitPrice", dom.createCrossMonthMakeupActualUnitPriceInput],
     ["lessonCount", dom.createCrossMonthMakeupActualCountInput],
+    ["lessonContent", dom.createCrossMonthMakeupActualContentInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
       isCreateCrossMonthMakeupActualCloseConfirmPending = false;
@@ -1595,11 +1599,13 @@ function readCreateActualLessonPayload() {
   const unitPrice = numberFromInput(dom.createActualLessonUnitPriceInput.value);
   const lessonFee = nullableNumberFromInput(dom.createActualLessonFeeInput.value);
   const lessonCount = nullableIntegerFromInput(dom.createActualLessonCountInput.value);
+  const lessonContent = dom.createActualLessonContentInput.value.trim();
   const invalidFields = [];
 
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
-  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
-  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (!endTime || !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!lessonContent) invalidFields.push("lessonContent");
   const timeValidation = validateLessonTimeRange(startTime, endTime);
   let validationMessage = "";
   if (timeValidation.status === "error") {
@@ -1618,7 +1624,7 @@ function readCreateActualLessonPayload() {
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateActualLessonError(validationMessage || "请检查实际课时表单中的必填项和数字格式。", invalidFields);
+    showCreateActualLessonError(validationMessage || "开始时间、结束时间和内容为必填项；请检查实际课时表单中的数字格式。", invalidFields);
     return null;
   }
 
@@ -1631,7 +1637,7 @@ function readCreateActualLessonPayload() {
     unitPrice,
     lessonFee,
     lessonCount,
-    lessonContent: dom.createActualLessonContentInput.value.trim(),
+    lessonContent,
     note: dom.createActualLessonNoteInput.value.trim(),
   };
 }
@@ -1688,6 +1694,7 @@ function createActualLessonFieldIdsForError(message) {
   if (text.includes("单价")) fields.push("unitPrice");
   if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
   if (text.includes("回数")) fields.push("lessonCount");
+  if (text.includes("内容")) fields.push("lessonContent");
   return fields;
 }
 
@@ -2112,12 +2119,14 @@ function readCreateMakeupActualLessonPayload() {
   const unitPrice = numberFromInput(dom.createMakeupActualLessonUnitPriceInput.value);
   const lessonFee = isBillable ? nullableNumberFromInput(dom.createMakeupActualLessonFeeInput.value) : 0;
   const lessonCount = nullableIntegerFromInput(dom.createMakeupActualLessonCountInput.value);
+  const lessonContent = dom.createMakeupActualLessonContentInput.value.trim();
   const invalidFields = [];
 
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (!["true", "false"].includes(dom.createMakeupActualLessonBillableSelect.value)) invalidFields.push("isBillable");
-  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
-  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (!endTime || !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!lessonContent) invalidFields.push("lessonContent");
   const timeValidation = validateLessonTimeRange(startTime, endTime);
   let validationMessage = "";
   if (timeValidation.status === "error") {
@@ -2136,7 +2145,7 @@ function readCreateMakeupActualLessonPayload() {
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateMakeupActualLessonError(validationMessage || "请检查补课完成表单中的必填项和数字格式。", invalidFields);
+    showCreateMakeupActualLessonError(validationMessage || "开始时间、结束时间和内容为必填项；请检查补课完成表单中的数字格式。", invalidFields);
     return null;
   }
 
@@ -2150,7 +2159,7 @@ function readCreateMakeupActualLessonPayload() {
     lessonFee,
     isBillable,
     lessonCount,
-    lessonContent: dom.createMakeupActualLessonContentInput.value.trim(),
+    lessonContent,
     note: dom.createMakeupActualLessonNoteInput.value.trim(),
   };
 }
@@ -2196,6 +2205,7 @@ function createMakeupActualLessonFieldIdsForError(message) {
   if (text.includes("单价")) fields.push("unitPrice");
   if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
   if (text.includes("回数")) fields.push("lessonCount");
+  if (text.includes("内容")) fields.push("lessonContent");
   return fields;
 }
 
@@ -2481,14 +2491,16 @@ function readCreateCrossMonthMakeupActualPayload() {
   const durationHours = numberFromInput(dom.createCrossMonthMakeupActualDurationInput.value);
   const unitPrice = numberFromInput(dom.createCrossMonthMakeupActualUnitPriceInput.value);
   const lessonCount = nullableIntegerFromInput(dom.createCrossMonthMakeupActualCountInput.value);
+  const lessonContent = dom.createCrossMonthMakeupActualContentInput.value.trim();
   const invalidFields = [];
 
   if (!source) invalidFields.push("sourceLesson");
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
   if (source?.year_month && targetMonth && source.year_month >= targetMonth) invalidFields.push("sourceLesson");
-  if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
-  if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
+  if (!endTime || !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (!lessonContent) invalidFields.push("lessonContent");
   const timeValidation = validateLessonTimeRange(startTime, endTime);
   let validationMessage = "";
   if (timeValidation.status === "error") {
@@ -2506,7 +2518,7 @@ function readCreateCrossMonthMakeupActualPayload() {
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateCrossMonthMakeupActualError(validationMessage || "请检查跨月补课完成表单；补课完成日期必须在当前页面月份，来源必须早于当前月份。", invalidFields);
+    showCreateCrossMonthMakeupActualError(validationMessage || "开始时间、结束时间和内容为必填项；补课完成日期必须在当前页面月份，来源必须早于当前月份。", invalidFields);
     return null;
   }
 
@@ -2518,7 +2530,7 @@ function readCreateCrossMonthMakeupActualPayload() {
     durationHours,
     unitPrice,
     lessonCount,
-    lessonContent: dom.createCrossMonthMakeupActualContentInput.value.trim(),
+    lessonContent,
     note: dom.createCrossMonthMakeupActualNoteInput.value.trim(),
   };
 }
@@ -2610,6 +2622,7 @@ function createCrossMonthMakeupActualFieldIdsForError(message) {
   if (text.includes("时长")) fields.push("durationHours");
   if (text.includes("单价")) fields.push("unitPrice");
   if (text.includes("回数")) fields.push("lessonCount");
+  if (text.includes("内容")) fields.push("lessonContent");
   return fields;
 }
 

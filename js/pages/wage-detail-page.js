@@ -148,7 +148,7 @@ function bindEvents() {
   dom.voidWageLockSubmitButton?.addEventListener("click", submitVoidWageLock);
   dom.voidWageLockDialog?.addEventListener("click", (event) => {
     if (event.target === dom.voidWageLockDialog) {
-      closeVoidWageLockDialog();
+      blockVoidWageLockDirectDismiss();
     }
   });
   dom.voidWageLockReasonInput?.addEventListener("input", () => {
@@ -349,6 +349,14 @@ function closeVoidWageLockDialog(force = false) {
   clearVoidWageLockInvalidFields();
   dom.voidWageLockReasonInput.value = "";
   dom.voidWageLockConfirmCheckbox.checked = false;
+}
+
+function blockVoidWageLockDirectDismiss() {
+  if (!dom.voidWageLockDialog || dom.voidWageLockDialog.classList.contains("is-hidden")) {
+    return;
+  }
+
+  showVoidWageLockError("请使用取消按钮关闭窗口，避免误点外部导致撤销原因丢失。");
 }
 
 async function submitVoidWageLock() {
