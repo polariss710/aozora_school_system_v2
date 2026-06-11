@@ -32,6 +32,15 @@ Recommendation:
 - If the business later wants a hard rule, design it separately by student + month, with an explicit policy for no-settlement students, non-billable actuals, cross-month makeup, and business-entity mismatch.
 - This should not change the existing teacher wage formula, snapshot granularity, payment request flow, or account/payment chain.
 
+Follow-up decision and implementation:
+
+- Later on 2026-06-11 the business rule was explicitly upgraded from warning to hard prerequisite.
+- The official completed state is now confirmed as `school_student_monthly_settlements.settlement_status = 'locked'`.
+- The implemented DB/RPC rule is stricter than the earlier same-student/month warning proposal: every candidate actual must have a matching locked settlement by `student_id + year_month + business_entity_id`.
+- `school_generate_teacher_monthly_wage` now rejects missing, unlocked, or business-mismatched student monthly settlements before writing wage locks/details.
+- `wage.html` candidate preview and generation confirmation now display student settlement completion state as an auxiliary UI precheck.
+- The implementation did not change teacher wage formulas, `teacher + business_entity + month` snapshot grouping, payment request flow, account/payment chain, `actual_minutes`, or student settlement amount calculation.
+
 ## codex-test v2.45.0 Browser Teacher Wage Rule Error
 
 User-facing error:

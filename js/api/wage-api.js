@@ -63,6 +63,16 @@ const WAGE_CANDIDATE_LESSON_COLUMNS = [
   "note",
 ].join(",");
 
+const STUDENT_SETTLEMENT_COLUMNS = [
+  "id",
+  "student_id",
+  "year_month",
+  "business_entity_id",
+  "settlement_status",
+  "locked_at",
+  "unlocked_at",
+].join(",");
+
 export async function fetchWageLocks(month) {
   const { data, error } = await supabase
     .from("school_teacher_wage_locks")
@@ -145,13 +155,63 @@ export async function fetchWageCandidateLessons(month) {
   const lockedTeacherBusinessKeys = new Set(
     (wageLockBlockerResult.data || []).map((row) => teacherBusinessKey(row.teacher_id, row.business_entity_id))
   );
+  const studentSettlementInfoByCandidateKey = await fetchStudentSettlementInfoByCandidateKey(rows);
 
   return rows.map((row) => ({
     ...row,
     wageDetailBlocked: detailLocksByLessonId.has(row.id),
     wageDetailLockIds: detailLocksByLessonId.get(row.id) || [],
     wageMonthBlocked: lockedTeacherBusinessKeys.has(teacherBusinessKey(row.teacher_id, row.business_entity_id)),
+    ...(studentSettlementInfoByCandidateKey.get(studentSettlementCandidateKey(row)) || {}),
   }));
+}
+
+async function fetchStudentSettlementInfoByCandidateKey(rows) {
+  const studentIds = Array.from(new Set(rows.map((row) => row.student_id).filter(Boolean)));
+  const yearMonths = Array.from(new Set(rows.map((row) => row.year_month).filter(Boolean)));
+  const resultByCandidateKey = new Map();
+
+  if (!studentIds.length || !yearMonths.length) {
+    return resultByCandidateKey;
+  }
+
+  const { data, error } = await supabase
+    .from("school_student_monthly_settlements")
+    .select(STUDENT_SETTLEMENT_COLUMNS)
+    .in("student_id", studentIds)
+    .in("year_month", yearMonths);
+
+  if (error) {
+    throw error;
+  }
+
+  const exactByKey = new Map();
+  const monthByKey = new Map();
+  for (const row of data || []) {
+    exactByKey.set(studentSettlementCandidateKey(row), row);
+    const monthKey = studentSettlementMonthKey(row.student_id, row.year_month);
+    if (!monthByKey.has(monthKey)) {
+      monthByKey.set(monthKey, []);
+    }
+    monthByKey.get(monthKey).push(row);
+  }
+
+  for (const row of rows) {
+    const exact = exactByKey.get(studentSettlementCandidateKey(row)) || null;
+    const monthSettlements = monthByKey.get(studentSettlementMonthKey(row.student_id, row.year_month)) || [];
+    const fallback = exact || monthSettlements[0] || null;
+    resultByCandidateKey.set(studentSettlementCandidateKey(row), {
+      studentSettlementId: exact?.id || "",
+      studentSettlementStatus: exact?.settlement_status || "",
+      studentSettlementLockedAt: exact?.locked_at || "",
+      studentSettlementUnlockedAt: exact?.unlocked_at || "",
+      studentSettlementBusinessEntityId: fallback?.business_entity_id || "",
+      studentSettlementMatchedBusiness: Boolean(exact),
+      studentSettlementOtherBusinessCount: exact ? 0 : monthSettlements.length,
+    });
+  }
+
+  return resultByCandidateKey;
 }
 
 export async function fetchWageDetailFeeSummaries(wageLockIds) {
@@ -280,4 +340,12 @@ function sortCandidateLessons(left, right) {
 
 function teacherBusinessKey(teacherId, businessEntityId) {
   return `${teacherId || ""}::${businessEntityId || ""}`;
+}
+
+function studentSettlementCandidateKey(row) {
+  return `${row.student_id || ""}::${row.year_month || ""}::${row.business_entity_id || ""}`;
+}
+
+function studentSettlementMonthKey(studentId, yearMonth) {
+  return `${studentId || ""}::${yearMonth || ""}`;
 }

@@ -1,11 +1,11 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: MVP implemented; payment request generation implemented; guarded unpaid snapshot void implemented; payment confirmation account-type boundary verified; snapshot wording aligned; current-month generation safety documented
+Status: MVP implemented; payment request generation implemented; guarded unpaid snapshot void implemented; payment confirmation account-type boundary verified; snapshot wording aligned; current-month generation safety documented; student monthly settlement prerequisite enforced
 Date: 2026-06-11
 
 ## 目标
 
-本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资快照生成待支付请求接入 `wage-detail.html`。v2 不再提供单独的用户侧二次固化步骤：生成工资本身就是生成并固化工资结算快照。2026-06-11 已补齐未支付/未请求工资快照的 guarded void 入口；业务归属单独生成、restore/reissue beyond void、金额实时预览仍是后续单独设计。
+本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资快照生成待支付请求接入 `wage-detail.html`。v2 不再提供单独的用户侧二次固化步骤：生成工资本身就是生成并固化工资结算快照。2026-06-11 已补齐未支付/未请求工资快照的 guarded void 入口，并追加老师工资生成必须依赖学生月度结算完成的 hard rule；业务归属单独生成、restore/reissue beyond void、金额实时预览仍是后续单独设计。
 
 ## Snapshot wording and flow checkpoint
 
@@ -38,6 +38,38 @@ Date: 2026-06-11
 - 工资生成验证必须优先使用 codex-test 白名单数据或 transaction rollback。
 - 除非用户明确授权作为正式业务操作，否则不得对真实未结月份执行会导致锁定的生成类 RPC。
 - 2026-06 本次回退是用户授权的定点修复；后续通用处理应使用已验证的 `school_void_teacher_wage_lock` guarded void 语义，而不是手工删除真实工资快照/明细。
+
+## Student settlement prerequisite checkpoint
+
+2026-06-11 业务规则升级为 hard rule：老师工资生成必须依赖学生月度结算完成。
+
+正式完成判断：
+
+- 表：`school_student_monthly_settlements`
+- 状态：`settlement_status = 'locked'`
+- 匹配键：候选 actual 的 `student_id + year_month + business_entity_id`
+- `unlocked`、缺少结算行、或同学生同月份但业务归属不同的结算行，都不能满足老师工资生成前置条件。
+
+DB/RPC 实现：
+
+- 已重新执行 `school_generate_teacher_monthly_wage_rpc.sql`。
+- `school_generate_teacher_monthly_wage` 在写入任何工资快照前，先检查候选 actual lessons 是否都有匹配的 locked 学生月度结算。
+- 拒绝信息包含月份、学生、业务归属，提示先完成学生月度结算。
+- 本 guard 不自动生成或修改学生结算，不修改课时、`actual_minutes`、工资规则、支付请求、支出、账户、账户流水或收入。
+- 老师工资金额公式、`teacher + business_entity + month` 生成粒度、`actual_minutes` 读取口径、`is_billable` 处理口径均未改变。
+
+页面接入：
+
+- `wage.html` 候选 actual 预览新增学生结算状态列。
+- 候选摘要和生成确认弹窗显示学生结算未完成数量/分组。
+- 前端会在调用生成 RPC 前阻止明显未完成的生成请求，但这只是辅助；DB/RPC guard 是最终规则。
+
+验证记录：
+
+- Rollback test 使用临时 codex-test actual lesson `95000000-0000-4000-8000-000000094101`：未锁定学生结算时生成被拒绝；事务内锁定学生结算 `1e62ab9b-699c-4a03-a3bf-2337d9491e1b` 后，原生成逻辑可生成临时 wage lock `aca28f42-3cb5-4e7a-802a-e93c88577fb9`；随后 rollback，lesson/settlement/wage residue 均为 `0`。
+- Whitelist commit test 使用 codex-test actual lesson `95000000-0000-4000-8000-000000094201`、locked settlement `289deebd-08ba-48aa-ae9a-df9cfcd04576`、wage lock `7abe0cf0-f8f4-420b-ad1b-4de20300f60b`，生成一条明细，120 分钟 / 2 pay hours / JPY `6000`。
+- Regression 确认已有 active locked wage snapshot 仍阻止重复生成；事务内 void codex-test snapshot 后可重新进入原生成逻辑，rollback 后原持久 snapshot 仍为 locked。
+- Real 2026-06 只读验证：页面可显示未完成学生结算分组，未执行真实工资生成。
 
 ## Guarded unpaid snapshot void checkpoint
 
@@ -249,6 +281,7 @@ UI 验证记录：
 - `is_billable` 不影响老师工资；非计费 `makeup_completed` actual 仍计入。
 - 直接生成底层 `status = locked` 的工资快照，不做 draft。
 - 按 `teacher_id + business_entity_id + settlement_month` 生成工资快照；同一老师同月跨多个业务归属时生成多个快照。
+- 生成前要求候选 actual 对应的 `student_id + year_month + business_entity_id` 学生月度结算已 `locked`。
 - 只写 `school_teacher_wage_locks` 和 `school_teacher_wage_lock_details`。
 - 不修改 `school_lesson_records`。
 - 不写 `school_payment_requests`、`school_expense_records`、`school_accounts`、`school_account_transactions`、`school_income_records`、`school_student_monthly_settlements`。
@@ -267,6 +300,7 @@ Guard：
 - `p_year_month` 必须是 `YYYY-MM`。
 - 可选 `p_teacher_id` 必须存在。
 - 候选 actual 必须有老师、学生、科目、业务归属和 `actual_minutes`。
+- 候选 actual 必须有匹配的 locked 学生月度结算：`school_student_monthly_settlements.student_id = lesson.student_id`、`year_month = lesson.year_month`、`business_entity_id` 与 lesson 业务归属一致、`settlement_status = 'locked'`。
 - 同一 actual 已存在 `school_teacher_wage_lock_details.lesson_record_id` 时拒绝。
 - 目标候选老师 + 业务归属在同一月份已存在 active `status = locked and voided_at is null` 的 `school_teacher_wage_locks` 时拒绝重复生成；void 快照不再阻塞。
 - 每条 actual 必须命中且只命中一条启用工资规则。
@@ -279,6 +313,7 @@ Guard：
 - Whitelist commit test 使用 teacher `12f6d142-b90b-4da2-be88-310414000bd1`、month `2028-10`、lesson ids `81000000-0000-4000-8000-000000010001` completed、`81000000-0000-4000-8000-000000010002` non-billable makeup_completed、`81000000-0000-4000-8000-000000010003` cancelled，创建 wage lock `f5fe1fe3-f9e1-45d4-ac50-270c9b609d58` 和 detail ids `aad48406-c0cc-499b-b2a5-0fd7e1709688`、`1ad4f156-e869-4a36-aa47-c12edaa18da6`。
 - Commit test totals: `lesson_count = 2`、`total_minutes = 210`、`pay_hours = 3.5`、`lesson_wage_jpy = total_jpy = 15400`、`fee_jpy = total_cny = 0`，cancelled detail count `0`。
 - Protected counts stayed unchanged: payment requests `66`、expenses `44`、accounts `12`、account transactions `235`、income `17`、student monthly settlements `14`。
+- 2026-06-11 v2.94.0 追加验证：未 locked 学生月度结算会拒绝老师工资生成；locked 后允许进入原有生成逻辑，commit test wage lock `7abe0cf0-f8f4-420b-ad1b-4de20300f60b`。
 
 后续仍需：
 
@@ -457,6 +492,7 @@ RPC guard：
 - 候选 actual 只来自 `school_lesson_records.lesson_type = actual`。
 - 候选 actual 的 `teacher_settlement_month = p_settlement_month`。
 - 候选 status 默认只允许 `completed`, `makeup_completed`。
+- 候选 actual 对应学生月度结算必须已 `locked`，匹配 `student_id + year_month + business_entity_id`。
 - 拒绝任何候选 actual 已存在于 `school_teacher_wage_lock_details.lesson_record_id`。
 - 拒绝目标 `teacher_id + business_entity_id + settlement_month` 已有 `status = locked` 的 wage lock。
 - 拒绝缺工资规则、重复工资规则、停用工资规则。
@@ -498,7 +534,7 @@ RPC guard：
 - `is_billable = false` 不默认排除老师工资。
 - 生成后 locked，不提供 draft。
 - 已生成快照后禁止重新生成。
-- 不碰支付、不碰支出、不碰账户、不碰收入、不碰学生结算。
+- 不碰支付、不碰支出、不碰账户、不碰收入；学生月度结算只作为 locked 前置条件读取，不在工资生成中写入或重算。
 - 不做历史 backfill，不处理真实历史修复。
 
 ## Hard Stop / 待确认点

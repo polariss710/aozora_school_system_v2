@@ -264,6 +264,12 @@ async function handleGenerateSubmit() {
     return;
   }
 
+  const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessonsForFilters(filters));
+  if (unsettledGroups.length) {
+    showGenerateError(`生成前必须先完成学生月度结算：${formatUnsettledStudentSettlementGroups(unsettledGroups)}。请先到学生月度结算完成后再生成老师工资。`);
+    return;
+  }
+
   setGenerateSubmitting(true);
   hideGenerateError();
 
@@ -455,6 +461,7 @@ function renderWageCandidates(rows) {
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.duration_hours))}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.actual_minutes))}</td>
       <td class="wage-nowrap">${escapeHtml(booleanLabel(row.is_billable))}</td>
+      <td>${renderCandidateStudentSettlementState(row)}</td>
       <td>${renderCandidateLockState(row)}</td>
       <td>${escapeHtml(candidateNote(row))}</td>
     </tr>
@@ -467,11 +474,13 @@ function renderCandidateSummaryCards(rows) {
   const teacherCount = new Set(rows.map((row) => row.teacher_id).filter(Boolean)).size;
   const businessCount = new Set(rows.map((row) => row.business_entity_id).filter(Boolean)).size;
   const statusCounts = candidateStatusCounts(rows);
+  const studentSettlementCounts = candidateStudentSettlementCounts(rows);
 
   return [
     renderSummaryCard("候选课时", `${rows.length} 条`),
     renderSummaryCard("实际分钟", `${totalMinutes} 分钟`),
     renderSummaryCard("未生成 / 已生成", `${statusCounts.pending} / ${statusCounts.locked}`),
+    renderSummaryCard("学生结算完成 / 未完成", `${studentSettlementCounts.locked} / ${studentSettlementCounts.notLocked}`),
     renderSummaryCard("已作废关联", `${statusCounts.voided} 条`),
     renderSummaryCard("折算小时", `${formatNumber(totalHours)} 小时`),
     renderSummaryCard("老师 / 业务归属", `${teacherCount} / ${businessCount}`),
@@ -497,16 +506,63 @@ function renderCandidateLockState(row) {
   `;
 }
 
+function renderCandidateStudentSettlementState(row) {
+  const state = candidateStudentSettlementState(row);
+  return `
+    <span
+      class="status-badge ${escapeAttribute(state.className)}"
+      title="${escapeAttribute(state.title)}"
+    >${escapeHtml(state.label)}</span>
+  `;
+}
+
+function candidateStudentSettlementState(row) {
+  if (row.studentSettlementStatus === "locked" && row.studentSettlementMatchedBusiness) {
+    return {
+      label: "已完成",
+      className: "status-paid",
+      title: `学生月度结算已完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
+    };
+  }
+
+  if (row.studentSettlementStatus && !row.studentSettlementMatchedBusiness) {
+    return {
+      label: "业务不一致",
+      className: "status-cancelled",
+      title: `存在同学生同月份结算，但业务归属不是当前课时业务归属。请先完成 ${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)} 的学生月度结算。`,
+    };
+  }
+
+  if (row.studentSettlementStatus === "unlocked") {
+    return {
+      label: "未完成",
+      className: "status-pending",
+      title: `学生月度结算已解锁/未完成。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
+    };
+  }
+
+  return {
+    label: "未生成",
+    className: "status-cancelled",
+    title: `未找到已完成学生月度结算。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
+  };
+}
+
 function renderCandidateStatusNote(rows) {
   const allGroups = candidateGenerationGroups(rows);
   const generationGroups = candidateGenerationGroups(generationScopeCandidateLessons());
+  const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessons());
   const displaySummary = formatCandidateGroupSummary(allGroups);
   const generationSummary = formatCandidateGroupSummary(generationGroups);
   const parts = [
-    "生成前核对：候选课时按 teacher + business_entity + month 分组展示；已生成快照或已作废快照关联的课时会保留在这里显示状态。",
+    "生成前核对：候选课时按 teacher + business_entity + month 分组展示；已生成快照或已作废快照关联的课时会保留在这里显示状态。生成老师工资前，候选 actual 对应学生月度结算必须已完成。",
     `当前显示范围：${displaySummary}`,
     `点击“生成老师工资”时，当前 RPC 实际按月份${activeFilters?.teacherId ? " + 老师" : ""}生成，不按业务归属筛选生成；预计生成范围：${generationSummary}`,
   ];
+
+  if (unsettledGroups.length) {
+    parts.push(`学生结算未完成：${formatUnsettledStudentSettlementGroups(unsettledGroups)}。请先到学生月度结算完成后再生成老师工资。`);
+  }
 
   if (activeFilters?.businessEntityId) {
     parts.push("注意：业务归属筛选当前只影响页面显示，不限制本次生成 RPC 的业务归属范围。");
@@ -578,6 +634,20 @@ function candidateStatusCounts(rows) {
   });
 }
 
+function candidateStudentSettlementCounts(rows) {
+  return rows.reduce((counts, row) => {
+    if (row.studentSettlementStatus === "locked" && row.studentSettlementMatchedBusiness) {
+      counts.locked += 1;
+    } else {
+      counts.notLocked += 1;
+    }
+    return counts;
+  }, {
+    locked: 0,
+    notLocked: 0,
+  });
+}
+
 function candidateGenerationGroups(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -611,6 +681,48 @@ function candidateGenerationGroups(rows) {
     if (teacherCompare !== 0) return teacherCompare;
     return left.businessName.localeCompare(right.businessName, "zh-CN");
   });
+}
+
+function candidateUnsettledStudentSettlementGroups(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const state = candidateStudentSettlementState(row);
+    if (state.label === "已完成") {
+      continue;
+    }
+
+    const key = `${row.year_month || ""}::${row.student_id || ""}::${row.business_entity_id || ""}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        yearMonth: row.year_month,
+        studentName: studentNameById(row.student_id),
+        businessName: businessNameById(row.business_entity_id),
+        stateLabel: state.label,
+        lessonCount: 0,
+      });
+    }
+    groups.get(key).lessonCount += 1;
+  }
+
+  return Array.from(groups.values()).sort((left, right) => {
+    const monthCompare = safeText(left.yearMonth).localeCompare(safeText(right.yearMonth));
+    if (monthCompare !== 0) return monthCompare;
+    const studentCompare = left.studentName.localeCompare(right.studentName, "zh-CN");
+    if (studentCompare !== 0) return studentCompare;
+    return left.businessName.localeCompare(right.businessName, "zh-CN");
+  });
+}
+
+function formatUnsettledStudentSettlementGroups(groups, limit = 6) {
+  if (!groups.length) {
+    return "无";
+  }
+
+  const visible = groups.slice(0, limit).map((group) => (
+    `${formatMonth(group.yearMonth)} / ${group.studentName} / ${group.businessName}（${group.stateLabel}，${group.lessonCount}课时）`
+  ));
+  const suffix = groups.length > limit ? ` 等 ${groups.length} 组` : "";
+  return `${visible.join("；")}${suffix}`;
 }
 
 function formatCandidateGroupSummary(groups) {
@@ -978,6 +1090,7 @@ function renderGenerateSummary(filters) {
   const teacherLabel = filters.teacherId ? teacherNameById(filters.teacherId) : "全部老师";
   const visibleGroups = candidateGenerationGroups(filterWageCandidateLessons(wageCandidateLessons, filters));
   const generationGroups = candidateGenerationGroups(generationScopeCandidateLessonsForFilters(filters));
+  const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessonsForFilters(filters));
   const businessScopeNote = filters.businessEntityId
     ? "业务归属筛选只影响页面显示，当前生成 RPC 不按业务归属限制。"
     : "未限定业务归属时，同一老师可能按多个业务归属生成多条快照。";
@@ -988,6 +1101,7 @@ function renderGenerateSummary(filters) {
     renderDialogSummaryRow("生成粒度", "teacher + business_entity + month"),
     renderDialogSummaryRow("当前显示分组", formatCandidateGroupSummary(visibleGroups)),
     renderDialogSummaryRow("预计生成分组", formatCandidateGroupSummary(generationGroups)),
+    renderDialogSummaryRow("学生结算未完成", unsettledGroups.length ? formatUnsettledStudentSettlementGroups(unsettledGroups) : "无"),
     renderDialogSummaryRow("业务归属说明", businessScopeNote),
     renderDialogSummaryRow("生成内容", "工资快照主表 + 工资明细"),
     renderDialogSummaryRow("支付/账户", "不生成支付请求、支出或账户流水"),
@@ -1398,6 +1512,10 @@ function formatGenerateError(error) {
 
   if (message.includes("缺少老师/学生/科目/业务归属/实际分钟")) {
     return `生成失败：存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时。请先在课时管理补齐本月 completed / makeup_completed actual 课时的实际分钟，再重新生成工资快照。${message}`;
+  }
+
+  if (message.includes("学生月度结算未完成")) {
+    return `生成失败：${message}`;
   }
 
   return `生成失败：${message}`;

@@ -2,7 +2,7 @@
 -- RPC: public.school_generate_teacher_monthly_wage
 -- Purpose: Generate teacher monthly wage locks and details from actual lessons.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested and commit-tested.
--- Version: v2.92.0-teacher-wage-void-regeneration-20260611
+-- Version: v2.94.0-teacher-wage-requires-student-settlement-20260611
 --
 -- Scope:
 -- - Generate saved teacher wage snapshots for one settlement month.
@@ -47,6 +47,9 @@
 --   teacher/business/month while preserving the per-lesson wage formula.
 -- - 2026-06-11 v2.92.0 follow-up ignores voided wage snapshots and details
 --   under voided snapshots when checking regeneration blockers.
+-- - 2026-06-11 v2.94.0 follow-up requires each candidate actual's
+--   student/month/business student settlement snapshot to be locked before
+--   teacher wage generation.
 -- - Protected payment, expense, account, account transaction, income, and
 --   student settlement table counts stayed unchanged.
 
@@ -82,6 +85,8 @@ declare
   v_duplicate_rule_count integer;
   v_existing_detail_count integer;
   v_existing_lock_count integer;
+  v_unsettled_student_group_count integer;
+  v_unsettled_student_examples text;
 begin
   if v_year_month is null then
     raise exception '请选择工资月份。';
@@ -199,6 +204,80 @@ begin
 
   if v_bad_actual_count > 0 then
     raise exception '存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时，不能生成工资。';
+  end if;
+
+  with raw_candidates as (
+    select lr.*
+    from public.school_lesson_records lr
+    where coalesce(lr.app_type, '') = 'school'
+      and lr.lesson_type = 'actual'
+      and lr.status in ('completed', 'makeup_completed')
+      and lr.voided_at is null
+      and coalesce(lr.teacher_settlement_month, lr.year_month) = v_year_month
+      and (p_teacher_id is null or lr.teacher_id = p_teacher_id)
+  ),
+  unsettled_groups as (
+    select distinct
+      c.year_month,
+      c.student_id,
+      coalesce(s.display_name, s.name, c.student_id::text) as student_name,
+      c.business_entity_id,
+      coalesce(be.name, c.business_entity_id::text) as business_name
+    from raw_candidates c
+    left join public.school_student_monthly_settlements m
+      on m.student_id = c.student_id
+     and m.year_month = c.year_month
+     and m.business_entity_id is not distinct from c.business_entity_id
+     and m.settlement_status = 'locked'
+    left join public.school_students s on s.id = c.student_id
+    left join public.school_business_entities be on be.id = c.business_entity_id
+    where m.id is null
+  )
+  select count(*)
+  into v_unsettled_student_group_count
+  from unsettled_groups;
+
+  if v_unsettled_student_group_count > 0 then
+    with raw_candidates as (
+      select lr.*
+      from public.school_lesson_records lr
+      where coalesce(lr.app_type, '') = 'school'
+        and lr.lesson_type = 'actual'
+        and lr.status in ('completed', 'makeup_completed')
+        and lr.voided_at is null
+        and coalesce(lr.teacher_settlement_month, lr.year_month) = v_year_month
+        and (p_teacher_id is null or lr.teacher_id = p_teacher_id)
+    ),
+    unsettled_groups as (
+      select distinct
+        c.year_month,
+        coalesce(s.display_name, s.name, c.student_id::text) as student_name,
+        coalesce(be.name, c.business_entity_id::text) as business_name
+      from raw_candidates c
+      left join public.school_student_monthly_settlements m
+        on m.student_id = c.student_id
+       and m.year_month = c.year_month
+       and m.business_entity_id is not distinct from c.business_entity_id
+       and m.settlement_status = 'locked'
+      left join public.school_students s on s.id = c.student_id
+      left join public.school_business_entities be on be.id = c.business_entity_id
+      where m.id is null
+      order by 1, 2, 3
+      limit 8
+    )
+    select string_agg(format('%s / %s / %s', ug.year_month, ug.student_name, ug.business_name), '；')
+    into v_unsettled_student_examples
+    from unsettled_groups ug;
+
+    raise exception '%',
+      format(
+        '存在学生月度结算未完成的 actual 课时，不能生成老师工资。请先完成学生月度结算：%s%s',
+        coalesce(v_unsettled_student_examples, '未完成学生结算'),
+        case
+          when v_unsettled_student_group_count > 8 then format(' 等 %s 组', v_unsettled_student_group_count)
+          else ''
+        end
+      );
   end if;
 
   with raw_candidates as (
@@ -447,7 +526,7 @@ end;
 $$;
 
 comment on function public.school_generate_teacher_monthly_wage(text, uuid) is
-  'Generates teacher monthly wage locks/details from actual completed and makeup_completed lessons. Writes only wage locks and wage details; no payment, expense, account, income, student settlement, or lesson mutation. Ignores voided wage snapshots/details when checking regeneration blockers.';
+  'Generates teacher monthly wage locks/details from actual completed and makeup_completed lessons after requiring locked student monthly settlements for candidate student/month/business groups. Writes only wage locks and wage details; no payment, expense, account, income, student settlement, or lesson mutation. Ignores voided wage snapshots/details when checking regeneration blockers.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately
