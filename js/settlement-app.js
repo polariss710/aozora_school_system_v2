@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initSettlementPage } from "./pages/settlement-page.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612";
+import { initSettlementPage } from "./pages/settlement-page.js?v=v2.97.0-student-settlement-wage-chain-guard-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

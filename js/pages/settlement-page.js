@@ -360,6 +360,7 @@ function renderSettlements(rows) {
       <td>${escapeHtml(nameById(students, row.student_id, studentName))}</td>
       <td>${escapeHtml(nameById(businessEntities, row.business_entity_id, businessEntityName))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.settlement_status))}">${escapeHtml(settlementStatusLabel(row.settlement_status))}</span></td>
+      <td>${renderTeacherWageBlocker(row)}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.preset_exchange_rate))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.planned_lesson_fee_jpy, "JPY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.planned_lesson_fee_cny, "CNY"))}</td>
@@ -379,7 +380,19 @@ function renderSettlements(rows) {
 }
 
 function renderSettlementDetailAction(row) {
+  const blockerReason = teacherWageBlockerReason(row);
+
   if (row.is_preview) {
+    if (blockerReason) {
+      return `
+        <div class="table-action-group">
+          <span class="status-badge status-pending">预览</span>
+          <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可调整</button>
+          <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可锁定</button>
+        </div>
+      `;
+    }
+
     return `
       <div class="table-action-group">
         <span class="status-badge status-pending">预览</span>
@@ -399,7 +412,20 @@ function renderSettlementDetailAction(row) {
 }
 
 function renderSettlementStatusAction(row) {
+  const blockerReason = teacherWageBlockerReason(row);
+
   if (row.settlement_status === "locked") {
+    if (blockerReason) {
+      return `
+        <button
+          class="button table-action-button"
+          type="button"
+          disabled
+          title="${escapeAttribute(blockerReason)}"
+        >不可撤销</button>
+      `;
+    }
+
     return `
       <button
         class="button table-action-button button-danger"
@@ -411,6 +437,13 @@ function renderSettlementStatusAction(row) {
   }
 
   if (row.settlement_status === "unlocked") {
+    if (blockerReason) {
+      return `
+        <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可调整</button>
+        <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可重新锁定</button>
+      `;
+    }
+
     return `
       <button
         class="button table-action-button"
@@ -427,6 +460,24 @@ function renderSettlementStatusAction(row) {
   }
 
   return "";
+}
+
+function renderTeacherWageBlocker(row) {
+  const reason = teacherWageBlockerReason(row);
+  if (!reason) {
+    return '<span class="status-badge status-neutral">未进入工资链路</span>';
+  }
+
+  return `
+    <div class="settlement-note-cell">
+      <span class="status-badge ${escapeAttribute(teacherWageBlockerClass(row.teacher_wage_blocker_level))}">${escapeHtml(teacherWageBlockerLabel(row.teacher_wage_blocker_level))}</span>
+      <div class="table-cell-summary">${escapeHtml(reason)}</div>
+    </div>
+  `;
+}
+
+function teacherWageBlockerReason(row) {
+  return safeText(row?.teacher_wage_blocker_reason);
 }
 
 function openLockDialog(settlementRowId) {
@@ -570,6 +621,12 @@ function openStatusActionDialog(settlementId, action) {
   const row = settlements.find((item) => item.id === settlementId);
   if (!row || row.is_preview) {
     showMessage("error", "未找到可变更状态的结算快照。");
+    return;
+  }
+
+  const blockerReason = teacherWageBlockerReason(row);
+  if (blockerReason) {
+    showMessage("error", blockerReason);
     return;
   }
 
@@ -767,6 +824,12 @@ function openAdjustmentDialog(settlementId) {
   const row = settlements.find((item) => item.id === settlementId);
   if (!row) {
     showMessage("error", "未找到可调整的结算预览。");
+    return;
+  }
+
+  const blockerReason = teacherWageBlockerReason(row);
+  if (blockerReason) {
+    showMessage("error", blockerReason);
     return;
   }
 
@@ -991,6 +1054,19 @@ function settlementStatusLabel(value) {
   return SETTLEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 
+function teacherWageBlockerLabel(value) {
+  if (value === "payment_completed") {
+    return "老师工资已支付";
+  }
+  if (value === "payment_requested") {
+    return "已生成工资支付请求";
+  }
+  if (value === "wage_snapshot") {
+    return "已生成老师工资";
+  }
+  return "未进入工资链路";
+}
+
 function statusClass(status) {
   if (status === "preview") {
     return "status-pending";
@@ -999,6 +1075,16 @@ function statusClass(status) {
     return "status-cancelled";
   }
   return status === "locked" ? "status-paid" : "status-neutral";
+}
+
+function teacherWageBlockerClass(value) {
+  if (value === "payment_completed" || value === "payment_requested") {
+    return "status-paid";
+  }
+  if (value === "wage_snapshot") {
+    return "status-pending";
+  }
+  return "status-neutral";
 }
 
 function noteText(row) {

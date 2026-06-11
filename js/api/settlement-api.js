@@ -45,12 +45,14 @@ const PREVIEW_INCOME_COLUMNS = [
 ].join(",");
 
 export async function fetchStudentSettlements(yearMonth) {
-  const [snapshots, candidates] = await Promise.all([
+  const [snapshots, candidates, wageBlockers] = await Promise.all([
     fetchStudentSettlementSnapshots(yearMonth),
     fetchStudentSettlementPreviewCandidates(yearMonth),
+    fetchStudentSettlementWageBlockers(yearMonth),
   ]);
   const previewRows = await fetchStudentSettlementPreviewRows(yearMonth, snapshots, candidates);
-  return [...snapshots.map(normalizeSnapshotRow), ...previewRows];
+  const blockerMap = new Map(wageBlockers.map((row) => [settlementStudentKey(row.student_id, row.year_month), row]));
+  return [...snapshots.map(normalizeSnapshotRow), ...previewRows].map((row) => mergeWageBlocker(row, blockerMap));
 }
 
 async function fetchStudentSettlementSnapshots(yearMonth) {
@@ -185,6 +187,18 @@ async function fetchStudentSettlementPreviewSummary(studentId, yearMonth) {
   return Array.isArray(data) ? data[0] : data;
 }
 
+async function fetchStudentSettlementWageBlockers(yearMonth) {
+  const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_wage_blockers", {
+    p_year_month: yearMonth,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
 async function mergeUnlockedSnapshotPreviews(rows) {
   const mergedRows = [];
   for (const row of rows) {
@@ -229,6 +243,33 @@ function normalizeSnapshotRow(row) {
   return {
     ...row,
     is_preview: false,
+  };
+}
+
+function mergeWageBlocker(row, blockerMap) {
+  const blocker = blockerMap.get(settlementStudentKey(row.student_id, row.year_month));
+  if (!blocker) {
+    return {
+      ...row,
+      teacher_wage_blocker_level: "",
+      teacher_wage_blocker_reason: "",
+      teacher_wage_blocker_counts: null,
+    };
+  }
+
+  return {
+    ...row,
+    teacher_wage_blocker_level: blocker.blocker_level || "",
+    teacher_wage_blocker_reason: blocker.blocker_reason || "",
+    teacher_wage_blocker_counts: {
+      activeWageLockCount: blocker.active_wage_lock_count || 0,
+      wageDetailCount: blocker.wage_detail_count || 0,
+      paymentRequestCount: blocker.payment_request_count || 0,
+      paidPaymentRequestCount: blocker.paid_payment_request_count || 0,
+      expenseCount: blocker.expense_count || 0,
+      accountTransactionCount: blocker.account_transaction_count || 0,
+      businessNames: blocker.wage_business_names || "",
+    },
   };
 }
 

@@ -102,15 +102,16 @@ const ADJUSTMENT_COLUMNS = [
 export async function fetchSettlementDetailPage(settlementId) {
   const settlement = await fetchSettlement(settlementId);
 
-  const [lookups, lessons, incomes, adjustments] = await Promise.all([
+  const [lookups, lessons, incomes, adjustments, wageBlockers] = await Promise.all([
     fetchSettlementDetailLookups(),
     fetchLessonReferences(settlement),
     fetchIncomeReferences(settlement),
     fetchAdjustmentReferences(settlement.id),
+    fetchStudentSettlementWageBlockers(settlement.year_month, settlement.student_id),
   ]);
 
   return {
-    settlement,
+    settlement: mergeWageBlocker(settlement, wageBlockers[0]),
     lookups,
     lessons,
     incomes,
@@ -187,6 +188,45 @@ async function fetchAdjustmentReferences(settlementId) {
   }
 
   return data || [];
+}
+
+async function fetchStudentSettlementWageBlockers(yearMonth, studentId) {
+  const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_wage_blockers", {
+    p_year_month: yearMonth,
+    p_student_id: studentId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+function mergeWageBlocker(settlement, blocker) {
+  if (!blocker) {
+    return {
+      ...settlement,
+      teacher_wage_blocker_level: "",
+      teacher_wage_blocker_reason: "",
+      teacher_wage_blocker_counts: null,
+    };
+  }
+
+  return {
+    ...settlement,
+    teacher_wage_blocker_level: blocker.blocker_level || "",
+    teacher_wage_blocker_reason: blocker.blocker_reason || "",
+    teacher_wage_blocker_counts: {
+      activeWageLockCount: blocker.active_wage_lock_count || 0,
+      wageDetailCount: blocker.wage_detail_count || 0,
+      paymentRequestCount: blocker.payment_request_count || 0,
+      paidPaymentRequestCount: blocker.paid_payment_request_count || 0,
+      expenseCount: blocker.expense_count || 0,
+      accountTransactionCount: blocker.account_transaction_count || 0,
+      businessNames: blocker.wage_business_names || "",
+    },
+  };
 }
 
 async function fetchSettlementDetailLookups() {

@@ -164,6 +164,7 @@ function renderSettlementDetail(data) {
     ["学生编号", displayValue(student?.student_code)],
     ["业务归属", businessNameById(settlement.business_entity_id)],
     ["结算状态", settlementStatusLabel(settlement.settlement_status)],
+    ["后续锁定", teacherWageBlockerDisplay(settlement)],
     ["锁定时间", formatDate(settlement.locked_at)],
     ["撤销锁定时间", formatDate(settlement.unlocked_at)],
     ["撤销锁定原因", displayValue(settlement.unlock_reason)],
@@ -205,6 +206,7 @@ function renderSettlementDetail(data) {
     ["settlement id", shortId(settlement.id)],
     ["student_id", shortId(settlement.student_id)],
     ["business_entity_id", shortId(settlement.business_entity_id)],
+    ["teacher_wage_blocker", teacherWageBlockerDisplay(settlement)],
     ["created_at", formatDate(settlement.created_at)],
     ["updated_at", formatDate(settlement.updated_at)],
   ]);
@@ -217,10 +219,19 @@ function renderSettlementDetail(data) {
 
 function renderActionControls(settlement) {
   const status = settlement.settlement_status;
+  const blockerReason = teacherWageBlockerReason(settlement);
   dom.actionStatus.textContent = settlementStatusLabel(status);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.unlockButton.classList.toggle("is-hidden", status !== "locked");
   dom.relockButton.classList.toggle("is-hidden", status !== "unlocked");
+  dom.unlockButton.disabled = Boolean(blockerReason);
+  dom.relockButton.disabled = Boolean(blockerReason);
+  dom.unlockButton.title = blockerReason;
+  dom.relockButton.title = blockerReason;
+  if (blockerReason) {
+    dom.actionStatus.textContent = teacherWageBlockerLabel(settlement.teacher_wage_blocker_level);
+    dom.actionStatus.className = `status-badge ${teacherWageBlockerClass(settlement.teacher_wage_blocker_level)}`;
+  }
 }
 
 function renderAdjustmentReferences(rows) {
@@ -322,6 +333,12 @@ function openStatusActionDialog(action) {
     return;
   }
 
+  const blockerReason = teacherWageBlockerReason(settlement);
+  if (blockerReason) {
+    showMessage("error", blockerReason);
+    return;
+  }
+
   currentStatusAction = action;
   dom.statusActionReasonInput.value = "";
   dom.statusActionNoteInput.value = "";
@@ -356,8 +373,8 @@ function renderStatusActionDialog(settlement, action) {
     ? "撤销锁定会把当前快照状态改为锁定已撤销，保留同一条结算记录和撤销原因。"
     : "重新锁定会复用当前实时结算口径覆盖同一条快照金额，不创建历史版本。";
   dom.statusActionWarning.textContent = isUnlock
-    ? "撤销锁定后，该学生该月份的课时和学费收入写入 guard 会放开；如果该结算已作为有效结转来源，RPC 会拒绝本操作。"
-    : "重新锁定后，该学生该月份的课时和学费收入写入 guard 会恢复；本操作不会自动撤销或重建结转。";
+    ? "撤销锁定后，该学生该月份的课时和学费收入写入 guard 会放开；如果该结算已作为有效结转来源或已进入老师工资链路，RPC 会拒绝本操作。"
+    : "重新锁定后，该学生该月份的课时和学费收入写入 guard 会恢复；如果该结算已进入老师工资链路，RPC 会拒绝本操作。";
   dom.statusActionReasonField.classList.toggle("is-hidden", !isUnlock);
   dom.statusActionNoteField.classList.toggle("is-hidden", isUnlock);
   dom.statusActionSubmitButton.classList.toggle("button-danger", isUnlock);
@@ -372,6 +389,7 @@ function renderStatusActionSummary(settlement) {
     ["结算月份", formatMonth(settlement.year_month)],
     ["业务归属", businessNameById(settlement.business_entity_id)],
     ["当前状态", settlementStatusLabel(settlement.settlement_status)],
+    ["后续锁定", teacherWageBlockerDisplay(settlement)],
     ["锁定时间", formatDate(settlement.locked_at)],
     ["撤销时间", formatDate(settlement.unlocked_at)],
     ["系统差额", formatCurrency(settlement.system_difference_cny, "CNY")],
@@ -553,6 +571,27 @@ function settlementStatusLabel(value) {
   return SETTLEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 
+function teacherWageBlockerReason(settlement) {
+  return safeText(settlement?.teacher_wage_blocker_reason);
+}
+
+function teacherWageBlockerDisplay(settlement) {
+  return teacherWageBlockerReason(settlement) || "未进入老师工资链路";
+}
+
+function teacherWageBlockerLabel(value) {
+  if (value === "payment_completed") {
+    return "老师工资已支付";
+  }
+  if (value === "payment_requested") {
+    return "已生成工资支付请求";
+  }
+  if (value === "wage_snapshot") {
+    return "已生成老师工资";
+  }
+  return "未进入工资链路";
+}
+
 function lessonTypeLabel(value) {
   return LESSON_TYPE_LABELS[value] || displayValue(value);
 }
@@ -590,6 +629,16 @@ function statusClass(value) {
     return "status-cancelled";
   }
 
+  return "status-neutral";
+}
+
+function teacherWageBlockerClass(value) {
+  if (value === "payment_completed" || value === "payment_requested") {
+    return "status-paid";
+  }
+  if (value === "wage_snapshot") {
+    return "status-pending";
+  }
   return "status-neutral";
 }
 
