@@ -42,7 +42,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageDetailPageTitle">详情</h2>
-              <p class="section-note">本页为老师工资快照只读详情。显示内容来自已保存的工资快照主表和明细表，不代表实时工资重算结果。当前工资规则仅作为配置源，不用于重算历史工资快照。</p>
+              <p class="section-note">本页显示已保存的老师工资快照。未生成支付请求的快照可通过受控 RPC 调整明细课时和费用；已生成支付请求后只读。当前工资规则仅作为未来配置源，不用于重算历史工资快照。</p>
             </div>
             <a class="button" id="wageDetailReturnLink" href="./wage.html">返回老师工资结算</a>
           </div>
@@ -108,7 +108,7 @@
                     <th>学生</th>
                     <th>科目</th>
                     <th>业务归属</th>
-                    <th>支付小时</th>
+                    <th>结算课时</th>
                     <th>结算类型</th>
                     <th>课时工资 JPY</th>
                     <th>课时工资 CNY</th>
@@ -119,11 +119,24 @@
                     <th>无工资</th>
                     <th>状态</th>
                     <th>课程内容</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody id="wageDetailRows"></tbody>
               </table>
             </div>
+          </section>
+
+          <section class="panel" aria-labelledby="wageAdjustmentAuditTitle">
+            <div class="section-heading section-heading-row">
+              <div>
+                <h2 id="wageAdjustmentAuditTitle">调整记录</h2>
+                <p class="section-note">记录老师工资明细手动调整的旧值、新值和备注；已生成支付请求后本快照只读。</p>
+              </div>
+              <span id="wageAdjustmentAuditCount" class="record-count">0 条</span>
+            </div>
+            <div id="wageAdjustmentAuditEmpty" class="state-text is-hidden">暂无调整记录。</div>
+            <div id="wageAdjustmentAuditList" class="detail-list"></div>
           </section>
         </section>
       </main>
@@ -156,7 +169,48 @@
       </section>
     </div>
 
+    <div id="adjustWageDetailDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="adjustWageDetailTitle">
+        <div class="section-heading">
+          <h2 id="adjustWageDetailTitle">调整工资明细</h2>
+          <p class="section-note">仅调整当前工资快照中的单条明细；课时工资和快照合计由 DB/RPC 重新计算并写入审计记录。</p>
+        </div>
+
+        <div id="adjustWageDetailSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning">
+          已生成支付请求或已支付的工资快照不能在本页直接调整。请填写明确备注，便于追踪调整原因。
+        </div>
+
+        <div id="adjustWageDetailError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <div class="lesson-create-field-grid">
+          <label class="field" data-adjust-wage-detail-field="payHours">
+            <span>结算课时</span>
+            <input id="adjustWagePayHoursInput" type="number" min="0" max="24" step="0.25">
+          </label>
+          <label class="field" data-adjust-wage-detail-field="transportFeeJpy">
+            <span>交通费 JPY</span>
+            <input id="adjustWageTransportFeeInput" type="number" min="0" max="1000000" step="1">
+          </label>
+          <label class="field" data-adjust-wage-detail-field="classroomFeeJpy">
+            <span>教室费 JPY</span>
+            <input id="adjustWageClassroomFeeInput" type="number" min="0" max="1000000" step="1">
+          </label>
+          <label class="field" data-adjust-wage-detail-field="reason">
+            <span>调整备注</span>
+            <textarea id="adjustWageReasonInput" rows="3" placeholder="例：老师回传勤务表确认交通费 / 课时修正"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="adjustWageDetailSubmitButton" type="button">保存调整</button>
+          <button class="button" id="adjustWageDetailCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-detail-app.js?v=v2.85.0-wage-duty-report-export-20260611"></script>
+    <script type="module" src="./js/wage-detail-app.js?v=v2.86.0-wage-detail-adjustment-20260611"></script>
   </body>
 </html>

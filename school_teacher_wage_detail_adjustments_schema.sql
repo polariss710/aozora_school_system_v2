@@ -70,6 +70,13 @@ create index if not exists idx_school_teacher_wage_detail_adjustments_lock
 create index if not exists idx_school_teacher_wage_detail_adjustments_detail
   on public.school_teacher_wage_detail_adjustments (wage_detail_id, created_at desc);
 
+revoke insert, update, delete, truncate, references, trigger
+  on table public.school_teacher_wage_detail_adjustments
+  from anon, authenticated;
+
+grant select on table public.school_teacher_wage_detail_adjustments
+  to anon, authenticated;
+
 comment on table public.school_teacher_wage_detail_adjustments
   is 'Append-only audit records for manual teacher wage detail adjustments. Each row records before/after detail values and before/after wage-lock aggregate totals.';
 

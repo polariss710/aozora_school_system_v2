@@ -1,5 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  adjustTeacherWageDetail,
   createTeacherWagePaymentRequest,
   fetchWageDetailPage,
 } from "../api/wage-detail-api.js";
@@ -46,6 +47,7 @@ const DUTY_REPORT_HEADERS = [
 
 const dom = {};
 let detailData = null;
+let activeAdjustWageDetail = null;
 
 export function initWageDetailPage() {
   cacheDom();
@@ -93,11 +95,24 @@ function cacheDom() {
   dom.rowCount = document.querySelector("#wageDetailRowCount");
   dom.rowEmpty = document.querySelector("#wageDetailRowEmpty");
   dom.rows = document.querySelector("#wageDetailRows");
+  dom.adjustmentAuditCount = document.querySelector("#wageAdjustmentAuditCount");
+  dom.adjustmentAuditEmpty = document.querySelector("#wageAdjustmentAuditEmpty");
+  dom.adjustmentAuditList = document.querySelector("#wageAdjustmentAuditList");
+  dom.adjustWageDetailDialog = document.querySelector("#adjustWageDetailDialog");
+  dom.adjustWageDetailSummary = document.querySelector("#adjustWageDetailSummary");
+  dom.adjustWageDetailError = document.querySelector("#adjustWageDetailError");
+  dom.adjustWagePayHoursInput = document.querySelector("#adjustWagePayHoursInput");
+  dom.adjustWageTransportFeeInput = document.querySelector("#adjustWageTransportFeeInput");
+  dom.adjustWageClassroomFeeInput = document.querySelector("#adjustWageClassroomFeeInput");
+  dom.adjustWageReasonInput = document.querySelector("#adjustWageReasonInput");
+  dom.adjustWageDetailSubmitButton = document.querySelector("#adjustWageDetailSubmitButton");
+  dom.adjustWageDetailCancelButton = document.querySelector("#adjustWageDetailCancelButton");
 }
 
 function bindEvents() {
   dom.openCreatePaymentRequestButton?.addEventListener("click", openCreatePaymentRequestDialog);
   dom.wageDutyReportExportButton?.addEventListener("click", handleWageDutyReportExport);
+  dom.rows?.addEventListener("click", handleWageDetailRowActionClick);
   dom.createPaymentRequestCancelButton?.addEventListener("click", closeCreatePaymentRequestDialog);
   dom.createPaymentRequestSubmitButton?.addEventListener("click", submitCreatePaymentRequest);
   dom.createPaymentRequestDialog?.addEventListener("click", (event) => {
@@ -109,6 +124,31 @@ function bindEvents() {
     setCreatePaymentRequestFieldInvalid("confirm", false);
     hideCreatePaymentRequestErrorIfClean();
   });
+  dom.adjustWageDetailCancelButton?.addEventListener("click", closeAdjustWageDetailDialog);
+  dom.adjustWageDetailSubmitButton?.addEventListener("click", submitAdjustWageDetail);
+  dom.adjustWageDetailDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.adjustWageDetailDialog) {
+      closeAdjustWageDetailDialog();
+    }
+  });
+  for (const input of [
+    dom.adjustWagePayHoursInput,
+    dom.adjustWageTransportFeeInput,
+    dom.adjustWageClassroomFeeInput,
+    dom.adjustWageReasonInput,
+  ]) {
+    input?.addEventListener("input", () => {
+      const fieldId = input.id === "adjustWagePayHoursInput"
+        ? "payHours"
+        : input.id === "adjustWageTransportFeeInput"
+          ? "transportFeeJpy"
+          : input.id === "adjustWageClassroomFeeInput"
+            ? "classroomFeeJpy"
+            : "reason";
+      setAdjustWageDetailFieldInvalid(fieldId, false);
+      hideAdjustWageDetailErrorIfClean();
+    });
+  }
 }
 
 function readWageLockId() {
@@ -166,7 +206,7 @@ async function loadWageDetail(wageLockId) {
 }
 
 function renderWageDetail(data) {
-  const { wageLock, details, paymentRequests } = data;
+  const { wageLock, details, paymentRequests, adjustments } = data;
   const detailTotalJpy = sumBy(details, "total_jpy");
   const detailTotalCny = sumBy(details, "total_cny");
   const detailPayHours = sumBy(details, "pay_hours");
@@ -190,7 +230,7 @@ function renderWageDetail(data) {
     ["汇率", displayValue(wageLock.exchange_rate)],
     ["课时数", displayValue(wageLock.lesson_count)],
     ["总分钟", displayValue(wageLock.total_minutes)],
-    ["支付小时", displayValue(wageLock.pay_hours)],
+    ["结算课时", displayValue(wageLock.pay_hours)],
     ["课时工资 JPY", formatCurrency(wageLock.lesson_wage_jpy, "JPY")],
     ["课时工资 CNY", formatCurrency(wageLock.lesson_wage_cny, "CNY")],
     ["费用 JPY", formatCurrency(wageLock.fee_jpy, "JPY")],
@@ -201,7 +241,7 @@ function renderWageDetail(data) {
   dom.summaryInfo.innerHTML = `
     ${renderDefinitionList([
       ["明细条数", displayCount(details.length)],
-      ["明细支付小时合计", displayValue(detailPayHours)],
+      ["明细结算课时合计", displayValue(detailPayHours)],
       ["明细合计 JPY", formatCurrency(detailTotalJpy, "JPY")],
       ["主表合计 JPY", formatCurrency(wageLock.total_jpy, "JPY")],
       ["JPY 差异", formatCurrency(totalJpyDifference, "JPY")],
@@ -209,7 +249,7 @@ function renderWageDetail(data) {
       ["主表合计 CNY", formatCurrency(wageLock.total_cny, "CNY")],
       ["CNY 差异", formatCurrency(totalCnyDifference, "CNY")],
     ])}
-    <p class="section-note">本区仅用于明细对账辅助，不重新计算或覆盖工资快照主表金额。</p>
+    <p class="section-note">本区仅用于明细对账辅助；如需调整，请通过明细行操作触发 DB/RPC 重新计算并写入审计记录。</p>
   `;
 
   dom.systemInfo.innerHTML = renderDefinitionList([
@@ -222,7 +262,8 @@ function renderWageDetail(data) {
 
   renderPaymentRequests(paymentRequests);
   renderCreatePaymentRequestAction(wageLock, paymentRequests);
-  renderDetailRows(details);
+  renderDetailRows(details, canAdjustWageDetails(wageLock, paymentRequests));
+  renderAdjustmentAudits(adjustments || [], details || []);
 }
 
 function renderCreatePaymentRequestAction(wageLock, paymentRequests) {
@@ -412,7 +453,7 @@ function setCreatePaymentRequestFieldInvalid(fieldId, isInvalid) {
   field?.classList.toggle("is-invalid", isInvalid);
 }
 
-function renderDetailRows(rows) {
+function renderDetailRows(rows, canAdjust = false) {
   dom.rowCount.textContent = `${rows.length} 条`;
   dom.rowEmpty.classList.toggle("is-hidden", rows.length > 0);
 
@@ -439,8 +480,286 @@ function renderDetailRows(rows) {
       <td class="wage-nowrap">${escapeHtml(booleanLabel(row.is_no_wage))}</td>
       <td><span class="status-badge ${escapeAttribute(detailStatusClass(row.status))}">${escapeHtml(detailStatusLabel(row.status))}</span></td>
       <td class="wage-detail-content-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.lesson_content))}</span></td>
+      <td class="wage-nowrap">${renderWageDetailRowAction(row, canAdjust)}</td>
     </tr>
   `).join("");
+}
+
+function renderWageDetailRowAction(row, canAdjust) {
+  if (!canAdjust) {
+    return '<span class="section-note">只读</span>';
+  }
+
+  return `
+    <button
+      class="table-action-button"
+      type="button"
+      data-wage-detail-adjust-id="${escapeAttribute(row.id)}"
+    >调整</button>
+  `;
+}
+
+function handleWageDetailRowActionClick(event) {
+  const button = event.target.closest("[data-wage-detail-adjust-id]");
+  if (!button) {
+    return;
+  }
+
+  const detailId = button.getAttribute("data-wage-detail-adjust-id");
+  const detail = (detailData?.details || []).find((row) => row.id === detailId);
+  if (!detail) {
+    showMessage("error", "没有找到要调整的工资明细，请刷新页面后重试。");
+    return;
+  }
+
+  openAdjustWageDetailDialog(detail);
+}
+
+function canAdjustWageDetails(wageLock, paymentRequests = []) {
+  return wageLock?.status === "locked"
+    && !wageLock?.voided_at
+    && paymentRequests.length === 0;
+}
+
+function wageAdjustmentReadonlyReason(wageLock, paymentRequests = []) {
+  if (!wageLock) return "工资快照尚未加载。";
+  if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以调整。";
+  if (wageLock.voided_at) return "已作废的工资快照不能调整。";
+  if (paymentRequests.length > 0) return "该工资快照已生成支付请求，不能直接调整。";
+  return "";
+}
+
+function openAdjustWageDetailDialog(detail) {
+  const wageLock = detailData?.wageLock;
+  const paymentRequests = detailData?.paymentRequests || [];
+  const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests);
+  if (readonlyReason) {
+    showMessage("error", readonlyReason);
+    return;
+  }
+
+  activeAdjustWageDetail = detail;
+  dom.adjustWageDetailSummary.innerHTML = renderAdjustWageDetailSummary(detail, wageLock);
+  dom.adjustWagePayHoursInput.value = numberInputValue(detail.pay_hours);
+  dom.adjustWageTransportFeeInput.value = numberInputValue(detail.transport_fee_jpy);
+  dom.adjustWageClassroomFeeInput.value = numberInputValue(detail.classroom_fee_jpy);
+  dom.adjustWageReasonInput.value = "";
+  hideAdjustWageDetailError();
+  clearAdjustWageDetailInvalidFields();
+  dom.adjustWageDetailDialog.classList.remove("is-hidden");
+  dom.adjustWageDetailDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeAdjustWageDetailDialog(force = false) {
+  if (!force && dom.adjustWageDetailSubmitButton.disabled) {
+    return;
+  }
+
+  activeAdjustWageDetail = null;
+  dom.adjustWageDetailDialog.classList.add("is-hidden");
+  dom.adjustWageDetailDialog.setAttribute("aria-hidden", "true");
+  hideAdjustWageDetailError();
+  clearAdjustWageDetailInvalidFields();
+}
+
+async function submitAdjustWageDetail() {
+  const wageLock = detailData?.wageLock;
+  const detail = activeAdjustWageDetail;
+  if (!wageLock || !detail) {
+    showAdjustWageDetailError("工资明细尚未加载。");
+    return;
+  }
+
+  const validation = validateAdjustWageDetailForm(detail);
+  if (validation.errors.length) {
+    showAdjustWageDetailError(validation.errors[0], validation.fields);
+    return;
+  }
+
+  setAdjustWageDetailSubmitting(true);
+  hideAdjustWageDetailError();
+
+  try {
+    const result = await adjustTeacherWageDetail({
+      wageDetailId: detail.id,
+      payHours: validation.values.payHours,
+      transportFeeJpy: validation.values.transportFeeJpy,
+      classroomFeeJpy: validation.values.classroomFeeJpy,
+      reason: validation.values.reason,
+    });
+
+    await loadWageDetail(wageLock.id);
+    closeAdjustWageDetailDialog(true);
+    showMessage(
+      "success",
+      `工资明细已调整：${shortId(result?.adjustment_id)} / 快照合计 ${formatCurrency(result?.lock_total_jpy, "JPY")}。`
+    );
+  } catch (error) {
+    showAdjustWageDetailError(formatAdjustWageDetailError(error));
+  } finally {
+    setAdjustWageDetailSubmitting(false);
+  }
+}
+
+function validateAdjustWageDetailForm(detail) {
+  const errors = [];
+  const fields = [];
+  const payHours = Number(dom.adjustWagePayHoursInput.value);
+  const transportFeeJpy = Number(dom.adjustWageTransportFeeInput.value || 0);
+  const classroomFeeJpy = Number(dom.adjustWageClassroomFeeInput.value || 0);
+  const reason = safeText(dom.adjustWageReasonInput.value).trim();
+
+  if (!Number.isFinite(payHours) || payHours < 0 || payHours > 24) {
+    errors.push("结算课时必须在 0 到 24 之间。");
+    fields.push("payHours");
+  }
+
+  if (!Number.isFinite(transportFeeJpy) || transportFeeJpy < 0 || transportFeeJpy > 1000000) {
+    errors.push("交通费必须在 0 到 1,000,000 JPY 之间。");
+    fields.push("transportFeeJpy");
+  }
+
+  if (!Number.isFinite(classroomFeeJpy) || classroomFeeJpy < 0 || classroomFeeJpy > 1000000) {
+    errors.push("教室费必须在 0 到 1,000,000 JPY 之间。");
+    fields.push("classroomFeeJpy");
+  }
+
+  if (!reason) {
+    errors.push("请输入调整备注。");
+    fields.push("reason");
+  }
+
+  if (!errors.length
+    && payHours === Number(detail.pay_hours || 0)
+    && Math.round(transportFeeJpy) === Number(detail.transport_fee_jpy || 0)
+    && Math.round(classroomFeeJpy) === Number(detail.classroom_fee_jpy || 0)) {
+    errors.push("调整前后数值没有变化。");
+    fields.push("payHours", "transportFeeJpy", "classroomFeeJpy");
+  }
+
+  return {
+    errors,
+    fields,
+    values: {
+      payHours,
+      transportFeeJpy: Math.round(transportFeeJpy),
+      classroomFeeJpy: Math.round(classroomFeeJpy),
+      reason,
+    },
+  };
+}
+
+function renderAdjustWageDetailSummary(detail, wageLock) {
+  return [
+    renderDialogSummaryRow("工资月份", formatMonth(wageLock?.settlement_month)),
+    renderDialogSummaryRow("老师", displayValue(wageLock?.teacher_name)),
+    renderDialogSummaryRow("课时日期", formatDateOnly(detail.lesson_date)),
+    renderDialogSummaryRow("学生", displayValue(detail.student_name)),
+    renderDialogSummaryRow("科目", displayValue(detail.subject_name)),
+    renderDialogSummaryRow("当前结算课时", displayValue(detail.pay_hours)),
+    renderDialogSummaryRow("当前交通费", formatCurrency(detail.transport_fee_jpy, "JPY")),
+    renderDialogSummaryRow("当前教室费", formatCurrency(detail.classroom_fee_jpy, "JPY")),
+    renderDialogSummaryRow("当前明细合计", formatCurrency(detail.total_jpy, "JPY")),
+  ].join("");
+}
+
+function formatAdjustWageDetailError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("已生成支付请求")) {
+    return "调整失败：该工资快照已生成支付请求，不能直接修改。";
+  }
+  return `调整失败：${message}`;
+}
+
+function setAdjustWageDetailSubmitting(isSubmitting) {
+  dom.adjustWageDetailSubmitButton.disabled = isSubmitting;
+  dom.adjustWageDetailCancelButton.disabled = isSubmitting;
+  dom.adjustWageDetailSubmitButton.textContent = isSubmitting ? "保存中..." : "保存调整";
+}
+
+function showAdjustWageDetailError(message, fieldIds = []) {
+  dom.adjustWageDetailError.textContent = message;
+  dom.adjustWageDetailError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setAdjustWageDetailFieldInvalid(fieldId, true);
+  }
+  dom.adjustWageDetailDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function hideAdjustWageDetailError() {
+  dom.adjustWageDetailError.textContent = "";
+  dom.adjustWageDetailError.classList.add("is-hidden");
+}
+
+function hideAdjustWageDetailErrorIfClean() {
+  const hasInvalidField = Boolean(dom.adjustWageDetailDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    hideAdjustWageDetailError();
+  }
+}
+
+function clearAdjustWageDetailInvalidFields() {
+  for (const field of dom.adjustWageDetailDialog.querySelectorAll(".field.is-invalid")) {
+    field.classList.remove("is-invalid");
+  }
+}
+
+function setAdjustWageDetailFieldInvalid(fieldId, isInvalid) {
+  const field = dom.adjustWageDetailDialog.querySelector(`[data-adjust-wage-detail-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", isInvalid);
+}
+
+function renderAdjustmentAudits(adjustments, details) {
+  dom.adjustmentAuditCount.textContent = `${adjustments.length} 条`;
+  dom.adjustmentAuditEmpty.classList.toggle("is-hidden", adjustments.length > 0);
+
+  if (!adjustments.length) {
+    dom.adjustmentAuditList.innerHTML = "";
+    return;
+  }
+
+  const detailsById = new Map(details.map((detail) => [detail.id, detail]));
+  dom.adjustmentAuditList.innerHTML = adjustments.map((adjustment) => {
+    const detail = detailsById.get(adjustment.wage_detail_id);
+    return `
+      <article class="detail-list-card">
+        <div class="detail-list-card-header">
+          <strong>${escapeHtml(shortId(adjustment.id))}</strong>
+          <span>${escapeHtml(formatDate(adjustment.created_at))}</span>
+        </div>
+        ${renderDefinitionList([
+          ["明细", adjustmentDetailLabel(detail, adjustment)],
+          ["结算课时", formatNumberChange(adjustment.old_pay_hours, adjustment.new_pay_hours)],
+          ["课时工资 JPY", formatCurrencyChange(adjustment.old_lesson_wage_jpy, adjustment.new_lesson_wage_jpy, "JPY")],
+          ["交通费 JPY", formatCurrencyChange(adjustment.old_transport_fee_jpy, adjustment.new_transport_fee_jpy, "JPY")],
+          ["教室费 JPY", formatCurrencyChange(adjustment.old_classroom_fee_jpy, adjustment.new_classroom_fee_jpy, "JPY")],
+          ["明细合计 JPY", formatCurrencyChange(adjustment.old_total_jpy, adjustment.new_total_jpy, "JPY")],
+          ["快照合计 JPY", formatCurrencyChange(adjustment.old_lock_total_jpy, adjustment.new_lock_total_jpy, "JPY")],
+          ["备注", displayValue(adjustment.reason)],
+        ])}
+      </article>
+    `;
+  }).join("");
+}
+
+function adjustmentDetailLabel(detail, adjustment) {
+  if (!detail) {
+    return `工资明细 ${shortId(adjustment.wage_detail_id)}`;
+  }
+
+  return [
+    formatDateOnly(detail.lesson_date),
+    displayValue(detail.student_name),
+    displayValue(detail.subject_name),
+  ].filter((value) => value && value !== "-").join(" / ");
+}
+
+function formatNumberChange(oldValue, newValue) {
+  return `${displayValue(oldValue)} -> ${displayValue(newValue)}`;
+}
+
+function formatCurrencyChange(oldValue, newValue, currency) {
+  return `${formatCurrency(oldValue, currency)} -> ${formatCurrency(newValue, currency)}`;
 }
 
 function handleWageDutyReportExport() {
@@ -814,6 +1133,11 @@ function timeOnly(value) {
 function numberOrZero(value) {
   const numberValue = Number(value || 0);
   return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function numberInputValue(value) {
+  const numberValue = Number(value || 0);
+  return Number.isFinite(numberValue) ? String(numberValue) : "0";
 }
 
 function renderDefinitionList(items) {

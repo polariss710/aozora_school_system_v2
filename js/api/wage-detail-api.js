@@ -76,18 +76,54 @@ const PAYMENT_REQUEST_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const WAGE_DETAIL_ADJUSTMENT_COLUMNS = [
+  "id",
+  "wage_lock_id",
+  "wage_detail_id",
+  "reason",
+  "old_pay_hours",
+  "new_pay_hours",
+  "old_lesson_wage_jpy",
+  "new_lesson_wage_jpy",
+  "old_lesson_wage_cny",
+  "new_lesson_wage_cny",
+  "old_transport_fee_jpy",
+  "new_transport_fee_jpy",
+  "old_classroom_fee_jpy",
+  "new_classroom_fee_jpy",
+  "old_total_jpy",
+  "new_total_jpy",
+  "old_total_cny",
+  "new_total_cny",
+  "old_lock_pay_hours",
+  "new_lock_pay_hours",
+  "old_lock_lesson_wage_jpy",
+  "new_lock_lesson_wage_jpy",
+  "old_lock_lesson_wage_cny",
+  "new_lock_lesson_wage_cny",
+  "old_lock_fee_jpy",
+  "new_lock_fee_jpy",
+  "old_lock_total_jpy",
+  "new_lock_total_jpy",
+  "old_lock_total_cny",
+  "new_lock_total_cny",
+  "created_at",
+].join(",");
+
 export async function fetchWageDetailPage(wageLockId) {
   const wageLock = await fetchWageLock(wageLockId);
 
-  const [details, paymentRequests] = await Promise.all([
+  const [details, paymentRequests, adjustments] = await Promise.all([
     fetchWageLockDetails(wageLock.id),
     fetchPaymentRequests(wageLock.id),
+    fetchWageDetailAdjustments(wageLock.id),
   ]);
 
   return {
     wageLock,
     details,
     paymentRequests,
+    adjustments,
   };
 }
 
@@ -100,6 +136,28 @@ export async function createTeacherWagePaymentRequest({
     p_wage_lock_id: wageLockId,
     p_due_date: dueDate || null,
     p_note: note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.[0] || null;
+}
+
+export async function adjustTeacherWageDetail({
+  wageDetailId,
+  payHours,
+  transportFeeJpy,
+  classroomFeeJpy,
+  reason,
+}) {
+  const { data, error } = await supabase.rpc("school_adjust_teacher_wage_detail", {
+    p_wage_detail_id: wageDetailId,
+    p_pay_hours: payHours,
+    p_transport_fee_jpy: transportFeeJpy,
+    p_classroom_fee_jpy: classroomFeeJpy,
+    p_reason: reason,
   });
 
   if (error) {
@@ -150,6 +208,20 @@ async function fetchPaymentRequests(wageLockId) {
     .eq("source_type", "teacher_wage")
     .eq("source_id", wageLockId)
     .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function fetchWageDetailAdjustments(wageLockId) {
+  const { data, error } = await supabase
+    .from("school_teacher_wage_detail_adjustments")
+    .select(WAGE_DETAIL_ADJUSTMENT_COLUMNS)
+    .eq("wage_lock_id", wageLockId)
+    .order("created_at", { ascending: false });
 
   if (error) {
     throw error;
