@@ -209,7 +209,7 @@ Guard：
 - `wage-detail.html` / `js/pages/wage-detail-page.js` / `js/api/wage-detail-api.js` 是只读工资快照详情和支付请求生成入口。
 - 工资详情读取 `school_teacher_wage_locks`、`school_teacher_wage_lock_details` 和 `source_type = teacher_wage` 的 `school_payment_requests`。
 - `wage-rule.html` / `wage-rule-detail.html` 支持工资规则配置的读取、新增、编辑、停用/恢复；写入只影响 `school_teacher_wage_rules`，不重算历史工资。
-- `payment` 页面处理老师工资支付请求确认、撤销、取消、恢复、重发；支付确认后才进入支出与账户流水链路。
+- `payment` 页面处理老师工资支付请求确认、撤销、取消、恢复、重发；支付确认后才进入支出与账户流水链路。当前支付撤销会追加 `payment_reversal` 现金反转流水，并同步将对应 `teacher_wage` 支出标记为 `reversed`；历史反转支付不自动回填。
 
 ### 现有表形状
 

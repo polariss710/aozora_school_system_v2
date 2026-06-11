@@ -170,9 +170,9 @@ Reviewed current code and DB definitions:
 - `school_create_reimbursement_record` / `school_reverse_reimbursement_record` preserve source rows and write paired reimbursement account transactions. Target-month reimbursement chains passed current consistency checks.
 - `school_confirm_payment_request` creates one teacher_wage expense and one account transaction in one transaction and links both back to the payment request.
 
-Additional policy risk:
+Resolved future policy risk:
 
-- DB definition of `school_reverse_paid_payment_request` reverses account cash movement and marks the payment request `reversed`, but it does not mark the generated teacher_wage expense as `reversed`. This did not create a 2026-05/2026-06 paid-expense impact except one tiny 2026-06 reversed request without side effects, but all-time read-only check found reversed teacher_wage payment requests with still-paid teacher_wage expenses in older months (`2026-02`: 3 rows / JPY 141250; `2026-03`: 2 rows / JPY 160250). Whether this is intended audit policy or a profit-summary issue needs a separate business decision before changing口径.
+- Follow-up on 2026-06-11 replaced `school_reverse_paid_payment_request` for future reversals so it now reverses cash movement, marks the payment request `reversed`, and marks the generated teacher_wage expense `reversed` with the same `payment_reversal` transaction id. This did not repair historical rows. The all-time read-only check still found historical reversed teacher_wage payment requests with still-paid teacher_wage expenses in older months (`2026-02`: 3 rows / JPY 141250; `2026-03`: 2 rows / JPY 160250). Those rows require a separate explicit historical-data phase before any口径 or data change.
 
 ## Guarded Repair Plan
 
