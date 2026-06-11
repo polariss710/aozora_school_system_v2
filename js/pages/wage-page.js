@@ -3,6 +3,7 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchWageBusinessEntities,
   fetchWageLocks,
+  fetchWagePaymentRequests,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
 } from "../api/wage-api.js";
@@ -28,6 +29,14 @@ const WAGE_STATUS_LABELS = {
   void: "已作废",
 };
 
+const PAYMENT_REQUEST_STATUS_LABELS = {
+  pending: "待支付",
+  paid: "已支付",
+  reversed: "已撤销",
+  void: "已作废",
+  cancelled: "已取消",
+};
+
 const SETTLEMENT_TYPE_LABELS = {
   jpy_hourly: "日元时给",
   no_wage: "无工资",
@@ -37,6 +46,7 @@ const dom = {};
 let teachers = [];
 let businessEntities = [];
 let wageLocks = [];
+let wagePaymentRequests = [];
 let loadedMonth = "";
 let activeFilters = null;
 let startupFilters = null;
@@ -253,7 +263,13 @@ async function handleGenerateSubmit() {
 }
 
 async function loadWageMonth(month) {
-  wageLocks = sortWageLocks(await fetchWageLocks(month));
+  const [locks, paymentRequests] = await Promise.all([
+    fetchWageLocks(month),
+    fetchWagePaymentRequests(month),
+  ]);
+
+  wageLocks = sortWageLocks(locks);
+  wagePaymentRequests = paymentRequests;
   loadedMonth = month;
   renderDataOptions(wageLocks);
 }
@@ -361,6 +377,7 @@ function renderWageLocks(rows) {
       <td>${escapeHtml(displayBusinessName(row))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(settlementTypeLabel(row.settlement_type))}</span></td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(wageStatusLabel(row.status))}</span></td>
+      <td>${renderWageProcessState(row)}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.exchange_rate))}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.lesson_count))}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.total_minutes))}</td>
@@ -374,6 +391,71 @@ function renderWageLocks(rows) {
       <td class="wage-nowrap">${escapeHtml(formatDate(row.voided_at))}</td>
     </tr>
   `).join("");
+}
+
+function renderWageProcessState(row) {
+  const state = wageProcessState(row);
+  return `
+    <span
+      class="status-badge ${escapeAttribute(state.className)}"
+      title="${escapeAttribute(state.title)}"
+    >${escapeHtml(state.label)}</span>
+  `;
+}
+
+function wageProcessState(row) {
+  if (row.voided_at || row.status === "void") {
+    return {
+      label: "只读 / 已作废",
+      className: "status-void",
+      title: "已作废的工资快照不能调整或生成支付请求。",
+    };
+  }
+
+  if (row.status !== "locked") {
+    return {
+      label: "只读",
+      className: "status-neutral",
+      title: "只有已生成且未作废的工资快照可以继续处理。",
+    };
+  }
+
+  const requests = paymentRequestsForWageLock(row.id);
+  if (requests.length > 0) {
+    const status = effectivePaymentRequestStatus(requests);
+    return {
+      label: `只读 / ${paymentRequestStatusLabel(status)}`,
+      className: paymentRequestStatusClass(status),
+      title: "该工资快照已生成支付请求，明细调整和重复生成支付请求入口会在详情页关闭。",
+    };
+  }
+
+  if (Number(row.total_jpy || 0) <= 0) {
+    return {
+      label: "可调整 / 无可支付金额",
+      className: "status-neutral",
+      title: "未生成支付请求，可调整明细；当前合计为 0，详情页不会显示生成支付请求入口。",
+    };
+  }
+
+  return {
+    label: "可调整 / 可生成支付",
+    className: "status-paid",
+    title: "未生成支付请求，可在详情页调整明细或生成支付请求。",
+  };
+}
+
+function paymentRequestsForWageLock(wageLockId) {
+  return wagePaymentRequests.filter((request) => request.source_id === wageLockId);
+}
+
+function effectivePaymentRequestStatus(requests) {
+  if (requests.some((request) => request.status === "paid")) return "paid";
+  if (requests.some((request) => request.status === "pending")) return "pending";
+  if (requests.some((request) => request.status === "reversed")) return "reversed";
+  if (requests.some((request) => request.status === "cancelled")) return "cancelled";
+  if (requests.some((request) => request.status === "void")) return "void";
+  return requests[requests.length - 1]?.status || "";
 }
 
 function renderGenerateSummary(filters) {
@@ -570,6 +652,17 @@ function settlementTypeLabel(value) {
 
 function wageStatusLabel(value) {
   return WAGE_STATUS_LABELS[value] || displayValue(value);
+}
+
+function paymentRequestStatusLabel(value) {
+  return PAYMENT_REQUEST_STATUS_LABELS[value] || displayValue(value);
+}
+
+function paymentRequestStatusClass(value) {
+  if (value === "paid") return "status-paid";
+  if (value === "pending") return "status-pending";
+  if (value === "reversed" || value === "cancelled" || value === "void") return "status-cancelled";
+  return "status-neutral";
 }
 
 function statusClass(status) {
