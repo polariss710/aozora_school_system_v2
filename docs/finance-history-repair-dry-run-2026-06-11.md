@@ -14,7 +14,7 @@ Source documents:
 | Orphan account transactions -> missing expenses | 75 tx / 48 missing-source groups | JPY `-469918` net | `包垫付金额`, `吴垫付金额`, `GMOあおぞらネット銀行`, `吴个人结算账户日元` | 2026-04..2026-06 | High | No | Required |
 | Duplicate/split non-wage `expense_adjust` | 2 expenses | One over-post candidate JPY `29000`; one split source net-ok | `吴垫付金额` | 2026-05..2026-06 | High | No | Required |
 | Missing CNY income transactions | 10 income rows | CNY `128929` missing tx candidate amount | `吴个人结算账户日元` recorded, but account is JPY | 2026-02..2026-06 | High | No | Required |
-| Historical reversed teacher_wage payment with expense still paid | 5 payment/expense pairs | JPY `301500` still counted as paid expense unless excluded by policy | `吴个人结算账户日元` | Expense months 2026-02..2026-03; reversal tx month 2026-05 | Medium/High | No for history | Required |
+| Historical reversed teacher_wage payment with expense still paid | 5 payment/expense pairs | JPY `301500` before repair | `吴个人结算账户日元` | Expense months 2026-02..2026-03; reversal tx month 2026-05 | Medium/High | Completed by guarded SQL | Completed 2026-06-11 |
 | Account balance mismatch by `opening + all tx` | 6 accounts | JPY `361168` aggregate mismatch | 4 real accounts + 2 codex-test accounts | Latest tx through 2026-06 / 2028-12 test data | High | No | Required |
 
 Current code risk check:
@@ -213,6 +213,8 @@ Definition: `school_payment_requests.status = 'reversed'` for `source_type = 'te
 
 Future behavior has already been fixed by `school_reverse_paid_payment_request_rpc.sql`. This section is historical data only.
 
+Repair status: completed on 2026-06-11 by guarded one-time SQL `school_fix_historical_reversed_teacher_wage_expenses_20260611.sql`. The repair updated only the five generated `teacher_wage` expense rows listed below to `status = reversed`, copied each payment request `reversed_at`, and linked each expense `reversal_account_transaction_id` to the existing payment `payment_reversal` transaction. It created no new cash/account transactions and did not change wage locks/details.
+
 Dry-run details:
 
 | Request | Request Month | Payee | Amount | Expense | Expense Month | Expense Status | Account | Reversal Tx |
@@ -231,7 +233,7 @@ Summary:
 | 2026-03 | 2 | 160250 JPY |
 | Total | 5 | 301500 JPY |
 
-Recommendation:
+Original recommendation:
 
 - Risk: Medium/High.
 - Suggested automatic fix: No for historical rows.
@@ -240,23 +242,14 @@ Recommendation:
 - Do not add new cash transactions for these five rows because payment reversal transactions already exist.
 - Do not change wage locks/details in this historical repair.
 
-Draft SQL sketch:
+Executed guarded SQL:
 
 ```sql
--- Draft only. Do not execute as-is.
--- update public.school_expense_records e
--- set status = 'reversed',
---     reversed_at = p.reversed_at,
---     reversal_reason = 'historical teacher_wage payment reversal sync: <approved reason>',
---     reversal_account_transaction_id = p.reversal_transaction_id,
---     updated_at = now()
--- from public.school_payment_requests p
--- where p.paid_expense_id = e.id
---   and p.source_type = 'teacher_wage'
---   and p.status = 'reversed'
---   and e.status = 'paid'
---   and e.id = any (:approved_expense_ids)
---   and p.reversal_transaction_id is not null;
+-- See school_fix_historical_reversed_teacher_wage_expenses_20260611.sql.
+-- Post-repair check:
+-- historical reversed teacher_wage payment / paid expense mismatches = 0
+-- synced target count = 5
+-- synced target amount = JPY 301500
 ```
 
 ## 5. Account Balance Mismatch

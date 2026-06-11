@@ -172,7 +172,7 @@ Reviewed current code and DB definitions:
 
 Resolved future policy risk:
 
-- Follow-up on 2026-06-11 replaced `school_reverse_paid_payment_request` for future reversals so it now reverses cash movement, marks the payment request `reversed`, and marks the generated teacher_wage expense `reversed` with the same `payment_reversal` transaction id. This did not repair historical rows. The all-time read-only check still found historical reversed teacher_wage payment requests with still-paid teacher_wage expenses in older months (`2026-02`: 3 rows / JPY 141250; `2026-03`: 2 rows / JPY 160250). Those rows require a separate explicit historical-data phase before any口径 or data change.
+- Follow-up on 2026-06-11 replaced `school_reverse_paid_payment_request` for future reversals so it now reverses cash movement, marks the payment request `reversed`, and marks the generated teacher_wage expense `reversed` with the same `payment_reversal` transaction id. A separate guarded historical-data phase later on 2026-06-11 executed `school_fix_historical_reversed_teacher_wage_expenses_20260611.sql` for the exact five older rows (`2026-02`: 3 rows / JPY 141250; `2026-03`: 2 rows / JPY 160250), marking only the generated teacher_wage expenses `reversed` and linking them to existing payment reversal transactions. Post-repair historical reversed teacher_wage payment / paid expense mismatches are `0`.
 
 ## Guarded Repair Plan
 
