@@ -27,6 +27,7 @@ const EDIT_LESSON_FIELD_IDS = [
   "unitPrice",
   "lessonFee",
   "lessonCount",
+  "lessonContent",
   "isBillable",
 ];
 
@@ -112,6 +113,7 @@ export function createLessonEditDialogController(options) {
       ["unitPrice", dom.unitPriceInput],
       ["lessonFee", dom.feeInput],
       ["lessonCount", dom.countInput],
+      ["lessonContent", dom.contentInput],
       ["isBillable", dom.billableSelect],
     ].forEach(([fieldId, element]) => {
       element?.addEventListener("input", () => {
@@ -429,6 +431,8 @@ export function createLessonEditDialogController(options) {
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
     const lessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.feeInput.value);
     const lessonCount = nullableIntegerFromInput(dom.countInput.value);
+    const lessonContent = dom.contentInput.value.trim();
+    const requiresActualRequiredFields = isActual && ["completed", "makeup_completed"].includes(status);
     const invalidFields = [];
 
     if (!lesson.updated_at) invalidFields.push("lessonDate");
@@ -449,6 +453,11 @@ export function createLessonEditDialogController(options) {
     }
     if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
     if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+    if (requiresActualRequiredFields) {
+      if (!startTime) invalidFields.push("startTime");
+      if (!endTime) invalidFields.push("endTime");
+      if (!lessonContent) invalidFields.push("lessonContent");
+    }
     const timeValidation = validateLessonTimeRange(startTime, endTime);
     let validationMessage = "";
     if (timeValidation.status === "error") {
@@ -469,7 +478,9 @@ export function createLessonEditDialogController(options) {
     if (invalidFields.length) {
       const message = isActual && status !== lesson.status
         ? "actual 课时 V1 不允许修改状态。"
-        : validationMessage || "请检查编辑课时表单中的必填项和数字格式。";
+        : validationMessage
+          || (requiresActualRequiredFields ? "已完成 / 补课完成 actual 必须填写开始时间、结束时间和课程内容。" : "")
+          || "请检查编辑课时表单中的必填项和数字格式。";
       showError(message, Array.from(new Set(invalidFields)));
       return null;
     }
@@ -490,7 +501,7 @@ export function createLessonEditDialogController(options) {
       lessonFee,
       isBillable,
       lessonCount,
-      lessonContent: dom.contentInput.value.trim(),
+      lessonContent,
       note: dom.noteInput.value.trim(),
     };
   }
@@ -535,6 +546,7 @@ export function createLessonEditDialogController(options) {
     if (text.includes("单价")) fields.push("unitPrice");
     if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
     if (text.includes("回数")) fields.push("lessonCount");
+    if (text.includes("内容") || text.includes("课程内容")) fields.push("lessonContent");
     if (text.includes("计费")) fields.push("isBillable");
     if (text.includes("版本") || text.includes("刷新") || text.includes("updated_at")) fields.push("lessonDate");
     return fields;

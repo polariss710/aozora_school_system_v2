@@ -449,7 +449,7 @@ function renderExpenseRecords(rows) {
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(expenseStatusLabel(row.status))}</span></td>
       <td>${renderWagePaymentStatus(row)}</td>
       <td>${escapeHtml(displayValue(row.receipt_status))}</td>
-      <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status))}</td>
+      <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status, row.expense_category))}</td>
       <td class="expense-nowrap">${renderAttachmentStatus(row)}</td>
       <td class="expense-note-cell">${escapeHtml(displayValue(row.note))}</td>
       <td class="expense-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
@@ -907,7 +907,7 @@ function matchesKeyword(row, keyword) {
     row.status,
     wagePaymentStatusLabel(wagePaymentStatusKey(row)),
     row.receipt_status,
-    reimbursementStatusLabel(row.reimbursement_status),
+    reimbursementStatusLabel(row.reimbursement_status, row.expense_category),
     row.reimbursement_status,
     row.description,
     row.note,
@@ -1039,7 +1039,16 @@ function expenseStatusLabel(value) {
   return EXPENSE_STATUS_LABELS[value] || displayValue(value);
 }
 
-function reimbursementStatusLabel(value) {
+function reimbursementStatusLabel(value, expenseCategory = "") {
+  if (expenseCategory === "teacher_wage") {
+    if (value === "pending") {
+      return "工资垫付待清算";
+    }
+    if (value === "not_required") {
+      return "无需清算（公司账户支付）";
+    }
+  }
+
   return REIMBURSEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 

@@ -227,7 +227,7 @@ function renderExpense(expense, paymentRequest) {
         ["JPY 金额", formatCurrency(expense.amount_jpy, "JPY")],
         ["CNY 金额", formatCurrency(expense.amount_cny, "CNY")],
         ["支出状态", displayValue(expense.status)],
-        ["报销状态", reimbursementStatusLabel(expense.reimbursement_status)],
+        ["报销状态", reimbursementStatusLabel(expense.reimbursement_status, expense.expense_category)],
         ["创建时间", formatDate(expense.created_at)],
       ])}
     </article>
@@ -367,7 +367,16 @@ function expenseCategoryLabel(value) {
   return EXPENSE_CATEGORY_LABELS[value] || displayValue(value);
 }
 
-function reimbursementStatusLabel(value) {
+function reimbursementStatusLabel(value, expenseCategory = "") {
+  if (expenseCategory === "teacher_wage") {
+    if (value === "pending") {
+      return "工资垫付待清算";
+    }
+    if (value === "not_required") {
+      return "无需清算（公司账户支付）";
+    }
+  }
+
   return REIMBURSEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 

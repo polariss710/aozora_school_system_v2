@@ -318,7 +318,7 @@ function renderExpenseDetails(rows) {
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount_jpy, "JPY"))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount_cny, "CNY"))}</td>
         <td>${escapeHtml(displayValue(row.status))}</td>
-        <td>${escapeHtml(displayValue(row.reimbursement_status))}</td>
+        <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status, row.expense_category))}</td>
         <td>${escapeHtml(displayValue(row.note))}</td>
       </tr>
     `)
@@ -404,6 +404,22 @@ function expenseCategoryLabel(category) {
   }
 
   return displayValue(category);
+}
+
+function reimbursementStatusLabel(value, expenseCategory = "") {
+  if (expenseCategory === "teacher_wage") {
+    if (value === "pending") {
+      return "工资垫付待清算";
+    }
+    if (value === "not_required") {
+      return "无需清算（公司账户支付）";
+    }
+  }
+
+  if (value === "pending") return "待报销";
+  if (value === "paid") return "已报销";
+  if (value === "not_required") return "无需报销";
+  return displayValue(value);
 }
 
 function formatDateOnly(value) {

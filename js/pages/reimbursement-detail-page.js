@@ -284,7 +284,7 @@ function renderExpenseItems(items, expenses, reimbursementCurrency) {
         <td class="reimbursement-nowrap">${escapeHtml(displayValue(expense?.currency))}</td>
         <td><span class="status-badge ${escapeAttribute(statusClass(expense?.status))}">${escapeHtml(expenseStatusLabel(expense?.status))}</span></td>
         <td class="reimbursement-nowrap">${escapeHtml(displayValue(expense?.receipt_status))}</td>
-        <td class="reimbursement-nowrap">${escapeHtml(expenseReimbursementStatusLabel(expense?.reimbursement_status))}</td>
+        <td class="reimbursement-nowrap">${escapeHtml(expenseReimbursementStatusLabel(expense?.reimbursement_status, expense?.expense_category))}</td>
         <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(item.note || expense?.note))}</span></td>
         <td class="reimbursement-nowrap">${expense?.id ? `<a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(expense.id)}">详情</a>` : "-"}</td>
       </tr>
@@ -511,7 +511,16 @@ function expenseCategoryLabel(value) {
   return EXPENSE_CATEGORY_LABELS[value] || displayValue(value);
 }
 
-function expenseReimbursementStatusLabel(value) {
+function expenseReimbursementStatusLabel(value, expenseCategory = "") {
+  if (expenseCategory === "teacher_wage") {
+    if (value === "pending") {
+      return "工资垫付待清算";
+    }
+    if (value === "not_required") {
+      return "无需清算（公司账户支付）";
+    }
+  }
+
   return REIMBURSEMENT_STATUS[value] || displayValue(value);
 }
 

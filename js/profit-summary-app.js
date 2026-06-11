@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initProfitSummaryPage } from "./pages/profit-summary-page.js?v=v2.35.0-profit-summary-readonly-full-autopilot-trial-20260607";
+import { initProfitSummaryPage } from "./pages/profit-summary-page.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

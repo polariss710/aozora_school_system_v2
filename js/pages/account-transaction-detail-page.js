@@ -595,7 +595,7 @@ function sourceDefinitionItems(table, row) {
       ["JPY 金额", formatCurrency(row.amount_jpy, "JPY")],
       ["CNY 金额", formatCurrency(row.amount_cny, "CNY")],
       ["状态", displayValue(row.status)],
-      ["报销状态", displayValue(row.reimbursement_status)],
+      ["报销状态", reimbursementStatusLabel(row.reimbursement_status, row.expense_category)],
       ["账户", accountNameById(row.account_id)],
       ["创建时间", formatDate(row.created_at)],
     ];
@@ -742,6 +742,22 @@ function transactionTypeLabel(type) {
 
 function accountTypeLabel(type) {
   return ACCOUNT_TYPE_LABELS[type] || displayValue(type);
+}
+
+function reimbursementStatusLabel(value, expenseCategory = "") {
+  if (expenseCategory === "teacher_wage") {
+    if (value === "pending") {
+      return "工资垫付待清算";
+    }
+    if (value === "not_required") {
+      return "无需清算（公司账户支付）";
+    }
+  }
+
+  if (value === "pending") return "待报销";
+  if (value === "paid") return "已报销";
+  if (value === "not_required") return "无需报销";
+  return displayValue(value);
 }
 
 function relatedTableLabel(table) {

@@ -327,6 +327,20 @@ begin
       raise exception 'actual 课时 V1 不允许修改状态。';
     end if;
 
+    if v_status in ('completed', 'makeup_completed') then
+      if v_start_time is null then
+        raise exception '已完成 / 补课完成 actual 必须填写开始时间。';
+      end if;
+
+      if v_end_time is null then
+        raise exception '已完成 / 补课完成 actual 必须填写结束时间。';
+      end if;
+
+      if v_lesson_content is null then
+        raise exception '已完成 / 补课完成 actual 必须填写课程内容。';
+      end if;
+    end if;
+
     if v_lesson.planned_lesson_id is not null and (
       p_student_id is distinct from v_lesson.student_id
       or p_teacher_id is distinct from v_lesson.teacher_id

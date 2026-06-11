@@ -278,8 +278,17 @@ function applyCurrentFilters() {
     return;
   }
 
-  restoreFilterSelections(filters);
-  renderSettlements(filterSettlements(settlements, filters));
+  renderWithFilters(filters);
+}
+
+function renderWithFilters(filters) {
+  const safeFilters = {
+    month: filters?.month || loadedMonth || currentYearMonth(),
+    ...DEFAULT_FILTERS,
+    ...(filters || {}),
+  };
+  restoreFilterSelections(safeFilters);
+  renderSettlements(filterSettlements(settlements, safeFilters));
 }
 
 function readFilters() {
@@ -494,6 +503,7 @@ async function handleLockSubmit() {
 
   try {
     const sourceRow = currentLockSettlement;
+    const filtersBeforeSubmit = readFilters();
     const result = await lockStudentMonthlySettlement({
       studentId: sourceRow.student_id,
       yearMonth: sourceRow.year_month,
@@ -501,7 +511,10 @@ async function handleLockSubmit() {
     });
     closeLockDialog(true);
     await loadSettlementMonth(sourceRow.year_month);
-    applyCurrentFilters();
+    renderWithFilters({
+      ...(filtersBeforeSubmit || {}),
+      month: sourceRow.year_month,
+    });
     showMessage("success", `学生月度结算已锁定：${shortId(result?.settlement_id || result?.id)}。`);
   } catch (error) {
     showLockError(error.message || String(error));
@@ -672,6 +685,7 @@ async function handleStatusActionSubmit() {
   try {
     const sourceRow = currentStatusActionSettlement;
     const action = currentStatusAction;
+    const filtersBeforeSubmit = readFilters();
     const result = action === "unlock"
       ? await unlockStudentMonthlySettlement({
         settlementId: sourceRow.id,
@@ -683,7 +697,10 @@ async function handleStatusActionSubmit() {
       });
     closeStatusActionDialog(true);
     await loadSettlementMonth(sourceRow.year_month);
-    applyCurrentFilters();
+    renderWithFilters({
+      ...(filtersBeforeSubmit || {}),
+      month: sourceRow.year_month,
+    });
     showMessage("success", action === "unlock"
       ? `学生月度结算锁定已撤销：${shortId(result?.settlement_id || result?.id)}。`
       : `学生月度结算已重新锁定：${shortId(result?.settlement_id || result?.id)}。`);
@@ -832,6 +849,7 @@ async function handleAdjustmentSubmit() {
 
   try {
     const sourceRow = currentAdjustmentSettlement;
+    const filtersBeforeSubmit = readFilters();
     const result = await setStudentMonthlySettlementDraftAdjustment({
       studentId: sourceRow.student_id,
       yearMonth: sourceRow.year_month,
@@ -842,7 +860,10 @@ async function handleAdjustmentSubmit() {
     });
     closeAdjustmentDialog(true);
     await loadSettlementMonth(sourceRow.year_month);
-    applyCurrentFilters();
+    renderWithFilters({
+      ...(filtersBeforeSubmit || {}),
+      month: sourceRow.year_month,
+    });
     showMessage("success", `锁定前差额调整已保存：${shortId(result?.draft_id)}；预览结转已更新。`);
   } catch (error) {
     showAdjustmentError(error.message || String(error));

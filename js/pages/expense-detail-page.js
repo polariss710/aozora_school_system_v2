@@ -228,7 +228,7 @@ function renderExpenseDetail(data) {
 
   dom.receiptInfo.innerHTML = renderDefinitionList([
     ["收据状态", displayValue(expense.receipt_status)],
-    ["报销状态", reimbursementStatusLabel(expense.reimbursement_status)],
+    ["报销状态", reimbursementStatusLabel(expense.reimbursement_status, expense.expense_category)],
     ["报销备注", displayValue(expense.reimbursement_note)],
   ]);
 
@@ -678,7 +678,7 @@ function renderReverseSummary(expense) {
     ["描述", displayValue(expense.description)],
     ["金额", formatCurrency(expense.amount, expense.currency)],
     ["账户", accountNameById(expense.account_id)],
-    ["报销状态", reimbursementStatusLabel(expense.reimbursement_status)],
+    ["报销状态", reimbursementStatusLabel(expense.reimbursement_status, expense.expense_category)],
   ]);
 }
 
@@ -803,7 +803,16 @@ function expenseStatusLabel(value) {
   return EXPENSE_STATUS_LABELS[value] || displayValue(value);
 }
 
-function reimbursementStatusLabel(value) {
+function reimbursementStatusLabel(value, expenseCategory = "") {
+  if (expenseCategory === "teacher_wage") {
+    if (value === "pending") {
+      return "工资垫付待清算";
+    }
+    if (value === "not_required") {
+      return "无需清算（公司账户支付）";
+    }
+  }
+
   return REIMBURSEMENT_STATUS_LABELS[value] || displayValue(value);
 }
 
