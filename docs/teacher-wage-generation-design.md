@@ -152,7 +152,7 @@ UI 验证记录：
 
 ## DB/RPC MVP checkpoint
 
-2026-06-10 已新增并执行 `school_generate_teacher_monthly_wage_rpc.sql`，创建 verified RPC:
+2026-06-10 已新增并执行 `school_generate_teacher_monthly_wage_rpc.sql`，创建 verified RPC。2026-06-11 后续更新支持同一老师同月按业务归属拆分生成多个工资快照，并补齐 actual_minutes 同步保护：
 
 `public.school_generate_teacher_monthly_wage(p_year_month text, p_teacher_id uuid default null)`
 
@@ -164,6 +164,7 @@ UI 验证记录：
 - 按 `coalesce(teacher_settlement_month, year_month) = p_year_month` 进入工资月份；跨月补课 actual 因已落在补课月份，所以进入补课月份工资。
 - `is_billable` 不影响老师工资；非计费 `makeup_completed` actual 仍计入。
 - 直接生成底层 `status = locked` 的工资快照，不做 draft。
+- 按 `teacher_id + business_entity_id + settlement_month` 生成工资快照；同一老师同月跨多个业务归属时生成多个快照。
 - 只写 `school_teacher_wage_locks` 和 `school_teacher_wage_lock_details`。
 - 不修改 `school_lesson_records`。
 - 不写 `school_payment_requests`、`school_expense_records`、`school_accounts`、`school_account_transactions`、`school_income_records`、`school_student_monthly_settlements`。
@@ -183,9 +184,8 @@ Guard：
 - 可选 `p_teacher_id` 必须存在。
 - 候选 actual 必须有老师、学生、科目、业务归属和 `actual_minutes`。
 - 同一 actual 已存在 `school_teacher_wage_lock_details.lesson_record_id` 时拒绝。
-- 目标候选老师在同一月份已存在任何 `school_teacher_wage_locks` 时拒绝重复生成。
+- 目标候选老师 + 业务归属在同一月份已存在任何 `school_teacher_wage_locks` 时拒绝重复生成。
 - 每条 actual 必须命中且只命中一条启用工资规则。
-- 同一老师同月候选 actual 跨多个业务归属时拒绝；当前工资快照主表只有一个 `business_entity_id` 字段，多业务归属需要后续单独设计。
 
 验证记录：
 
@@ -274,8 +274,8 @@ MVP 应只读取 `school_lesson_records` 中的 actual 行，候选条件建议�
 - `teacher_settlement_month`: 工资月口径，应优先于 lesson `year_month`。
 - `lesson_type`: 只允许 actual。
 - `status`: MVP 建议只纳入 `completed` 和 `makeup_completed`。
-- `actual_minutes`: 优先作为 pay minutes 来源；若为空但 `duration_hours` 有值，是否 fallback 需要下一阶段确认并写入 guard。
-- `duration_hours`: 可作为只读校验或 fallback 候选，不应替代已写好的 `actual_minutes` 口径。
+- `actual_minutes`: 作为 pay minutes 来源；`trg_school_lesson_actual_minutes_sync` 会在未来 actual completed / makeup_completed 写入或更新时从 `duration_hours` 派生，`school_backfill_actual_minutes_from_duration` 可在服务端 guarded workflow 中补齐或同步指定月份的缺失/不一致分钟。
+- `duration_hours`: 页面显示时长来源，也是 actual_minutes 同步的派生来源；工资生成仍读取同步后的 `actual_minutes`，不在生成 RPC 内临时 fallback。
 - `is_billable`: 学生收费口径，不应默认排除老师工资；跨月补课的 non-billable actual 仍应作为老师已上课事实进入候选，除非业务另行确认排除。
 - `lesson_fee`: 学生学费口径，不应用于老师工资计算。
 - `lesson_count`: 当前工资快照主表有 `lesson_count`，但工资规则是 hourly 口径；MVP 应明确是否只是统计字段，不作为金额计算来源。

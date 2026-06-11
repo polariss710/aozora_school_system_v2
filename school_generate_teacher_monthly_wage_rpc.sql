@@ -9,9 +9,7 @@
 -- - Read only actual lessons with status completed / makeup_completed.
 -- - Write only public.school_teacher_wage_locks and
 --   public.school_teacher_wage_lock_details.
--- - Generate one wage lock per teacher/month in this MVP. A teacher/month with
---   actual lessons under multiple business entities is rejected for a later
---   explicit design because the wage lock header has one business entity field.
+-- - Generate one wage lock per teacher + business entity + month.
 --
 -- Business rules:
 -- - planned lessons do not participate.
@@ -44,8 +42,8 @@
 --   f5fe1fe3-f9e1-45d4-ac50-270c9b609d58 and detail ids
 --   aad48406-c0cc-499b-b2a5-0fd7e1709688 /
 --   1ad4f156-e869-4a36-aa47-c12edaa18da6.
--- - 2026-06-10 follow-up changed guard order so existing same-teacher/month
---   wage snapshots are rejected before missing-field actual validation.
+-- - 2026-06-11 follow-up supports one wage snapshot per
+--   teacher/business/month while preserving the per-lesson wage formula.
 -- - Protected payment, expense, account, account transaction, income, and
 --   student settlement table counts stayed unchanged.
 
@@ -81,7 +79,6 @@ declare
   v_duplicate_rule_count integer;
   v_existing_detail_count integer;
   v_existing_lock_count integer;
-  v_multi_business_teacher_count integer;
 begin
   if v_year_month is null then
     raise exception '请选择工资月份。';
@@ -131,19 +128,21 @@ begin
   select count(*)
   into v_existing_lock_count
   from (
-    select distinct c.teacher_id
+    select distinct c.teacher_id, c.business_entity_id
     from raw_candidates c
     where c.teacher_id is not null
-  ) target_teachers
+      and c.business_entity_id is not null
+  ) target_groups
   where exists (
     select 1
     from public.school_teacher_wage_locks w
-    where w.teacher_id = target_teachers.teacher_id
+    where w.teacher_id = target_groups.teacher_id
+      and w.business_entity_id is not distinct from target_groups.business_entity_id
       and w.settlement_month = v_year_month
   );
 
   if v_existing_lock_count > 0 then
-    raise exception '目标老师月份已有工资记录，不能重复生成。';
+    raise exception '目标老师业务归属月份已有工资记录，不能重复生成。';
   end if;
 
   with raw_candidates as (
@@ -191,29 +190,6 @@ begin
 
   if v_bad_actual_count > 0 then
     raise exception '存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时，不能生成工资。';
-  end if;
-
-  with raw_candidates as (
-    select lr.*
-    from public.school_lesson_records lr
-    where coalesce(lr.app_type, '') = 'school'
-      and lr.lesson_type = 'actual'
-      and lr.status in ('completed', 'makeup_completed')
-      and lr.voided_at is null
-      and coalesce(lr.teacher_settlement_month, lr.year_month) = v_year_month
-      and (p_teacher_id is null or lr.teacher_id = p_teacher_id)
-  )
-  select count(*)
-  into v_multi_business_teacher_count
-  from (
-    select c.teacher_id
-    from raw_candidates c
-    group by c.teacher_id
-    having count(distinct c.business_entity_id) > 1
-  ) multi_business;
-
-  if v_multi_business_teacher_count > 0 then
-    raise exception '同一老师同月存在多个业务归属的 actual 课时，MVP 不能生成单一工资锁。';
   end if;
 
   with raw_candidates as (
@@ -309,7 +285,7 @@ begin
     select
       c.teacher_id,
       max(c.teacher_name) as teacher_name,
-      min(c.business_entity_id::text)::uuid as business_entity_id,
+      c.business_entity_id,
       max(c.business_name) as business_name,
       case
         when bool_and(c.settlement_type = 'no_wage') then 'no_wage'
@@ -321,7 +297,7 @@ begin
       sum(c.lesson_wage_jpy)::numeric as lesson_wage_jpy,
       sum(c.lesson_wage_jpy)::numeric as total_jpy
     from candidate_rules c
-    group by c.teacher_id
+    group by c.teacher_id, c.business_entity_id
   ),
   inserted_locks as (
     insert into public.school_teacher_wage_locks as w (
@@ -430,7 +406,9 @@ begin
       c.lesson_status,
       c.lesson_content
     from candidate_rules c
-    join inserted_locks il on il.teacher_id = c.teacher_id
+    join inserted_locks il
+      on il.teacher_id = c.teacher_id
+     and il.business_entity_id is not distinct from c.business_entity_id
     returning d.lock_id
   ),
   detail_counts as (
