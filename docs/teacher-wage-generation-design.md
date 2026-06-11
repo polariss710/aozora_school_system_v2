@@ -1,11 +1,11 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: MVP implemented; payment request generation implemented; payment confirmation account-type boundary verified; snapshot wording aligned; current-month generation safety documented
+Status: MVP implemented; payment request generation implemented; guarded unpaid snapshot void implemented; payment confirmation account-type boundary verified; snapshot wording aligned; current-month generation safety documented
 Date: 2026-06-11
 
 ## 目标
 
-本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资快照生成待支付请求接入 `wage-detail.html`。v2 不再提供单独的用户侧二次固化步骤：生成工资本身就是生成并固化工资结算快照。预览 UI、工资快照 void/reissue 生命周期仍未实现。
+本设计用于启动“老师工资生成”模块的 guarded workflow。最初阶段只调查现状、整理边界和建议 MVP；2026-06-10 后续 DB/RPC phase 已实现工资生成 MVP 的 guarded RPC，同日 API/UI phase 已把生成入口接入 `wage.html`，并在后续阶段把工资快照生成待支付请求接入 `wage-detail.html`。v2 不再提供单独的用户侧二次固化步骤：生成工资本身就是生成并固化工资结算快照。2026-06-11 已补齐未支付/未请求工资快照的 guarded void 入口；业务归属单独生成、restore/reissue beyond void、金额实时预览仍是后续单独设计。
 
 ## Snapshot wording and flow checkpoint
 
@@ -37,7 +37,63 @@ Date: 2026-06-11
 - 当前月份或未结月份的真实业务数据不得用于真实工资生成、快照生成、结账或锁定类写入验证。
 - 工资生成验证必须优先使用 codex-test 白名单数据或 transaction rollback。
 - 除非用户明确授权作为正式业务操作，否则不得对真实未结月份执行会导致锁定的生成类 RPC。
-- 2026-06 本次回退是用户授权的定点修复，不代表系统已有通用工资快照删除/void/reissue 生命周期。
+- 2026-06 本次回退是用户授权的定点修复；后续通用处理应使用已验证的 `school_void_teacher_wage_lock` guarded void 语义，而不是手工删除真实工资快照/明细。
+
+## Guarded unpaid snapshot void checkpoint
+
+2026-06-11 已新增并执行 `school_teacher_wage_locks_void_audit_schema.sql`：
+
+- `school_teacher_wage_locks.void_reason`
+- `school_teacher_wage_locks.voided_by`
+- `school_teacher_wage_locks.void_source`
+
+这些字段只用于新的撤销审计；执行后确认历史记录没有被回填。
+
+同日新增并执行 `school_void_teacher_wage_lock_rpc.sql`，创建 verified RPC：
+
+`public.school_void_teacher_wage_lock(p_wage_lock_id uuid, p_reason text, p_operator text default null, p_source text default 'v2_wage_detail')`
+
+实现范围：
+
+- 只接受存在的 `school_teacher_wage_locks`。
+- 必须填写撤销原因。
+- 只允许 `status = locked` 且 `voided_at is null` 的快照。
+- 拒绝重复撤销。
+- 拒绝任何 `source_type = teacher_wage` 且 `source_id = wage_lock.id` 的 payment request；即使 pending/cancelled/reversed 也不在本阶段自动撤销工资快照。
+- 拒绝已存在 paid/generated expense、salary-payment expense 或 direct account transaction dependency。
+- 校验快照 teacher/month/business 字段完整。
+- 校验明细存在且 detail 聚合金额、课时、分钟、业务归属与主表一致。
+- 只更新工资快照主表：`status = void`、`voided_at`、`void_reason`、`voided_by`、`void_source`、`updated_at`。
+
+不做的事：
+
+- 不删除 `school_teacher_wage_lock_details`。
+- 不修改 `school_lesson_records`、`actual_minutes` 或 lesson status。
+- 不写 payment request、expense、account transaction、account balance、income、student settlement、wage rule。
+- 不改变工资金额公式。
+
+兼容修正：
+
+- `school_generate_teacher_monthly_wage` 的重复生成 blocker 已改为只阻塞 active `status = locked and voided_at is null` 的工资快照。
+- `school_generate_teacher_monthly_wage` 的 already-detailed blocker 已改为只阻塞 parent wage lock active 的明细；void 快照下保留的明细不再阻止重新生成。
+- `school_update_lesson_record_guarded` 对 actual 的 wage-detail 引用 blocker 已改为只阻塞 parent wage lock active 的明细；void 快照下保留的明细不再阻止来源 actual 后续编辑。
+- 生成粒度仍为 `teacher + business_entity + month`；本轮未新增 business-entity 参数，也未改金额口径。
+
+页面接入：
+
+- `wage-detail.html` 增加 `撤销快照` 按钮，只在未生成 payment request 的 `locked` 快照显示。
+- 撤销确认弹窗必须填写原因并勾选确认。
+- 确认文案说明：撤销后快照作废、课时不会删除、`actual_minutes` 不会修改、对应课时可重新进入候选范围、已生成支付请求/已支付不可撤销。
+- 页面通过 `js/api/wage-detail-api.js` 的 `voidTeacherWageLock` 调用 RPC；页面模块不直接 `.rpc()`，也不直接 update/delete/upsert。
+- 成功后刷新详情，按钮隐藏并显示只读原因。
+
+验证记录：
+
+- Rollback test 使用临时 codex-test 2029-03 actual lesson，在事务内生成工资快照、调用 `school_void_teacher_wage_lock` 撤销、验证重复撤销拒绝、有 pending payment request 的快照拒绝、有 paid payment request 的快照拒绝、void 明细不再阻塞 generation/edit、source actual 可在 void 后由 `school_update_lesson_record_guarded` 编辑且 `actual_minutes = 120` 保持正确、同一 source lesson 可再次生成工资快照；随后 rollback，lesson/lock/rule residue 均为 `0`。
+- Whitelist commit test 使用 codex-test lesson `93000000-0000-4000-8000-000000092201`、persistent void wage lock `da98714f-9b2e-4587-bddc-92a61986ba7c`。撤销后 active lock blockers `0`、active detail blockers `0`、source lesson `actual_minutes = 120`，并在事务内验证重新生成可通过后 rollback。
+- Browser UI test 使用 codex-test lesson `93000000-0000-4000-8000-000000092301`、persistent void wage lock `80210313-481c-4b7b-a5f8-6df8fe2ac358`。390px 页面确认撤销按钮、必填原因校验、确认复选框、成功刷新、只读原因和无横向溢出均通过。
+- Protected counts after commit/browser tests stayed unchanged: payment requests `76`, expenses `47`, account transactions `240`。
+- Real 2026-06 stayed read-only: wage locks `0`, wage details `0`, candidate actual lessons `24`, candidate minutes `2775`, missing `actual_minutes` `0`, active detail blockers `0`; no real June wage generation was executed.
 
 ## No-snapshot candidate preview checkpoint
 
@@ -212,8 +268,9 @@ Guard：
 - 可选 `p_teacher_id` 必须存在。
 - 候选 actual 必须有老师、学生、科目、业务归属和 `actual_minutes`。
 - 同一 actual 已存在 `school_teacher_wage_lock_details.lesson_record_id` 时拒绝。
-- 目标候选老师 + 业务归属在同一月份已存在任何 `school_teacher_wage_locks` 时拒绝重复生成。
+- 目标候选老师 + 业务归属在同一月份已存在 active `status = locked and voided_at is null` 的 `school_teacher_wage_locks` 时拒绝重复生成；void 快照不再阻塞。
 - 每条 actual 必须命中且只命中一条启用工资规则。
+- 同一 actual 已存在 active wage detail 引用时拒绝；void 快照下保留的明细作为审计保留，不再阻塞重新生成。
 
 验证记录：
 
@@ -227,7 +284,7 @@ Guard：
 
 - 只读候选/错误预览 UI。
 - 支付确认、支出生成、账户流水生成已经由支付模块处理，后续变更仍需在支付模块内单独 guarded 设计。
-- 多业务归属同老师同月、CNY/FX、交通费、教室费、工资快照 void/reissue、历史 backfill/cleanup 的单独设计。
+- 多业务归属单独生成、CNY/FX、交通费、教室费、snapshot restore/reissue beyond void、历史 backfill/cleanup 的单独设计。
 
 ## 已确认现状
 

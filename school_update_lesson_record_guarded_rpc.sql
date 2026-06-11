@@ -339,7 +339,11 @@ begin
     if exists (
       select 1
       from public.school_teacher_wage_lock_details d
+      join public.school_teacher_wage_locks w
+        on w.id = d.lock_id
       where d.lesson_record_id = v_lesson.id
+        and w.status = 'locked'
+        and w.voided_at is null
     ) then
       raise exception '该 actual 已被老师工资锁定明细使用，不能编辑。';
     end if;

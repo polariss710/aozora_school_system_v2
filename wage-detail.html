@@ -44,7 +44,11 @@
               <h2 id="wageDetailPageTitle">详情</h2>
               <p class="section-note">本页显示已保存的老师工资快照。未生成支付请求的快照可通过受控 RPC 调整明细课时和费用；已生成支付请求后只读。当前工资规则仅作为未来配置源，不用于重算历史工资快照。</p>
             </div>
-            <a class="button" id="wageDetailReturnLink" href="./wage.html">返回老师工资结算</a>
+            <div class="section-actions">
+              <button class="button button-danger is-hidden" id="openVoidWageLockButton" type="button">撤销快照</button>
+              <span id="voidWageLockReadonlyReason" class="section-note"></span>
+              <a class="button" id="wageDetailReturnLink" href="./wage.html">返回老师工资结算</a>
+            </div>
           </div>
         </section>
 
@@ -212,7 +216,39 @@
       </section>
     </div>
 
+    <div id="voidWageLockDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="voidWageLockTitle">
+        <div class="section-heading">
+          <h2 id="voidWageLockTitle">撤销老师工资快照</h2>
+          <p class="section-note">仅允许撤销未生成支付请求、未支付、无支出和无账户流水依赖的工资快照。</p>
+        </div>
+
+        <div id="voidWageLockSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning">
+          撤销后当前工资快照会标记为已作废；对应课时不会被删除，actual_minutes 不会修改，并会重新回到工资生成候选范围。已生成支付请求、已支付或已有支出/账户流水依赖的快照不能撤销。
+        </div>
+
+        <div id="voidWageLockError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <label class="field" data-void-wage-lock-field="reason">
+          <span>撤销原因</span>
+          <textarea id="voidWageLockReasonInput" rows="3" placeholder="例：误生成工资快照，课时仍需修正"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-void-wage-lock-field="confirm">
+          <input id="voidWageLockConfirmCheckbox" type="checkbox">
+          <span>我确认撤销当前工资快照，并理解撤销不会删除原始课时或修改 actual_minutes。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="voidWageLockSubmitButton" type="button">确认撤销</button>
+          <button class="button" id="voidWageLockCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-detail-app.js?v=v2.87.0-wage-june-empty-adjust-entry-20260611"></script>
+    <script type="module" src="./js/wage-detail-app.js?v=v2.92.0-wage-snapshot-void-20260611"></script>
   </body>
 </html>

@@ -222,11 +222,11 @@ The next safe implementation should start with frontend/API read-only visibility
 - Candidate lesson links pass `from=wage` and wage filters to `lesson-detail.html`.
 - `lesson-detail.html` shows `返回老师工资结算` only for wage-origin links and keeps the existing lesson-management return behavior for ordinary lesson entries.
 
-Still not implemented in this checkpoint:
+Still not implemented in that frontend-only checkpoint:
 
 - No change to `school_generate_teacher_monthly_wage`.
 - No business-entity scoped generation RPC.
-- No general unpaid wage snapshot void/reissue RPC or UI.
+- No general unpaid wage snapshot void/reissue RPC or UI at that time; the guarded unpaid void portion was implemented in the later follow-up recorded below.
 - No real 2026-06 wage generation or repair.
 
 ## Wu Feng 2026-06 Blocker Rollback Checkpoint
@@ -258,6 +258,24 @@ Executed guarded rollback:
 - Rollback test: inside a transaction, deleted 4 target details and 2 target locks, confirmed Wu Feng candidate actuals remained `4` / `480` minutes and lock/detail blockers became `0`, then rolled back to the original state.
 - Committed run: deleted only the exact two target lock rows and four target detail rows.
 - No `school_lesson_records`, `actual_minutes`, payment requests, expenses, account transactions, accounts, income, or settlements were updated.
+
+## Guarded Unpaid Snapshot Void Follow-Up
+
+2026-06-11 follow-up implementation completed the general v2 path for future mistaken unpaid wage snapshots:
+
+- New RPC `school_void_teacher_wage_lock` marks an eligible `locked` wage snapshot as `void` with required reason/operator/source audit.
+- It rejects snapshots with any teacher_wage payment request, expense, account transaction dependency, mismatched header/detail totals, or duplicate void state.
+- It preserves wage detail rows and source actual lessons; it does not modify `actual_minutes`.
+- `school_generate_teacher_monthly_wage` now ignores void wage locks and void-parent wage details when checking duplicate generation blockers.
+- `school_update_lesson_record_guarded` now ignores wage detail references whose parent wage lock is void when checking actual edit blockers.
+- `wage-detail.html` exposes `撤销快照` only for eligible snapshots through the API layer, with required reason and confirmation text.
+- Real 2026-06 stayed read-only during this implementation; no real June wage snapshot was generated.
+
+Remaining separate design items:
+
+- Business-entity-scoped generation RPC or explicit UI hard-block when a business filter is selected but the current RPC cannot enforce it.
+- Snapshot restore/reissue beyond the completed void-then-regenerate path.
+- Rich generation preview that mirrors DB wage-rule matching and expected output groups without writing.
 
 Post-repair validation:
 

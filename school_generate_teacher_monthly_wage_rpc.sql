@@ -2,7 +2,7 @@
 -- RPC: public.school_generate_teacher_monthly_wage
 -- Purpose: Generate teacher monthly wage locks and details from actual lessons.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested and commit-tested.
--- Version: v2.83.0-teacher-wage-guard-order-20260610
+-- Version: v2.92.0-teacher-wage-void-regeneration-20260611
 --
 -- Scope:
 -- - Generate saved teacher wage snapshots for one settlement month.
@@ -23,7 +23,8 @@
 --
 -- Not supported:
 -- - Draft wage generation.
--- - Regeneration, overwrite, delete, historical backfill, or cleanup.
+-- - Regeneration over effective locked snapshots, overwrite, delete,
+--   historical backfill, or cleanup.
 -- - Payment request, expense, account, account transaction, income, student
 --   settlement, or lesson mutation.
 --
@@ -44,6 +45,8 @@
 --   1ad4f156-e869-4a36-aa47-c12edaa18da6.
 -- - 2026-06-11 follow-up supports one wage snapshot per
 --   teacher/business/month while preserving the per-lesson wage formula.
+-- - 2026-06-11 v2.92.0 follow-up ignores voided wage snapshots and details
+--   under voided snapshots when checking regeneration blockers.
 -- - Protected payment, expense, account, account transaction, income, and
 --   student settlement table counts stayed unchanged.
 
@@ -139,6 +142,8 @@ begin
     where w.teacher_id = target_groups.teacher_id
       and w.business_entity_id is not distinct from target_groups.business_entity_id
       and w.settlement_month = v_year_month
+      and w.status = 'locked'
+      and w.voided_at is null
   );
 
   if v_existing_lock_count > 0 then
@@ -161,7 +166,11 @@ begin
   where exists (
     select 1
     from public.school_teacher_wage_lock_details d
+    join public.school_teacher_wage_locks w
+      on w.id = d.lock_id
     where d.lesson_record_id = c.id
+      and w.status = 'locked'
+      and w.voided_at is null
   );
 
   if v_existing_detail_count > 0 then
@@ -438,7 +447,7 @@ end;
 $$;
 
 comment on function public.school_generate_teacher_monthly_wage(text, uuid) is
-  'Generates teacher monthly wage locks/details from actual completed and makeup_completed lessons. Writes only wage locks and wage details; no payment, expense, account, income, student settlement, or lesson mutation.';
+  'Generates teacher monthly wage locks/details from actual completed and makeup_completed lessons. Writes only wage locks and wage details; no payment, expense, account, income, student settlement, or lesson mutation. Ignores voided wage snapshots/details when checking regeneration blockers.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

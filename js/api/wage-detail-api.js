@@ -20,6 +20,9 @@ const WAGE_LOCK_COLUMNS = [
   "status",
   "locked_at",
   "voided_at",
+  "void_reason",
+  "voided_by",
+  "void_source",
   "created_at",
   "updated_at",
 ].join(",");
@@ -158,6 +161,26 @@ export async function adjustTeacherWageDetail({
     p_transport_fee_jpy: transportFeeJpy,
     p_classroom_fee_jpy: classroomFeeJpy,
     p_reason: reason,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.[0] || null;
+}
+
+export async function voidTeacherWageLock({
+  wageLockId,
+  reason,
+  operator = "v2_wage_detail",
+  source = "v2_wage_detail",
+}) {
+  const { data, error } = await supabase.rpc("school_void_teacher_wage_lock", {
+    p_wage_lock_id: wageLockId,
+    p_reason: reason,
+    p_operator: operator,
+    p_source: source,
   });
 
   if (error) {

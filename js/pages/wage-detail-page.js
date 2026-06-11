@@ -3,6 +3,7 @@ import {
   adjustTeacherWageDetail,
   createTeacherWagePaymentRequest,
   fetchWageDetailPage,
+  voidTeacherWageLock,
 } from "../api/wage-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -78,6 +79,8 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageDetailLoadingState");
   dom.content = document.querySelector("#wageDetailContent");
   dom.returnLink = document.querySelector("#wageDetailReturnLink");
+  dom.openVoidWageLockButton = document.querySelector("#openVoidWageLockButton");
+  dom.voidWageLockReadonlyReason = document.querySelector("#voidWageLockReadonlyReason");
   dom.titleText = document.querySelector("#wageDetailTitleText");
   dom.basicInfo = document.querySelector("#wageDetailBasicInfo");
   dom.amountInfo = document.querySelector("#wageDetailAmountInfo");
@@ -109,10 +112,18 @@ function cacheDom() {
   dom.adjustWageReasonInput = document.querySelector("#adjustWageReasonInput");
   dom.adjustWageDetailSubmitButton = document.querySelector("#adjustWageDetailSubmitButton");
   dom.adjustWageDetailCancelButton = document.querySelector("#adjustWageDetailCancelButton");
+  dom.voidWageLockDialog = document.querySelector("#voidWageLockDialog");
+  dom.voidWageLockSummary = document.querySelector("#voidWageLockSummary");
+  dom.voidWageLockError = document.querySelector("#voidWageLockError");
+  dom.voidWageLockReasonInput = document.querySelector("#voidWageLockReasonInput");
+  dom.voidWageLockConfirmCheckbox = document.querySelector("#voidWageLockConfirmCheckbox");
+  dom.voidWageLockSubmitButton = document.querySelector("#voidWageLockSubmitButton");
+  dom.voidWageLockCancelButton = document.querySelector("#voidWageLockCancelButton");
 }
 
 function bindEvents() {
   dom.openCreatePaymentRequestButton?.addEventListener("click", openCreatePaymentRequestDialog);
+  dom.openVoidWageLockButton?.addEventListener("click", openVoidWageLockDialog);
   dom.wageDutyReportExportButton?.addEventListener("click", handleWageDutyReportExport);
   dom.rows?.addEventListener("click", handleWageDetailRowActionClick);
   dom.createPaymentRequestCancelButton?.addEventListener("click", closeCreatePaymentRequestDialog);
@@ -132,6 +143,21 @@ function bindEvents() {
     if (event.target === dom.adjustWageDetailDialog) {
       closeAdjustWageDetailDialog();
     }
+  });
+  dom.voidWageLockCancelButton?.addEventListener("click", closeVoidWageLockDialog);
+  dom.voidWageLockSubmitButton?.addEventListener("click", submitVoidWageLock);
+  dom.voidWageLockDialog?.addEventListener("click", (event) => {
+    if (event.target === dom.voidWageLockDialog) {
+      closeVoidWageLockDialog();
+    }
+  });
+  dom.voidWageLockReasonInput?.addEventListener("input", () => {
+    setVoidWageLockFieldInvalid("reason", false);
+    hideVoidWageLockErrorIfClean();
+  });
+  dom.voidWageLockConfirmCheckbox?.addEventListener("change", () => {
+    setVoidWageLockFieldInvalid("confirm", false);
+    hideVoidWageLockErrorIfClean();
   });
   for (const input of [
     dom.adjustWagePayHoursInput,
@@ -224,6 +250,8 @@ function renderWageDetail(data) {
     ["状态", wageStatusLabel(wageLock.status)],
     ["生成时间", formatDate(wageLock.locked_at)],
     ["作废时间", formatDate(wageLock.voided_at)],
+    ["撤销原因", displayValue(wageLock.void_reason)],
+    ["撤销来源", displayValue(wageLock.void_source)],
     ["创建时间", formatDate(wageLock.created_at)],
     ["更新时间", formatDate(wageLock.updated_at)],
   ]);
@@ -264,10 +292,124 @@ function renderWageDetail(data) {
 
   renderPaymentRequests(paymentRequests);
   renderCreatePaymentRequestAction(wageLock, paymentRequests);
+  renderVoidWageLockAction(wageLock, paymentRequests);
   const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests);
   renderWageAdjustmentState(readonlyReason);
   renderDetailRows(details, !readonlyReason, readonlyReason);
   renderAdjustmentAudits(adjustments || [], details || []);
+}
+
+function renderVoidWageLockAction(wageLock, paymentRequests) {
+  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests);
+  const canVoid = !readonlyReason;
+  dom.openVoidWageLockButton?.classList.toggle("is-hidden", !canVoid);
+
+  if (dom.voidWageLockReadonlyReason) {
+    dom.voidWageLockReadonlyReason.textContent = canVoid
+      ? "未生成支付请求，可撤销快照。"
+      : readonlyReason;
+  }
+}
+
+function wageVoidReadonlyReason(wageLock, paymentRequests = []) {
+  if (!wageLock) return "工资快照尚未加载。";
+  if (wageLock.status === "void" || wageLock.voided_at) return "该工资快照已作废，不能重复撤销。";
+  if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以撤销。";
+  if (paymentRequests.length > 0) return "该工资快照已生成支付请求，不能撤销。";
+  return "";
+}
+
+function openVoidWageLockDialog() {
+  const wageLock = detailData?.wageLock;
+  const paymentRequests = detailData?.paymentRequests || [];
+  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests);
+
+  if (readonlyReason) {
+    showMessage("error", readonlyReason);
+    return;
+  }
+
+  hideVoidWageLockError();
+  clearVoidWageLockInvalidFields();
+  dom.voidWageLockReasonInput.value = "";
+  dom.voidWageLockConfirmCheckbox.checked = false;
+  dom.voidWageLockSummary.innerHTML = renderVoidWageLockSummary(wageLock);
+  dom.voidWageLockDialog.classList.remove("is-hidden");
+  dom.voidWageLockDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeVoidWageLockDialog(force = false) {
+  if (!force && dom.voidWageLockSubmitButton.disabled) {
+    return;
+  }
+
+  dom.voidWageLockDialog.classList.add("is-hidden");
+  dom.voidWageLockDialog.setAttribute("aria-hidden", "true");
+  hideVoidWageLockError();
+  clearVoidWageLockInvalidFields();
+  dom.voidWageLockReasonInput.value = "";
+  dom.voidWageLockConfirmCheckbox.checked = false;
+}
+
+async function submitVoidWageLock() {
+  const wageLock = detailData?.wageLock;
+  const paymentRequests = detailData?.paymentRequests || [];
+  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests);
+  if (readonlyReason) {
+    showVoidWageLockError(readonlyReason);
+    return;
+  }
+
+  const reason = safeText(dom.voidWageLockReasonInput.value).trim();
+  const fields = [];
+  if (!reason) {
+    fields.push("reason");
+  }
+  if (!dom.voidWageLockConfirmCheckbox.checked) {
+    fields.push("confirm");
+  }
+  if (fields.length) {
+    showVoidWageLockError(
+      fields.includes("reason") ? "请输入撤销原因。" : "请先勾选确认说明。",
+      fields
+    );
+    return;
+  }
+
+  setVoidWageLockSubmitting(true);
+  hideVoidWageLockError();
+
+  try {
+    const result = await voidTeacherWageLock({
+      wageLockId: wageLock.id,
+      reason,
+      operator: "v2_wage_detail",
+      source: "v2_wage_detail",
+    });
+
+    await loadWageDetail(wageLock.id);
+    closeVoidWageLockDialog(true);
+    showMessage(
+      "success",
+      `工资快照已撤销：${shortId(result?.wage_lock_id)}。对应课时可重新进入工资生成候选范围。`
+    );
+  } catch (error) {
+    showVoidWageLockError(formatVoidWageLockError(error));
+  } finally {
+    setVoidWageLockSubmitting(false);
+  }
+}
+
+function renderVoidWageLockSummary(wageLock) {
+  return [
+    renderDialogSummaryRow("工资月份", formatMonth(wageLock?.settlement_month)),
+    renderDialogSummaryRow("老师", displayValue(wageLock?.teacher_name)),
+    renderDialogSummaryRow("业务归属", displayValue(wageLock?.business_name)),
+    renderDialogSummaryRow("当前状态", wageStatusLabel(wageLock?.status)),
+    renderDialogSummaryRow("明细条数", displayCount(wageLock?.lesson_count)),
+    renderDialogSummaryRow("合计金额", formatCurrency(wageLock?.total_jpy, "JPY")),
+    renderDialogSummaryRow("来源", `工资快照 ${shortId(wageLock?.id)}`),
+  ].join("");
 }
 
 function renderCreatePaymentRequestAction(wageLock, paymentRequests) {
@@ -454,6 +596,59 @@ function hideCreatePaymentRequestErrorIfClean() {
 
 function setCreatePaymentRequestFieldInvalid(fieldId, isInvalid) {
   const field = dom.createPaymentRequestDialog.querySelector(`[data-create-payment-request-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", isInvalid);
+}
+
+function formatVoidWageLockError(error) {
+  const message = error?.message || String(error || "");
+  if (message.includes("支付请求")) {
+    return "撤销失败：该工资快照已生成支付请求，不能撤销。";
+  }
+  if (message.includes("已经作废") || message.includes("重复撤销")) {
+    return "撤销失败：该工资快照已经作废，不能重复撤销。";
+  }
+  if (message.includes("支出") || message.includes("账户流水")) {
+    return "撤销失败：该工资快照已有支出或账户流水依赖，不能撤销。";
+  }
+  return `撤销失败：${message}`;
+}
+
+function setVoidWageLockSubmitting(isSubmitting) {
+  dom.voidWageLockSubmitButton.disabled = isSubmitting;
+  dom.voidWageLockCancelButton.disabled = isSubmitting;
+  dom.openVoidWageLockButton.disabled = isSubmitting;
+  dom.voidWageLockSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销";
+}
+
+function showVoidWageLockError(message, fieldIds = []) {
+  dom.voidWageLockError.textContent = message;
+  dom.voidWageLockError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setVoidWageLockFieldInvalid(fieldId, true);
+  }
+  dom.voidWageLockDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function hideVoidWageLockError() {
+  dom.voidWageLockError.textContent = "";
+  dom.voidWageLockError.classList.add("is-hidden");
+}
+
+function hideVoidWageLockErrorIfClean() {
+  const hasInvalidField = Boolean(dom.voidWageLockDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    hideVoidWageLockError();
+  }
+}
+
+function clearVoidWageLockInvalidFields() {
+  for (const field of dom.voidWageLockDialog.querySelectorAll(".field.is-invalid")) {
+    field.classList.remove("is-invalid");
+  }
+}
+
+function setVoidWageLockFieldInvalid(fieldId, isInvalid) {
+  const field = dom.voidWageLockDialog.querySelector(`[data-void-wage-lock-field="${fieldId}"]`);
   field?.classList.toggle("is-invalid", isInvalid);
 }
 

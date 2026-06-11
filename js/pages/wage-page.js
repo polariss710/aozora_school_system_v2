@@ -529,9 +529,9 @@ function candidateWageState(row) {
   const voidLock = detailLocks.find((lock) => lock.status === "void" || lock.voided_at);
   if (voidLock) {
     return {
-      label: "已作废快照关联",
-      className: "status-cancelled",
-      title: "该课时仍有关联工资明细，但所属工资快照已作废；当前不参与有效工资。",
+      label: "可重新生成",
+      className: "status-neutral",
+      title: "该课时曾关联已作废工资快照；void 快照和明细不再阻止重新生成。",
     };
   }
 

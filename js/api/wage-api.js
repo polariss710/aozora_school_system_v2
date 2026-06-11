@@ -20,6 +20,9 @@ const WAGE_LOCK_COLUMNS = [
   "status",
   "locked_at",
   "voided_at",
+  "void_reason",
+  "voided_by",
+  "void_source",
 ].join(",");
 
 const PAYMENT_REQUEST_COLUMNS = [
