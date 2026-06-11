@@ -135,6 +135,41 @@
             </table>
           </div>
         </section>
+
+        <section class="panel is-hidden" id="wageCandidateSection" aria-labelledby="wageCandidateTitle">
+          <div class="section-heading section-heading-row">
+            <div>
+              <h2 id="wageCandidateTitle">待生成候选课时</h2>
+              <p class="section-note">尚未生成工资快照，以下为当前筛选月份的 actual completed / makeup_completed 候选课时，只用于生成前核对。</p>
+            </div>
+            <span id="wageCandidateCount" class="record-count">0 条</span>
+          </div>
+
+          <div id="wageCandidateSummary" class="summary-grid"></div>
+          <div id="wageCandidateEmptyState" class="state-text is-hidden">暂无待生成候选课时。</div>
+          <div class="table-scroll">
+            <table class="payment-table wage-table">
+              <thead>
+                <tr>
+                  <th>课时详情</th>
+                  <th>日期</th>
+                  <th>时间</th>
+                  <th>老师</th>
+                  <th>学生</th>
+                  <th>科目</th>
+                  <th>业务归属</th>
+                  <th>状态</th>
+                  <th>时长</th>
+                  <th>实际分钟</th>
+                  <th>计费</th>
+                  <th>工资锁定</th>
+                  <th>内容/备注</th>
+                </tr>
+              </thead>
+              <tbody id="wageCandidateTableBody"></tbody>
+            </table>
+          </div>
+        </section>
       </main>
     </div>
 
@@ -166,6 +201,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=v2.89.1-wage-generate-lock-warning-20260611"></script>
+    <script type="module" src="./js/wage-app.js?v=v2.90.0-wage-candidate-preview-20260611"></script>
   </body>
 </html>

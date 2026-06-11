@@ -39,6 +39,16 @@ Date: 2026-06-11
 - 除非用户明确授权作为正式业务操作，否则不得对真实未结月份执行会导致锁定的生成类 RPC。
 - 2026-06 本次回退是用户授权的定点修复，不代表系统已有通用工资快照删除/void/reissue 生命周期。
 
+## No-snapshot candidate preview checkpoint
+
+2026-06-11 对回退后 `wage.html` 无法看到 2026-06 课时的问题完成修复：
+
+- 根因是页面只读取并展示已生成工资快照 `school_teacher_wage_locks`，没有快照时不会读取待生成 actual 候选课时。
+- DB 只读确认真实 2026-06 工资快照和工资明细均为 0；actual completed/makeup_completed 候选课时为 22 条，actual minutes `2595`，缺失 actual_minutes 为 0，工资明细引用 blocker 和同月 locked blocker 均为 0。
+- `js/api/wage-api.js` 新增只读候选读取：按 `teacher_settlement_month` 读取 actual completed/makeup_completed，并用 `year_month` 兜底读取 teacher_settlement_month 为空的历史/兼容记录；同时只读检查候选课时是否已有工资明细引用或同月 locked 工资快照 blocker。
+- `wage.html` 在当前月份没有工资快照时显示 `待生成候选课时` 区域，包含候选数量、实际分钟/小时、老师/业务归属数量，以及课时明细链接、日期、时间、老师、学生、科目、业务归属、状态、时长、实际分钟、计费状态和工资锁定状态。
+- 候选预览不计算最终工资金额，不调用生成 RPC，不写工资快照，不锁定 actual 课时；用户仍必须通过原 `生成老师工资` 确认入口正式生成。
+
 ## 2026-05 historical reconciliation checkpoint
 
 2026-06-10 对 2026-05 丛琪润 / 青空进学塾工资重复锁定做了用户授权的定点历史修正：

@@ -40,6 +40,26 @@ const WAGE_DETAIL_FEE_COLUMNS = [
   "classroom_fee_jpy",
 ].join(",");
 
+const WAGE_CANDIDATE_LESSON_COLUMNS = [
+  "id",
+  "lesson_type",
+  "status",
+  "lesson_date",
+  "start_time",
+  "end_time",
+  "teacher_settlement_month",
+  "year_month",
+  "teacher_id",
+  "student_id",
+  "subject_id",
+  "business_entity_id",
+  "duration_hours",
+  "actual_minutes",
+  "is_billable",
+  "lesson_content",
+  "note",
+].join(",");
+
 export async function fetchWageLocks(month) {
   const { data, error } = await supabase
     .from("school_teacher_wage_locks")
@@ -51,6 +71,77 @@ export async function fetchWageLocks(month) {
   }
 
   return data || [];
+}
+
+export async function fetchWageCandidateLessons(month) {
+  const [teacherMonthResult, fallbackMonthResult] = await Promise.all([
+    supabase
+      .from("school_lesson_records")
+      .select(WAGE_CANDIDATE_LESSON_COLUMNS)
+      .eq("app_type", "school")
+      .eq("lesson_type", "actual")
+      .in("status", ["completed", "makeup_completed"])
+      .eq("teacher_settlement_month", month)
+      .order("lesson_date", { ascending: true })
+      .order("start_time", { ascending: true }),
+    supabase
+      .from("school_lesson_records")
+      .select(WAGE_CANDIDATE_LESSON_COLUMNS)
+      .eq("app_type", "school")
+      .eq("lesson_type", "actual")
+      .in("status", ["completed", "makeup_completed"])
+      .is("teacher_settlement_month", null)
+      .eq("year_month", month)
+      .order("lesson_date", { ascending: true })
+      .order("start_time", { ascending: true }),
+  ]);
+
+  if (teacherMonthResult.error) {
+    throw teacherMonthResult.error;
+  }
+  if (fallbackMonthResult.error) {
+    throw fallbackMonthResult.error;
+  }
+
+  const rowsById = new Map();
+  for (const row of [...(teacherMonthResult.data || []), ...(fallbackMonthResult.data || [])]) {
+    rowsById.set(row.id, row);
+  }
+
+  const rows = Array.from(rowsById.values()).sort(sortCandidateLessons);
+  if (!rows.length) {
+    return [];
+  }
+
+  const [detailBlockerResult, wageLockBlockerResult] = await Promise.all([
+    supabase
+      .from("school_teacher_wage_lock_details")
+      .select("lesson_record_id")
+      .in("lesson_record_id", rows.map((row) => row.id)),
+    supabase
+      .from("school_teacher_wage_locks")
+      .select("teacher_id,business_entity_id")
+      .eq("settlement_month", month)
+      .eq("status", "locked"),
+  ]);
+
+  if (detailBlockerResult.error) {
+    throw detailBlockerResult.error;
+  }
+  if (wageLockBlockerResult.error) {
+    throw wageLockBlockerResult.error;
+  }
+
+  const detailBlockedLessonIds = new Set((detailBlockerResult.data || []).map((row) => row.lesson_record_id));
+  const lockedTeacherBusinessKeys = new Set(
+    (wageLockBlockerResult.data || []).map((row) => teacherBusinessKey(row.teacher_id, row.business_entity_id))
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    wageDetailBlocked: detailBlockedLessonIds.has(row.id),
+    wageMonthBlocked: lockedTeacherBusinessKeys.has(teacherBusinessKey(row.teacher_id, row.business_entity_id)),
+  }));
 }
 
 export async function fetchWageDetailFeeSummaries(wageLockIds) {
@@ -113,6 +204,34 @@ export async function fetchWageTeachers() {
   return data || [];
 }
 
+export async function fetchWageStudents() {
+  const { data, error } = await supabase
+    .from("school_students")
+    .select("id,student_code,name,display_name,status")
+    .eq("app_type", "school")
+    .order("display_name", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function fetchWageSubjects() {
+  const { data, error } = await supabase
+    .from("school_subjects")
+    .select("id,name,category,primary_category,is_active")
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
 export async function fetchWageBusinessEntities() {
   const { data, error } = await supabase
     .from("school_business_entities")
@@ -137,4 +256,18 @@ export async function generateTeacherMonthlyWage({ yearMonth, teacherId = null }
   }
 
   return data || [];
+}
+
+function sortCandidateLessons(left, right) {
+  const dateCompare = String(left.lesson_date || "").localeCompare(String(right.lesson_date || ""));
+  if (dateCompare !== 0) return dateCompare;
+
+  const timeCompare = String(left.start_time || "").localeCompare(String(right.start_time || ""));
+  if (timeCompare !== 0) return timeCompare;
+
+  return String(left.id || "").localeCompare(String(right.id || ""));
+}
+
+function teacherBusinessKey(teacherId, businessEntityId) {
+  return `${teacherId || ""}::${businessEntityId || ""}`;
 }

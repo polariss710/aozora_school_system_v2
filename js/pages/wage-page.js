@@ -2,9 +2,12 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchWageBusinessEntities,
+  fetchWageCandidateLessons,
   fetchWageDetailFeeSummaries,
   fetchWageLocks,
   fetchWagePaymentRequests,
+  fetchWageStudents,
+  fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
 } from "../api/wage-api.js";
@@ -45,9 +48,12 @@ const SETTLEMENT_TYPE_LABELS = {
 
 const dom = {};
 let teachers = [];
+let students = [];
+let subjects = [];
 let businessEntities = [];
 let wageLocks = [];
 let wagePaymentRequests = [];
+let wageCandidateLessons = [];
 let loadedMonth = "";
 let activeFilters = null;
 let startupFilters = null;
@@ -87,6 +93,11 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageLoadingState");
   dom.emptyState = document.querySelector("#wageEmptyState");
   dom.wageCount = document.querySelector("#wageCount");
+  dom.candidateSection = document.querySelector("#wageCandidateSection");
+  dom.candidateCount = document.querySelector("#wageCandidateCount");
+  dom.candidateSummary = document.querySelector("#wageCandidateSummary");
+  dom.candidateEmptyState = document.querySelector("#wageCandidateEmptyState");
+  dom.candidateTableBody = document.querySelector("#wageCandidateTableBody");
   dom.exportMonthlySummaryButton = document.querySelector("#wageMonthlySummaryExportButton");
   dom.openGenerateDialogButton = document.querySelector("#openWageGenerateDialogButton");
   dom.generateDialog = document.querySelector("#wageGenerateDialog");
@@ -138,8 +149,10 @@ async function loadInitialData() {
   showMessage("info", "正在加载老师工资结算数据...");
 
   try {
-    [teachers, businessEntities] = await Promise.all([
+    [teachers, students, subjects, businessEntities] = await Promise.all([
       fetchWageTeachers(),
+      fetchWageStudents(),
+      fetchWageSubjects(),
       fetchWageBusinessEntities(),
     ]);
 
@@ -156,12 +169,16 @@ async function loadInitialData() {
     showMessage("success", "老师工资结算数据已加载。");
   } catch (error) {
     teachers = [];
+    students = [];
+    subjects = [];
     businessEntities = [];
     wageLocks = [];
+    wageCandidateLessons = [];
     loadedMonth = "";
     renderMasterOptions();
     renderDataOptions([]);
     renderWageLocks([]);
+    renderWageCandidates([]);
     showMessage("error", `读取老师工资结算数据失败：${error.message || error}`);
   } finally {
     setLoading(false);
@@ -189,9 +206,11 @@ async function applyQuery() {
       showMessage("success", "老师工资快照记录已加载。");
     } catch (error) {
       wageLocks = [];
+      wageCandidateLessons = [];
       loadedMonth = "";
       renderDataOptions([]);
       renderWageLocks([]);
+      renderWageCandidates([]);
       showMessage("error", `读取老师工资快照记录失败：${error.message || error}`);
     } finally {
       setLoading(false);
@@ -266,13 +285,15 @@ async function handleGenerateSubmit() {
 }
 
 async function loadWageMonth(month) {
-  const [locks, paymentRequests] = await Promise.all([
+  const [locks, paymentRequests, candidateLessons] = await Promise.all([
     fetchWageLocks(month),
     fetchWagePaymentRequests(month),
+    fetchWageCandidateLessons(month),
   ]);
 
   wageLocks = sortWageLocks(locks);
   wagePaymentRequests = paymentRequests;
+  wageCandidateLessons = candidateLessons;
   loadedMonth = month;
   renderDataOptions(wageLocks);
 }
@@ -287,6 +308,7 @@ function applyCurrentFilters() {
   activeFilters = filters;
   updateUrlFromFilters(filters);
   renderWageLocks(filterWageLocks(wageLocks, filters));
+  renderWageCandidates(filterWageCandidateLessons(wageCandidateLessons, filters));
 }
 
 function readFilters() {
@@ -394,6 +416,79 @@ function renderWageLocks(rows) {
       <td class="wage-nowrap">${escapeHtml(formatDate(row.voided_at))}</td>
     </tr>
   `).join("");
+}
+
+function renderWageCandidates(rows) {
+  const shouldShowCandidates = loadedMonth && wageLocks.length === 0;
+  dom.candidateSection?.classList.toggle("is-hidden", !shouldShowCandidates);
+
+  if (!shouldShowCandidates) {
+    if (dom.candidateCount) dom.candidateCount.textContent = "0 条";
+    if (dom.candidateSummary) dom.candidateSummary.innerHTML = "";
+    if (dom.candidateTableBody) dom.candidateTableBody.innerHTML = "";
+    dom.candidateEmptyState?.classList.add("is-hidden");
+    return;
+  }
+
+  dom.candidateCount.textContent = `${rows.length} 条`;
+  dom.candidateSummary.innerHTML = renderCandidateSummaryCards(rows);
+  dom.candidateEmptyState.classList.toggle("is-hidden", rows.length > 0);
+
+  if (!rows.length) {
+    dom.candidateTableBody.innerHTML = "";
+    return;
+  }
+
+  dom.candidateTableBody.innerHTML = rows.map((row) => `
+    <tr>
+      <td class="wage-nowrap"><a class="table-action-button" href="${escapeAttribute(buildLessonDetailHref(row.id))}">查看</a></td>
+      <td class="wage-nowrap">${escapeHtml(formatDateOnly(row.lesson_date))}</td>
+      <td class="wage-nowrap">${escapeHtml(formatLessonTime(row))}</td>
+      <td>${escapeHtml(teacherNameById(row.teacher_id))}</td>
+      <td>${escapeHtml(studentNameById(row.student_id))}</td>
+      <td>${escapeHtml(subjectNameById(row.subject_id))}</td>
+      <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
+      <td><span class="status-badge status-neutral">${escapeHtml(actualStatusLabel(row.status))}</span></td>
+      <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.duration_hours))}</td>
+      <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.actual_minutes))}</td>
+      <td class="wage-nowrap">${escapeHtml(booleanLabel(row.is_billable))}</td>
+      <td>${renderCandidateLockState(row)}</td>
+      <td>${escapeHtml(candidateNote(row))}</td>
+    </tr>
+  `).join("");
+}
+
+function renderCandidateSummaryCards(rows) {
+  const totalMinutes = rows.reduce((sum, row) => sum + Number(row.actual_minutes || 0), 0);
+  const totalHours = totalMinutes / 60;
+  const teacherCount = new Set(rows.map((row) => row.teacher_id).filter(Boolean)).size;
+  const businessCount = new Set(rows.map((row) => row.business_entity_id).filter(Boolean)).size;
+
+  return [
+    renderSummaryCard("候选课时", `${rows.length} 条`),
+    renderSummaryCard("实际分钟", `${totalMinutes} 分钟`),
+    renderSummaryCard("折算小时", `${formatNumber(totalHours)} 小时`),
+    renderSummaryCard("老师 / 业务归属", `${teacherCount} / ${businessCount}`),
+  ].join("");
+}
+
+function renderSummaryCard(label, value) {
+  return `
+    <div class="summary-card">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `;
+}
+
+function renderCandidateLockState(row) {
+  const detailBlocked = Boolean(row.wageDetailBlocked);
+  const monthBlocked = Boolean(row.wageMonthBlocked);
+  if (detailBlocked || monthBlocked) {
+    return '<span class="status-badge status-cancelled">已被工资锁定</span>';
+  }
+
+  return '<span class="status-badge status-paid">未锁定</span>';
 }
 
 function renderWageProcessState(row) {
@@ -763,6 +858,20 @@ function filterWageLocks(rows, filters) {
   });
 }
 
+function filterWageCandidateLessons(rows, filters) {
+  return rows.filter((row) => {
+    if (filters.teacherId && row.teacher_id !== filters.teacherId) {
+      return false;
+    }
+
+    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
+      return false;
+    }
+
+    return matchesCandidateKeyword(row, filters.keyword);
+  });
+}
+
 function readFiltersFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const year = safeText(params.get("year")).trim();
@@ -802,6 +911,10 @@ function buildWageDetailHref(wageLockId) {
   }
 
   return `./wage-detail.html?${params.toString()}`;
+}
+
+function buildLessonDetailHref(lessonId) {
+  return `./lesson-detail.html?id=${encodeURIComponent(lessonId)}`;
 }
 
 function buildWageFilterParams(filters) {
@@ -859,6 +972,26 @@ function matchesKeyword(row, keyword) {
     .some((value) => value.includes(normalizedKeyword));
 }
 
+function matchesCandidateKeyword(row, keyword) {
+  if (!keyword) {
+    return true;
+  }
+
+  const normalizedKeyword = keyword.toLowerCase();
+  return [
+    teacherNameById(row.teacher_id),
+    studentNameById(row.student_id),
+    subjectNameById(row.subject_id),
+    businessNameById(row.business_entity_id),
+    actualStatusLabel(row.status),
+    row.status,
+    row.lesson_content,
+    row.note,
+  ]
+    .map((value) => safeText(value).toLowerCase())
+    .some((value) => value.includes(normalizedKeyword));
+}
+
 function sortWageLocks(rows) {
   return [...rows].sort((left, right) => {
     const teacherCompare = displayTeacherName(left).localeCompare(displayTeacherName(right), "zh-CN");
@@ -907,6 +1040,26 @@ function teacherNameById(id) {
   return teacherName(teacher);
 }
 
+function studentNameById(id) {
+  const student = students.find((item) => item.id === id);
+  if (!student) {
+    return id ? "未知" : "未设置";
+  }
+
+  const code = safeText(student.student_code);
+  const name = safeText(student.display_name || student.name) || "未设置";
+  return code ? `${name}（${code}）` : name;
+}
+
+function subjectNameById(id) {
+  const subject = subjects.find((item) => item.id === id);
+  if (!subject) {
+    return id ? "未知" : "未设置";
+  }
+
+  return safeText(subject.name) || "未设置";
+}
+
 function businessNameById(id) {
   const entity = businessEntities.find((item) => item.id === id);
   if (!entity) {
@@ -936,6 +1089,12 @@ function paymentRequestStatusLabel(value) {
   return PAYMENT_REQUEST_STATUS_LABELS[value] || displayValue(value);
 }
 
+function actualStatusLabel(value) {
+  if (value === "completed") return "已完成";
+  if (value === "makeup_completed") return "补课完成";
+  return displayValue(value);
+}
+
 function paymentRequestStatusClass(value) {
   if (value === "paid") return "status-paid";
   if (value === "pending") return "status-pending";
@@ -957,6 +1116,47 @@ function statusClass(status) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function formatDateOnly(value) {
+  const text = safeText(value);
+  if (!text) {
+    return "-";
+  }
+
+  return text.slice(0, 10).replaceAll("-", "/");
+}
+
+function formatLessonTime(row) {
+  const start = safeText(row.start_time).slice(0, 5);
+  const end = safeText(row.end_time).slice(0, 5);
+  if (start && end) {
+    return `${start}-${end}`;
+  }
+
+  return start || end || "-";
+}
+
+function booleanLabel(value) {
+  if (value === true) return "计费";
+  if (value === false) return "不计费";
+  return "-";
+}
+
+function candidateNote(row) {
+  return [row.lesson_content, row.note].map(safeText).filter(Boolean).join(" / ") || "-";
+}
+
+function formatNumber(value) {
+  const numberValue = Number(value || 0);
+  if (!Number.isFinite(numberValue)) {
+    return "0";
+  }
+
+  return numberValue.toLocaleString("ja-JP", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 }
 
 function numberOrZero(value) {
@@ -1039,7 +1239,7 @@ function buildWageEmptyStateText(rows) {
   }
 
   if (wageLocks.length === 0 && loadedMonth) {
-    return `${formatMonth(loadedMonth)} 尚未生成老师工资快照。本页只显示已生成快照；请确认本月 actual completed / makeup_completed 课时已写入实际分钟后，再使用“生成老师工资”。`;
+    return `${formatMonth(loadedMonth)} 尚未生成老师工资快照。可在下方核对待生成候选课时；确认 actual completed / makeup_completed 课时已完成录入和修正后，再使用“生成老师工资”。`;
   }
 
   return "暂无符合当前筛选条件的老师工资快照。";
