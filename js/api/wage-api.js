@@ -116,7 +116,7 @@ export async function fetchWageCandidateLessons(month) {
   const [detailBlockerResult, wageLockBlockerResult] = await Promise.all([
     supabase
       .from("school_teacher_wage_lock_details")
-      .select("lesson_record_id")
+      .select("lesson_record_id,lock_id")
       .in("lesson_record_id", rows.map((row) => row.id)),
     supabase
       .from("school_teacher_wage_locks")
@@ -132,14 +132,21 @@ export async function fetchWageCandidateLessons(month) {
     throw wageLockBlockerResult.error;
   }
 
-  const detailBlockedLessonIds = new Set((detailBlockerResult.data || []).map((row) => row.lesson_record_id));
+  const detailLocksByLessonId = new Map();
+  for (const row of detailBlockerResult.data || []) {
+    if (!detailLocksByLessonId.has(row.lesson_record_id)) {
+      detailLocksByLessonId.set(row.lesson_record_id, []);
+    }
+    detailLocksByLessonId.get(row.lesson_record_id).push(row.lock_id);
+  }
   const lockedTeacherBusinessKeys = new Set(
     (wageLockBlockerResult.data || []).map((row) => teacherBusinessKey(row.teacher_id, row.business_entity_id))
   );
 
   return rows.map((row) => ({
     ...row,
-    wageDetailBlocked: detailBlockedLessonIds.has(row.id),
+    wageDetailBlocked: detailLocksByLessonId.has(row.id),
+    wageDetailLockIds: detailLocksByLessonId.get(row.id) || [],
     wageMonthBlocked: lockedTeacherBusinessKeys.has(teacherBusinessKey(row.teacher_id, row.business_entity_id)),
   }));
 }

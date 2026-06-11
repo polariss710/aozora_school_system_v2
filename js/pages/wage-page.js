@@ -95,6 +95,7 @@ function cacheDom() {
   dom.wageCount = document.querySelector("#wageCount");
   dom.candidateSection = document.querySelector("#wageCandidateSection");
   dom.candidateCount = document.querySelector("#wageCandidateCount");
+  dom.candidateStatusNote = document.querySelector("#wageCandidateStatusNote");
   dom.candidateSummary = document.querySelector("#wageCandidateSummary");
   dom.candidateEmptyState = document.querySelector("#wageCandidateEmptyState");
   dom.candidateTableBody = document.querySelector("#wageCandidateTableBody");
@@ -419,11 +420,12 @@ function renderWageLocks(rows) {
 }
 
 function renderWageCandidates(rows) {
-  const shouldShowCandidates = loadedMonth && wageLocks.length === 0;
+  const shouldShowCandidates = Boolean(loadedMonth);
   dom.candidateSection?.classList.toggle("is-hidden", !shouldShowCandidates);
 
   if (!shouldShowCandidates) {
     if (dom.candidateCount) dom.candidateCount.textContent = "0 条";
+    if (dom.candidateStatusNote) dom.candidateStatusNote.innerHTML = "";
     if (dom.candidateSummary) dom.candidateSummary.innerHTML = "";
     if (dom.candidateTableBody) dom.candidateTableBody.innerHTML = "";
     dom.candidateEmptyState?.classList.add("is-hidden");
@@ -431,6 +433,7 @@ function renderWageCandidates(rows) {
   }
 
   dom.candidateCount.textContent = `${rows.length} 条`;
+  dom.candidateStatusNote.innerHTML = renderCandidateStatusNote(rows);
   dom.candidateSummary.innerHTML = renderCandidateSummaryCards(rows);
   dom.candidateEmptyState.classList.toggle("is-hidden", rows.length > 0);
 
@@ -463,10 +466,13 @@ function renderCandidateSummaryCards(rows) {
   const totalHours = totalMinutes / 60;
   const teacherCount = new Set(rows.map((row) => row.teacher_id).filter(Boolean)).size;
   const businessCount = new Set(rows.map((row) => row.business_entity_id).filter(Boolean)).size;
+  const statusCounts = candidateStatusCounts(rows);
 
   return [
     renderSummaryCard("候选课时", `${rows.length} 条`),
     renderSummaryCard("实际分钟", `${totalMinutes} 分钟`),
+    renderSummaryCard("未生成 / 已生成", `${statusCounts.pending} / ${statusCounts.locked}`),
+    renderSummaryCard("已作废关联", `${statusCounts.voided} 条`),
     renderSummaryCard("折算小时", `${formatNumber(totalHours)} 小时`),
     renderSummaryCard("老师 / 业务归属", `${teacherCount} / ${businessCount}`),
   ].join("");
@@ -482,13 +488,160 @@ function renderSummaryCard(label, value) {
 }
 
 function renderCandidateLockState(row) {
-  const detailBlocked = Boolean(row.wageDetailBlocked);
-  const monthBlocked = Boolean(row.wageMonthBlocked);
-  if (detailBlocked || monthBlocked) {
-    return '<span class="status-badge status-cancelled">已被工资锁定</span>';
+  const state = candidateWageState(row);
+  return `
+    <span
+      class="status-badge ${escapeAttribute(state.className)}"
+      title="${escapeAttribute(state.title)}"
+    >${escapeHtml(state.label)}</span>
+  `;
+}
+
+function renderCandidateStatusNote(rows) {
+  const allGroups = candidateGenerationGroups(rows);
+  const generationGroups = candidateGenerationGroups(generationScopeCandidateLessons());
+  const displaySummary = formatCandidateGroupSummary(allGroups);
+  const generationSummary = formatCandidateGroupSummary(generationGroups);
+  const parts = [
+    "生成前核对：候选课时按 teacher + business_entity + month 分组展示；已生成快照或已作废快照关联的课时会保留在这里显示状态。",
+    `当前显示范围：${displaySummary}`,
+    `点击“生成老师工资”时，当前 RPC 实际按月份${activeFilters?.teacherId ? " + 老师" : ""}生成，不按业务归属筛选生成；预计生成范围：${generationSummary}`,
+  ];
+
+  if (activeFilters?.businessEntityId) {
+    parts.push("注意：业务归属筛选当前只影响页面显示，不限制本次生成 RPC 的业务归属范围。");
   }
 
-  return '<span class="status-badge status-paid">未锁定</span>';
+  return parts.map((part) => `<p>${escapeHtml(part)}</p>`).join("");
+}
+
+function candidateWageState(row) {
+  const detailLocks = candidateDetailWageLocks(row);
+  const activeLock = detailLocks.find((lock) => lock.status === "locked" && !lock.voided_at);
+  if (activeLock) {
+    return {
+      label: `已生成 / ${displayBusinessName(activeLock)}`,
+      className: "status-paid",
+      title: "该课时已进入有效工资快照，不能重复生成；如需调整，请进入工资详情处理。",
+    };
+  }
+
+  const voidLock = detailLocks.find((lock) => lock.status === "void" || lock.voided_at);
+  if (voidLock) {
+    return {
+      label: "已作废快照关联",
+      className: "status-cancelled",
+      title: "该课时仍有关联工资明细，但所属工资快照已作废；当前不参与有效工资。",
+    };
+  }
+
+  if (row.wageMonthBlocked) {
+    return {
+      label: "同业务已锁定",
+      className: "status-cancelled",
+      title: "同老师、同业务归属、同月份已有有效工资快照；当前课时不能直接生成到新快照。",
+    };
+  }
+
+  return {
+    label: "未生成",
+    className: "status-neutral",
+    title: "该课时尚未进入工资快照，可在正式生成前继续核对。",
+  };
+}
+
+function candidateDetailWageLocks(row) {
+  const lockIds = Array.isArray(row.wageDetailLockIds) ? row.wageDetailLockIds : [];
+  return lockIds
+    .map((lockId) => wageLocks.find((lock) => lock.id === lockId))
+    .filter(Boolean);
+}
+
+function candidateStatusCounts(rows) {
+  return rows.reduce((counts, row) => {
+    const state = candidateWageState(row);
+    if (state.label.startsWith("已生成")) {
+      counts.locked += 1;
+    } else if (state.label.startsWith("已作废")) {
+      counts.voided += 1;
+    } else if (state.label.startsWith("同业务")) {
+      counts.blocked += 1;
+    } else {
+      counts.pending += 1;
+    }
+    return counts;
+  }, {
+    pending: 0,
+    locked: 0,
+    voided: 0,
+    blocked: 0,
+  });
+}
+
+function candidateGenerationGroups(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = teacherBusinessKey(row.teacher_id, row.business_entity_id);
+    const group = groups.get(key) || {
+      teacherId: row.teacher_id,
+      businessEntityId: row.business_entity_id,
+      teacherName: teacherNameById(row.teacher_id),
+      businessName: businessNameById(row.business_entity_id),
+      lessonCount: 0,
+      minutes: 0,
+      lockedCount: 0,
+      voidedCount: 0,
+      pendingCount: 0,
+    };
+    const state = candidateWageState(row);
+    group.lessonCount += 1;
+    group.minutes += Number(row.actual_minutes || 0);
+    if (state.label.startsWith("已生成")) {
+      group.lockedCount += 1;
+    } else if (state.label.startsWith("已作废")) {
+      group.voidedCount += 1;
+    } else {
+      group.pendingCount += 1;
+    }
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values()).sort((left, right) => {
+    const teacherCompare = left.teacherName.localeCompare(right.teacherName, "zh-CN");
+    if (teacherCompare !== 0) return teacherCompare;
+    return left.businessName.localeCompare(right.businessName, "zh-CN");
+  });
+}
+
+function formatCandidateGroupSummary(groups) {
+  if (!groups.length) {
+    return "无候选课时";
+  }
+
+  return groups.map((group) => {
+    const stateText = [
+      group.pendingCount ? `未生成${group.pendingCount}` : "",
+      group.lockedCount ? `已生成${group.lockedCount}` : "",
+      group.voidedCount ? `已作废${group.voidedCount}` : "",
+    ].filter(Boolean).join(" / ");
+    return `${group.teacherName} / ${group.businessName}: ${group.lessonCount}课时, ${group.minutes}分钟${stateText ? `（${stateText}）` : ""}`;
+  }).join("；");
+}
+
+function generationScopeCandidateLessons() {
+  return wageCandidateLessons.filter((row) => (
+    !activeFilters?.teacherId || row.teacher_id === activeFilters.teacherId
+  ));
+}
+
+function generationScopeCandidateLessonsForFilters(filters) {
+  return wageCandidateLessons.filter((row) => (
+    !filters?.teacherId || row.teacher_id === filters.teacherId
+  ));
+}
+
+function teacherBusinessKey(teacherId, businessEntityId) {
+  return `${teacherId || ""}::${businessEntityId || ""}`;
 }
 
 function renderWageProcessState(row) {
@@ -823,10 +976,19 @@ function styleMonthlySummarySheet(sheet, report) {
 
 function renderGenerateSummary(filters) {
   const teacherLabel = filters.teacherId ? teacherNameById(filters.teacherId) : "全部老师";
+  const visibleGroups = candidateGenerationGroups(filterWageCandidateLessons(wageCandidateLessons, filters));
+  const generationGroups = candidateGenerationGroups(generationScopeCandidateLessonsForFilters(filters));
+  const businessScopeNote = filters.businessEntityId
+    ? "业务归属筛选只影响页面显示，当前生成 RPC 不按业务归属限制。"
+    : "未限定业务归属时，同一老师可能按多个业务归属生成多条快照。";
 
   return [
     renderDialogSummaryRow("工资月份", formatMonth(filters.month)),
     renderDialogSummaryRow("生成范围", teacherLabel),
+    renderDialogSummaryRow("生成粒度", "teacher + business_entity + month"),
+    renderDialogSummaryRow("当前显示分组", formatCandidateGroupSummary(visibleGroups)),
+    renderDialogSummaryRow("预计生成分组", formatCandidateGroupSummary(generationGroups)),
+    renderDialogSummaryRow("业务归属说明", businessScopeNote),
     renderDialogSummaryRow("生成内容", "工资快照主表 + 工资明细"),
     renderDialogSummaryRow("支付/账户", "不生成支付请求、支出或账户流水"),
   ].join("");
@@ -914,7 +1076,15 @@ function buildWageDetailHref(wageLockId) {
 }
 
 function buildLessonDetailHref(lessonId) {
-  return `./lesson-detail.html?id=${encodeURIComponent(lessonId)}`;
+  const params = new URLSearchParams();
+  params.set("id", lessonId);
+  params.set("from", "wage");
+
+  for (const [key, value] of buildWageFilterParams(activeFilters).entries()) {
+    params.set(key, value);
+  }
+
+  return `./lesson-detail.html?${params.toString()}`;
 }
 
 function buildWageFilterParams(filters) {

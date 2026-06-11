@@ -210,3 +210,21 @@ This is a cross-version lifecycle mismatch, not a missing-lesson problem.
 Do not generate or repair real 2026-06 wage data from v2 until the preview/generation scope is corrected.
 
 The next safe implementation should start with frontend/API read-only visibility and navigation fixes, then separately design the guarded RPC changes for business-entity-scoped generation and unpaid snapshot void/reissue.
+
+## Implemented UI/API Checkpoint
+
+2026-06-11 follow-up frontend/API work completed the first safe implementation slice:
+
+- Candidate preview no longer hides just because raw `school_teacher_wage_locks` exists.
+- Candidate rows now show whether a source actual is `未生成`, already covered by an effective wage snapshot, linked to a void wage snapshot, or blocked by a same teacher/business/month locked snapshot.
+- The candidate summary and generation dialog show teacher + business entity grouping and explain that the current generation RPC groups by `teacher + business_entity + month`.
+- Business-entity filter remains display-only for generation; the UI now warns that it does not constrain the current generation RPC.
+- Candidate lesson links pass `from=wage` and wage filters to `lesson-detail.html`.
+- `lesson-detail.html` shows `返回老师工资结算` only for wage-origin links and keeps the existing lesson-management return behavior for ordinary lesson entries.
+
+Still not implemented in this checkpoint:
+
+- No change to `school_generate_teacher_monthly_wage`.
+- No business-entity scoped generation RPC.
+- No general unpaid wage snapshot void/reissue RPC or UI.
+- No real 2026-06 wage generation or repair.

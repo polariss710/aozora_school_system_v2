@@ -154,6 +154,13 @@ function syncReturnLink() {
   }
 
   const params = new URLSearchParams(window.location.search);
+  const wageReturnQuery = readWageReturnQuery(params);
+  if (wageReturnQuery) {
+    dom.returnLink.href = `./wage.html?${wageReturnQuery}`;
+    dom.returnLink.textContent = "返回老师工资结算";
+    return;
+  }
+
   const returnQuery = readLessonReturnQuery(params);
   if (returnQuery) {
     dom.returnLink.href = `./lesson.html?${returnQuery.query}`;
@@ -181,6 +188,56 @@ function syncReturnLink() {
   dom.returnLink.textContent = view === "pair"
     ? `返回 ${year}-${month} 对应视图`
     : `返回 ${year}-${month} 课时管理`;
+}
+
+function readWageReturnQuery(params) {
+  if (params.get("from") !== "wage") {
+    return "";
+  }
+
+  const target = new URLSearchParams();
+  const year = safeText(params.get("year"));
+  const month = safeText(params.get("month")).padStart(2, "0");
+  if (/^\d{4}$/.test(year) && /^(0[1-9]|1[0-2])$/.test(month)) {
+    target.set("year", year);
+    target.set("month", month);
+  }
+
+  [
+    "teacherId",
+    "businessEntityId",
+    "settlementType",
+    "status",
+    "keyword",
+  ].forEach((name) => {
+    const value = readSafeWageReturnValue(name, params.get(name));
+    if (value) {
+      target.set(name, value);
+    }
+  });
+
+  return target.toString();
+}
+
+function readSafeWageReturnValue(name, value) {
+  const text = safeText(value).trim();
+  if (["teacherId", "businessEntityId"].includes(name)) {
+    return /^[0-9a-fA-F-]{36}$/.test(text) ? text : "";
+  }
+
+  if (name === "settlementType") {
+    return ["jpy_hourly", "no_wage"].includes(text) ? text : "";
+  }
+
+  if (name === "status") {
+    return ["locked", "void"].includes(text) ? text : "";
+  }
+
+  if (name === "keyword") {
+    return text.slice(0, 120);
+  }
+
+  return "";
 }
 
 function readLessonReturnQuery(params) {

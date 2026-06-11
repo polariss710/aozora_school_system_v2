@@ -96,7 +96,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageListTitle">老师工资快照记录</h2>
-              <p class="section-note">本页默认显示未作废的已生成工资快照，不代表实时工资预览或重新计算结果。</p>
+              <p class="section-note">本页默认显示未作废的已生成工资快照；下方候选课时用于生成前核对，不代表已保存工资金额。</p>
             </div>
             <div class="table-actions">
               <button class="button" id="wageMonthlySummaryExportButton" type="button">月度汇总导出</button>
@@ -140,11 +140,12 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageCandidateTitle">待生成候选课时</h2>
-              <p class="section-note">尚未生成工资快照，以下为当前筛选月份的 actual completed / makeup_completed 候选课时，只用于生成前核对。</p>
+              <p class="section-note">以下为当前筛选月份的 actual completed / makeup_completed 候选课时和工资快照覆盖状态，只用于生成前核对。</p>
             </div>
             <span id="wageCandidateCount" class="record-count">0 条</span>
           </div>
 
+          <div id="wageCandidateStatusNote" class="dialog-warning"></div>
           <div id="wageCandidateSummary" class="summary-grid"></div>
           <div id="wageCandidateEmptyState" class="state-text is-hidden">暂无待生成候选课时。</div>
           <div class="table-scroll">
@@ -162,7 +163,7 @@
                   <th>时长</th>
                   <th>实际分钟</th>
                   <th>计费</th>
-                  <th>工资锁定</th>
+                  <th>工资状态</th>
                   <th>内容/备注</th>
                 </tr>
               </thead>
@@ -183,7 +184,7 @@
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支付请求；本操作不会生成支付请求、支出、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。当前生成 RPC 会按 teacher + business_entity + month 生成快照；若只筛选老师但未限定业务归属，可能一次生成多条业务归属快照。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支付请求；本操作不会生成支付请求、支出、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -201,6 +202,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=v2.90.0-wage-candidate-preview-20260611"></script>
+    <script type="module" src="./js/wage-app.js?v=v2.91.0-wage-generation-state-preview-20260611"></script>
   </body>
 </html>
