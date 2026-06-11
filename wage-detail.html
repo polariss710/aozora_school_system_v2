@@ -93,7 +93,10 @@
                 <h2 id="wageDetailRowsTitle">工资明细</h2>
                 <p class="section-note">明细来自 school_teacher_wage_lock_details 的已保存课时快照；表格可横向滚动查看更多列。</p>
               </div>
-              <span id="wageDetailRowCount" class="record-count">0 条</span>
+              <div class="section-actions">
+                <button class="button" id="wageDutyReportExportButton" type="button">导出勤务申报表 Excel</button>
+                <span id="wageDetailRowCount" class="record-count">0 条</span>
+              </div>
             </div>
             <div id="wageDetailRowEmpty" class="state-text is-hidden">无工资明细。</div>
             <div class="table-scroll">
@@ -153,6 +156,7 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-detail-app.js?v=v2.84.0-wage-snapshot-copy-20260610"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script type="module" src="./js/wage-detail-app.js?v=v2.85.0-wage-duty-report-export-20260611"></script>
   </body>
 </html>

@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.83.1-student-line-rc-20260610";
+export const APP_VERSION = "v2.85.0-wage-duty-report-export-20260611";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,
