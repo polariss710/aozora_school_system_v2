@@ -86,6 +86,8 @@ function cacheDom() {
   dom.paymentRequests = document.querySelector("#wageDetailPaymentRequests");
   dom.openCreatePaymentRequestButton = document.querySelector("#openCreatePaymentRequestButton");
   dom.wageDutyReportExportButton = document.querySelector("#wageDutyReportExportButton");
+  dom.adjustmentState = document.querySelector("#wageDetailAdjustmentState");
+  dom.adjustmentReason = document.querySelector("#wageDetailAdjustmentReason");
   dom.createPaymentRequestDialog = document.querySelector("#createPaymentRequestDialog");
   dom.createPaymentRequestSummary = document.querySelector("#createPaymentRequestSummary");
   dom.createPaymentRequestError = document.querySelector("#createPaymentRequestError");
@@ -262,7 +264,9 @@ function renderWageDetail(data) {
 
   renderPaymentRequests(paymentRequests);
   renderCreatePaymentRequestAction(wageLock, paymentRequests);
-  renderDetailRows(details, canAdjustWageDetails(wageLock, paymentRequests));
+  const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests);
+  renderWageAdjustmentState(readonlyReason);
+  renderDetailRows(details, !readonlyReason, readonlyReason);
   renderAdjustmentAudits(adjustments || [], details || []);
 }
 
@@ -453,7 +457,7 @@ function setCreatePaymentRequestFieldInvalid(fieldId, isInvalid) {
   field?.classList.toggle("is-invalid", isInvalid);
 }
 
-function renderDetailRows(rows, canAdjust = false) {
+function renderDetailRows(rows, canAdjust = false, readonlyReason = "") {
   dom.rowCount.textContent = `${rows.length} 条`;
   dom.rowEmpty.classList.toggle("is-hidden", rows.length > 0);
 
@@ -464,6 +468,7 @@ function renderDetailRows(rows, canAdjust = false) {
 
   dom.rows.innerHTML = rows.map((row) => `
     <tr>
+      <td class="wage-nowrap">${renderWageDetailRowAction(row, canAdjust, readonlyReason)}</td>
       <td class="wage-nowrap">${escapeHtml(formatDateOnly(row.lesson_date))}</td>
       <td class="wage-nowrap">${escapeHtml(timeRange(row.start_time, row.end_time))}</td>
       <td>${escapeHtml(displayValue(row.student_name))}</td>
@@ -480,14 +485,18 @@ function renderDetailRows(rows, canAdjust = false) {
       <td class="wage-nowrap">${escapeHtml(booleanLabel(row.is_no_wage))}</td>
       <td><span class="status-badge ${escapeAttribute(detailStatusClass(row.status))}">${escapeHtml(detailStatusLabel(row.status))}</span></td>
       <td class="wage-detail-content-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.lesson_content))}</span></td>
-      <td class="wage-nowrap">${renderWageDetailRowAction(row, canAdjust)}</td>
     </tr>
   `).join("");
 }
 
-function renderWageDetailRowAction(row, canAdjust) {
+function renderWageDetailRowAction(row, canAdjust, readonlyReason = "") {
   if (!canAdjust) {
-    return '<span class="section-note">只读</span>';
+    return `
+      <span
+        class="status-badge status-neutral"
+        title="${escapeAttribute(readonlyReason || "当前工资快照不可调整。")}"
+      >只读</span>
+    `;
   }
 
   return `
@@ -515,18 +524,35 @@ function handleWageDetailRowActionClick(event) {
   openAdjustWageDetailDialog(detail);
 }
 
-function canAdjustWageDetails(wageLock, paymentRequests = []) {
-  return wageLock?.status === "locked"
-    && !wageLock?.voided_at
-    && paymentRequests.length === 0;
-}
-
 function wageAdjustmentReadonlyReason(wageLock, paymentRequests = []) {
   if (!wageLock) return "工资快照尚未加载。";
   if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以调整。";
   if (wageLock.voided_at) return "已作废的工资快照不能调整。";
   if (paymentRequests.length > 0) return "该工资快照已生成支付请求，不能直接调整。";
   return "";
+}
+
+function renderWageAdjustmentState(readonlyReason) {
+  if (!dom.adjustmentState) {
+    return;
+  }
+
+  if (readonlyReason) {
+    dom.adjustmentState.className = "status-badge status-neutral";
+    dom.adjustmentState.textContent = "只读";
+    dom.adjustmentState.title = readonlyReason;
+    if (dom.adjustmentReason) {
+      dom.adjustmentReason.textContent = readonlyReason;
+    }
+    return;
+  }
+
+  dom.adjustmentState.className = "status-badge status-paid";
+  dom.adjustmentState.textContent = "可调整";
+  dom.adjustmentState.title = "可调整结算课时、交通费、教室费；保存时必须填写备注并由 DB/RPC 写入审计记录。";
+  if (dom.adjustmentReason) {
+    dom.adjustmentReason.textContent = "未生成支付请求，可调整结算课时、交通费、教室费。";
+  }
 }
 
 function openAdjustWageDetailDialog(detail) {

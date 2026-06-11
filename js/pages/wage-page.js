@@ -346,6 +346,7 @@ function renderWageStatusOptions(values) {
 function renderWageLocks(rows) {
   dom.wageCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
+  dom.emptyState.textContent = buildWageEmptyStateText(rows);
 
   if (!rows.length) {
     dom.tableBody.innerHTML = "";
@@ -603,7 +604,23 @@ function formatGenerateError(error) {
     return `生成失败：该月份已有工资记录或课时已进入工资明细，不能重复生成。${message}`;
   }
 
+  if (message.includes("缺少老师/学生/科目/业务归属/实际分钟")) {
+    return `生成失败：存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时。请先在课时管理补齐本月 completed / makeup_completed actual 课时的实际分钟，再重新生成工资快照。${message}`;
+  }
+
   return `生成失败：${message}`;
+}
+
+function buildWageEmptyStateText(rows) {
+  if (rows.length > 0) {
+    return "";
+  }
+
+  if (wageLocks.length === 0 && loadedMonth) {
+    return `${formatMonth(loadedMonth)} 尚未生成老师工资快照。本页只显示已生成快照；请确认本月 actual completed / makeup_completed 课时已写入实际分钟后，再使用“生成老师工资”。`;
+  }
+
+  return "暂无符合当前筛选条件的老师工资快照。";
 }
 
 function setGenerateSubmitting(isSubmitting) {
