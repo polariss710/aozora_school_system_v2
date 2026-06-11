@@ -1,6 +1,6 @@
 -- school_teacher_wage_detail_adjustments_schema.sql
 -- Purpose: Create append-only audit records for manual teacher wage detail adjustments.
--- Status: DRAFT. Execute through the full autopilot SQL workflow.
+-- Status: EXECUTED ON SUPABASE. Verified with read-only schema/count checks.
 -- Version: v2.86.0-teacher-wage-detail-adjustment-schema-20260611
 --
 -- Scope:
