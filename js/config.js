@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.89.0-wage-monthly-summary-export-20260611";
+export const APP_VERSION = "v2.89.1-wage-generate-lock-warning-20260611";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,

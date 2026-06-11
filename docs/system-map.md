@@ -1,6 +1,6 @@
 # v2 System Map
 
-Status date: 2026-06-10
+Status date: 2026-06-11
 
 Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority. For a visual static overview, open `docs/module-status-dashboard.html` locally.
 
@@ -17,6 +17,7 @@ Reference baseline:
 - All write operations currently exposed by pages go through `js/api/*-api.js` wrappers and verified RPCs.
 - Historical records are audit data. Current write flows must preserve original records and use status, reversal fields, related records, and account transactions instead of deletion or historical rewrite.
 - The 2026-05 teacher wage duplicate reconciliation was completed through service-role-only one-time RPC `school_fix_202605_teacher_wage_duplicate_cong_qirun`; it is not a page/API write surface and not a general wage void/relock lifecycle. It left the older wage/payment effective, voided only the confirmed duplicate wage snapshot, cancelled only the confirmed duplicate pending payment request, and kept effective 2026-05 wage locks at `locked:9 / void:13`.
+- Current or unclosed real business months must not be used for real wage generation, settlement generation, closing, or lock-style write validation. Wage generation validation must use codex-test whitelist data or transaction rollback unless the user explicitly authorizes a formal business operation. The 2026-06 teacher wage early-generation rollback was a one-time user-authorized repair that deleted only the mistaken 2026-06 wage locks/details after proving there were no payment, expense, account-transaction, or adjustment dependencies; it is not a general wage lifecycle.
 - Teacher wage settlement user flow is snapshot-based: actual lessons -> generate teacher wage settlement snapshot -> generate payment request from that snapshot -> confirm payment with a selected account -> create teacher_wage expense and account transaction. Company-account wage payments set `reimbursement_status = not_required`; advance/personal-account wage payments set `reimbursement_status = pending`; reimbursement repays advance accounts and must not create another teacher_wage expense. The underlying table/status names remain `school_teacher_wage_locks`, `locked_at`, and `status = locked`, but the UI treats them as generated wage snapshots rather than a separate user operation.
 - Profit analysis is read-only and uses effective income/expense records for operating profit. Reimbursement, account adjustment, account transfer, and payment-request state changes are audit references unless they materialize as effective income/expense.
 

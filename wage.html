@@ -148,14 +148,14 @@
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。确认金额后请从工资快照生成支付请求；本操作不会生成支付请求、支出、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支付请求；本操作不会生成支付请求、支出、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
 
         <label class="field confirm-check" data-wage-generate-field="confirm">
           <input id="wageGenerateConfirmCheckbox" type="checkbox">
-          <span>我确认按当前筛选月份生成老师工资快照，且理解已生成快照的月份不能重复生成。</span>
+          <span>我确认该月实际课时已完成录入和修正，理解生成工资快照后会锁定该月实际课时，且已生成快照的月份不能重复生成。</span>
         </label>
 
         <div class="dialog-actions">
@@ -166,6 +166,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=v2.89.0-wage-monthly-summary-export-20260611"></script>
+    <script type="module" src="./js/wage-app.js?v=v2.89.1-wage-generate-lock-warning-20260611"></script>
   </body>
 </html>

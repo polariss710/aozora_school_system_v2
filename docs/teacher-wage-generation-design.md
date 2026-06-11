@@ -1,7 +1,7 @@
 # 老师工资生成设计与 DB/RPC checkpoint
 
-Status: MVP implemented; payment request generation implemented; payment confirmation account-type boundary verified; snapshot wording aligned
-Date: 2026-06-10
+Status: MVP implemented; payment request generation implemented; payment confirmation account-type boundary verified; snapshot wording aligned; current-month generation safety documented
+Date: 2026-06-11
 
 ## 目标
 
@@ -20,6 +20,24 @@ Date: 2026-06-10
 - 垫付/个人账户支付工资：支出 `reimbursement_status = pending`。
 - 报销流程只处理公司账户归还垫付账户，不再次生成 teacher_wage 工资支出。
 - 底层表名、字段名和状态值仍保留 `school_teacher_wage_locks`、`locked_at`、`status = locked`，这是当前 schema 实现细节，不代表 UI 还有一个单独锁定操作。
+
+## Current-month generation safety checkpoint
+
+2026-06-11 对测试提前生成的真实 2026-06 老师工资快照完成一次性 guarded rollback：
+
+- 目标为 9 个 2026-06 `locked` 工资快照、21 条工资明细、JPY `193975`，来源 actual 课时 21 条、actual minutes `2475`。
+- 执行前确认目标快照没有 teacher_wage payment request、paid expense、linked account transaction、detail adjustment。
+- 先在事务内运行 `school_rollback_test_generated_202606_teacher_wages.sql` 并 rollback，确认可删除 21 条明细和 9 个快照、课时编辑 blocker 清零，rollback 后原状态恢复。
+- 持久执行同一 SQL 后，只删除目标 `school_teacher_wage_lock_details` 与 `school_teacher_wage_locks`；没有修改 `school_lesson_records`、`actual_minutes`、支付请求、支出、账户流水、账户、收入或学生结算。
+- 回退后 2026-06 工资快照为 0，21 条 June actual 课时仍保留且 `actual_minutes` 缺失为 0，工资明细引用 blocker 与同月 locked blocker 均为 0。
+- `wage.html` 生成确认文案已明确提示：生成工资快照后会锁定该月实际课时，未完成录入或修正前不要生成。
+
+固定安全规则：
+
+- 当前月份或未结月份的真实业务数据不得用于真实工资生成、快照生成、结账或锁定类写入验证。
+- 工资生成验证必须优先使用 codex-test 白名单数据或 transaction rollback。
+- 除非用户明确授权作为正式业务操作，否则不得对真实未结月份执行会导致锁定的生成类 RPC。
+- 2026-06 本次回退是用户授权的定点修复，不代表系统已有通用工资快照删除/void/reissue 生命周期。
 
 ## 2026-05 historical reconciliation checkpoint
 
