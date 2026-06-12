@@ -125,6 +125,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 2026-06-12 已完成 design-only docs：账户/家庭账本账户联动设计 `docs/account-family-account-integration-design-2026-06-12.md`，以及打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md`。两者均未实装。
+- 最近关键更新: 2026-06-12 已完成 Codex/v2-test/sandbox DB cleanup round 2：`school_cleanup_codex_test_data_round2_20260612.sql` 经 dry-run、rollback validation、commit、residue check 后删除 3 条明确白名单测试主数据；无关联业务链路、Storage、人工确认或风险残留。账户/家庭账本账户联动设计 `docs/account-family-account-integration-design-2026-06-12.md` 和打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
 - 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account/family ledger scope implementation、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
