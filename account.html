@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 账户管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.104.0-account-dialog-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.109.0-account-app-type-isolation-20260613">
   </head>
   <body>
     <div class="app-shell">
@@ -50,6 +50,16 @@
                 <select id="accountYearFilter" name="year" aria-label="年份"></select>
                 <select id="accountMonthFilter" name="month" aria-label="月份"></select>
               </div>
+            </label>
+
+            <label class="field">
+              <span>账户用途</span>
+              <select id="accountAppTypeSelect" name="appType">
+                <option value="school">学校业务</option>
+                <option value="store">店铺业务</option>
+                <option value="family">家庭账本</option>
+                <option value="">全部</option>
+              </select>
             </label>
 
             <label class="field">
@@ -146,6 +156,11 @@
 
         <div id="accountCreateError" class="dialog-error is-hidden"></div>
 
+        <label class="field" data-account-create-field="appType">
+          <span>账户用途</span>
+          <select id="accountCreateAppTypeSelect"></select>
+        </label>
+
         <label class="field" data-account-create-field="name">
           <span>账户名称</span>
           <input id="accountCreateNameInput" type="text" autocomplete="off">
@@ -207,6 +222,11 @@
         </div>
 
         <div id="accountProfileError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-account-profile-field="appType">
+          <span>账户用途</span>
+          <select id="accountProfileAppTypeSelect" disabled></select>
+        </label>
 
         <label class="field" data-account-profile-field="name">
           <span>账户名称</span>
@@ -357,6 +377,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.104.0-account-dialog-field-scope-20260612"></script>
+    <script type="module" src="./js/account-app.js?v=v2.109.0-account-app-type-isolation-20260613"></script>
   </body>
 </html>

@@ -23,7 +23,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 学生月度结算 | 已收口 | No immediate V1 work; future reversal/history requires new design |
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
 | 老师工资支付 | V1 可用 | Retest status actions before future changes; exchange rate is optional metadata on generated wage expenses |
-| 账户管理 | V1 可用 | Account/family ledger scope implementation requires separate guarded design |
+| 账户管理 | V1 可用 + first-stage family account isolation | Account scope/household owner expansion and family ledger records require separate guarded phases |
 | 收入记录 | V1 可用 | Keep edit guards narrow; older account-ledger rows should use reversal/recreate |
 | 支出记录 | V1 可用 | Keep edit guards narrow; exchange rate is optional; real attachment storage is separate |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
@@ -63,10 +63,10 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 账户管理
 
-- 当前状态: V1 可用。账户列表、账户交易详情、账户新增、账户资料编辑、账户调整/反转、账户转账/反转已可用。
-- 最近关键更新: 2026-06-12 账户新增/编辑 dialog 已按实际业务收窄。新增开放 `name`, `currency`, currency-linked `account_type`, `business_entity_id`, initial balance, `is_company_account`, `is_active`, `note`；编辑开放 `name`, `currency`, currency-linked `account_type`, `business_entity_id`, `is_company_account`, `is_active`, `note`。`account_code` 由 RPC 生成并隐藏；初始余额只在新增填写；当前余额只在账户卡片展示且不在资料 dialog 编辑。
-- 当前限制 / hard stop: 不开放 account code、系统字段、created/updated timestamps、current balance 编辑、交易流水、历史收入/支出/报销/支付/转账/调整/结算/工资链路派生字段。新增初始余额只初始化 `opening_balance/current_balance`，不创建账户流水；已有账户流水后 RPC 拒绝改币种，避免历史流水币种不一致。余额变化只能走 verified income/expense/reimbursement/payment/adjustment/transfer flows。
-- 下一步: 账户/家庭账本账户联动设计见 `docs/account-family-account-integration-design-2026-06-12.md`；account/family ledger scope、余额调整 / 期初修正需另开 guarded implementation phase；只有当 account transaction detail 不够用时再补 standalone transfer detail。
+- 当前状态: V1 可用，已完成 account/family first-stage `app_type` 隔离。账户列表、账户交易详情、账户新增、账户资料编辑、账户调整/反转、账户转账/反转已可用；账户管理默认 `school` 视图，可筛选/标识 `school` / `store` / `family`。
+- 最近关键更新: 2026-06-13 增加 `school_create_account_profile(..., p_app_type)` 和 `school_update_account_profile(..., p_app_type)` 重载，保留旧重载。账户页新增“账户用途”筛选和 create/edit 用途字段；`school` / `family` 可新增/编辑，`store` 本阶段只展示/筛选不编辑。Family 账户强制 `business_entity_id = NULL`、`is_company_account = false`，资料编辑不能改 `app_type`，新增/编辑不创建账户流水。页面版本为 `v2.109.0-account-app-type-isolation-20260613`。2026-06-12 账户新增/编辑 dialog 已按实际业务收窄；`account_code` 由 RPC 生成并隐藏；初始余额只在新增填写；当前余额只在账户卡片展示且不在资料 dialog 编辑。
+- 当前限制 / hard stop: 不开放 account code、系统字段、created/updated timestamps、current balance 编辑、交易流水、历史收入/支出/报销/支付/转账/调整/结算/工资链路派生字段。Family 账户本阶段只是后续家庭账本可用的账户主数据，不进入 school 收入、支出、支付、报销、工资、学生结算、利润分析、账户调整或账户转账候选。新增初始余额只初始化 `opening_balance/current_balance`，不创建账户流水；已有账户流水后 RPC 拒绝改币种，避免历史流水币种不一致。余额变化只能走 verified income/expense/reimbursement/payment/adjustment/transfer flows；family ledger 收支/转账尚未实现。
+- 下一步: `account_scope`、household/member owner、family income/expense/transfer records、family summary、余额调整 / 期初修正需另开 guarded implementation phase；只有当 account transaction detail 不够用时再补 standalone transfer detail。
 
 ## 收入记录
 
@@ -125,6 +125,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 2026-06-12 已清理上一轮支出测试数据：business entity `f500595d-5455-4460-b826-757c8f834d20`、account `7ea665f1-74b0-4177-90d8-6e79002e3082`、expense `e37287bc-81f2-4714-b79c-a31894b8144b`、account transaction `f444efb6-7f32-4b39-93d7-69ed3ce9b235` 经 dry-run、rollback validation、commit delete、residue check 后删除；无关联附件、报销、支付请求、收入或 Storage 候选。早前 Codex/v2-test/sandbox DB cleanup round 2 也已删除 3 条明确白名单测试主数据。账户/家庭账本账户联动设计 `docs/account-family-account-integration-design-2026-06-12.md` 和打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
+- 最近关键更新: 2026-06-13 账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。2026-06-12 已清理上一轮支出测试数据：business entity `f500595d-5455-4460-b826-757c8f834d20`、account `7ea665f1-74b0-4177-90d8-6e79002e3082`、expense `e37287bc-81f2-4714-b79c-a31894b8144b`、account transaction `f444efb6-7f32-4b39-93d7-69ed3ce9b235` 经 dry-run、rollback validation、commit delete、residue check 后删除；无关联附件、报销、支付请求、收入或 Storage 候选。早前 Codex/v2-test/sandbox DB cleanup round 2 也已删除 3 条明确白名单测试主数据。打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
-- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account/family ledger scope implementation、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
+- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account_scope/household owner expansion、family ledger records/reporting、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。

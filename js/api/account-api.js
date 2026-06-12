@@ -38,7 +38,7 @@ export async function fetchAccounts() {
   const { data, error } = await supabase
     .from("school_accounts")
     .select(ACCOUNT_COLUMNS)
-    .eq("app_type", "school")
+    .in("app_type", ["school", "store", "family"])
     .order("currency", { ascending: true })
     .order("name", { ascending: true });
 
@@ -53,7 +53,6 @@ export async function fetchAccountTransactions(filters) {
   let query = supabase
     .from("school_account_transactions")
     .select(ACCOUNT_TRANSACTION_COLUMNS)
-    .eq("app_type", "school")
     .order("transaction_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -78,6 +77,7 @@ export async function createAccountProfile(payload) {
     p_is_company_account: payload.isCompanyAccount,
     p_is_active: payload.isActive,
     p_note: payload.note || null,
+    p_app_type: payload.appType || "school",
   });
 
   if (error) {
@@ -147,6 +147,7 @@ export async function updateAccountProfile(payload) {
     p_is_company_account: payload.isCompanyAccount,
     p_is_active: payload.isActive,
     p_note: payload.note || null,
+    p_app_type: payload.appType || null,
   });
 
   if (error) {
@@ -161,13 +162,18 @@ export async function updateAccountProfile(payload) {
   return result;
 }
 
-export async function fetchAccountTransactionTypes() {
-  const { data, error } = await supabase
+export async function fetchAccountTransactionTypes(appType = "school") {
+  let query = supabase
     .from("school_account_transactions")
     .select("transaction_type")
-    .eq("app_type", "school")
     .not("transaction_type", "is", null)
     .order("transaction_type", { ascending: true });
+
+  if (appType) {
+    query = query.eq("app_type", appType);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw error;
@@ -196,6 +202,10 @@ export async function fetchBusinessEntitiesForAccounts() {
 }
 
 function applyAccountTransactionFilters(query, filters) {
+  if (filters.appType) {
+    query = query.eq("app_type", filters.appType);
+  }
+
   if (filters.month) {
     query = query.eq("year_month", filters.month);
   }

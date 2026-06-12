@@ -20,6 +20,7 @@ import {
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
+  appType: "school",
   accountId: "",
   businessEntityId: "",
   currency: "",
@@ -70,12 +71,21 @@ const ACCOUNT_TYPE_LABELS = {
   jpy_cash: "日元现金",
 };
 
+const ACCOUNT_APP_TYPE_LABELS = {
+  school: "学校业务",
+  store: "店铺业务",
+  family: "家庭账本",
+};
+
+const ACCOUNT_APP_TYPE_OPTIONS = ["school", "store", "family"];
+const ACCOUNT_CREATABLE_APP_TYPE_OPTIONS = ["school", "family"];
 const EDITABLE_ACCOUNT_TYPE_OPTIONS_BY_CURRENCY = {
   CNY: ["cny_yuebao", "cny_yulibao"],
   JPY: ["jpy_mufg_card", "jpy_rakuten_card", "jpy_cash"],
 };
 const EDITABLE_ACCOUNT_CURRENCY_OPTIONS = ["CNY", "JPY"];
 const ACCOUNT_CREATE_FIELD_IDS = [
+  "appType",
   "name",
   "currency",
   "accountType",
@@ -85,6 +95,7 @@ const ACCOUNT_CREATE_FIELD_IDS = [
   "active",
 ];
 const ACCOUNT_PROFILE_FIELD_IDS = [
+  "appType",
   "name",
   "currency",
   "accountType",
@@ -128,6 +139,7 @@ function cacheDom() {
   dom.filterForm = document.querySelector("#accountFilterForm");
   dom.yearFilter = document.querySelector("#accountYearFilter");
   dom.monthFilter = document.querySelector("#accountMonthFilter");
+  dom.appTypeSelect = document.querySelector("#accountAppTypeSelect");
   dom.accountSelect = document.querySelector("#accountSelect");
   dom.businessEntitySelect = document.querySelector("#accountBusinessEntitySelect");
   dom.currencySelect = document.querySelector("#accountCurrencySelect");
@@ -143,6 +155,7 @@ function cacheDom() {
   dom.openAccountCreateButton = document.querySelector("#openAccountCreateButton");
   dom.accountCreateDialog = document.querySelector("#accountCreateDialog");
   dom.accountCreateError = document.querySelector("#accountCreateError");
+  dom.accountCreateAppTypeSelect = document.querySelector("#accountCreateAppTypeSelect");
   dom.accountCreateNameInput = document.querySelector("#accountCreateNameInput");
   dom.accountCreateTypeSelect = document.querySelector("#accountCreateTypeSelect");
   dom.accountCreateCurrencySelect = document.querySelector("#accountCreateCurrencySelect");
@@ -155,6 +168,7 @@ function cacheDom() {
   dom.accountCreateSubmitButton = document.querySelector("#accountCreateSubmitButton");
   dom.accountProfileDialog = document.querySelector("#accountProfileDialog");
   dom.accountProfileError = document.querySelector("#accountProfileError");
+  dom.accountProfileAppTypeSelect = document.querySelector("#accountProfileAppTypeSelect");
   dom.accountProfileNameInput = document.querySelector("#accountProfileNameInput");
   dom.accountProfileCurrencySelect = document.querySelector("#accountProfileCurrencySelect");
   dom.accountProfileTypeSelect = document.querySelector("#accountProfileTypeSelect");
@@ -201,10 +215,22 @@ function bindEvents() {
     setDefaultFilters();
     loadAccountData();
   });
+  dom.appTypeSelect.addEventListener("change", () => {
+    dom.accountSelect.value = "";
+    if (dom.appTypeSelect.value === "family") {
+      dom.businessEntitySelect.value = "";
+    }
+    loadAccountData();
+  });
 
   dom.openAccountCreateButton.addEventListener("click", openAccountCreateDialog);
   dom.accountCreateCancelButton.addEventListener("click", closeAccountCreateDialog);
   dom.accountCreateSubmitButton.addEventListener("click", submitAccountCreate);
+  dom.accountCreateAppTypeSelect.addEventListener("change", () => {
+    clearAccountCreateFieldInvalid("appType");
+    updateAccountCreateScopeControls();
+    hideAccountCreateErrorIfClean();
+  });
   dom.accountCreateNameInput.addEventListener("input", () => {
     clearAccountCreateFieldInvalid("name");
     hideAccountCreateErrorIfClean();
@@ -341,6 +367,7 @@ function bindEvents() {
 
 function setDefaultFilters() {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+  dom.appTypeSelect.value = DEFAULT_FILTERS.appType;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
@@ -366,7 +393,7 @@ async function loadAccountData() {
     const [accountRows, businessEntityRows, transactionTypeRows, transactionRows] = await Promise.all([
       fetchAccounts(),
       fetchBusinessEntitiesForAccounts(),
-      fetchAccountTransactionTypes().catch((error) => {
+      fetchAccountTransactionTypes(filters.appType).catch((error) => {
         transactionTypeWarning = `流水类型读取失败，已保留固定选项：${error.message || error}`;
         return [];
       }),
@@ -377,7 +404,7 @@ async function loadAccountData() {
     businessEntities = businessEntityRows;
     transactions = transactionRows;
 
-    renderAccountOptions(accounts);
+    renderAccountOptions(filterAccountsForOptionSelect(accounts, filters));
     renderBusinessEntityOptions(businessEntities);
     renderTransactionTypeOptions(mergeTransactionTypes(transactionTypeRows));
     restoreFilterSelections(filters);
@@ -411,6 +438,7 @@ function readFilters() {
 
   return {
     month: selectedMonth,
+    appType: dom.appTypeSelect.value || "",
     accountId: dom.accountSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
     currency: dom.currencySelect.value,
@@ -419,6 +447,7 @@ function readFilters() {
 }
 
 function restoreFilterSelections(filters) {
+  dom.appTypeSelect.value = filters.appType;
   dom.accountSelect.value = filters.accountId;
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.currencySelect.value = filters.currency;
@@ -432,6 +461,7 @@ function renderAccountOptions(items) {
     const label = [
       account.name,
       account.currency,
+      accountAppTypeLabel(account.app_type),
     ].filter(Boolean).join(" / ");
 
     options.push(
@@ -440,6 +470,16 @@ function renderAccountOptions(items) {
   }
 
   dom.accountSelect.innerHTML = options.join("");
+}
+
+function filterAccountsForOptionSelect(items, filters) {
+  return items.filter((account) => {
+    if (filters.appType && account.app_type !== filters.appType) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 function renderBusinessEntityOptions(items) {
@@ -481,6 +521,10 @@ function mergeTransactionTypes(actualTypes) {
 
 function filterAccountsForDisplay(items, filters) {
   return items.filter((account) => {
+    if (filters.appType && account.app_type !== filters.appType) {
+      return false;
+    }
+
     if (filters.accountId && account.id !== filters.accountId) {
       return false;
     }
@@ -517,10 +561,16 @@ function renderAccounts(items) {
         </span>
       </div>
       <div class="table-actions">
-        <button class="button" type="button" data-edit-account-id="${escapeAttribute(account.id)}">编辑基础信息</button>
+        ${isEditableAccountAppType(account.app_type)
+          ? `<button class="button" type="button" data-edit-account-id="${escapeAttribute(account.id)}">编辑基础信息</button>`
+          : '<button class="button" type="button" disabled>暂不开放编辑</button>'}
       </div>
       <div class="account-balance">${escapeHtml(formatCurrency(account.current_balance, account.currency))}</div>
       <dl class="account-meta">
+        <div>
+          <dt>用途</dt>
+          <dd>${escapeHtml(accountAppTypeLabel(account.app_type))}</dd>
+        </div>
         <div>
           <dt>币种</dt>
           <dd>${escapeHtml(account.currency || "-")}</dd>
@@ -531,7 +581,7 @@ function renderAccounts(items) {
         </div>
         <div>
           <dt>公司账户</dt>
-          <dd>${account.is_company_account ? "是" : "否"}</dd>
+          <dd>${escapeHtml(accountCompanyLabel(account))}</dd>
         </div>
         <div>
           <dt>备注</dt>
@@ -550,6 +600,11 @@ function openAccountCreateDialog() {
 
   clearAccountCreateErrors();
   setAccountCreateSubmitting(false);
+  renderAccountCreateAppTypeOptions(
+    ACCOUNT_CREATABLE_APP_TYPE_OPTIONS.includes(dom.appTypeSelect.value)
+      ? dom.appTypeSelect.value
+      : "school"
+  );
   dom.accountCreateNameInput.value = "";
   renderAccountCreateCurrencyOptions("CNY");
   renderAccountCreateTypeOptions("CNY");
@@ -558,6 +613,7 @@ function openAccountCreateDialog() {
   dom.accountCreateCompanySelect.value = "false";
   dom.accountCreateActiveSelect.value = "true";
   dom.accountCreateNoteInput.value = "";
+  updateAccountCreateScopeControls();
   dom.accountCreateDialog.classList.remove("is-hidden");
   dom.accountCreateDialog.setAttribute("aria-hidden", "false");
   dom.accountCreateNameInput.focus();
@@ -581,16 +637,23 @@ async function submitAccountCreate() {
 
   const initialBalanceText = dom.accountCreateInitialBalanceInput.value.trim();
   const initialBalance = initialBalanceText === "" ? 0 : Number(initialBalanceText);
+  const appType = dom.accountCreateAppTypeSelect.value;
   const payload = {
+    appType,
     name: dom.accountCreateNameInput.value.trim(),
     accountType: dom.accountCreateTypeSelect.value,
     currency: dom.accountCreateCurrencySelect.value,
-    businessEntityId: dom.accountCreateBusinessEntitySelect.value,
+    businessEntityId: appType === "family" ? null : dom.accountCreateBusinessEntitySelect.value,
     initialBalance,
-    isCompanyAccount: dom.accountCreateCompanySelect.value === "true",
+    isCompanyAccount: appType === "family" ? false : dom.accountCreateCompanySelect.value === "true",
     isActive: dom.accountCreateActiveSelect.value === "true",
     note: dom.accountCreateNoteInput.value.trim(),
   };
+
+  if (!ACCOUNT_CREATABLE_APP_TYPE_OPTIONS.includes(payload.appType)) {
+    showAccountCreateError("请选择有效账户用途。", ["appType"]);
+    return;
+  }
 
   if (!payload.name) {
     showAccountCreateError("请输入账户名称。", ["name"]);
@@ -607,12 +670,15 @@ async function submitAccountCreate() {
     return;
   }
 
-  if (!payload.businessEntityId) {
+  if (payload.appType === "school" && !payload.businessEntityId) {
     showAccountCreateError("请选择业务归属。", ["businessEntity"]);
     return;
   }
 
-  if (!businessEntities.some((entity) => entity.id === payload.businessEntityId && entity.is_active !== false)) {
+  if (
+    payload.appType === "school"
+    && !businessEntities.some((entity) => entity.id === payload.businessEntityId && entity.is_active !== false)
+  ) {
     showAccountCreateError("请选择有效启用业务归属。", ["businessEntity"]);
     return;
   }
@@ -622,7 +688,7 @@ async function submitAccountCreate() {
     return;
   }
 
-  if (!["true", "false"].includes(dom.accountCreateCompanySelect.value)) {
+  if (payload.appType === "school" && !["true", "false"].includes(dom.accountCreateCompanySelect.value)) {
     showAccountCreateError("请选择公司账户标记。", ["companyAccount"]);
     return;
   }
@@ -647,6 +713,13 @@ async function submitAccountCreate() {
 }
 
 async function refreshAfterAccountCreate(result) {
+  if (result?.app_type) {
+    dom.appTypeSelect.value = result.app_type;
+    dom.accountSelect.value = "";
+    if (result.app_type === "family") {
+      dom.businessEntitySelect.value = "";
+    }
+  }
   await reloadAccountDataPreservingViewport();
 }
 
@@ -657,6 +730,15 @@ function renderAccountCreateTypeOptions(currency, selectedType = "") {
     .map((type) => `<option value="${escapeAttribute(type)}">${escapeHtml(accountTypeLabel(type))}</option>`)
     .join("");
   dom.accountCreateTypeSelect.value = nextType || "";
+}
+
+function renderAccountCreateAppTypeOptions(selectedAppType) {
+  dom.accountCreateAppTypeSelect.innerHTML = ACCOUNT_CREATABLE_APP_TYPE_OPTIONS
+    .map((appType) => `<option value="${escapeAttribute(appType)}">${escapeHtml(accountAppTypeLabel(appType))}</option>`)
+    .join("");
+  dom.accountCreateAppTypeSelect.value = ACCOUNT_CREATABLE_APP_TYPE_OPTIONS.includes(selectedAppType)
+    ? selectedAppType
+    : "school";
 }
 
 function renderAccountCreateCurrencyOptions(selectedCurrency) {
@@ -674,6 +756,18 @@ function renderAccountCreateBusinessEntityOptions(items) {
     options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
   }
   dom.accountCreateBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function updateAccountCreateScopeControls() {
+  const isFamily = dom.accountCreateAppTypeSelect.value === "family";
+  dom.accountCreateBusinessEntitySelect.disabled = isFamily;
+  dom.accountCreateCompanySelect.disabled = isFamily;
+  if (isFamily) {
+    dom.accountCreateBusinessEntitySelect.value = "";
+    dom.accountCreateCompanySelect.value = "false";
+    clearAccountCreateFieldInvalid("businessEntity");
+    clearAccountCreateFieldInvalid("companyAccount");
+  }
 }
 
 function setAccountCreateSubmitting(isSubmitting) {
@@ -704,6 +798,7 @@ function accountCreateFieldIdsForError(message) {
   const text = safeText(message);
   const fields = [];
   if (text.includes("名称")) fields.push("name");
+  if (text.includes("用途")) fields.push("appType");
   if (text.includes("类型")) fields.push("accountType");
   if (text.includes("币种")) fields.push("currency");
   if (text.includes("业务归属")) fields.push("businessEntity");
@@ -740,6 +835,7 @@ function openAccountProfileDialog(accountId) {
   }
 
   editingAccount = account;
+  renderAccountProfileAppTypeOptions(account.app_type);
   dom.accountProfileNameInput.value = account.name || "";
   renderAccountProfileCurrencyOptions(account.currency);
   renderAccountProfileTypeOptions(account.currency, account.account_type, account);
@@ -747,6 +843,7 @@ function openAccountProfileDialog(accountId) {
   dom.accountProfileCompanySelect.value = account.is_company_account ? "true" : "false";
   dom.accountProfileActiveSelect.value = account.is_active ? "true" : "false";
   dom.accountProfileNoteInput.value = account.note || "";
+  updateAccountProfileScopeControls(account);
   clearAccountProfileErrors();
   setAccountProfileSubmitting(false);
   dom.accountProfileDialog.classList.remove("is-hidden");
@@ -778,11 +875,12 @@ async function submitAccountProfile() {
 
   const payload = {
     accountId: editingAccount.id,
+    appType: editingAccount.app_type || "school",
     name: dom.accountProfileNameInput.value.trim(),
     currency: dom.accountProfileCurrencySelect.value,
     accountType: dom.accountProfileTypeSelect.value,
-    businessEntityId: dom.accountProfileBusinessEntitySelect.value,
-    isCompanyAccount: dom.accountProfileCompanySelect.value === "true",
+    businessEntityId: editingAccount.app_type === "family" ? null : dom.accountProfileBusinessEntitySelect.value,
+    isCompanyAccount: editingAccount.app_type === "family" ? false : dom.accountProfileCompanySelect.value === "true",
     isActive: dom.accountProfileActiveSelect.value === "true",
     note: dom.accountProfileNoteInput.value.trim(),
   };
@@ -802,17 +900,17 @@ async function submitAccountProfile() {
     return;
   }
 
-  if (!payload.businessEntityId) {
+  if (payload.appType === "school" && !payload.businessEntityId) {
     showAccountProfileError("请选择业务归属。", ["businessEntity"]);
     return;
   }
 
-  if (!isAllowedBusinessEntityForProfile(payload.businessEntityId, editingAccount)) {
+  if (payload.appType === "school" && !isAllowedBusinessEntityForProfile(payload.businessEntityId, editingAccount)) {
     showAccountProfileError("请选择有效启用业务归属。", ["businessEntity"]);
     return;
   }
 
-  if (!["true", "false"].includes(dom.accountProfileCompanySelect.value)) {
+  if (payload.appType === "school" && !["true", "false"].includes(dom.accountProfileCompanySelect.value)) {
     showAccountProfileError("请选择公司账户标记。", ["companyAccount"]);
     return;
   }
@@ -845,6 +943,14 @@ function renderAccountProfileCurrencyOptions(selectedCurrency) {
     : "JPY";
 }
 
+function renderAccountProfileAppTypeOptions(selectedAppType) {
+  const appType = ACCOUNT_APP_TYPE_OPTIONS.includes(selectedAppType) ? selectedAppType : "school";
+  dom.accountProfileAppTypeSelect.innerHTML = ACCOUNT_APP_TYPE_OPTIONS
+    .map((value) => `<option value="${escapeAttribute(value)}">${escapeHtml(accountAppTypeLabel(value))}</option>`)
+    .join("");
+  dom.accountProfileAppTypeSelect.value = appType;
+}
+
 function renderAccountProfileTypeOptions(currency, selectedType = "", account = null) {
   const options = editableAccountTypesForCurrency(currency);
   const shouldPreserveLegacyType = account
@@ -872,6 +978,16 @@ function renderAccountProfileBusinessEntityOptions(items, selectedId) {
   }
   dom.accountProfileBusinessEntitySelect.innerHTML = options.join("");
   dom.accountProfileBusinessEntitySelect.value = selectedId || "";
+}
+
+function updateAccountProfileScopeControls(account) {
+  const isFamily = account?.app_type === "family";
+  dom.accountProfileBusinessEntitySelect.disabled = isFamily;
+  dom.accountProfileCompanySelect.disabled = isFamily;
+  if (isFamily) {
+    dom.accountProfileBusinessEntitySelect.value = "";
+    dom.accountProfileCompanySelect.value = "false";
+  }
 }
 
 function setAccountProfileSubmitting(isSubmitting) {
@@ -902,6 +1018,7 @@ function accountProfileFieldIdsForError(message) {
   const text = safeText(message);
   const fields = [];
   if (text.includes("名称")) fields.push("name");
+  if (text.includes("用途")) fields.push("appType");
   if (text.includes("类型")) fields.push("accountType");
   if (text.includes("币种")) fields.push("currency");
   if (text.includes("业务归属")) fields.push("businessEntity");
@@ -1650,6 +1767,22 @@ function isAllowedBusinessEntityForProfile(businessEntityId, account) {
 
 function accountTypeLabel(type) {
   return ACCOUNT_TYPE_LABELS[type] || safeText(type) || "-";
+}
+
+function accountAppTypeLabel(appType) {
+  return ACCOUNT_APP_TYPE_LABELS[appType] || safeText(appType) || "-";
+}
+
+function isEditableAccountAppType(appType) {
+  return appType === "school" || appType === "family";
+}
+
+function accountCompanyLabel(account) {
+  if (account?.app_type === "family") {
+    return "家庭账户";
+  }
+
+  return account?.is_company_account ? "是" : "否";
 }
 
 function displayValue(value) {

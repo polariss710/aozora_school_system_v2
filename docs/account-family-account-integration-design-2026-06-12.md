@@ -1,8 +1,32 @@
 # Account / Family Ledger Account Integration Design
 
-Status date: 2026-06-12
+Status date: 2026-06-13
 
-Task type: design-only. This document does not implement SQL, RPC, API, or UI changes.
+Task type: design with first-stage implementation note. The original 2026-06-12 document was design-only; 2026-06-13 implemented the first account-management isolation phase described below.
+
+## 2026-06-13 First-Stage Implementation Note
+
+Implemented scope:
+
+- Reused existing `school_accounts.app_type` as the first-stage domain boundary.
+- Added `school_create_account_profile(..., p_app_type)` and `school_update_account_profile(..., p_app_type)` RPC overloads for `school` and `family`, while preserving existing overloads for old callers.
+- Account management now filters and labels `school`, `store`, and `family` accounts, defaults to `school`, and allows create/edit for `school` and `family` only.
+- `family` accounts are master data only in this phase:
+  - `business_entity_id` is forced to `NULL`;
+  - `is_company_account` is forced to `false`;
+  - profile edit cannot change `app_type`;
+  - create/edit does not create account transactions;
+  - family accounts do not enter school income, expense, payment, reimbursement, wage, settlement, profit, account adjustment, or account transfer candidates.
+- `store` accounts are display/filter-only in this phase because store ownership and transaction flows are not implemented.
+
+Not implemented in this phase:
+
+- `account_scope`;
+- household/member owner fields;
+- family income/expense/transfer pages or RPCs;
+- family reporting;
+- balance adjustment / opening-balance correction;
+- store account write workflows.
 
 ## Goal
 
