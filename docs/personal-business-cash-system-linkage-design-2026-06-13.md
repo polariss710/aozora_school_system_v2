@@ -297,7 +297,7 @@ After MVP:
 
 ## Phase 1 Implementation Status
 
-Status: Cash System side Phase 1 schema/RPC completed on 2026-06-13. School-side mapping/outbox schema/RPC/API completed on 2026-06-13. Payment confirmation UI/API/RPC integration to school pending outbox completed on 2026-06-13. Cross-project Cash write path is not implemented.
+Status: Phase 1 end-to-end manual sync completed on 2026-06-13. Cash System side schema/RPC, school-side mapping/outbox schema/RPC/API, payment confirmation to school pending outbox, and manual pending-outbox-to-Cash sync are implemented. Reversal sync, automatic background retry, CNY, tuition income, part-time wage, and production cleanup are not implemented.
 
 Cash completed:
 
@@ -311,7 +311,11 @@ Cash completed:
 
 Not completed:
 
-- cross-project write path
+- reversal sync
+- automatic background retry worker
+- retry UI / operator workflow
+- CNY, tuition income, part-time wage linkage
+- production cleanup / migration from codex-test whitelist data
 
 Target flow:
 
@@ -431,6 +435,43 @@ Payment confirmation outbox integration implemented on 2026-06-13:
   - linkage event: `11f8f9ee-cbf4-4a29-8d6a-dc56a7d2e7e4`
   - event status: `pending`
 
+End-to-end manual sync implemented on 2026-06-13:
+
+- School script: `scripts/sync-personal-cash-linkage.zsh`
+- The script:
+  - loads school DB with `load_school_db` only for school reads/status writes
+  - loads Cash DB with `load_cash_db` only for Cash RPC calls
+  - does not print or store DB URLs
+  - reads only pending school events that match all Phase 1 guards:
+    - `school_personal_cash_linkage_events.sync_status = pending`
+    - `source_table = school_payment_requests`
+    - `source_event_type = teacher_wage_payment_confirm`
+    - event currency `JPY`
+    - linked payment request `status = paid`
+    - linked payment request `source_type = teacher_wage`
+    - linked payment request currency `JPY`
+    - linked business entity `entity_type = personal`
+    - not reversed
+  - calls Cash RPC `home_create_external_jpy_transaction(...)`
+  - marks school event `synced` with `cash_transaction_id` on success
+  - marks school event `failed` with `last_error` on Cash RPC failure
+  - ignores synced/failed/blocked rows on later runs
+- Successful E2E whitelist test:
+  - Cash test account: `94000000-0000-4000-8000-000000150501`
+  - school business entity: `94000000-0000-4000-8000-000000150001`
+  - school payment request: `94000000-0000-4000-8000-000000150101`
+  - school linkage event: `2f20e264-1e20-493d-b92a-58c244abfa09`
+  - Cash JPY transaction: `fbd3e5df-14be-4b3b-9a0b-319f4416968b`
+  - school event final status: `synced`
+- Duplicate run validation:
+  - re-running the script for the synced event found no pending candidate
+  - Cash transaction count for the school payment reference stayed 1
+- Failure path validation:
+  - previous codex-test fake Cash mapping event `11f8f9ee-cbf4-4a29-8d6a-dc56a7d2e7e4` moved to `failed`
+  - `last_error` stores `Cash RPC returned ok=false: JPY account not found or inactive`
+- Old fake pending test event `9b95e09a-09c4-4203-bc02-07daaf1beb5b` was marked `blocked` so default sync runs do not process stale fake test data.
+- Rollback exclusion test verified company / 青空塾-style and non-`teacher_wage` pending events are not selected by the sync candidate query.
+
 Add a personal Cash account mapping table:
 
 - suggested name: `school_personal_cash_account_mappings`
@@ -498,6 +539,7 @@ Cross-DB transaction rule:
 - Do not attempt cross-DB strong transactions.
 - If school confirmation succeeds and Cash write fails, keep the school event as `failed` or `pending` with `last_error`; expose manual retry later.
 - Automatic background retry is explicitly out of Phase 1.
+- The manual script intentionally performs Cash write and school status update as separate steps. If Cash succeeds but school status update fails, the event can be rerun while still pending; Cash RPC idempotency should return the existing transaction instead of inserting a duplicate.
 
 ### Phase 1 Implementation Order
 
@@ -523,6 +565,7 @@ Cross-DB transaction rule:
    - whitelist commit test with explicitly marked personal business test data
    - verify no 青空塾 / company records enter the Cash path
    - verify duplicate confirm/retry does not duplicate Cash transactions
+   - status: completed on 2026-06-13 for manual sync executor; no automatic background retry or reversal sync
 
 ### Explicitly Out Of Phase 1
 
