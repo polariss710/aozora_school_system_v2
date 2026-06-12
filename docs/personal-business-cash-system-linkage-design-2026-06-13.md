@@ -297,7 +297,24 @@ After MVP:
 
 ## Phase 1 Pre-Implementation Plan
 
-Status: planning only. No SQL file was generated or executed in this phase.
+Status: Cash System side Phase 1 schema/RPC completed on 2026-06-13. School-side mapping/outbox and payment confirmation integration are not implemented.
+
+Cash completed:
+
+- Cash repository: `/Users/polariss710/Documents/home_account_book`
+- SQL archive: `supabase-update-20260613-external-jpy-1.sql`
+- Added external/idempotency metadata columns to `home_jpy_transactions`.
+- Added partial unique indexes for external idempotency and external source event uniqueness.
+- Added `home_jpy_transactions_external_required_check`.
+- Added RPC `home_create_external_jpy_transaction(...)`.
+- Rollback idempotency test verified: first call inserted a temporary external JPY expense, second call with the same idempotency key returned the same transaction id with `inserted=false`, count stayed 1 inside the transaction, and rollback residue was 0.
+
+Not completed:
+
+- school-side personal Cash account mapping
+- school-side linkage event / outbox
+- payment confirmation UI/API/RPC integration
+- cross-project write path
 
 Target flow:
 
