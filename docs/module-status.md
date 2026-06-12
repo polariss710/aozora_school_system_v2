@@ -23,7 +23,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 学生月度结算 | 已收口 | No immediate V1 work; future reversal/history requires new design |
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
 | 老师工资支付 | V1 可用 | Retest status actions before future changes |
-| 账户管理 | V1 可用 | Add transfer detail only if transaction detail becomes insufficient |
+| 账户管理 | V1 可用 | Balance adjustment / opening-balance correction requires separate guarded design |
 | 收入记录 | V1 可用 | Expand categories only after guard semantics are designed |
 | 支出记录 | V1 可用 | Real attachment storage is a separate storage/security phase |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
@@ -64,9 +64,9 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 账户管理
 
 - 当前状态: V1 可用。账户列表、账户交易详情、账户新增、账户资料编辑、账户调整/反转、账户转账/反转已可用。
-- 最近关键更新: 账户编辑 summary 已隐藏；账户新增未收缩到 name/type/status/note，因为 schema/RPC 仍要求 `account_code`, `currency`, `business_entity_id`，隐藏这些字段会引入不安全默认值。
-- 当前限制 / hard stop: 账户资料编辑不得改 account code、业务归属、币种、opening/current balance、交易流水、历史收入/支出/报销/支付/转账/调整/结算/工资链路。余额变化只能走 verified income/expense/reimbursement/payment/adjustment/transfer flows。
-- 下一步: 只有当 account transaction detail 不够用时再补 standalone transfer detail。
+- 最近关键更新: 2026-06-12 账户新增/编辑 dialog 已按实际业务收窄。新增开放 `name`, `currency`, currency-linked `account_type`, `business_entity_id`, initial balance, `is_company_account`, `is_active`, `note`；编辑开放 `name`, `currency`, currency-linked `account_type`, `business_entity_id`, `is_company_account`, `is_active`, `note`。`account_code` 由 RPC 生成并隐藏；初始余额只在新增填写；当前余额只在账户卡片展示且不在资料 dialog 编辑。
+- 当前限制 / hard stop: 不开放 account code、系统字段、created/updated timestamps、current balance 编辑、交易流水、历史收入/支出/报销/支付/转账/调整/结算/工资链路派生字段。新增初始余额只初始化 `opening_balance/current_balance`，不创建账户流水；已有账户流水后 RPC 拒绝改币种，避免历史流水币种不一致。余额变化只能走 verified income/expense/reimbursement/payment/adjustment/transfer flows。
+- 下一步: 余额调整 / 期初修正需另开 guarded design；只有当 account transaction detail 不够用时再补 standalone transfer detail。
 
 ## 收入记录
 
@@ -127,4 +127,4 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
 - 最近关键更新: 2026-06-12 已完成一次性 Codex/v2-test/sandbox DB cleanup：dry-run、rollback validation、commit、post-cleanup residue check 均通过；Storage 候选为 0，未触碰 Storage。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
-- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
+- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。

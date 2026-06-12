@@ -1615,6 +1615,7 @@ h2 {
 .reimbursement-create-dialog-panel .dialog-error,
 .lesson-create-dialog-panel .dialog-error,
 .account-create-dialog-panel .dialog-error,
+.account-profile-dialog-panel .dialog-error,
 .student-profile-dialog-panel .dialog-error,
 .teacher-profile-dialog-panel .dialog-error,
 .subject-profile-dialog-panel .dialog-error,
@@ -1715,6 +1716,7 @@ h2 {
 }
 
 .account-create-dialog-panel,
+.account-profile-dialog-panel,
 .student-profile-dialog-panel,
 .teacher-profile-dialog-panel,
 .subject-profile-dialog-panel,
@@ -1729,6 +1731,10 @@ h2 {
 .account-create-dialog-panel > .dialog-summary,
 .account-create-dialog-panel > .dialog-actions,
 .account-create-wide-field,
+.account-profile-dialog-panel > .section-heading,
+.account-profile-dialog-panel > .dialog-error,
+.account-profile-dialog-panel > .dialog-actions,
+.account-profile-wide-field,
 .student-profile-dialog-panel > .section-heading,
 .student-profile-dialog-panel > .dialog-error,
 .student-profile-dialog-panel > .dialog-actions,
@@ -2040,6 +2046,7 @@ h2 {
   }
 
   .account-create-dialog-panel,
+  .account-profile-dialog-panel,
   .student-profile-dialog-panel,
   .teacher-profile-dialog-panel,
   .subject-profile-dialog-panel,

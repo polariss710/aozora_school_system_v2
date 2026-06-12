@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 账户管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.102.0-business-entity-dialog-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.104.0-account-dialog-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -138,27 +138,17 @@
     </div>
 
     <div id="accountCreateDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel account-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="accountCreateTitle">
+      <section class="dialog-panel account-create-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="accountCreateTitle">
         <div class="section-heading">
           <h2 id="accountCreateTitle">新增账户</h2>
-          <p class="section-note">仅新增未来使用的账户主数据，期初余额和当前余额固定为 0；不会生成账户流水或回写历史业务数据。</p>
+          <p class="section-note">仅新增未来使用的账户主数据；当前余额只在账户卡片展示，后续余额修正请走账户调整流程。</p>
         </div>
 
         <div id="accountCreateError" class="dialog-error is-hidden"></div>
 
-        <label class="field" data-account-create-field="accountCode">
-          <span>账户编码</span>
-          <input id="accountCreateCodeInput" type="text" autocomplete="off">
-        </label>
-
         <label class="field" data-account-create-field="name">
           <span>账户名称</span>
           <input id="accountCreateNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-account-create-field="accountType">
-          <span>账户类型</span>
-          <select id="accountCreateTypeSelect"></select>
         </label>
 
         <label class="field" data-account-create-field="currency">
@@ -166,9 +156,19 @@
           <select id="accountCreateCurrencySelect"></select>
         </label>
 
+        <label class="field" data-account-create-field="accountType">
+          <span>账户类型</span>
+          <select id="accountCreateTypeSelect"></select>
+        </label>
+
         <label class="field" data-account-create-field="businessEntity">
           <span>业务归属</span>
           <select id="accountCreateBusinessEntitySelect"></select>
+        </label>
+
+        <label class="field" data-account-create-field="initialBalance">
+          <span>初始余额</span>
+          <input id="accountCreateInitialBalanceInput" type="number" step="0.01" inputmode="decimal">
         </label>
 
         <label class="field" data-account-create-field="companyAccount">
@@ -187,17 +187,6 @@
           </select>
         </label>
 
-        <div class="dialog-summary">
-          <div class="dialog-summary-row">
-            <span class="dialog-summary-label">期初余额</span>
-            <span>0</span>
-          </div>
-          <div class="dialog-summary-row">
-            <span class="dialog-summary-label">当前余额</span>
-            <span>0</span>
-          </div>
-        </div>
-
         <label class="field account-create-wide-field">
           <span>备注</span>
           <textarea id="accountCreateNoteInput" rows="3"></textarea>
@@ -211,10 +200,10 @@
     </div>
 
     <div id="accountProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="accountProfileTitle">
+      <section class="dialog-panel account-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="accountProfileTitle">
         <div class="section-heading">
-          <h2 id="accountProfileTitle">编辑账户基础信息</h2>
-          <p class="section-note">第一版仅允许编辑账户名称、账户类型、公司账户标记、启用状态和备注；不会修改余额、账户流水或任何历史业务数据。</p>
+          <h2 id="accountProfileTitle">编辑账户</h2>
+          <p class="section-note">不会修改当前余额、账户流水或任何历史业务数据。</p>
         </div>
 
         <div id="accountProfileError" class="dialog-error is-hidden"></div>
@@ -224,9 +213,19 @@
           <input id="accountProfileNameInput" type="text" autocomplete="off">
         </label>
 
+        <label class="field" data-account-profile-field="currency">
+          <span>币种</span>
+          <select id="accountProfileCurrencySelect"></select>
+        </label>
+
         <label class="field" data-account-profile-field="accountType">
           <span>账户类型</span>
           <select id="accountProfileTypeSelect"></select>
+        </label>
+
+        <label class="field" data-account-profile-field="businessEntity">
+          <span>业务归属</span>
+          <select id="accountProfileBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-account-profile-field="companyAccount">
@@ -245,7 +244,7 @@
           </select>
         </label>
 
-        <label class="field">
+        <label class="field account-profile-wide-field">
           <span>备注</span>
           <textarea id="accountProfileNoteInput" rows="3"></textarea>
         </label>
@@ -358,6 +357,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.102.0-business-entity-dialog-field-scope-20260612"></script>
+    <script type="module" src="./js/account-app.js?v=v2.104.0-account-dialog-field-scope-20260612"></script>
   </body>
 </html>

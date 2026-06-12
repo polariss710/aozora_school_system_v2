@@ -69,8 +69,9 @@ export async function fetchAccountTransactions(filters) {
 
 export async function createAccountProfile(payload) {
   const { data, error } = await supabase.rpc("school_create_account_profile", {
-    p_account_code: payload.accountCode,
+    p_account_code: null,
     p_name: payload.name,
+    p_initial_balance: payload.initialBalance,
     p_account_type: payload.accountType,
     p_currency: payload.currency,
     p_business_entity_id: payload.businessEntityId,
@@ -140,7 +141,9 @@ export async function updateAccountProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_account_profile", {
     p_account_id: payload.accountId,
     p_name: payload.name,
+    p_currency: payload.currency,
     p_account_type: payload.accountType,
+    p_business_entity_id: payload.businessEntityId,
     p_is_company_account: payload.isCompanyAccount,
     p_is_active: payload.isActive,
     p_note: payload.note || null,
