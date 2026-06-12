@@ -12,7 +12,9 @@ Cash System project: `/Users/polariss710/Documents/home_account_book`
 
 School DB read-only verification completed through `load_school_db`.
 
-Cash DB read-only verification did not complete because `load_cash_db` loaded a connection string but PostgreSQL authentication was rejected. Cash System facts below are therefore based on repository SQL/API code, not live DB data.
+Cash DB read-only verification completed through `load_cash_db` after switching to the Cash System Supabase Direct connection. The loaded Cash DB URL was verified as different from the school DB URL without printing or storing either URL.
+
+Cash System facts below are based on live DB `information_schema` / `pg_indexes` read-only verification plus repository SQL/API code.
 
 ## Confirmed School Facts
 
@@ -54,7 +56,16 @@ Part-time / temporary wage:
 - Live school DB verification found no `school_part_time_wage_records` table yet.
 - The design recommends future `source_type = part_time_wage` payment requests, separate from lesson-based teacher wage snapshots.
 
-## Confirmed Cash System Facts From Code
+## Confirmed Cash System Facts
+
+Live DB verification confirmed these public tables exist:
+
+- `home_accounts`
+- `home_payment_channels`
+- `home_jpy_transactions`
+- `home_cny_transactions`
+- `home_fixed_templates`
+- `home_fixed_month_items`
 
 Cash System account master data is `home_accounts`:
 
@@ -94,7 +105,21 @@ Existing linkage fields:
 - `home_jpy_transactions.linked_cny_transaction_id`
 - `home_cny_transactions.linked_jpy_transaction_id`
 
-There is no confirmed generic external-source field, source app field, or school correlation id field in the Cash System transaction tables.
+Live DB verification confirmed the JPY transaction fields needed for Phase 1 exist:
+
+- `id`
+- `user_id`
+- `currency`
+- `transaction_type`
+- `account_id`
+- `transfer_account_id`
+- `transacted_at`
+- `amount`
+- `description`
+- `note`
+- `created_at`
+
+Live DB verification also confirmed there is no generic `external_source`, `idempotency`, `external_reference`, `related`, or `school` field in `home_jpy_transactions` / `home_cny_transactions`. The only external-like fields are the existing fixed-month and FX linkage columns listed above.
 
 ## Linkage Boundary
 
@@ -285,11 +310,16 @@ Do not implement in the first phase:
 - Broad historical backfill or real-data repair.
 - Deleting Cash transactions as a normal reversal mechanism.
 
-## Open Verification Items
+## Verification Notes
 
-Before implementation, complete read-only Cash DB verification after credentials are fixed:
+Completed live DB read-only verification:
 
-- Confirm live `home_accounts` columns and active account names/types for 支付宝, 日元现金, 日元三菱卡, etc.
-- Confirm whether live `home_jpy_transactions` / `home_cny_transactions` already have any external-source metadata not present in local SQL files.
-- Confirm current RLS and write RPC expectations for service/server-side integration.
-- Confirm whether Cash System should add columns to transaction tables or use a separate external-link table.
+- Confirmed the target Cash ledger tables exist.
+- Confirmed Phase 1 account and JPY transaction fields exist.
+- Confirmed no reusable generic external-source / idempotency / school-reference fields exist in the live Cash transaction tables.
+
+Still required before implementation design is converted to SQL:
+
+- Decide whether Cash System should add external-source columns to transaction tables or use a separate external-link table.
+- Confirm service/server-side write path and RLS behavior for the future integration implementation.
+- Confirm final user-facing Cash account mapping choices for accounts such as 支付宝, 日元现金, 日元三菱卡.
