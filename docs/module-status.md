@@ -142,9 +142,10 @@ Completion snapshot:
 - 只读/预览功能: master-data list/filter surfaces and lookup sources for lesson, settlement, wage, income, expense, account, payment, and profit modules.
 - guard/锁定保护: master-data writes are future-use/default/display changes and must not rewrite historical lessons, settlements, wages, payments, income, expenses, accounts, balances, or account transactions. Subject `status` maps to `is_active`; subject display name maps to `name`.
 - 编辑范围: 老师编辑开放 `display_name`, `name`, `kana_name`, `department`, `status`, `default_hourly_rate`, `default_currency`, `default_payment_currency`, `default_payment_method`, `default_business_entity_id`, `note`；继续只读 `teacher_code`, `default_subject_id`, 联系方式、收款账户、工资规则、工资锁定、支付、课时、结算链路。学生编辑开放 `display_name`, `name`, `kana_name`, `status`, `course_track`, `target_type`, `target_schools`, `business_entity_id`, `default_currency`, `preset_exchange_rate`, `note`；继续只读 `student_code`, 余额、月结/carryover、学费规则、联系方式、家长信息、生日、收入/支付/课时/工资/账户链路。科目编辑开放 `name`, `is_active` via status, `primary_category`, `category`, `tertiary_category`, `color`, `sort_order`, `note`；继续只读 id/timestamps 和历史课时、工资、结算、支付链路。
+- 学生字段归类调查: 2026-06-12 已完成 design-only 调查，详见 `docs/student-field-editability-investigation-2026-06-12.md`。结论是 `student_code`, `id`, timestamps, `app_type`, 余额/carryover、结算、学费/计费、课时、收入、支出、支付、工资、账户流水继续不进入普通学生资料编辑；联系方式、家长信息、生日、性别、入学日期属于学生资料/联系方式主数据，不是当前财务链路字段，但当前学生页未真实显示/取回，应作为后续专门 profile/contact 编辑扩展，而不是继续混在“历史财务链路不可编辑”说明中。当前没有 `school_students` 学费规则字段；如需持久化学费规则，应另开 billing/tuition-rule 设计。
 - 简单编辑体验: 2026-06-12 老师、学生、科目基础编辑继续只走 API/RPC layer，dialog 行为统一为小/中/大尺寸、取消/保存按钮顺序、保存中 loading、内联错误、失败不关闭且不清空输入、成功后保留筛选和列表位置；科目重载筛选选项前会先保存当前筛选。
 - 未完成: delete/merge flows, broad contact/parent/tuition-rule editing, business entity account auto-create, business entity company-report inclusion edit.
-- 已知限制: contact/payment-account/parent/tuition-rule editing remains closed; business entity default currency changes must not imply historical rewrite.
+- 已知限制: contact/payment-account/parent/tuition-rule editing remains closed; student contact/guardian/birthday/profile expansion needs separate API/RPC/UI design with privacy and validation handling; business entity default currency changes must not imply historical rewrite.
 - 后续优先级: keep master-data writes narrow; defer delete/merge to explicit audit-safe workflows.
 
 ## 工资规则
