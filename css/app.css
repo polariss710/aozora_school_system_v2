@@ -1636,6 +1636,7 @@ h2 {
 .account-create-dialog-panel .dialog-error,
 .student-profile-dialog-panel .dialog-error,
 .teacher-profile-dialog-panel .dialog-error,
+.business-entity-profile-dialog-panel .dialog-error,
 .wage-rule-create-dialog-panel .dialog-error {
   position: sticky;
   top: -1px;

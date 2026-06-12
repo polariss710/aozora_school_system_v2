@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 业务归属</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.102.0-business-entity-dialog-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -46,7 +46,7 @@
           <form id="businessEntityFilterForm" class="filter-grid">
             <label class="field">
               <span>关键字</span>
-              <input id="businessEntityKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="名称 / 编码 / 类型 / 币种 / 备注">
+              <input id="businessEntityKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="名称 / 类型 / 备注">
             </label>
 
             <label class="field">
@@ -57,27 +57,11 @@
             </label>
 
             <label class="field">
-              <span>默认币种</span>
-              <select id="businessEntityDefaultCurrencySelect" name="defaultCurrency">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>启用状态</span>
               <select id="businessEntityActiveSelect" name="activeState">
                 <option value="">全部</option>
                 <option value="active">启用</option>
                 <option value="inactive">停用</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>公司报表</span>
-              <select id="businessEntityCompanyReportSelect" name="companyReportState">
-                <option value="">全部</option>
-                <option value="included">是</option>
-                <option value="excluded">否</option>
               </select>
             </label>
 
@@ -108,18 +92,13 @@
     </div>
 
     <div id="createBusinessEntityProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createBusinessEntityProfileTitle">
+      <section class="dialog-panel business-entity-profile-dialog-panel app-dialog--sm" role="dialog" aria-modal="true" aria-labelledby="createBusinessEntityProfileTitle">
         <div class="section-heading">
           <h2 id="createBusinessEntityProfileTitle">新增业务归属</h2>
           <p class="section-note">仅新增未来使用的业务归属主数据；不会自动创建账户，也不会回写历史收入、支出、结算、工资、支付或账户流水。</p>
         </div>
 
         <div id="createBusinessEntityProfileError" class="dialog-error is-hidden"></div>
-
-        <label class="field" data-create-business-entity-field="code">
-          <span>编码</span>
-          <input id="createBusinessEntityCodeInput" type="text" autocomplete="off">
-        </label>
 
         <label class="field" data-create-business-entity-field="name">
           <span>名称</span>
@@ -129,11 +108,6 @@
         <label class="field" data-create-business-entity-field="entityType">
           <span>类型</span>
           <select id="createBusinessEntityTypeSelect"></select>
-        </label>
-
-        <label class="field" data-create-business-entity-field="defaultCurrency">
-          <span>默认币种</span>
-          <select id="createBusinessEntityDefaultCurrencySelect"></select>
         </label>
 
         <label class="field" data-create-business-entity-field="active">
@@ -150,20 +124,19 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="createBusinessEntitySubmitButton" type="button">新增</button>
           <button class="button" id="createBusinessEntityCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="createBusinessEntitySubmitButton" type="button">新增</button>
         </div>
       </section>
     </div>
 
     <div id="editBusinessEntityProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editBusinessEntityProfileTitle">
+      <section class="dialog-panel business-entity-profile-dialog-panel app-dialog--sm" role="dialog" aria-modal="true" aria-labelledby="editBusinessEntityProfileTitle">
         <div class="section-heading">
-          <h2 id="editBusinessEntityProfileTitle">编辑业务归属基础信息</h2>
-          <p class="section-note">第一版仅允许编辑名称、类型、默认币种、启用状态和备注；不会修改编码、公司报表设置或任何历史业务数据。</p>
+          <h2 id="editBusinessEntityProfileTitle">编辑业务归属</h2>
+          <p class="section-note">仅维护名称、类型、启用状态和备注；不会修改系统字段或任何历史业务数据。</p>
         </div>
 
-        <div id="editBusinessEntityProfileSummary" class="dialog-summary"></div>
         <div id="editBusinessEntityProfileError" class="dialog-error is-hidden"></div>
 
         <label class="field" data-edit-business-entity-field="name">
@@ -174,11 +147,6 @@
         <label class="field" data-edit-business-entity-field="entityType">
           <span>类型</span>
           <select id="editBusinessEntityTypeSelect"></select>
-        </label>
-
-        <label class="field" data-edit-business-entity-field="defaultCurrency">
-          <span>默认币种</span>
-          <select id="editBusinessEntityDefaultCurrencySelect"></select>
         </label>
 
         <label class="field" data-edit-business-entity-field="active">
@@ -195,12 +163,12 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="editBusinessEntitySubmitButton" type="button">保存</button>
           <button class="button" id="editBusinessEntityCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="editBusinessEntitySubmitButton" type="button">保存</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/business-entity-app.js?v=v2.47.0-business-entity-create-full-autopilot-20260607"></script>
+    <script type="module" src="./js/business-entity-app.js?v=v2.102.0-business-entity-dialog-field-scope-20260612"></script>
   </body>
 </html>

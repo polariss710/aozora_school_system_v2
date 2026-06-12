@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initBusinessEntityPage } from "./pages/business-entity-page.js";
+import { initBusinessEntityPage } from "./pages/business-entity-page.js?v=v2.102.0-business-entity-dialog-field-scope-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

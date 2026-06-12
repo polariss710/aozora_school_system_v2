@@ -138,7 +138,6 @@ function cacheDom() {
   dom.accountCreateCancelButton = document.querySelector("#accountCreateCancelButton");
   dom.accountCreateSubmitButton = document.querySelector("#accountCreateSubmitButton");
   dom.accountProfileDialog = document.querySelector("#accountProfileDialog");
-  dom.accountProfileSummary = document.querySelector("#accountProfileSummary");
   dom.accountProfileError = document.querySelector("#accountProfileError");
   dom.accountProfileNameInput = document.querySelector("#accountProfileNameInput");
   dom.accountProfileTypeSelect = document.querySelector("#accountProfileTypeSelect");
@@ -704,7 +703,6 @@ function openAccountProfileDialog(accountId) {
   }
 
   editingAccount = account;
-  dom.accountProfileSummary.innerHTML = renderAccountProfileSummary(account);
   dom.accountProfileNameInput.value = account.name || "";
   renderAccountProfileTypeOptions(account.account_type);
   dom.accountProfileCompanySelect.value = account.is_company_account ? "true" : "false";
@@ -780,29 +778,6 @@ async function submitAccountProfile() {
   } finally {
     setAccountProfileSubmitting(false);
   }
-}
-
-function renderAccountProfileSummary(account) {
-  const businessEntity = findBusinessEntity(account.business_entity_id);
-  const rows = [
-    ["账户编码", account.account_code || "-"],
-    ["业务归属", businessEntity?.name || account.business_entity_id || "-"],
-    ["币种", account.currency || "-"],
-    ["期初余额", formatCurrency(account.opening_balance, account.currency)],
-    ["当前余额", formatCurrency(account.current_balance, account.currency)],
-    ["不可编辑字段", "账户编码、业务归属、币种、期初余额、当前余额、账户流水"],
-  ];
-
-  return `
-    <dl class="detail-definition-list">
-      ${rows.map(([label, value]) => `
-        <div>
-          <dt>${escapeHtml(label)}</dt>
-          <dd>${escapeHtml(displayValue(value))}</dd>
-        </div>
-      `).join("")}
-    </dl>
-  `;
 }
 
 function renderAccountProfileTypeOptions(selectedType) {

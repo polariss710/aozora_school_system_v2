@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountPage } from "./pages/account-page.js?v=v2.99.0-master-editable-fields-open-20260612";
+import { initAccountPage } from "./pages/account-page.js?v=v2.102.0-business-entity-dialog-field-scope-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

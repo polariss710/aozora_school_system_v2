@@ -29,12 +29,12 @@ export async function fetchBusinessEntities() {
 
 export async function createBusinessEntityProfile(payload) {
   const { data, error } = await supabase.rpc("school_create_business_entity_profile", {
-    p_code: payload.code,
-    p_name: payload.name,
-    p_entity_type: payload.entityType,
-    p_default_currency: payload.defaultCurrency,
-    p_is_active: payload.isActive,
-    p_note: payload.note || null,
+    p_profile: {
+      name: payload.name,
+      entity_type: payload.entityType,
+      is_active: payload.isActive,
+      note: payload.note || null,
+    },
   });
 
   if (error) {
@@ -52,11 +52,12 @@ export async function createBusinessEntityProfile(payload) {
 export async function updateBusinessEntityProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_business_entity_profile", {
     p_business_entity_id: payload.businessEntityId,
-    p_name: payload.name,
-    p_entity_type: payload.entityType,
-    p_default_currency: payload.defaultCurrency,
-    p_is_active: payload.isActive,
-    p_note: payload.note || null,
+    p_profile: {
+      name: payload.name,
+      entity_type: payload.entityType,
+      is_active: payload.isActive,
+      note: payload.note || null,
+    },
   });
 
   if (error) {

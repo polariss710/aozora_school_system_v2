@@ -135,3 +135,101 @@ comment on function public.school_update_business_entity_profile(
 --
 -- This draft intentionally does not include executable test insert/update/delete
 -- statements outside the function definition.
+
+-- v2.102.0 business entity dialog field-scope overload.
+-- Purpose: Update only the narrowed v2 business entity dialog fields.
+-- Exposed fields: name, entity_type, is_active, note.
+--
+-- Hidden/preserved fields:
+-- - code: stable identifier, not editable here.
+-- - default_currency: retained in DB but not edited; current main chains use
+--   source/account/request currencies.
+-- - is_company_report: not part of this business-entity profile dialog.
+-- - historical accounts, balances, account transactions, income, expense,
+--   reimbursements, payments, settlements, wages, and lessons are untouched.
+
+create or replace function public.school_update_business_entity_profile(
+  p_business_entity_id uuid,
+  p_profile jsonb
+)
+returns table (
+  business_entity_id uuid,
+  code text,
+  name text,
+  entity_type text,
+  default_currency text,
+  is_company_report boolean,
+  is_active boolean,
+  note text,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_now timestamptz := now();
+  v_profile jsonb := coalesce(p_profile, '{}'::jsonb);
+  v_entity public.school_business_entities%rowtype;
+  v_name text := nullif(trim(coalesce(v_profile ->> 'name', '')), '');
+  v_entity_type text := nullif(trim(coalesce(v_profile ->> 'entity_type', '')), '');
+  v_is_active boolean := (v_profile ->> 'is_active')::boolean;
+  v_note text := nullif(trim(coalesce(v_profile ->> 'note', '')), '');
+begin
+  if p_business_entity_id is null then
+    raise exception '请选择要编辑的业务归属。';
+  end if;
+
+  if v_name is null then
+    raise exception '业务归属名称不能为空。';
+  end if;
+
+  if v_entity_type is null then
+    raise exception '业务归属类型不能为空。';
+  end if;
+
+  if v_entity_type not in ('company', 'personal') then
+    raise exception '业务归属类型无效：%。', v_entity_type;
+  end if;
+
+  if v_is_active is null then
+    raise exception '启用状态不能为空。';
+  end if;
+
+  select *
+  into v_entity
+  from public.school_business_entities b
+  where b.id = p_business_entity_id
+  for update;
+
+  if not found then
+    raise exception '业务归属不存在。';
+  end if;
+
+  update public.school_business_entities b
+  set
+    name = v_name,
+    entity_type = v_entity_type,
+    is_active = v_is_active,
+    note = v_note,
+    updated_at = v_now
+  where b.id = v_entity.id;
+
+  return query
+  select
+    b.id,
+    b.code,
+    b.name,
+    b.entity_type,
+    b.default_currency,
+    b.is_company_report,
+    b.is_active,
+    b.note,
+    b.updated_at
+  from public.school_business_entities b
+  where b.id = v_entity.id;
+end;
+$$;
+
+comment on function public.school_update_business_entity_profile(uuid, jsonb) is
+  'Updates narrowed school business entity profile fields only; preserves code, default_currency, company-report flag, and historical chains.';
