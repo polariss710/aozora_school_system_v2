@@ -2,7 +2,7 @@
 
 Status date: 2026-06-13
 
-Task type: cross-project design-only + read-only investigation. No DB writes, SQL execution, RPC execution, or feature implementation were performed.
+Task type: cross-project design plus guarded Phase 1 implementation checkpoints. Initial investigation was read-only; later phases executed guarded Cash-side and school-side schema/RPC work as recorded below.
 
 ## Investigation Scope
 
@@ -295,9 +295,9 @@ After MVP:
 - Add CNY support after currency and Cash account selection rules are confirmed.
 - Add part-time wage linkage only after the part-time wage module and `part_time_wage` payment source are implemented.
 
-## Phase 1 Pre-Implementation Plan
+## Phase 1 Implementation Status
 
-Status: Cash System side Phase 1 schema/RPC completed on 2026-06-13. School-side mapping/outbox and payment confirmation integration are not implemented.
+Status: Cash System side Phase 1 schema/RPC completed on 2026-06-13. School-side mapping/outbox schema/RPC/API completed on 2026-06-13. Payment confirmation integration and cross-project write path are not implemented.
 
 Cash completed:
 
@@ -311,8 +311,6 @@ Cash completed:
 
 Not completed:
 
-- school-side personal Cash account mapping
-- school-side linkage event / outbox
 - payment confirmation UI/API/RPC integration
 - cross-project write path
 
@@ -372,6 +370,35 @@ Reversal / reverse posting:
 - If the frontend integration does not wire reversal in the first UI pass, school should block reversing a synced personal-business Cash-linked payment until the reverse posting path is available. Silent divergence is worse than a blocked reversal.
 
 ### School Minimum Schema / RPC
+
+Implemented on 2026-06-13 in the school project:
+
+- SQL archive: `school_personal_cash_linkage_schema.sql`
+- SQL archive: `school_personal_cash_linkage_rpcs.sql`
+- API wrapper: `js/api/personal-cash-linkage-api.js`
+- Added `school_personal_cash_account_mappings`.
+- Added `school_personal_cash_linkage_events`.
+- Added RPCs:
+  - `school_create_personal_cash_account_mapping`
+  - `school_update_personal_cash_account_mapping`
+  - `school_list_personal_cash_account_mappings`
+  - `school_create_personal_cash_linkage_event`
+  - `school_get_personal_cash_linkage_events`
+  - `school_update_personal_cash_linkage_event_status`
+- Rollback tests verified:
+  - personal-business mapping/event happy path
+  - company / 青空塾-style business entity guard rejection
+  - duplicate source event returns the existing event instead of creating a second event
+  - sync status update can record failed error state and later synced Cash transaction id
+  - rollback residue was 0
+- Whitelist commit test left clearly marked school test data only:
+  - business entity: `92000000-0000-4000-8000-000000132001`
+  - payment request: `92000000-0000-4000-8000-000000132101`
+  - mapping: `f5c02610-1b11-4353-b5de-ae5b3b60f980`
+  - linkage event: `9b95e09a-09c4-4203-bc02-07daaf1beb5b`
+  - event status: `pending`
+- No Cash DB writes were performed in the school-side phase.
+- No existing payment confirmation, teacher wage generation, reimbursement, income, student settlement, or page module was changed.
 
 Add a personal Cash account mapping table:
 
@@ -453,6 +480,7 @@ Cross-DB transaction rule:
    - add linkage event / outbox table
    - add read APIs/RPCs for active personal Cash mappings
    - add school-side linkage event creation/update helpers
+   - status: completed on 2026-06-13
 3. Payment confirmation integration:
    - API wrapper chooses legacy school account path for company business entities
    - API wrapper chooses personal Cash mapping path for personal JPY teacher wage requests
