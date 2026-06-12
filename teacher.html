@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.99.0-master-editable-fields-open-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.101.0-teacher-dialog-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -46,7 +46,7 @@
           <form id="teacherFilterForm" class="filter-grid">
             <label class="field">
               <span>关键字</span>
-              <input id="teacherKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 读音 / 编号 / 备注">
+              <input id="teacherKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 科目 / 业务归属 / 支付信息 / 备注">
             </label>
 
             <label class="field">
@@ -94,52 +94,80 @@
     </div>
 
     <div id="createTeacherProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createTeacherProfileTitle">
+      <section class="dialog-panel teacher-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createTeacherProfileTitle">
         <div class="section-heading">
           <h2 id="createTeacherProfileTitle">新增老师</h2>
-          <p class="section-note">仅新增未来使用的老师主数据；不会创建或修改工资规则、工资锁定、支付、支出或账户流水。</p>
+          <p class="section-note">仅维护老师资料和默认值；不会创建或修改工资规则、工资快照、支付请求、支出或账户流水。</p>
         </div>
 
         <div id="createTeacherProfileError" class="dialog-error is-hidden"></div>
 
-        <label class="field" data-create-teacher-field="teacherCode">
-          <span>老师编号</span>
-          <input id="createTeacherCodeInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-create-teacher-field="displayName">
-          <span>显示名称</span>
-          <input id="createTeacherDisplayNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field">
-          <span>系统姓名</span>
+        <label class="field" data-create-teacher-field="name">
+          <span>姓名</span>
           <input id="createTeacherNameInput" type="text" autocomplete="off">
         </label>
 
-        <label class="field">
-          <span>读音</span>
-          <input id="createTeacherKanaNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-create-teacher-field="status">
-          <span>状态</span>
-          <select id="createTeacherStatusSelect"></select>
-        </label>
-
-        <label class="field">
+        <label class="field" data-create-teacher-field="department">
           <span>老师分类</span>
-          <input id="createTeacherDepartmentInput" type="text" autocomplete="off">
+          <select id="createTeacherDepartmentSelect"></select>
+        </label>
+
+        <label class="field" data-create-teacher-field="defaultSubject">
+          <span>默认科目</span>
+          <select id="createTeacherSubjectSelect"></select>
         </label>
 
         <label class="field" data-create-teacher-field="businessEntity">
-          <span>业务归属</span>
+          <span>默认业务归属</span>
           <select id="createTeacherBusinessEntitySelect"></select>
         </label>
 
-        <label class="field">
+        <label class="field" data-create-teacher-field="status">
+          <span>老师状态</span>
+          <select id="createTeacherStatusSelect"></select>
+        </label>
+
+        <label class="field teacher-profile-wide-field">
           <span>备注</span>
           <textarea id="createTeacherNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-subsection-heading teacher-profile-wide-field">
+          <h3>支付信息 / 人民币</h3>
+        </div>
+
+        <label class="field">
+          <span>支付宝账号</span>
+          <input id="createTeacherAlipayAccountInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>微信账号</span>
+          <input id="createTeacherWechatAccountInput" type="text" autocomplete="off">
+        </label>
+
+        <div class="dialog-subsection-heading teacher-profile-wide-field">
+          <h3>支付信息 / 日元</h3>
+        </div>
+
+        <label class="field">
+          <span>银行名</span>
+          <input id="createTeacherBankNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>支店番号</span>
+          <input id="createTeacherBankBranchCodeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>支店名</span>
+          <input id="createTeacherBankBranchNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>账户番号</span>
+          <input id="createTeacherBankAccountNumberInput" type="text" autocomplete="off">
         </label>
 
         <div class="dialog-actions">
@@ -150,72 +178,80 @@
     </div>
 
     <div id="editTeacherProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="editTeacherProfileTitle">
+      <section class="dialog-panel teacher-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="editTeacherProfileTitle">
         <div class="section-heading">
-          <h2 id="editTeacherProfileTitle">编辑老师基础信息</h2>
-          <p class="section-note">仅更新老师主数据展示、筛选和默认值；不会修改工资规则、结算、支付、课时、联系方式或收款账户。</p>
+          <h2 id="editTeacherProfileTitle">编辑老师</h2>
+          <p class="section-note">仅维护老师资料和默认值；不会修改工资规则、工资快照、支付请求、支出、课时或账户流水。</p>
         </div>
 
-        <div id="editTeacherProfileSummary" class="dialog-summary"></div>
         <div id="editTeacherProfileError" class="dialog-error is-hidden"></div>
 
-        <label class="field" data-edit-teacher-field="displayName">
-          <span>显示名称</span>
-          <input id="editTeacherDisplayNameInput" type="text" autocomplete="off">
-        </label>
-
         <label class="field" data-edit-teacher-field="name">
-          <span>系统姓名</span>
+          <span>姓名</span>
           <input id="editTeacherNameInput" type="text" autocomplete="off">
         </label>
 
-        <label class="field">
-          <span>读音</span>
-          <input id="editTeacherKanaNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-edit-teacher-field="status">
-          <span>状态</span>
-          <select id="editTeacherStatusSelect"></select>
-        </label>
-
-        <label class="field">
+        <label class="field" data-edit-teacher-field="department">
           <span>老师分类</span>
-          <input id="editTeacherDepartmentInput" type="text" autocomplete="off">
+          <select id="editTeacherDepartmentSelect"></select>
+        </label>
+
+        <label class="field" data-edit-teacher-field="defaultSubject">
+          <span>默认科目</span>
+          <select id="editTeacherSubjectSelect"></select>
         </label>
 
         <label class="field" data-edit-teacher-field="businessEntity">
-          <span>业务归属</span>
+          <span>默认业务归属</span>
           <select id="editTeacherBusinessEntitySelect"></select>
         </label>
 
-        <div class="dialog-subsection-heading">
-          <h3>默认工资/支付</h3>
-        </div>
-
-        <label class="field" data-edit-teacher-field="defaultHourlyRate">
-          <span>默认时薪</span>
-          <input id="editTeacherDefaultHourlyRateInput" type="number" min="0" step="0.01" inputmode="decimal">
+        <label class="field" data-edit-teacher-field="status">
+          <span>老师状态</span>
+          <select id="editTeacherStatusSelect"></select>
         </label>
 
-        <label class="field" data-edit-teacher-field="defaultCurrency">
-          <span>默认币种</span>
-          <select id="editTeacherDefaultCurrencySelect"></select>
-        </label>
-
-        <label class="field" data-edit-teacher-field="defaultPaymentCurrency">
-          <span>支付币种</span>
-          <select id="editTeacherDefaultPaymentCurrencySelect"></select>
-        </label>
-
-        <label class="field">
-          <span>支付方式</span>
-          <input id="editTeacherDefaultPaymentMethodInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field">
+        <label class="field teacher-profile-wide-field">
           <span>备注</span>
           <textarea id="editTeacherNoteInput" rows="3"></textarea>
+        </label>
+
+        <div class="dialog-subsection-heading teacher-profile-wide-field">
+          <h3>支付信息 / 人民币</h3>
+        </div>
+
+        <label class="field">
+          <span>支付宝账号</span>
+          <input id="editTeacherAlipayAccountInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>微信账号</span>
+          <input id="editTeacherWechatAccountInput" type="text" autocomplete="off">
+        </label>
+
+        <div class="dialog-subsection-heading teacher-profile-wide-field">
+          <h3>支付信息 / 日元</h3>
+        </div>
+
+        <label class="field">
+          <span>银行名</span>
+          <input id="editTeacherBankNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>支店番号</span>
+          <input id="editTeacherBankBranchCodeInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>支店名</span>
+          <input id="editTeacherBankBranchNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>账户番号</span>
+          <input id="editTeacherBankAccountNumberInput" type="text" autocomplete="off">
         </label>
 
         <div class="dialog-actions">
@@ -225,6 +261,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/teacher-app.js?v=v2.99.0-master-editable-fields-open-20260612"></script>
+    <script type="module" src="./js/teacher-app.js?v=v2.101.0-teacher-dialog-field-scope-20260612"></script>
   </body>
 </html>

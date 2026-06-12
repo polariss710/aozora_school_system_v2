@@ -4,14 +4,16 @@ const TEACHER_COLUMNS = [
   "id",
   "teacher_code",
   "name",
-  "kana_name",
   "display_name",
   "department",
-  "default_hourly_rate",
-  "default_currency",
-  "default_payment_currency",
+  "default_subject_id",
   "default_business_entity_id",
-  "default_payment_method",
+  "bank_name",
+  "bank_branch_code",
+  "bank_branch_name",
+  "bank_account_number",
+  "alipay_account",
+  "wechat_account",
   "status",
   "note",
   "app_type",
@@ -63,20 +65,37 @@ export async function fetchBusinessEntitiesForTeachers() {
   return data || [];
 }
 
+export async function fetchSubjectsForTeachers() {
+  const { data, error } = await supabase
+    .from("school_subjects")
+    .select("id,name,category,primary_category,tertiary_category,is_active,sort_order")
+    .order("sort_order", { ascending: true, nullsFirst: false })
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
 export async function updateTeacherProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_teacher_profile", {
     p_teacher_id: payload.teacherId,
-    p_display_name: payload.displayName,
-    p_name: payload.name,
-    p_kana_name: payload.kanaName || null,
-    p_department: payload.department || null,
-    p_status: payload.status,
-    p_default_hourly_rate: payload.defaultHourlyRate,
-    p_default_currency: payload.defaultCurrency || null,
-    p_default_payment_currency: payload.defaultPaymentCurrency || null,
-    p_default_payment_method: payload.defaultPaymentMethod || null,
-    p_default_business_entity_id: payload.defaultBusinessEntityId || null,
-    p_note: payload.note || null,
+    p_profile: {
+      name: payload.name,
+      department: payload.department,
+      default_subject_id: payload.defaultSubjectId || null,
+      default_business_entity_id: payload.defaultBusinessEntityId || null,
+      status: payload.status,
+      note: payload.note || null,
+      alipay_account: payload.alipayAccount || null,
+      wechat_account: payload.wechatAccount || null,
+      bank_name: payload.bankName || null,
+      bank_branch_code: payload.bankBranchCode || null,
+      bank_branch_name: payload.bankBranchName || null,
+      bank_account_number: payload.bankAccountNumber || null,
+    },
   });
 
   if (error) {
@@ -93,14 +112,20 @@ export async function updateTeacherProfile(payload) {
 
 export async function createTeacherProfile(payload) {
   const { data, error } = await supabase.rpc("school_create_teacher_profile", {
-    p_display_name: payload.displayName,
-    p_teacher_code: payload.teacherCode || null,
-    p_name: payload.name || null,
-    p_kana_name: payload.kanaName || null,
-    p_status: payload.status,
-    p_department: payload.department || null,
-    p_default_business_entity_id: payload.defaultBusinessEntityId || null,
-    p_note: payload.note || null,
+    p_profile: {
+      name: payload.name || null,
+      department: payload.department || null,
+      default_subject_id: payload.defaultSubjectId || null,
+      default_business_entity_id: payload.defaultBusinessEntityId || null,
+      status: payload.status,
+      note: payload.note || null,
+      alipay_account: payload.alipayAccount || null,
+      wechat_account: payload.wechatAccount || null,
+      bank_name: payload.bankName || null,
+      bank_branch_code: payload.bankBranchCode || null,
+      bank_branch_name: payload.bankBranchName || null,
+      bank_account_number: payload.bankAccountNumber || null,
+    },
   });
 
   if (error) {

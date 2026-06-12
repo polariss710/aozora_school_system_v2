@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initTeacherPage } from "./pages/teacher-page.js";
+import { initTeacherPage } from "./pages/teacher-page.js?v=v2.101.0-teacher-dialog-field-scope-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

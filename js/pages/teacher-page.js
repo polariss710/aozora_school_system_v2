@@ -2,11 +2,12 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createTeacherProfile,
   fetchBusinessEntitiesForTeachers,
+  fetchSubjectsForTeachers,
   fetchTeacherFilterOptions,
   fetchTeachers,
   updateTeacherProfile,
 } from "../api/teacher-api.js";
-import { formatCurrency, formatDate, safeText } from "../utils/format.js";
+import { formatDate, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
   keyword: "",
@@ -15,21 +16,33 @@ const DEFAULT_FILTERS = {
   businessEntityId: "",
 };
 
-const UNSET_BUSINESS_ENTITY_VALUE = "__unset__";
+const UNSET_VALUE = "__unset__";
 
 const TEACHER_STATUS_LABELS = {
+  active: "在职",
   employed: "在职",
-  inactive: "停用",
   paused: "暂停",
+  inactive: "停用",
   resigned: "离职",
 };
 
-const EDITABLE_STATUS_OPTIONS = ["employed", "paused", "inactive", "resigned"];
-const EDITABLE_CURRENCY_OPTIONS = ["JPY", "CNY"];
-const CREATE_FIELD_IDS = ["teacherCode", "displayName", "status", "businessEntity"];
+const TEACHER_DEPARTMENT_OPTIONS = ["常勤老师", "バイト老师", "事务老师"];
+const EDITABLE_STATUS_OPTIONS = [
+  { value: "employed", label: "在职" },
+  { value: "paused", label: "暂停" },
+  { value: "resigned", label: "离职" },
+];
+const TEACHER_FIELD_IDS = [
+  "name",
+  "department",
+  "defaultSubject",
+  "businessEntity",
+  "status",
+];
 
 const dom = {};
 let businessEntities = [];
+let subjects = [];
 let teachers = [];
 let editingTeacher = null;
 let isEditSubmitting = false;
@@ -65,32 +78,38 @@ function cacheDom() {
   dom.teacherEmptyState = document.querySelector("#teacherEmptyState");
   dom.teacherCount = document.querySelector("#teacherCount");
   dom.createButton = document.querySelector("#createTeacherButton");
+
   dom.createDialog = document.querySelector("#createTeacherProfileDialog");
   dom.createError = document.querySelector("#createTeacherProfileError");
-  dom.createTeacherCodeInput = document.querySelector("#createTeacherCodeInput");
-  dom.createDisplayNameInput = document.querySelector("#createTeacherDisplayNameInput");
   dom.createNameInput = document.querySelector("#createTeacherNameInput");
-  dom.createKanaNameInput = document.querySelector("#createTeacherKanaNameInput");
-  dom.createStatusSelect = document.querySelector("#createTeacherStatusSelect");
-  dom.createDepartmentInput = document.querySelector("#createTeacherDepartmentInput");
+  dom.createDepartmentSelect = document.querySelector("#createTeacherDepartmentSelect");
+  dom.createSubjectSelect = document.querySelector("#createTeacherSubjectSelect");
   dom.createBusinessEntitySelect = document.querySelector("#createTeacherBusinessEntitySelect");
+  dom.createStatusSelect = document.querySelector("#createTeacherStatusSelect");
   dom.createNoteInput = document.querySelector("#createTeacherNoteInput");
+  dom.createAlipayAccountInput = document.querySelector("#createTeacherAlipayAccountInput");
+  dom.createWechatAccountInput = document.querySelector("#createTeacherWechatAccountInput");
+  dom.createBankNameInput = document.querySelector("#createTeacherBankNameInput");
+  dom.createBankBranchCodeInput = document.querySelector("#createTeacherBankBranchCodeInput");
+  dom.createBankBranchNameInput = document.querySelector("#createTeacherBankBranchNameInput");
+  dom.createBankAccountNumberInput = document.querySelector("#createTeacherBankAccountNumberInput");
   dom.createCancelButton = document.querySelector("#createTeacherCancelButton");
   dom.createSubmitButton = document.querySelector("#createTeacherSubmitButton");
+
   dom.editDialog = document.querySelector("#editTeacherProfileDialog");
-  dom.editSummary = document.querySelector("#editTeacherProfileSummary");
   dom.editError = document.querySelector("#editTeacherProfileError");
-  dom.editDisplayNameInput = document.querySelector("#editTeacherDisplayNameInput");
   dom.editNameInput = document.querySelector("#editTeacherNameInput");
-  dom.editKanaNameInput = document.querySelector("#editTeacherKanaNameInput");
-  dom.editStatusSelect = document.querySelector("#editTeacherStatusSelect");
-  dom.editDepartmentInput = document.querySelector("#editTeacherDepartmentInput");
+  dom.editDepartmentSelect = document.querySelector("#editTeacherDepartmentSelect");
+  dom.editSubjectSelect = document.querySelector("#editTeacherSubjectSelect");
   dom.editBusinessEntitySelect = document.querySelector("#editTeacherBusinessEntitySelect");
-  dom.editDefaultHourlyRateInput = document.querySelector("#editTeacherDefaultHourlyRateInput");
-  dom.editDefaultCurrencySelect = document.querySelector("#editTeacherDefaultCurrencySelect");
-  dom.editDefaultPaymentCurrencySelect = document.querySelector("#editTeacherDefaultPaymentCurrencySelect");
-  dom.editDefaultPaymentMethodInput = document.querySelector("#editTeacherDefaultPaymentMethodInput");
+  dom.editStatusSelect = document.querySelector("#editTeacherStatusSelect");
   dom.editNoteInput = document.querySelector("#editTeacherNoteInput");
+  dom.editAlipayAccountInput = document.querySelector("#editTeacherAlipayAccountInput");
+  dom.editWechatAccountInput = document.querySelector("#editTeacherWechatAccountInput");
+  dom.editBankNameInput = document.querySelector("#editTeacherBankNameInput");
+  dom.editBankBranchCodeInput = document.querySelector("#editTeacherBankBranchCodeInput");
+  dom.editBankBranchNameInput = document.querySelector("#editTeacherBankBranchNameInput");
+  dom.editBankAccountNumberInput = document.querySelector("#editTeacherBankAccountNumberInput");
   dom.editCancelButton = document.querySelector("#editTeacherCancelButton");
   dom.editSubmitButton = document.querySelector("#editTeacherSubmitButton");
 }
@@ -109,22 +128,7 @@ function bindEvents() {
   dom.createButton.addEventListener("click", openCreateDialog);
   dom.createCancelButton.addEventListener("click", closeCreateDialog);
   dom.createSubmitButton.addEventListener("click", submitCreateDialog);
-  dom.createTeacherCodeInput.addEventListener("input", () => {
-    clearCreateFieldInvalid("teacherCode");
-    hideCreateErrorIfClean();
-  });
-  dom.createDisplayNameInput.addEventListener("input", () => {
-    clearCreateFieldInvalid("displayName");
-    hideCreateErrorIfClean();
-  });
-  dom.createStatusSelect.addEventListener("change", () => {
-    clearCreateFieldInvalid("status");
-    hideCreateErrorIfClean();
-  });
-  dom.createBusinessEntitySelect.addEventListener("change", () => {
-    clearCreateFieldInvalid("businessEntity");
-    hideCreateErrorIfClean();
-  });
+  bindDialogFieldEvents("create");
 
   dom.teacherGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-edit-teacher-id]");
@@ -137,34 +141,37 @@ function bindEvents() {
 
   dom.editCancelButton.addEventListener("click", closeEditDialog);
   dom.editSubmitButton.addEventListener("click", submitEditDialog);
-  dom.editDisplayNameInput.addEventListener("input", () => {
-    clearEditFieldInvalid("displayName");
-    hideEditErrorIfClean();
-  });
-  dom.editNameInput.addEventListener("input", () => {
-    clearEditFieldInvalid("name");
-    hideEditErrorIfClean();
-  });
-  dom.editStatusSelect.addEventListener("change", () => {
-    clearEditFieldInvalid("status");
-    hideEditErrorIfClean();
-  });
-  dom.editBusinessEntitySelect.addEventListener("change", () => {
-    clearEditFieldInvalid("businessEntity");
-    hideEditErrorIfClean();
-  });
-  dom.editDefaultHourlyRateInput.addEventListener("input", () => {
-    clearEditFieldInvalid("defaultHourlyRate");
-    hideEditErrorIfClean();
-  });
-  dom.editDefaultCurrencySelect.addEventListener("change", () => {
-    clearEditFieldInvalid("defaultCurrency");
-    hideEditErrorIfClean();
-  });
-  dom.editDefaultPaymentCurrencySelect.addEventListener("change", () => {
-    clearEditFieldInvalid("defaultPaymentCurrency");
-    hideEditErrorIfClean();
-  });
+  bindDialogFieldEvents("edit");
+}
+
+function bindDialogFieldEvents(scope) {
+  const fields = scope === "create"
+    ? [
+        ["name", dom.createNameInput, "input"],
+        ["department", dom.createDepartmentSelect, "change"],
+        ["defaultSubject", dom.createSubjectSelect, "change"],
+        ["businessEntity", dom.createBusinessEntitySelect, "change"],
+        ["status", dom.createStatusSelect, "change"],
+      ]
+    : [
+        ["name", dom.editNameInput, "input"],
+        ["department", dom.editDepartmentSelect, "change"],
+        ["defaultSubject", dom.editSubjectSelect, "change"],
+        ["businessEntity", dom.editBusinessEntitySelect, "change"],
+        ["status", dom.editStatusSelect, "change"],
+      ];
+
+  for (const [fieldId, element, eventName] of fields) {
+    element.addEventListener(eventName, () => {
+      if (scope === "create") {
+        clearCreateFieldInvalid(fieldId);
+        hideCreateErrorIfClean();
+      } else {
+        clearEditFieldInvalid(fieldId);
+        hideEditErrorIfClean();
+      }
+    });
+  }
 }
 
 function setDefaultFilters() {
@@ -184,13 +191,15 @@ async function loadTeacherData() {
   showMessage("info", "正在加载老师管理数据...");
 
   try {
-    const [teacherRows, filterRows, businessEntityRows] = await Promise.all([
+    const [teacherRows, filterRows, businessEntityRows, subjectRows] = await Promise.all([
       fetchTeachers(filters),
       fetchTeacherFilterOptions(),
       fetchBusinessEntitiesForTeachers(),
+      fetchSubjectsForTeachers(),
     ]);
 
     businessEntities = businessEntityRows;
+    subjects = subjectRows;
     renderStatusOptions(filterRows);
     renderDepartmentOptions(filterRows);
     renderBusinessEntityOptions(businessEntities, filterRows);
@@ -200,6 +209,7 @@ async function loadTeacherData() {
     showMessage("success", "老师管理数据已加载。");
   } catch (error) {
     businessEntities = [];
+    subjects = [];
     teachers = [];
     renderStatusOptions([]);
     renderDepartmentOptions([]);
@@ -255,7 +265,7 @@ function renderBusinessEntityOptions(items, teacherRows) {
   const options = ['<option value="">全部</option>'];
 
   if (teacherRows.some((teacher) => !teacher.default_business_entity_id)) {
-    options.push(`<option value="${UNSET_BUSINESS_ENTITY_VALUE}">未设置</option>`);
+    options.push(`<option value="${UNSET_VALUE}">未设置</option>`);
   }
 
   for (const entity of items.filter((item) => item.is_active !== false)) {
@@ -289,33 +299,29 @@ function renderTeachers(items) {
       </div>
 
       <div class="table-actions">
-        <button class="button" type="button" data-edit-teacher-id="${escapeAttribute(teacher.id)}">编辑基础信息</button>
+        <button class="button" type="button" data-edit-teacher-id="${escapeAttribute(teacher.id)}">编辑老师</button>
       </div>
 
       <dl class="teacher-meta">
         <div>
-          <dt>分类</dt>
+          <dt>老师分类</dt>
           <dd>${escapeHtml(displayValue(teacher.department))}</dd>
         </div>
         <div>
-          <dt>业务归属</dt>
+          <dt>默认科目</dt>
+          <dd>${escapeHtml(subjectName(teacher.default_subject_id))}</dd>
+        </div>
+        <div>
+          <dt>默认业务归属</dt>
           <dd>${escapeHtml(businessEntityName(teacher.default_business_entity_id))}</dd>
         </div>
         <div>
-          <dt>默认时给</dt>
-          <dd>${escapeHtml(formatTeacherRate(teacher))}</dd>
+          <dt>人民币支付</dt>
+          <dd>${escapeHtml(chinaPaymentSummary(teacher))}</dd>
         </div>
         <div>
-          <dt>默认币种</dt>
-          <dd>${escapeHtml(displayValue(teacher.default_currency))}</dd>
-        </div>
-        <div>
-          <dt>支付币种</dt>
-          <dd>${escapeHtml(displayValue(teacher.default_payment_currency))}</dd>
-        </div>
-        <div>
-          <dt>支付方式</dt>
-          <dd>${escapeHtml(displayValue(teacher.default_payment_method))}</dd>
+          <dt>日元支付</dt>
+          <dd>${escapeHtml(japanPaymentSummary(teacher))}</dd>
         </div>
         <div>
           <dt>备注</dt>
@@ -333,17 +339,21 @@ function renderTeachers(items) {
 function openCreateDialog() {
   clearCreateErrors();
   setCreateSubmitting(false);
-  dom.createTeacherCodeInput.value = "";
-  dom.createDisplayNameInput.value = "";
   dom.createNameInput.value = "";
-  dom.createKanaNameInput.value = "";
-  renderCreateStatusOptions("employed");
-  dom.createDepartmentInput.value = "";
+  renderCreateDepartmentOptions("常勤老师");
+  renderCreateSubjectOptions("");
   renderCreateBusinessEntityOptions("");
+  renderCreateStatusOptions("employed");
   dom.createNoteInput.value = "";
+  dom.createAlipayAccountInput.value = "";
+  dom.createWechatAccountInput.value = "";
+  dom.createBankNameInput.value = "";
+  dom.createBankBranchCodeInput.value = "";
+  dom.createBankBranchNameInput.value = "";
+  dom.createBankAccountNumberInput.value = "";
   dom.createDialog.classList.remove("is-hidden");
   dom.createDialog.setAttribute("aria-hidden", "false");
-  dom.createDisplayNameInput.focus();
+  dom.createNameInput.focus();
 }
 
 function closeCreateDialog({ force = false } = {}) {
@@ -362,29 +372,10 @@ async function submitCreateDialog() {
 
   clearCreateErrors();
 
-  const payload = {
-    teacherCode: dom.createTeacherCodeInput.value.trim(),
-    displayName: dom.createDisplayNameInput.value.trim(),
-    name: dom.createNameInput.value.trim(),
-    kanaName: dom.createKanaNameInput.value.trim(),
-    status: dom.createStatusSelect.value,
-    department: dom.createDepartmentInput.value.trim(),
-    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
-    note: dom.createNoteInput.value.trim(),
-  };
-
-  if (!payload.displayName) {
-    showCreateError("请输入老师显示名称。", ["displayName"]);
-    return;
-  }
-
-  if (!payload.status) {
-    showCreateError("请选择老师状态。", ["status"]);
-    return;
-  }
-
-  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
-    showCreateError("请选择有效老师状态。", ["status"]);
+  const payload = readCreatePayload();
+  const validation = validateTeacherPayload(payload);
+  if (validation) {
+    showCreateError(validation.message, validation.fieldIds);
     return;
   }
 
@@ -396,10 +387,27 @@ async function submitCreateDialog() {
     await reloadTeacherDataPreservingViewport();
     showMessage("success", "老师已新增，可用于未来排课、筛选和工资规则配置。");
   } catch (error) {
-    showCreateError(error.message || String(error), createFieldIdsForError(error));
+    showCreateError(error.message || String(error), teacherFieldIdsForError(error));
   } finally {
     setCreateSubmitting(false);
   }
+}
+
+function readCreatePayload() {
+  return {
+    name: dom.createNameInput.value.trim(),
+    department: dom.createDepartmentSelect.value,
+    defaultSubjectId: dom.createSubjectSelect.value,
+    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
+    status: dom.createStatusSelect.value,
+    note: dom.createNoteInput.value.trim(),
+    alipayAccount: dom.createAlipayAccountInput.value.trim(),
+    wechatAccount: dom.createWechatAccountInput.value.trim(),
+    bankName: dom.createBankNameInput.value.trim(),
+    bankBranchCode: dom.createBankBranchCodeInput.value.trim(),
+    bankBranchName: dom.createBankBranchNameInput.value.trim(),
+    bankAccountNumber: dom.createBankAccountNumberInput.value.trim(),
+  };
 }
 
 function openEditDialog(teacherId) {
@@ -410,23 +418,23 @@ function openEditDialog(teacherId) {
   }
 
   editingTeacher = teacher;
-  dom.editSummary.innerHTML = renderEditSummary(teacher);
-  dom.editDisplayNameInput.value = teacher.display_name || teacher.name || "";
   dom.editNameInput.value = teacher.name || teacher.display_name || "";
-  dom.editKanaNameInput.value = teacher.kana_name || "";
-  renderEditStatusOptions(teacher.status);
-  dom.editDepartmentInput.value = teacher.department || "";
+  renderEditDepartmentOptions(normalizeDepartmentForEdit(teacher.department));
+  renderEditSubjectOptions(teacher.default_subject_id);
   renderEditBusinessEntityOptions(teacher.default_business_entity_id);
-  dom.editDefaultHourlyRateInput.value = displayNumberInput(teacher.default_hourly_rate);
-  renderEditCurrencyOptions(dom.editDefaultCurrencySelect, teacher.default_currency || "JPY");
-  renderEditCurrencyOptions(dom.editDefaultPaymentCurrencySelect, teacher.default_payment_currency || "JPY");
-  dom.editDefaultPaymentMethodInput.value = teacher.default_payment_method || "";
+  renderEditStatusOptions(normalizeStatusForEdit(teacher.status));
   dom.editNoteInput.value = teacher.note || "";
+  dom.editAlipayAccountInput.value = teacher.alipay_account || "";
+  dom.editWechatAccountInput.value = teacher.wechat_account || "";
+  dom.editBankNameInput.value = teacher.bank_name || "";
+  dom.editBankBranchCodeInput.value = teacher.bank_branch_code || "";
+  dom.editBankBranchNameInput.value = teacher.bank_branch_name || "";
+  dom.editBankAccountNumberInput.value = teacher.bank_account_number || "";
   clearEditErrors();
   setEditSubmitting(false);
   dom.editDialog.classList.remove("is-hidden");
   dom.editDialog.setAttribute("aria-hidden", "false");
-  dom.editDisplayNameInput.focus();
+  dom.editNameInput.focus();
 }
 
 function closeEditDialog({ force = false } = {}) {
@@ -451,53 +459,10 @@ async function submitEditDialog() {
     return;
   }
 
-  const payload = {
-    teacherId: editingTeacher.id,
-    displayName: dom.editDisplayNameInput.value.trim(),
-    name: dom.editNameInput.value.trim(),
-    kanaName: dom.editKanaNameInput.value.trim(),
-    status: dom.editStatusSelect.value,
-    department: dom.editDepartmentInput.value.trim(),
-    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
-    defaultHourlyRate: readNonNegativeNumber(dom.editDefaultHourlyRateInput.value),
-    defaultCurrency: dom.editDefaultCurrencySelect.value,
-    defaultPaymentCurrency: dom.editDefaultPaymentCurrencySelect.value,
-    defaultPaymentMethod: dom.editDefaultPaymentMethodInput.value.trim(),
-    note: dom.editNoteInput.value.trim(),
-  };
-
-  if (!payload.displayName) {
-    showEditError("请输入老师显示名称。", ["displayName"]);
-    return;
-  }
-
-  if (!payload.name) {
-    showEditError("请输入老师系统姓名。", ["name"]);
-    return;
-  }
-
-  if (!payload.status) {
-    showEditError("请选择老师状态。", ["status"]);
-    return;
-  }
-
-  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
-    showEditError("请选择有效老师状态。", ["status"]);
-    return;
-  }
-
-  if (!Number.isFinite(payload.defaultHourlyRate) || payload.defaultHourlyRate < 0) {
-    showEditError("默认时薪需为 0 或正数。", ["defaultHourlyRate"]);
-    return;
-  }
-
-  if (!EDITABLE_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
-    showEditError("请选择有效默认币种。", ["defaultCurrency"]);
-    return;
-  }
-
-  if (!EDITABLE_CURRENCY_OPTIONS.includes(payload.defaultPaymentCurrency)) {
-    showEditError("请选择有效支付币种。", ["defaultPaymentCurrency"]);
+  const payload = readEditPayload();
+  const validation = validateTeacherPayload(payload);
+  if (validation) {
+    showEditError(validation.message, validation.fieldIds);
     return;
   }
 
@@ -507,75 +472,127 @@ async function submitEditDialog() {
     await updateTeacherProfile(payload);
     closeEditDialog({ force: true });
     await reloadTeacherDataPreservingViewport();
-    showMessage("success", "老师基础信息已更新。");
+    showMessage("success", "老师资料已更新。");
   } catch (error) {
-    showEditError(error.message || String(error), editFieldIdsForError(error));
+    showEditError(error.message || String(error), teacherFieldIdsForError(error));
   } finally {
     setEditSubmitting(false);
   }
 }
 
-function renderEditSummary(teacher) {
-  const rows = [
-    ["老师编号", teacher.teacher_code || shortId(teacher.id)],
-    ["不可编辑字段", "老师编号、默认科目、联系方式、收款账户、工资规则、工资锁定、结算、支付、课时"],
-  ];
+function readEditPayload() {
+  return {
+    teacherId: editingTeacher.id,
+    name: dom.editNameInput.value.trim(),
+    department: dom.editDepartmentSelect.value,
+    defaultSubjectId: dom.editSubjectSelect.value,
+    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    status: dom.editStatusSelect.value,
+    note: dom.editNoteInput.value.trim(),
+    alipayAccount: dom.editAlipayAccountInput.value.trim(),
+    wechatAccount: dom.editWechatAccountInput.value.trim(),
+    bankName: dom.editBankNameInput.value.trim(),
+    bankBranchCode: dom.editBankBranchCodeInput.value.trim(),
+    bankBranchName: dom.editBankBranchNameInput.value.trim(),
+    bankAccountNumber: dom.editBankAccountNumberInput.value.trim(),
+  };
+}
 
-  return `
-    <dl class="detail-definition-list">
-      ${rows.map(([label, value]) => `
-        <div>
-          <dt>${escapeHtml(label)}</dt>
-          <dd>${escapeHtml(displayValue(value))}</dd>
-        </div>
-      `).join("")}
-    </dl>
-  `;
+function validateTeacherPayload(payload) {
+  if (!payload.name) {
+    return { message: "请输入老师姓名。", fieldIds: ["name"] };
+  }
+
+  if (!TEACHER_DEPARTMENT_OPTIONS.includes(payload.department)) {
+    return { message: "请选择有效老师分类。", fieldIds: ["department"] };
+  }
+
+  if (!EDITABLE_STATUS_OPTIONS.some((option) => option.value === payload.status)) {
+    return { message: "请选择有效老师状态。", fieldIds: ["status"] };
+  }
+
+  return null;
+}
+
+function renderEditDepartmentOptions(selectedDepartment) {
+  dom.editDepartmentSelect.innerHTML = departmentEditOptions();
+  dom.editDepartmentSelect.value = selectedDepartment || "常勤老师";
+}
+
+function renderCreateDepartmentOptions(selectedDepartment) {
+  dom.createDepartmentSelect.innerHTML = departmentEditOptions();
+  dom.createDepartmentSelect.value = selectedDepartment || "常勤老师";
+}
+
+function departmentEditOptions() {
+  return TEACHER_DEPARTMENT_OPTIONS
+    .map((department) => `<option value="${escapeAttribute(department)}">${escapeHtml(department)}</option>`)
+    .join("");
 }
 
 function renderEditStatusOptions(selectedStatus) {
-  dom.editStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
-    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(teacherStatusLabel(status))}</option>`)
-    .join("");
+  dom.editStatusSelect.innerHTML = statusEditOptions();
   dom.editStatusSelect.value = selectedStatus || "employed";
 }
 
 function renderCreateStatusOptions(selectedStatus) {
-  dom.createStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
-    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(teacherStatusLabel(status))}</option>`)
-    .join("");
+  dom.createStatusSelect.innerHTML = statusEditOptions();
   dom.createStatusSelect.value = selectedStatus || "employed";
 }
 
-function renderEditCurrencyOptions(selectEl, selectedCurrency) {
-  selectEl.innerHTML = EDITABLE_CURRENCY_OPTIONS
-    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+function statusEditOptions() {
+  return EDITABLE_STATUS_OPTIONS
+    .map((status) => `<option value="${escapeAttribute(status.value)}">${escapeHtml(status.label)}</option>`)
     .join("");
-  selectEl.value = selectedCurrency || "JPY";
+}
+
+function renderEditSubjectOptions(selectedSubjectId) {
+  dom.editSubjectSelect.innerHTML = subjectEditOptions();
+  dom.editSubjectSelect.value = selectedSubjectId || "";
+}
+
+function renderCreateSubjectOptions(selectedSubjectId) {
+  dom.createSubjectSelect.innerHTML = subjectEditOptions();
+  dom.createSubjectSelect.value = selectedSubjectId || "";
+}
+
+function subjectEditOptions() {
+  const subjectOptions = subjects
+    .filter((subject) => subject?.id)
+    .map((subject) => {
+      const activeSuffix = subject.is_active === false ? "（停用）" : "";
+      const categoryPrefix = subject.primary_category || subject.category || "";
+      const label = categoryPrefix ? `${categoryPrefix} / ${subject.name}${activeSuffix}` : `${subject.name}${activeSuffix}`;
+      return `<option value="${escapeAttribute(subject.id)}">${escapeHtml(label)}</option>`;
+    });
+
+  return [
+    '<option value="">未设置</option>',
+    ...subjectOptions,
+  ].join("");
 }
 
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.editBusinessEntitySelect.innerHTML = [
-    '<option value="">未设置</option>',
-    ...businessEntities
-      .filter((entity) => entity.is_active !== false)
-      .map((entity) =>
-        `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-      ),
-  ].join("");
+  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions();
   dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
 function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.createBusinessEntitySelect.innerHTML = [
-    '<option value="">未设置</option>',
-    ...businessEntities
-      .filter((entity) => entity.is_active !== false)
-      .map((entity) =>
-        `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-      ),
-  ].join("");
+  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions();
   dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
+function businessEntityEditOptions() {
+  const activeOptions = businessEntities
+    .filter((entity) => entity?.id && entity.is_active !== false)
+    .map((entity) =>
+      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
+    );
+
+  return [
+    '<option value="">未设置</option>',
+    ...activeOptions,
+  ].join("");
 }
 
 function showCreateError(message, fieldIds = []) {
@@ -588,7 +605,7 @@ function showCreateError(message, fieldIds = []) {
 function clearCreateErrors() {
   dom.createError.textContent = "";
   dom.createError.classList.add("is-hidden");
-  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+  TEACHER_FIELD_IDS.forEach(clearCreateFieldInvalid);
 }
 
 function hideCreateErrorIfClean() {
@@ -616,15 +633,6 @@ function setCreateSubmitting(isSubmitting) {
   dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
 }
 
-function createFieldIdsForError(error) {
-  const message = error?.message || String(error || "");
-  if (message.includes("编号")) return ["teacherCode"];
-  if (message.includes("显示名称")) return ["displayName"];
-  if (message.includes("状态")) return ["status"];
-  if (message.includes("业务归属")) return ["businessEntity"];
-  return [];
-}
-
 function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
@@ -635,15 +643,7 @@ function showEditError(message, fieldIds = []) {
 function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
-  [
-    "displayName",
-    "name",
-    "status",
-    "businessEntity",
-    "defaultHourlyRate",
-    "defaultCurrency",
-    "defaultPaymentCurrency",
-  ].forEach(clearEditFieldInvalid);
+  TEACHER_FIELD_IDS.forEach(clearEditFieldInvalid);
 }
 
 function hideEditErrorIfClean() {
@@ -671,15 +671,13 @@ function setEditSubmitting(isSubmitting) {
   dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
 }
 
-function editFieldIdsForError(error) {
+function teacherFieldIdsForError(error) {
   const message = error?.message || String(error || "");
-  if (message.includes("显示名称")) return ["displayName"];
-  if (message.includes("系统姓名")) return ["name"];
-  if (message.includes("状态")) return ["status"];
+  if (message.includes("姓名")) return ["name"];
+  if (message.includes("分类")) return ["department"];
+  if (message.includes("默认科目")) return ["defaultSubject"];
   if (message.includes("业务归属")) return ["businessEntity"];
-  if (message.includes("时薪")) return ["defaultHourlyRate"];
-  if (message.includes("支付币种")) return ["defaultPaymentCurrency"];
-  if (message.includes("币种")) return ["defaultCurrency"];
+  if (message.includes("状态")) return ["status"];
   return [];
 }
 
@@ -698,10 +696,18 @@ function filterTeachersByKeyword(items, keyword) {
   const normalizedKeyword = keyword.toLowerCase();
   return items.filter((teacher) =>
     [
+      teacher.teacher_code,
       teacher.name,
       teacher.display_name,
-      teacher.kana_name,
-      teacher.teacher_code,
+      teacher.department,
+      subjectName(teacher.default_subject_id),
+      businessEntityName(teacher.default_business_entity_id),
+      teacher.alipay_account,
+      teacher.wechat_account,
+      teacher.bank_name,
+      teacher.bank_branch_code,
+      teacher.bank_branch_name,
+      teacher.bank_account_number,
       teacher.note,
     ]
       .map((value) => safeText(value).toLowerCase())
@@ -728,8 +734,17 @@ function businessEntityName(entityId) {
   return entity?.name || entityId;
 }
 
+function subjectName(subjectId) {
+  if (!subjectId) {
+    return "未设置";
+  }
+
+  const subject = subjects.find((item) => item.id === subjectId);
+  return subject?.name || subjectId;
+}
+
 function teacherName(teacher) {
-  return teacher.display_name || teacher.name || "未命名老师";
+  return teacher.name || teacher.display_name || "未命名老师";
 }
 
 function teacherStatusLabel(status) {
@@ -740,26 +755,38 @@ function teacherStatusLabel(status) {
   return TEACHER_STATUS_LABELS[status] || safeText(status);
 }
 
-function formatTeacherRate(teacher) {
-  if (teacher.default_hourly_rate === null || teacher.default_hourly_rate === undefined || teacher.default_hourly_rate === "") {
-    return "未设置";
-  }
-
-  return formatCurrency(teacher.default_hourly_rate, teacher.default_currency || "JPY");
+function normalizeDepartmentForEdit(department) {
+  return TEACHER_DEPARTMENT_OPTIONS.includes(department) ? department : "常勤老师";
 }
 
-function readNonNegativeNumber(value) {
-  const text = safeText(value).trim();
-  if (!text) {
-    return 0;
+function normalizeStatusForEdit(status) {
+  if (status === "active") {
+    return "employed";
   }
 
-  return Number(text);
+  if (status === "inactive") {
+    return "resigned";
+  }
+
+  return EDITABLE_STATUS_OPTIONS.some((option) => option.value === status) ? status : "employed";
 }
 
-function displayNumberInput(value) {
-  const text = safeText(value);
-  return text || "0";
+function chinaPaymentSummary(teacher) {
+  const parts = [
+    teacher.alipay_account ? `支付宝：${teacher.alipay_account}` : "",
+    teacher.wechat_account ? `微信：${teacher.wechat_account}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "未设置";
+}
+
+function japanPaymentSummary(teacher) {
+  const parts = [
+    teacher.bank_name,
+    teacher.bank_branch_code ? `支店番号 ${teacher.bank_branch_code}` : "",
+    teacher.bank_branch_name,
+    teacher.bank_account_number ? `账户 ${teacher.bank_account_number}` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "未设置";
 }
 
 function displayValue(value) {
