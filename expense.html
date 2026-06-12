@@ -138,7 +138,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="expenseListTitle">支出记录</h2>
-              <p class="section-note">本页显示已登记支出记录，只读查看；老师工资类支出会显示来源工资支付状态，已撤销或已作废记录仍保留用于审计，不代表有效经营支出。表格可横向滚动查看更多列。</p>
+              <p class="section-note">本页显示已登记支出记录；普通支出可新增，详情页可在保护规则内编辑。老师工资类支出会显示来源工资支付状态，已撤销或已作废记录仍保留用于审计，不代表有效经营支出。表格可横向滚动查看更多列。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="openCreateExpenseButton" type="button">新增支出</button>
@@ -184,7 +184,7 @@
     </div>
 
     <div id="createExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel expense-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createExpenseTitle">
+      <section class="dialog-panel expense-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="createExpenseTitle">
         <div class="section-heading">
           <h2 id="createExpenseTitle">新增支出</h2>
           <p class="section-note">新增后会通过 RPC 自动写入支出记录、账户余额和账户流水；第一版仅支持普通已支付支出，不支持老师工资或报销流程。附件摘要可在支出详情页单独登记。</p>
@@ -208,11 +208,6 @@
             <select id="createExpenseAccountSelect"></select>
           </label>
 
-          <label class="field">
-            <span>账户币种</span>
-            <input id="createExpenseCurrencyInput" type="text" readonly>
-          </label>
-
           <label class="field" data-create-expense-field="expenseCategory">
             <span>支出分类</span>
             <select id="createExpenseCategorySelect"></select>
@@ -228,16 +223,14 @@
             <input id="createExpenseDescriptionInput" type="text" autocomplete="off" placeholder="支出内容 / 描述">
           </label>
 
-          <label class="field">
+          <label class="field" data-create-expense-field="paymentMethod">
             <span>支付方式</span>
             <select id="createExpensePaymentMethodSelect">
               <option value="">请选择支付方式</option>
-              <option value="bank">银行</option>
+              <option value="cash">现金支付</option>
               <option value="bank_transfer">银行转账</option>
-              <option value="card">银行卡</option>
-              <option value="cash">现金</option>
+              <option value="card">信用卡</option>
               <option value="alipay">支付宝</option>
-              <option value="wechat">微信</option>
             </select>
           </label>
 
@@ -258,27 +251,9 @@
             </select>
           </label>
 
-          <label class="field">
-            <span>是否业务支出</span>
-            <select id="createExpenseBusinessExpenseSelect">
-              <option value="true">是</option>
-              <option value="false">否</option>
-            </select>
-          </label>
-
-          <label class="field">
+          <label class="field" data-create-expense-field="taxCategory">
             <span>税务分类</span>
             <input id="createExpenseTaxCategoryInput" type="text" autocomplete="off" placeholder="待确认">
-          </label>
-
-          <label class="field" data-create-expense-field="teacher">
-            <span>老师</span>
-            <select id="createExpenseTeacherSelect"></select>
-          </label>
-
-          <label class="field" data-create-expense-field="student">
-            <span>学生</span>
-            <select id="createExpenseStudentSelect"></select>
           </label>
 
           <label class="field" data-create-expense-field="exchangeRate">
@@ -286,7 +261,7 @@
             <input id="createExpenseExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal" placeholder="可选">
           </label>
 
-          <label class="field expense-create-wide-field">
+          <label class="field expense-create-wide-field" data-create-expense-field="note">
             <span>备注</span>
             <textarea id="createExpenseNoteInput" rows="3"></textarea>
           </label>
@@ -299,6 +274,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612"></script>
+    <script type="module" src="./js/expense-app.js?v=v2.106.0-expense-edit-field-scope-20260612"></script>
   </body>
 </html>

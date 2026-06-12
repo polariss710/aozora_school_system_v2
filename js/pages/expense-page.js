@@ -47,8 +47,8 @@ const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
   bank: "银行",
   bank_transfer: "银行转账",
-  card: "银行卡",
-  cash: "现金",
+  card: "信用卡",
+  cash: "现金支付",
   wechat: "微信",
 };
 
@@ -86,6 +86,7 @@ const CREATE_EXPENSE_CATEGORY_OPTIONS = [
 
 const CREATE_RECEIPT_STATUS_OPTIONS = ["有", "无需收据", "待确认"];
 const CREATE_REIMBURSEMENT_STATUS_OPTIONS = ["not_required", "pending"];
+const CREATE_PAYMENT_METHOD_OPTIONS = ["cash", "bank_transfer", "card", "alipay"];
 const CREATE_EXPENSE_FIELD_IDS = [
   "expenseDate",
   "businessEntity",
@@ -93,10 +94,10 @@ const CREATE_EXPENSE_FIELD_IDS = [
   "expenseCategory",
   "description",
   "amount",
+  "paymentMethod",
   "receiptStatus",
   "reimbursementStatus",
-  "teacher",
-  "student",
+  "taxCategory",
   "exchangeRate",
 ];
 
@@ -157,17 +158,13 @@ function cacheDom() {
   dom.createExpenseDateInput = document.querySelector("#createExpenseDateInput");
   dom.createExpenseBusinessEntitySelect = document.querySelector("#createExpenseBusinessEntitySelect");
   dom.createExpenseAccountSelect = document.querySelector("#createExpenseAccountSelect");
-  dom.createExpenseCurrencyInput = document.querySelector("#createExpenseCurrencyInput");
   dom.createExpenseCategorySelect = document.querySelector("#createExpenseCategorySelect");
   dom.createExpenseAmountInput = document.querySelector("#createExpenseAmountInput");
   dom.createExpenseDescriptionInput = document.querySelector("#createExpenseDescriptionInput");
   dom.createExpensePaymentMethodSelect = document.querySelector("#createExpensePaymentMethodSelect");
   dom.createExpenseReceiptStatusSelect = document.querySelector("#createExpenseReceiptStatusSelect");
   dom.createExpenseReimbursementStatusSelect = document.querySelector("#createExpenseReimbursementStatusSelect");
-  dom.createExpenseBusinessExpenseSelect = document.querySelector("#createExpenseBusinessExpenseSelect");
   dom.createExpenseTaxCategoryInput = document.querySelector("#createExpenseTaxCategoryInput");
-  dom.createExpenseTeacherSelect = document.querySelector("#createExpenseTeacherSelect");
-  dom.createExpenseStudentSelect = document.querySelector("#createExpenseStudentSelect");
   dom.createExpenseExchangeRateInput = document.querySelector("#createExpenseExchangeRateInput");
   dom.createExpenseNoteInput = document.querySelector("#createExpenseNoteInput");
   dom.createExpenseSubmitButton = document.querySelector("#createExpenseSubmitButton");
@@ -190,15 +187,11 @@ function bindEvents() {
   dom.createExpenseSubmitButton.addEventListener("click", submitCreateExpense);
   dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
     renderCreateAccountOptions();
-    renderCreateTeacherOptions();
-    renderCreateStudentOptions();
-    updateCreateCurrency();
     updateCreateReimbursementDefault();
     clearCreateFieldInvalid("businessEntity");
     hideCreateErrorIfClean();
   });
   dom.createExpenseAccountSelect.addEventListener("change", () => {
-    updateCreateCurrency();
     updateCreateReimbursementDefault();
     clearCreateFieldInvalid("account");
     hideCreateErrorIfClean();
@@ -209,10 +202,10 @@ function bindEvents() {
     [dom.createExpenseCategorySelect, "expenseCategory"],
     [dom.createExpenseDescriptionInput, "description"],
     [dom.createExpenseAmountInput, "amount"],
+    [dom.createExpensePaymentMethodSelect, "paymentMethod"],
     [dom.createExpenseReceiptStatusSelect, "receiptStatus"],
     [dom.createExpenseReimbursementStatusSelect, "reimbursementStatus"],
-    [dom.createExpenseTeacherSelect, "teacher"],
-    [dom.createExpenseStudentSelect, "student"],
+    [dom.createExpenseTaxCategoryInput, "taxCategory"],
     [dom.createExpenseExchangeRateInput, "exchangeRate"],
   ]) {
     input.addEventListener("input", () => {
@@ -471,14 +464,12 @@ function openCreateExpenseDialog() {
   const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
   const defaultBusinessEntityId = filters?.businessEntityId || "";
   const defaultAccountId = filters?.accountId || "";
-  const defaultTeacherId = filters?.teacherId || "";
 
   dom.createExpenseDateInput.value = currentDate();
   dom.createExpenseAmountInput.value = "";
   dom.createExpenseDescriptionInput.value = "";
   dom.createExpensePaymentMethodSelect.value = "";
   dom.createExpenseReceiptStatusSelect.value = "待确认";
-  dom.createExpenseBusinessExpenseSelect.value = "true";
   dom.createExpenseTaxCategoryInput.value = "待确认";
   dom.createExpenseExchangeRateInput.value = "";
   dom.createExpenseNoteInput.value = "";
@@ -494,13 +485,6 @@ function openCreateExpenseDialog() {
     ? defaultAccountId
     : "";
 
-  renderCreateTeacherOptions();
-  dom.createExpenseTeacherSelect.value = filteredCreateTeachers().some((teacher) => teacher.id === defaultTeacherId)
-    ? defaultTeacherId
-    : "";
-
-  renderCreateStudentOptions();
-  updateCreateCurrency();
   updateCreateReimbursementDefault();
 
   dom.createExpenseDialog.classList.remove("is-hidden");
@@ -602,6 +586,12 @@ function readCreateExpensePayload() {
     return null;
   }
 
+  const paymentMethod = dom.createExpensePaymentMethodSelect.value;
+  if (!CREATE_PAYMENT_METHOD_OPTIONS.includes(paymentMethod)) {
+    showCreateError("请选择支付方式。", ["paymentMethod"]);
+    return null;
+  }
+
   const receiptStatus = dom.createExpenseReceiptStatusSelect.value;
   if (!CREATE_RECEIPT_STATUS_OPTIONS.includes(receiptStatus)) {
     showCreateError("收据状态无效。", ["receiptStatus"]);
@@ -611,18 +601,6 @@ function readCreateExpensePayload() {
   const reimbursementStatus = dom.createExpenseReimbursementStatusSelect.value;
   if (!CREATE_REIMBURSEMENT_STATUS_OPTIONS.includes(reimbursementStatus)) {
     showCreateError("报销状态无效。", ["reimbursementStatus"]);
-    return null;
-  }
-
-  const teacherId = dom.createExpenseTeacherSelect.value;
-  if (teacherId && !filteredCreateTeachers().some((teacher) => teacher.id === teacherId)) {
-    showCreateError("老师无效或不可用。", ["teacher"]);
-    return null;
-  }
-
-  const studentId = dom.createExpenseStudentSelect.value;
-  if (studentId && !filteredCreateStudents().some((student) => student.id === studentId)) {
-    showCreateError("学生无效或不可用。", ["student"]);
     return null;
   }
 
@@ -642,13 +620,13 @@ function readCreateExpensePayload() {
     currency: account.currency,
     amount,
     exchangeRate,
-    paymentMethod: dom.createExpensePaymentMethodSelect.value,
-    isBusinessExpense: dom.createExpenseBusinessExpenseSelect.value === "true",
+    paymentMethod,
+    isBusinessExpense: true,
     taxCategory: dom.createExpenseTaxCategoryInput.value.trim(),
     receiptStatus,
     reimbursementStatus,
-    teacherId,
-    studentId,
+    teacherId: null,
+    studentId: null,
     note: dom.createExpenseNoteInput.value.trim(),
   };
 }
@@ -702,30 +680,6 @@ function renderCreateAccountOptions() {
   }
 }
 
-function renderCreateTeacherOptions() {
-  const selectedValue = dom.createExpenseTeacherSelect.value;
-  const options = ['<option value="">不关联老师</option>'];
-  for (const teacher of filteredCreateTeachers()) {
-    options.push(`<option value="${escapeAttribute(teacher.id)}">${escapeHtml(teacherName(teacher))}</option>`);
-  }
-  dom.createExpenseTeacherSelect.innerHTML = options.join("");
-  if (filteredCreateTeachers().some((teacher) => teacher.id === selectedValue)) {
-    dom.createExpenseTeacherSelect.value = selectedValue;
-  }
-}
-
-function renderCreateStudentOptions() {
-  const selectedValue = dom.createExpenseStudentSelect.value;
-  const options = ['<option value="">不关联学生</option>'];
-  for (const student of filteredCreateStudents()) {
-    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
-  }
-  dom.createExpenseStudentSelect.innerHTML = options.join("");
-  if (filteredCreateStudents().some((student) => student.id === selectedValue)) {
-    dom.createExpenseStudentSelect.value = selectedValue;
-  }
-}
-
 function filteredCreateAccounts() {
   const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
   return accounts.filter((account) => {
@@ -741,28 +695,6 @@ function filteredCreateAccounts() {
   });
 }
 
-function filteredCreateTeachers() {
-  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
-  return teachers.filter((teacher) => {
-    if (businessEntityId && teacher.default_business_entity_id !== businessEntityId) {
-      return false;
-    }
-
-    return teacher.status !== "inactive" && teacher.status !== "disabled" && teacher.status !== "archived";
-  });
-}
-
-function filteredCreateStudents() {
-  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
-  return students.filter((student) => {
-    if (businessEntityId && student.business_entity_id !== businessEntityId) {
-      return false;
-    }
-
-    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
-  });
-}
-
 function createAccountLabel(account) {
   const accountKind = account.is_company_account ? "公司账户" : "个人垫付账户";
   return [
@@ -771,11 +703,6 @@ function createAccountLabel(account) {
     formatCurrency(account.current_balance, account.currency),
     accountKind,
   ].filter(Boolean).join(" / ");
-}
-
-function updateCreateCurrency() {
-  const account = accounts.find((item) => item.id === dom.createExpenseAccountSelect.value);
-  dom.createExpenseCurrencyInput.value = account?.currency || "";
 }
 
 function updateCreateReimbursementDefault() {
@@ -817,8 +744,7 @@ function createFieldIdsForError(message) {
   if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("付款账户") || text.includes("币种")) fields.push("account");
   if (text.includes("汇率")) fields.push("exchangeRate");
-  if (text.includes("老师")) fields.push("teacher");
-  if (text.includes("学生")) fields.push("student");
+  if (text.includes("支付方式")) fields.push("paymentMethod");
   if (text.includes("报销状态")) fields.push("reimbursementStatus");
   if (text.includes("收据状态")) fields.push("receiptStatus");
   return fields;

@@ -3,6 +3,7 @@ import {
   createExpenseAttachmentMetadata,
   fetchExpenseDetailPage,
   reverseExpenseRecord,
+  updateExpenseRecord,
 } from "../api/expense-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -21,9 +22,12 @@ const EXPENSE_CATEGORY_LABELS = {
 };
 
 const PAYMENT_METHOD_LABELS = {
+  alipay: "支付宝",
   bank: "银行",
   bank_transfer: "银行转账",
-  card: "银行卡",
+  card: "信用卡",
+  cash: "现金支付",
+  wechat: "微信",
 };
 
 const REIMBURSEMENT_STATUS_LABELS = {
@@ -63,9 +67,28 @@ const dom = {};
 let detailData = null;
 let isReverseSubmitting = false;
 let isAttachmentSubmitting = false;
+let isEditSubmitting = false;
 const REVERSE_EXPENSE_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const ATTACHMENT_FIELD_IDS = ["fileName", "fileType", "fileSize", "sourceType", "note"];
 const ATTACHMENT_SOURCE_TYPE_OPTIONS = ["manual_metadata", "receipt", "invoice", "statement", "other"];
+const EDITABLE_EXPENSE_CATEGORIES = ["classroom", "other", "tax_accounting", "advertising", "software"];
+const EDIT_PAYMENT_METHOD_OPTIONS = ["cash", "bank_transfer", "card", "alipay"];
+const EDIT_RECEIPT_STATUS_OPTIONS = ["有", "无需收据", "待确认"];
+const EDIT_REIMBURSEMENT_STATUS_OPTIONS = ["not_required", "pending"];
+const EDIT_EXPENSE_FIELD_IDS = [
+  "expenseDate",
+  "businessEntity",
+  "account",
+  "expenseCategory",
+  "amount",
+  "description",
+  "paymentMethod",
+  "receiptStatus",
+  "reimbursementStatus",
+  "taxCategory",
+  "exchangeRate",
+  "note",
+];
 
 export function initExpenseDetailPage() {
   cacheDom();
@@ -93,6 +116,7 @@ export function initExpenseDetailPage() {
 function cacheDom() {
   dom.messageArea = document.querySelector("#expenseDetailMessageArea");
   dom.actionStatus = document.querySelector("#expenseDetailActionStatus");
+  dom.openEditExpenseButton = document.querySelector("#openEditExpenseButton");
   dom.openReverseExpenseButton = document.querySelector("#openReverseExpenseButton");
   dom.loadingState = document.querySelector("#expenseDetailLoadingState");
   dom.content = document.querySelector("#expenseDetailContent");
@@ -104,12 +128,25 @@ function cacheDom() {
   dom.reversalCard = document.querySelector("#expenseDetailReversalCard");
   dom.reversalInfo = document.querySelector("#expenseDetailReversalInfo");
   dom.noteBlock = document.querySelector("#expenseDetailNoteBlock");
-  dom.paymentRequests = document.querySelector("#expenseDetailPaymentRequests");
-  dom.directTransactions = document.querySelector("#expenseDetailDirectTransactions");
-  dom.paymentTransactions = document.querySelector("#expenseDetailPaymentTransactions");
   dom.reimbursements = document.querySelector("#expenseDetailReimbursements");
   dom.openAttachmentDialogButton = document.querySelector("#openExpenseAttachmentDialogButton");
   dom.attachments = document.querySelector("#expenseDetailAttachments");
+  dom.editDialog = document.querySelector("#editExpenseDialog");
+  dom.editError = document.querySelector("#editExpenseError");
+  dom.editDateInput = document.querySelector("#editExpenseDateInput");
+  dom.editBusinessEntitySelect = document.querySelector("#editExpenseBusinessEntitySelect");
+  dom.editAccountSelect = document.querySelector("#editExpenseAccountSelect");
+  dom.editCategorySelect = document.querySelector("#editExpenseCategorySelect");
+  dom.editAmountInput = document.querySelector("#editExpenseAmountInput");
+  dom.editDescriptionInput = document.querySelector("#editExpenseDescriptionInput");
+  dom.editPaymentMethodSelect = document.querySelector("#editExpensePaymentMethodSelect");
+  dom.editReceiptStatusSelect = document.querySelector("#editExpenseReceiptStatusSelect");
+  dom.editReimbursementStatusSelect = document.querySelector("#editExpenseReimbursementStatusSelect");
+  dom.editTaxCategoryInput = document.querySelector("#editExpenseTaxCategoryInput");
+  dom.editExchangeRateInput = document.querySelector("#editExpenseExchangeRateInput");
+  dom.editNoteInput = document.querySelector("#editExpenseNoteInput");
+  dom.editSubmitButton = document.querySelector("#editExpenseSubmitButton");
+  dom.editCancelButton = document.querySelector("#editExpenseCancelButton");
   dom.attachmentDialog = document.querySelector("#expenseAttachmentDialog");
   dom.attachmentSummary = document.querySelector("#expenseAttachmentSummary");
   dom.attachmentError = document.querySelector("#expenseAttachmentError");
@@ -131,8 +168,45 @@ function cacheDom() {
 }
 
 function bindEvents() {
+  dom.openEditExpenseButton.addEventListener("click", openEditDialog);
   dom.openReverseExpenseButton.addEventListener("click", openReverseDialog);
   dom.openAttachmentDialogButton.addEventListener("click", openAttachmentDialog);
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditExpense);
+  dom.editBusinessEntitySelect.addEventListener("change", () => {
+    renderEditAccountOptions();
+    updateEditReimbursementDefault();
+    setEditFieldInvalid("businessEntity", false);
+    hideEditErrorIfClean();
+  });
+  dom.editAccountSelect.addEventListener("change", () => {
+    updateEditReimbursementDefault();
+    setEditFieldInvalid("account", false);
+    hideEditErrorIfClean();
+  });
+  for (const [input, fieldId] of [
+    [dom.editDateInput, "expenseDate"],
+    [dom.editBusinessEntitySelect, "businessEntity"],
+    [dom.editAccountSelect, "account"],
+    [dom.editCategorySelect, "expenseCategory"],
+    [dom.editAmountInput, "amount"],
+    [dom.editDescriptionInput, "description"],
+    [dom.editPaymentMethodSelect, "paymentMethod"],
+    [dom.editReceiptStatusSelect, "receiptStatus"],
+    [dom.editReimbursementStatusSelect, "reimbursementStatus"],
+    [dom.editTaxCategoryInput, "taxCategory"],
+    [dom.editExchangeRateInput, "exchangeRate"],
+    [dom.editNoteInput, "note"],
+  ]) {
+    input.addEventListener("input", () => {
+      setEditFieldInvalid(fieldId, false);
+      hideEditErrorIfClean();
+    });
+    input.addEventListener("change", () => {
+      setEditFieldInvalid(fieldId, false);
+      hideEditErrorIfClean();
+    });
+  }
   dom.attachmentCancelButton.addEventListener("click", closeAttachmentDialog);
   dom.attachmentSubmitButton.addEventListener("click", submitAttachmentMetadata);
   for (const [input, fieldId] of [
@@ -213,15 +287,11 @@ function renderExpenseDetail(data) {
     ["CNY 金额", formatCurrency(expense.amount_cny, "CNY")],
     ["汇率", displayValue(expense.exchange_rate)],
     ["支付方式", paymentMethodLabel(expense.payment_method)],
-    ["经营支出", booleanLabel(expense.is_business_expense)],
     ["税务分类", displayValue(expense.tax_category)],
   ]);
 
   dom.relatedInfo.innerHTML = renderDefinitionList([
     ["账户", accountNameById(expense.account_id)],
-    ["老师", teacherNameById(expense.teacher_id)],
-    ["学生", studentNameById(expense.student_id)],
-    ["salary_payment_id", shortId(expense.salary_payment_id)],
     ["支出 ID", shortId(expense.id)],
     ["app_type", displayValue(expense.app_type)],
   ]);
@@ -234,9 +304,6 @@ function renderExpenseDetail(data) {
 
   renderReversalInfo(expense);
   dom.noteBlock.textContent = displayValue(expense.note);
-  renderPaymentRequests(data.paymentRequests);
-  renderTransactions(dom.directTransactions, data.directTransactions, "无直接关联本支出的账户流水。");
-  renderTransactions(dom.paymentTransactions, data.paymentTransactions, "无来源支付请求账户流水。");
   renderReimbursements(data.reimbursementItems, data.reimbursements);
   renderAttachments(data.attachments);
 }
@@ -244,14 +311,35 @@ function renderExpenseDetail(data) {
 function renderActionArea(data) {
   const { expense } = data;
   const status = expense?.status || "";
+  const canEdit = canEditExpense(data);
   const canReverse = canReverseExpense(data);
   const canCreateAttachment = canCreateAttachmentMetadata(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = expenseStatusLabel(status);
+  dom.openEditExpenseButton.classList.toggle("is-hidden", !canEdit);
+  dom.openEditExpenseButton.disabled = !canEdit;
   dom.openReverseExpenseButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseExpenseButton.disabled = !canReverse;
   dom.openAttachmentDialogButton.classList.toggle("is-hidden", !canCreateAttachment);
   dom.openAttachmentDialogButton.disabled = !canCreateAttachment;
+}
+
+function canEditExpense(data) {
+  const expense = data?.expense;
+  if (!expense) {
+    return false;
+  }
+
+  return expense.status === "paid"
+    && expense.app_type === "school"
+    && expense.expense_category !== "teacher_wage"
+    && !expense.salary_payment_id
+    && !expense.reversed_at
+    && !expense.reversal_account_transaction_id
+    && expense.reimbursement_status !== "paid"
+    && !(data.paymentRequests || []).length
+    && !(data.reimbursementItems || []).length
+    && !(data.reimbursements || []).some((row) => row.status === "paid");
 }
 
 function canReverseExpense(data) {
@@ -409,6 +497,259 @@ function renderAttachments(attachments) {
       </article>
     `).join("")}
   `;
+}
+
+function openEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  if (!detailData?.expense) {
+    showMessage("error", "编辑对象不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!canEditExpense(detailData)) {
+    showMessage("error", editNotAllowedMessage(detailData));
+    return;
+  }
+
+  clearEditErrors();
+  populateEditDialog(detailData.expense);
+  setEditSubmitting(false);
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+function populateEditDialog(expense) {
+  dom.editDateInput.value = expense.expense_date || "";
+  dom.editAmountInput.value = expense.amount ?? "";
+  dom.editDescriptionInput.value = expense.description || "";
+  dom.editPaymentMethodSelect.value = EDIT_PAYMENT_METHOD_OPTIONS.includes(expense.payment_method)
+    ? expense.payment_method
+    : "";
+  dom.editReceiptStatusSelect.value = EDIT_RECEIPT_STATUS_OPTIONS.includes(expense.receipt_status)
+    ? expense.receipt_status
+    : "待确认";
+  dom.editReimbursementStatusSelect.value = EDIT_REIMBURSEMENT_STATUS_OPTIONS.includes(expense.reimbursement_status)
+    ? expense.reimbursement_status
+    : "pending";
+  dom.editTaxCategoryInput.value = expense.tax_category || "";
+  dom.editExchangeRateInput.value = expense.exchange_rate ?? "";
+  dom.editNoteInput.value = expense.note || "";
+
+  renderEditCategoryOptions();
+  dom.editCategorySelect.value = EDITABLE_EXPENSE_CATEGORIES.includes(expense.expense_category)
+    ? expense.expense_category
+    : "";
+
+  renderEditBusinessEntityOptions();
+  dom.editBusinessEntitySelect.value = expense.business_entity_id || "";
+  renderEditAccountOptions();
+  dom.editAccountSelect.value = filteredEditAccounts().some((account) => account.id === expense.account_id)
+    ? expense.account_id
+    : "";
+}
+
+async function submitEditExpense() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+  const payload = readEditExpensePayload();
+  if (!payload) {
+    return;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateExpenseRecord(payload);
+    setEditSubmitting(false);
+    closeEditDialog();
+    await loadExpenseDetail(payload.expenseId);
+    showMessage("success", "支出记录已更新。");
+  } catch (error) {
+    console.error(error);
+    showEditError(`编辑支出失败：${error.message || error}`, editFieldIdsForError(error.message || ""));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function readEditExpensePayload() {
+  const expense = detailData?.expense;
+  if (!expense?.id) {
+    showEditError("编辑对象不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (!canEditExpense(detailData)) {
+    showEditError(editNotAllowedMessage(detailData));
+    return null;
+  }
+
+  const expenseDate = dom.editDateInput.value;
+  if (!expenseDate) {
+    showEditError("请选择支出日期。", ["expenseDate"]);
+    return null;
+  }
+
+  const businessEntityId = dom.editBusinessEntitySelect.value;
+  if (!businessEntityId) {
+    showEditError("请选择业务归属。", ["businessEntity"]);
+    return null;
+  }
+
+  const accountId = dom.editAccountSelect.value;
+  if (!accountId) {
+    showEditError("请选择付款账户。", ["account"]);
+    return null;
+  }
+
+  const account = detailData.lookups.accounts.find((item) => item.id === accountId);
+  if (!account || account.is_active !== true || account.app_type !== "school") {
+    showEditError("付款账户无效或已停用。", ["account"]);
+    return null;
+  }
+
+  if (account.business_entity_id !== businessEntityId) {
+    showEditError("付款账户与业务归属不一致。", ["account"]);
+    return null;
+  }
+
+  if (!account.currency) {
+    showEditError("付款账户缺少币种。", ["account"]);
+    return null;
+  }
+
+  const expenseCategory = dom.editCategorySelect.value;
+  if (!EDITABLE_EXPENSE_CATEGORIES.includes(expenseCategory)) {
+    showEditError("请选择支出分类。", ["expenseCategory"]);
+    return null;
+  }
+
+  const amount = Number(dom.editAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showEditError("支出金额必须大于 0。", ["amount"]);
+    return null;
+  }
+
+  const description = dom.editDescriptionInput.value.trim();
+  if (!description) {
+    showEditError("支出内容不能为空。", ["description"]);
+    return null;
+  }
+
+  const paymentMethod = dom.editPaymentMethodSelect.value;
+  if (!EDIT_PAYMENT_METHOD_OPTIONS.includes(paymentMethod)) {
+    showEditError("请选择支付方式。", ["paymentMethod"]);
+    return null;
+  }
+
+  const receiptStatus = dom.editReceiptStatusSelect.value;
+  if (!EDIT_RECEIPT_STATUS_OPTIONS.includes(receiptStatus)) {
+    showEditError("收据状态无效。", ["receiptStatus"]);
+    return null;
+  }
+
+  const reimbursementStatus = dom.editReimbursementStatusSelect.value;
+  if (!EDIT_REIMBURSEMENT_STATUS_OPTIONS.includes(reimbursementStatus)) {
+    showEditError("报销状态无效。", ["reimbursementStatus"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.editExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showEditError("汇率必须大于 0。", ["exchangeRate"]);
+    return null;
+  }
+
+  return {
+    expenseId: expense.id,
+    expenseDate,
+    businessEntityId,
+    accountId,
+    expenseCategory,
+    amount,
+    description,
+    currency: account.currency,
+    exchangeRate,
+    paymentMethod,
+    taxCategory: dom.editTaxCategoryInput.value.trim(),
+    receiptStatus,
+    reimbursementStatus,
+    note: dom.editNoteInput.value.trim(),
+  };
+}
+
+function renderEditCategoryOptions() {
+  const options = ['<option value="">请选择支出分类</option>'];
+  for (const category of EDITABLE_EXPENSE_CATEGORIES) {
+    options.push(`<option value="${escapeAttribute(category)}">${escapeHtml(expenseCategoryLabel(category))}</option>`);
+  }
+  dom.editCategorySelect.innerHTML = options.join("");
+}
+
+function renderEditBusinessEntityOptions() {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of detailData.lookups.businessEntities.filter((item) => item.is_active !== false)) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessNameById(entity.id))}</option>`);
+  }
+  dom.editBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function renderEditAccountOptions() {
+  const selectedValue = dom.editAccountSelect.value;
+  const options = ['<option value="">请选择付款账户</option>'];
+  for (const account of filteredEditAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(editAccountLabel(account))}</option>`);
+  }
+  dom.editAccountSelect.innerHTML = options.join("");
+  if (filteredEditAccounts().some((account) => account.id === selectedValue)) {
+    dom.editAccountSelect.value = selectedValue;
+  }
+}
+
+function filteredEditAccounts() {
+  const businessEntityId = dom.editBusinessEntitySelect.value;
+  return detailData.lookups.accounts.filter((account) => {
+    if (account.is_active !== true || account.app_type !== "school") {
+      return false;
+    }
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function editAccountLabel(account) {
+  const accountKind = account.is_company_account ? "公司账户" : "个人垫付账户";
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+    accountKind,
+  ].filter(Boolean).join(" / ");
+}
+
+function updateEditReimbursementDefault() {
+  const account = detailData.lookups.accounts.find((item) => item.id === dom.editAccountSelect.value);
+  if (account && !detailData.expense?.reimbursement_status) {
+    dom.editReimbursementStatusSelect.value = account.is_company_account ? "not_required" : "pending";
+  }
 }
 
 function openAttachmentDialog() {
@@ -694,6 +1035,83 @@ function reverseNotAllowedMessage(data) {
     return "该支出已被报销确认，请先撤销报销记录。";
   }
   return "当前支出不能撤销。";
+}
+
+function editNotAllowedMessage(data) {
+  const expense = data?.expense;
+  if (!expense) return "编辑对象不存在，请刷新后重试。";
+  if (expense.status === "reversed" || expense.reversed_at || expense.reversal_account_transaction_id) {
+    return "该支出已撤销，不能编辑。";
+  }
+  if (expense.status !== "paid") return "只能编辑已支付支出。";
+  if (expense.expense_category === "teacher_wage" || expense.salary_payment_id) {
+    return "老师工资或工资支付来源支出不能通过普通支出编辑。";
+  }
+  if ((data.paymentRequests || []).length) {
+    return "来源支付请求生成的支出不能通过普通支出编辑。";
+  }
+  if (expense.reimbursement_status === "paid" || (data.reimbursements || []).some((row) => row.status === "paid")) {
+    return "该支出已被报销确认，不能编辑。";
+  }
+  if ((data.reimbursementItems || []).length) {
+    return "该支出已进入报销链路，不能编辑。";
+  }
+  return "当前支出不能编辑。";
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存支出";
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  for (const fieldId of EDIT_EXPENSE_FIELD_IDS) {
+    setEditFieldInvalid(fieldId, false);
+  }
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setEditFieldInvalid(fieldId, true);
+  }
+  dom.editDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function editFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("金额")) fields.push("amount");
+  if (text.includes("支出日期")) fields.push("expenseDate");
+  if (text.includes("支出分类") || text.includes("老师工资支出")) fields.push("expenseCategory");
+  if (text.includes("支出内容")) fields.push("description");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("付款账户") || text.includes("币种") || text.includes("更换付款账户")) fields.push("account");
+  if (text.includes("汇率")) fields.push("exchangeRate");
+  if (text.includes("支付方式")) fields.push("paymentMethod");
+  if (text.includes("报销状态") || text.includes("已报销") || text.includes("报销链路")) fields.push("reimbursementStatus");
+  if (text.includes("收据状态")) fields.push("receiptStatus");
+  return fields;
+}
+
+function setEditFieldInvalid(fieldId, invalid) {
+  const field = dom.editDialog.querySelector(`[data-edit-expense-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = Boolean(dom.editDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
 }
 
 function setReverseSubmitting(isSubmitting) {

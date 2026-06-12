@@ -42,10 +42,11 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="expenseDetailPageTitle">详情</h2>
-              <p class="section-note">本页为支出记录只读详情。支出记录是审计明细，不代表利润统计或有效经营支出自动汇总。老师工资类支出需要结合来源支付请求状态判断，已撤销或已作废来源仍会保留原支出记录用于审计。</p>
+              <p class="section-note">本页展示支出记录详情。普通支出可在保护规则内编辑；老师工资、来源支付请求、已报销或已进入报销链路的支出保持只读。</p>
             </div>
             <div class="reimbursement-detail-actions">
               <span id="expenseDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-primary is-hidden" id="openEditExpenseButton" type="button">编辑支出</button>
               <button class="button button-primary is-hidden" id="openExpenseAttachmentDialogButton" type="button">新增附件摘要</button>
               <button class="button button-danger is-hidden" id="openReverseExpenseButton" type="button">撤销支出</button>
               <a class="button" href="./expense.html">返回支出记录</a>
@@ -92,29 +93,6 @@
             <div id="expenseDetailNoteBlock" class="readonly-text-block"></div>
           </section>
 
-          <section class="panel" aria-labelledby="expenseDetailPaymentTitle">
-            <div class="section-heading">
-              <h2 id="expenseDetailPaymentTitle">来源支付请求</h2>
-            </div>
-            <div id="expenseDetailPaymentRequests" class="detail-list"></div>
-          </section>
-
-          <section class="panel" aria-labelledby="expenseDetailTransactionTitle">
-            <div class="section-heading">
-              <h2 id="expenseDetailTransactionTitle">账户流水</h2>
-            </div>
-            <div class="detail-grid">
-              <article class="detail-card">
-                <h3>支出相关流水</h3>
-                <div id="expenseDetailDirectTransactions" class="detail-list"></div>
-              </article>
-              <article class="detail-card">
-                <h3>来源支付请求流水</h3>
-                <div id="expenseDetailPaymentTransactions" class="detail-list"></div>
-              </article>
-            </div>
-          </section>
-
           <section class="panel" aria-labelledby="expenseDetailReimbursementTitle">
             <div class="section-heading">
               <h2 id="expenseDetailReimbursementTitle">报销信息</h2>
@@ -131,6 +109,97 @@
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="editExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel expense-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="editExpenseTitle">
+        <div class="section-heading">
+          <h2 id="editExpenseTitle">编辑支出</h2>
+          <p class="section-note">仅支持普通已支付支出。保存会通过 RPC 同步支出记录、账户余额和原始账户流水；已报销、来源支付请求、老师工资或异常流水记录保持只读。</p>
+        </div>
+
+        <div id="editExpenseError" class="dialog-error is-hidden"></div>
+
+        <div class="expense-create-field-grid">
+          <label class="field" data-edit-expense-field="expenseDate">
+            <span>支出日期</span>
+            <input id="editExpenseDateInput" type="date">
+          </label>
+
+          <label class="field" data-edit-expense-field="businessEntity">
+            <span>业务归属</span>
+            <select id="editExpenseBusinessEntitySelect"></select>
+          </label>
+
+          <label class="field" data-edit-expense-field="account">
+            <span>付款账户</span>
+            <select id="editExpenseAccountSelect"></select>
+          </label>
+
+          <label class="field" data-edit-expense-field="expenseCategory">
+            <span>支出分类</span>
+            <select id="editExpenseCategorySelect"></select>
+          </label>
+
+          <label class="field" data-edit-expense-field="amount">
+            <span>金额</span>
+            <input id="editExpenseAmountInput" type="number" min="0" step="0.01" inputmode="decimal">
+          </label>
+
+          <label class="field expense-create-wide-field" data-edit-expense-field="description">
+            <span>支出内容</span>
+            <input id="editExpenseDescriptionInput" type="text" autocomplete="off" placeholder="支出内容 / 描述">
+          </label>
+
+          <label class="field" data-edit-expense-field="paymentMethod">
+            <span>支付方式</span>
+            <select id="editExpensePaymentMethodSelect">
+              <option value="">请选择支付方式</option>
+              <option value="cash">现金支付</option>
+              <option value="bank_transfer">银行转账</option>
+              <option value="card">信用卡</option>
+              <option value="alipay">支付宝</option>
+            </select>
+          </label>
+
+          <label class="field" data-edit-expense-field="receiptStatus">
+            <span>收据状态</span>
+            <select id="editExpenseReceiptStatusSelect">
+              <option value="待确认">待确认</option>
+              <option value="有">有</option>
+              <option value="无需收据">无需收据</option>
+            </select>
+          </label>
+
+          <label class="field" data-edit-expense-field="reimbursementStatus">
+            <span>报销状态</span>
+            <select id="editExpenseReimbursementStatusSelect">
+              <option value="not_required">无需报销</option>
+              <option value="pending">待报销</option>
+            </select>
+          </label>
+
+          <label class="field" data-edit-expense-field="taxCategory">
+            <span>税务分类</span>
+            <input id="editExpenseTaxCategoryInput" type="text" autocomplete="off" placeholder="待确认">
+          </label>
+
+          <label class="field" data-edit-expense-field="exchangeRate">
+            <span>汇率</span>
+            <input id="editExpenseExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal" placeholder="可选">
+          </label>
+
+          <label class="field expense-create-wide-field" data-edit-expense-field="note">
+            <span>备注</span>
+            <textarea id="editExpenseNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editExpenseSubmitButton" type="button">保存支出</button>
+          <button class="button" id="editExpenseCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="expenseAttachmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -221,6 +290,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-detail-app.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612"></script>
+    <script type="module" src="./js/expense-detail-app.js?v=v2.106.0-expense-edit-field-scope-20260612"></script>
   </body>
 </html>

@@ -164,6 +164,36 @@ export async function reverseExpenseRecord(payload) {
   return result;
 }
 
+export async function updateExpenseRecord(payload) {
+  const { data, error } = await supabase.rpc("school_update_expense_record", {
+    p_expense_id: payload.expenseId,
+    p_expense_date: payload.expenseDate,
+    p_business_entity_id: payload.businessEntityId,
+    p_account_id: payload.accountId,
+    p_expense_category: payload.expenseCategory,
+    p_description: payload.description,
+    p_currency: payload.currency,
+    p_amount: payload.amount,
+    p_exchange_rate: payload.exchangeRate || null,
+    p_payment_method: payload.paymentMethod || null,
+    p_tax_category: payload.taxCategory || null,
+    p_receipt_status: payload.receiptStatus || null,
+    p_reimbursement_status: payload.reimbursementStatus || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("支出编辑失败。");
+  }
+
+  return result;
+}
+
 export async function createExpenseAttachmentMetadata(payload) {
   const { data, error } = await supabase.rpc("school_create_expense_attachment_metadata", {
     p_expense_id: payload.expenseId,
@@ -213,7 +243,7 @@ async function fetchExpenseDetailLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")
-      .select("id,account_code,name,currency,is_active,app_type")
+      .select("id,account_code,name,currency,business_entity_id,current_balance,is_company_account,is_active,app_type")
       .eq("app_type", "school")
       .order("currency", { ascending: true })
       .order("name", { ascending: true }),
