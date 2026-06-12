@@ -7,13 +7,13 @@ const DEFAULT_FILTERS = {
   activeState: "",
   primaryCategory: "",
   category: "",
-  tertiaryCategory: "",
 };
 
 const UNSET_VALUE = "__unset__";
-const VALID_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const EDITABLE_STATUS_OPTIONS = ["active", "inactive"];
-const CREATE_FIELD_IDS = ["name", "status", "color", "sortOrder"];
+const PRIMARY_CATEGORY_OPTIONS = ["班课", "VIP"];
+const SECONDARY_CATEGORY_OPTIONS = ["学部进学", "大学院进学", "资格考对策", "特殊课程"];
+const CREATE_FIELD_IDS = ["name", "status", "primaryCategory", "category", "sortOrder"];
 
 const dom = {};
 let allSubjects = [];
@@ -45,7 +45,6 @@ function cacheDom() {
   dom.activeSelect = document.querySelector("#subjectActiveSelect");
   dom.primaryCategorySelect = document.querySelector("#subjectPrimaryCategorySelect");
   dom.categorySelect = document.querySelector("#subjectCategorySelect");
-  dom.tertiaryCategorySelect = document.querySelector("#subjectTertiaryCategorySelect");
   dom.resetButton = document.querySelector("#subjectResetButton");
   dom.subjectGrid = document.querySelector("#subjectGrid");
   dom.subjectLoadingState = document.querySelector("#subjectLoadingState");
@@ -56,23 +55,18 @@ function cacheDom() {
   dom.createError = document.querySelector("#createSubjectProfileError");
   dom.createNameInput = document.querySelector("#createSubjectNameInput");
   dom.createStatusSelect = document.querySelector("#createSubjectStatusSelect");
-  dom.createPrimaryCategoryInput = document.querySelector("#createSubjectPrimaryCategoryInput");
-  dom.createCategoryInput = document.querySelector("#createSubjectCategoryInput");
-  dom.createTertiaryCategoryInput = document.querySelector("#createSubjectTertiaryCategoryInput");
-  dom.createColorInput = document.querySelector("#createSubjectColorInput");
+  dom.createPrimaryCategorySelect = document.querySelector("#createSubjectPrimaryCategorySelect");
+  dom.createCategorySelect = document.querySelector("#createSubjectCategorySelect");
   dom.createSortOrderInput = document.querySelector("#createSubjectSortOrderInput");
   dom.createNoteInput = document.querySelector("#createSubjectNoteInput");
   dom.createCancelButton = document.querySelector("#createSubjectCancelButton");
   dom.createSubmitButton = document.querySelector("#createSubjectSubmitButton");
   dom.editDialog = document.querySelector("#editSubjectProfileDialog");
-  dom.editSummary = document.querySelector("#editSubjectProfileSummary");
   dom.editError = document.querySelector("#editSubjectProfileError");
   dom.editNameInput = document.querySelector("#editSubjectNameInput");
   dom.editStatusSelect = document.querySelector("#editSubjectStatusSelect");
-  dom.editPrimaryCategoryInput = document.querySelector("#editSubjectPrimaryCategoryInput");
-  dom.editCategoryInput = document.querySelector("#editSubjectCategoryInput");
-  dom.editTertiaryCategoryInput = document.querySelector("#editSubjectTertiaryCategoryInput");
-  dom.editColorInput = document.querySelector("#editSubjectColorInput");
+  dom.editPrimaryCategorySelect = document.querySelector("#editSubjectPrimaryCategorySelect");
+  dom.editCategorySelect = document.querySelector("#editSubjectCategorySelect");
   dom.editSortOrderInput = document.querySelector("#editSubjectSortOrderInput");
   dom.editNoteInput = document.querySelector("#editSubjectNoteInput");
   dom.editCancelButton = document.querySelector("#editSubjectCancelButton");
@@ -101,8 +95,12 @@ function bindEvents() {
     clearCreateFieldInvalid("status");
     hideCreateErrorIfClean();
   });
-  dom.createColorInput.addEventListener("input", () => {
-    clearCreateFieldInvalid("color");
+  dom.createPrimaryCategorySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("primaryCategory");
+    hideCreateErrorIfClean();
+  });
+  dom.createCategorySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("category");
     hideCreateErrorIfClean();
   });
   dom.createSortOrderInput.addEventListener("input", () => {
@@ -129,8 +127,12 @@ function bindEvents() {
     clearEditFieldInvalid("status");
     hideEditErrorIfClean();
   });
-  dom.editColorInput.addEventListener("input", () => {
-    clearEditFieldInvalid("color");
+  dom.editPrimaryCategorySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("primaryCategory");
+    hideEditErrorIfClean();
+  });
+  dom.editCategorySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("category");
     hideEditErrorIfClean();
   });
   dom.editSortOrderInput.addEventListener("input", () => {
@@ -144,7 +146,6 @@ function setDefaultFilters() {
   dom.activeSelect.value = DEFAULT_FILTERS.activeState;
   dom.primaryCategorySelect.value = DEFAULT_FILTERS.primaryCategory;
   dom.categorySelect.value = DEFAULT_FILTERS.category;
-  dom.tertiaryCategorySelect.value = DEFAULT_FILTERS.tertiaryCategory;
 }
 
 async function loadSubjectData() {
@@ -184,7 +185,6 @@ function readFilters() {
     activeState: dom.activeSelect.value,
     primaryCategory: dom.primaryCategorySelect.value,
     category: dom.categorySelect.value,
-    tertiaryCategory: dom.tertiaryCategorySelect.value,
   };
 }
 
@@ -193,13 +193,11 @@ function restoreFilterSelections(filters) {
   dom.activeSelect.value = filters.activeState;
   dom.primaryCategorySelect.value = filters.primaryCategory;
   dom.categorySelect.value = filters.category;
-  dom.tertiaryCategorySelect.value = filters.tertiaryCategory;
 }
 
 function renderFilterOptions(subjects) {
   renderSelectOptions(dom.primaryCategorySelect, subjects, "primary_category");
   renderSelectOptions(dom.categorySelect, subjects, "category");
-  renderSelectOptions(dom.tertiaryCategorySelect, subjects, "tertiary_category");
 }
 
 function renderSelectOptions(selectEl, subjects, key) {
@@ -228,18 +226,11 @@ function renderSubjects(subjects) {
   }
 
   dom.subjectGrid.innerHTML = subjects.map((subject) => {
-    const colorValue = normalizedColor(subject.color);
-    const colorText = colorValue ? subject.color : "";
-
     return `
       <article class="subject-card">
         <div class="subject-card-header">
           <div>
             <div class="subject-title">${escapeHtml(displayValue(subject.name))}</div>
-            <div class="subject-color-row">
-              <span class="subject-color-swatch" style="background-color: ${escapeAttribute(colorValue || "#e5e7eb")}"></span>
-              <span>${escapeHtml(displayValue(colorText))}</span>
-            </div>
           </div>
           <span class="status-badge ${subject.is_active === false ? "status-inactive" : "status-active"}">
             ${subject.is_active === false ? "停用" : "启用"}
@@ -256,12 +247,8 @@ function renderSubjects(subjects) {
             <dd>${escapeHtml(displayValue(subject.primary_category))}</dd>
           </div>
           <div>
-            <dt>分类</dt>
+            <dt>二级分类</dt>
             <dd>${escapeHtml(displayValue(subject.category))}</dd>
-          </div>
-          <div>
-            <dt>三级分类</dt>
-            <dd>${escapeHtml(displayValue(subject.tertiary_category))}</dd>
           </div>
           <div>
             <dt>排序</dt>
@@ -286,10 +273,8 @@ function openCreateDialog() {
   setCreateSubmitting(false);
   dom.createNameInput.value = "";
   renderCreateStatusOptions("active");
-  dom.createPrimaryCategoryInput.value = "班课";
-  dom.createCategoryInput.value = "";
-  dom.createTertiaryCategoryInput.value = "";
-  dom.createColorInput.value = "";
+  renderPrimaryCategoryOptions(dom.createPrimaryCategorySelect, "班课");
+  renderSecondaryCategoryOptions(dom.createCategorySelect, "学部进学");
   dom.createSortOrderInput.value = "0";
   dom.createNoteInput.value = "";
   dom.createDialog.classList.remove("is-hidden");
@@ -316,10 +301,10 @@ async function submitCreateDialog() {
   const payload = {
     name: dom.createNameInput.value.trim(),
     status: dom.createStatusSelect.value,
-    primaryCategory: dom.createPrimaryCategoryInput.value.trim(),
-    category: dom.createCategoryInput.value.trim(),
-    tertiaryCategory: dom.createTertiaryCategoryInput.value.trim(),
-    color: dom.createColorInput.value.trim(),
+    primaryCategory: dom.createPrimaryCategorySelect.value,
+    category: dom.createCategorySelect.value,
+    tertiaryCategory: null,
+    color: null,
     sortOrder: parseOptionalInteger(dom.createSortOrderInput.value),
     note: dom.createNoteInput.value.trim(),
   };
@@ -339,8 +324,13 @@ async function submitCreateDialog() {
     return;
   }
 
-  if (payload.color && !VALID_COLOR_PATTERN.test(payload.color)) {
-    showCreateError("颜色格式需为 #RRGGBB。", ["color"]);
+  if (!PRIMARY_CATEGORY_OPTIONS.includes(payload.primaryCategory)) {
+    showCreateError("请选择有效一级分类。", ["primaryCategory"]);
+    return;
+  }
+
+  if (!SECONDARY_CATEGORY_OPTIONS.includes(payload.category)) {
+    showCreateError("请选择有效二级分类。", ["category"]);
     return;
   }
 
@@ -371,13 +361,10 @@ function openEditDialog(subjectId) {
   }
 
   editingSubject = subject;
-  dom.editSummary.innerHTML = renderEditSummary(subject);
   dom.editNameInput.value = subject.name || "";
   renderEditStatusOptions(subject.is_active === false ? "inactive" : "active");
-  dom.editPrimaryCategoryInput.value = subject.primary_category || "班课";
-  dom.editCategoryInput.value = subject.category || "";
-  dom.editTertiaryCategoryInput.value = subject.tertiary_category || "";
-  dom.editColorInput.value = subject.color || "";
+  renderPrimaryCategoryOptions(dom.editPrimaryCategorySelect, subject.primary_category || "班课", { preserveCurrent: true });
+  renderSecondaryCategoryOptions(dom.editCategorySelect, subject.category || "学部进学", { preserveCurrent: true });
   dom.editSortOrderInput.value = String(subject.sort_order ?? 0);
   dom.editNoteInput.value = subject.note || "";
   clearEditErrors();
@@ -413,10 +400,10 @@ async function submitEditDialog() {
     subjectId: editingSubject.id,
     name: dom.editNameInput.value.trim(),
     status: dom.editStatusSelect.value,
-    primaryCategory: dom.editPrimaryCategoryInput.value.trim(),
-    category: dom.editCategoryInput.value.trim(),
-    tertiaryCategory: dom.editTertiaryCategoryInput.value.trim(),
-    color: dom.editColorInput.value.trim(),
+    primaryCategory: dom.editPrimaryCategorySelect.value,
+    category: dom.editCategorySelect.value,
+    tertiaryCategory: editingSubject.tertiary_category || null,
+    color: editingSubject.color || null,
     sortOrder: parseOptionalInteger(dom.editSortOrderInput.value),
     note: dom.editNoteInput.value.trim(),
   };
@@ -436,8 +423,13 @@ async function submitEditDialog() {
     return;
   }
 
-  if (payload.color && !VALID_COLOR_PATTERN.test(payload.color)) {
-    showEditError("颜色格式需为 #RRGGBB。", ["color"]);
+  if (!isAllowedCurrentValue(payload.primaryCategory, PRIMARY_CATEGORY_OPTIONS, editingSubject.primary_category)) {
+    showEditError("请选择有效一级分类。", ["primaryCategory"]);
+    return;
+  }
+
+  if (!isAllowedCurrentValue(payload.category, SECONDARY_CATEGORY_OPTIONS, editingSubject.category)) {
+    showEditError("请选择有效二级分类。", ["category"]);
     return;
   }
 
@@ -460,24 +452,6 @@ async function submitEditDialog() {
   }
 }
 
-function renderEditSummary(subject) {
-  const rows = [
-    ["科目 ID", shortId(subject.id)],
-    ["不可编辑字段", "科目 ID、创建时间、更新时间、历史课时、工资、结算、支付"],
-  ];
-
-  return `
-    <dl class="detail-definition-list">
-      ${rows.map(([label, value]) => `
-        <div>
-          <dt>${escapeHtml(label)}</dt>
-          <dd>${escapeHtml(displayValue(value))}</dd>
-        </div>
-      `).join("")}
-    </dl>
-  `;
-}
-
 function renderEditStatusOptions(selectedStatus) {
   dom.editStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
     .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(subjectStatusLabel(status))}</option>`)
@@ -490,6 +464,29 @@ function renderCreateStatusOptions(selectedStatus) {
     .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(subjectStatusLabel(status))}</option>`)
     .join("");
   dom.createStatusSelect.value = selectedStatus || "active";
+}
+
+function renderPrimaryCategoryOptions(selectEl, selectedValue, options = {}) {
+  renderFixedOptions(selectEl, PRIMARY_CATEGORY_OPTIONS, selectedValue || PRIMARY_CATEGORY_OPTIONS[0], options);
+}
+
+function renderSecondaryCategoryOptions(selectEl, selectedValue, options = {}) {
+  renderFixedOptions(selectEl, SECONDARY_CATEGORY_OPTIONS, selectedValue || SECONDARY_CATEGORY_OPTIONS[0], options);
+}
+
+function renderFixedOptions(selectEl, options, selectedValue, { preserveCurrent = false } = {}) {
+  const optionValues = preserveCurrent && selectedValue && !options.includes(selectedValue)
+    ? [selectedValue, ...options]
+    : options;
+
+  selectEl.innerHTML = optionValues
+    .map((option) => `<option value="${escapeAttribute(option)}">${escapeHtml(option)}</option>`)
+    .join("");
+  selectEl.value = optionValues.includes(selectedValue) ? selectedValue : options[0];
+}
+
+function isAllowedCurrentValue(value, options, currentValue) {
+  return options.includes(value) || (safeText(value) && value === safeText(currentValue));
 }
 
 function showCreateError(message, fieldIds = []) {
@@ -534,7 +531,8 @@ function createFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("名称")) return ["name"];
   if (message.includes("状态")) return ["status"];
-  if (message.includes("颜色")) return ["color"];
+  if (message.includes("一级分类")) return ["primaryCategory"];
+  if (message.includes("二级分类") || message.includes("分类")) return ["category"];
   if (message.includes("排序")) return ["sortOrder"];
   return [];
 }
@@ -549,7 +547,7 @@ function showEditError(message, fieldIds = []) {
 function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
-  ["name", "status", "color", "sortOrder"].forEach(clearEditFieldInvalid);
+  ["name", "status", "primaryCategory", "category", "sortOrder"].forEach(clearEditFieldInvalid);
 }
 
 function hideEditErrorIfClean() {
@@ -581,7 +579,8 @@ function editFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("名称")) return ["name"];
   if (message.includes("状态")) return ["status"];
-  if (message.includes("颜色")) return ["color"];
+  if (message.includes("一级分类")) return ["primaryCategory"];
+  if (message.includes("二级分类") || message.includes("分类")) return ["category"];
   if (message.includes("排序")) return ["sortOrder"];
   return [];
 }
@@ -624,10 +623,6 @@ function filterSubjects(subjects, filters) {
       return false;
     }
 
-    if (!matchesSelectFilter(subject.tertiary_category, filters.tertiaryCategory)) {
-      return false;
-    }
-
     return matchesKeyword(subject, filters.keyword);
   });
 }
@@ -656,7 +651,6 @@ function matchesKeyword(subject, keyword) {
     subject.note,
     subject.category,
     subject.primary_category,
-    subject.tertiary_category,
   ]
     .map((value) => safeText(value).toLowerCase())
     .some((value) => value.includes(normalizedKeyword));
@@ -696,17 +690,8 @@ function distinctValues(subjects, key) {
   ).sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
-function normalizedColor(value) {
-  const color = safeText(value).trim();
-  return VALID_COLOR_PATTERN.test(color) ? color : "";
-}
-
 function displayValue(value) {
   return safeText(value) || "未设置";
-}
-
-function shortId(id) {
-  return id ? `${String(id).slice(0, 8)}...` : "未设置";
 }
 
 function subjectStatusLabel(status) {

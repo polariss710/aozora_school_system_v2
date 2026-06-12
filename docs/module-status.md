@@ -92,13 +92,13 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 学生/老师/科目/业务归属管理
 
 - 当前状态: V1 可用。学生、老师、科目、业务归属列表可读；future-use profile create/update 已通过 API/RPC 边界开放。
-- 最近关键更新: 2026-06-12 已完成学生、老师、业务归属 dialog 收缩；科目保留安全分类/排序/颜色编辑。业务归属默认币种经只读验证不影响主业务链路，现隐藏保留。
+- 最近关键更新: 2026-06-12 已完成学生、老师、业务归属、科目 dialog 收缩；科目卡片不再显示颜色 swatch、颜色代码或三级分类。业务归属默认币种经只读验证不影响主业务链路，现隐藏保留。
 - 当前开放字段:
   - 学生: `name`, `business_entity_id`, `course_track`, `preset_exchange_rate`, `wechat`, `phone`, `entrance_date`, `target_schools` 最多 3 个, `note`。
   - 老师: `name`, `department`, `default_subject_id`, `default_business_entity_id`, `status`, `note`, `alipay_account`, `wechat_account`, `bank_name`, `bank_branch_code`, `bank_branch_name`, `bank_account_number`。
-  - 科目: `name`, `is_active`, `primary_category`, `category`, `tertiary_category`, `color`, `sort_order`, `note`。
+  - 科目: `name`, `is_active`, `primary_category`（`班课` / `VIP`）, `category`（`学部进学` / `大学院进学` / `资格考对策` / `特殊课程`）, `sort_order`, `note`。隐藏保留 `tertiary_category` 和 `color`；新增传空，编辑保留原值。
   - 业务归属: `name`, `entity_type`, `is_active`, `note`；create RPC 生成系统 code，隐藏 `default_currency = JPY`。
-- 当前限制 / hard stop: 不开放 delete/merge；不改学生/老师编号、display-name variants、读音、目标类型、默认币种、工资币种、支付币种、默认时给、余额、结算、学费规则、历史课时、工资、支付、收入/支出、账户流水、公司报表等系统/派生/历史/交易链路字段。
+- 当前限制 / hard stop: 不开放 delete/merge；不改学生/老师编号、display-name variants、读音、目标类型、默认币种、工资币种、支付币种、默认时给、科目三级分类/颜色、余额、结算、学费规则、历史课时、工资、支付、收入/支出、账户流水、公司报表等系统/派生/历史/交易链路字段。
 - 下一步: 保持 master-data writes narrow。学生 contact/guardian/birthday 或 tuition-rule、老师 legacy contact/payment defaults、业务归属 company-report/defaulting 如要重开，必须单独设计。
 
 ## 工资规则
