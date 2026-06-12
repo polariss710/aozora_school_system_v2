@@ -4,7 +4,7 @@
 -- Version: v2.21.4-income-create-rpc-sql-verified-20260603
 --
 -- Scope:
--- - Create received tuition income record.
+-- - Create received income record.
 -- - Update school account current_balance.
 -- - Insert related account transaction.
 -- - Run all operations in one DB transaction.
@@ -21,8 +21,8 @@
 -- - locked student monthly settlement rejected.
 --
 -- Notes:
--- - First version only supports received tuition income.
--- - No edit/delete/void/reversal/attachment support.
+-- - Only tuition income participates in student monthly settlement guards.
+-- - Edit/reversal are handled by dedicated guarded RPCs; no delete/void/attachment support here.
 -- - No complex cross-currency posting.
 -- - account.currency must match payment_currency.
 -- - locked student monthly settlement cannot be directly modified by income creation.
@@ -69,6 +69,7 @@ declare
   v_currency text := upper(trim(coalesce(p_currency, '')));
   v_payment_currency text := upper(trim(coalesce(p_payment_currency, '')));
   v_income_category text := lower(trim(coalesce(p_income_category, '')));
+  v_include_in_student_settlement boolean;
   v_year_month text := trim(coalesce(p_settlement_month, ''));
   v_transaction_month text;
   v_amount_jpy numeric;
@@ -102,9 +103,12 @@ begin
     raise exception '收入分类不能为空。';
   end if;
 
-  if v_income_category <> 'tuition' then
-    raise exception '第一版仅支持学费收入新增。';
+  if v_income_category not in ('tuition', 'material_fee', 'registration_fee', 'other_fee') then
+    raise exception '收入分类无效。';
   end if;
+
+  v_include_in_student_settlement := v_income_category = 'tuition'
+    and coalesce(p_include_in_student_settlement, true);
 
   if v_currency not in ('JPY', 'CNY') then
     raise exception '暂不支持该收入币种：%。', v_currency;
@@ -132,7 +136,7 @@ begin
     raise exception '业务归属无效或已停用。';
   end if;
 
-  if coalesce(p_include_in_student_settlement, true) and p_student_id is null then
+  if v_include_in_student_settlement and p_student_id is null then
     raise exception '进入学生结算的收入必须选择学生。';
   end if;
 
@@ -153,7 +157,7 @@ begin
     end if;
   end if;
 
-  if coalesce(p_include_in_student_settlement, true) and exists (
+  if v_include_in_student_settlement and exists (
     select 1
     from public.school_student_monthly_settlements s
     where s.student_id = p_student_id
@@ -204,7 +208,15 @@ begin
   v_transaction_month := to_char(p_income_date, 'YYYY-MM');
   v_old_balance := coalesce(v_account.current_balance, 0);
   v_new_balance := v_old_balance + p_amount;
-  v_description := coalesce(nullif(trim(p_description), ''), '学费收入');
+  v_description := coalesce(
+    nullif(trim(p_description), ''),
+    case v_income_category
+      when 'tuition' then '学费收入'
+      when 'material_fee' then '教材费收入'
+      when 'registration_fee' then '报名费收入'
+      else '其他费用收入'
+    end
+  );
   v_note := nullif(trim(coalesce(p_note, '')), '');
 
   insert into public.school_income_records (
@@ -255,7 +267,7 @@ begin
     coalesce(p_is_taxable_income, false),
     nullif(trim(coalesce(p_tax_category, '')), ''),
     coalesce(nullif(trim(coalesce(p_receipt_status, '')), ''), '待确认'),
-    coalesce(p_include_in_student_settlement, true),
+    v_include_in_student_settlement,
     v_note,
     'school',
     v_now,
@@ -336,7 +348,7 @@ comment on function public.school_create_income_record(
   boolean,
   text
 ) is
-  'Verified RPC for v2 income creation: creates received tuition income, updates account balance, and inserts account transaction.';
+  'Verified RPC for v2 income creation: creates received income, updates account balance, and inserts account transaction. Only tuition income participates in student settlement.';
 
 -- Permission note:
 -- Keep execute permission management explicit. If permissions need to be

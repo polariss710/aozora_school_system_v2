@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.105.0-income-edit-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -172,8 +172,8 @@
     <div id="createIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel income-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createIncomeTitle">
         <div class="section-heading">
-          <h2 id="createIncomeTitle">新增学费收入</h2>
-          <p class="section-note">新增后会通过 RPC 自动写入收入记录、账户余额和账户流水；第一版仅支持已收款学费收入。</p>
+          <h2 id="createIncomeTitle">新增收入</h2>
+          <p class="section-note">新增后会通过 RPC 自动写入收入记录、账户余额和账户流水。账户币种由入账账户决定；只有学费收入进入学生月度结算。</p>
         </div>
 
         <div id="createIncomeError" class="dialog-error is-hidden"></div>
@@ -204,9 +204,14 @@
           <select id="createIncomeAccountSelect"></select>
         </label>
 
-        <label class="field">
-          <span>账户币种</span>
-          <input id="createIncomeCurrencyInput" type="text" readonly>
+        <label class="field" data-create-income-field="incomeCategory">
+          <span>收入分类</span>
+          <select id="createIncomeCategorySelect">
+            <option value="tuition">学费</option>
+            <option value="material_fee">教材费</option>
+            <option value="registration_fee">报名费</option>
+            <option value="other_fee">其他费用</option>
+          </select>
         </label>
 
         <label class="field" data-create-income-field="amount">
@@ -267,6 +272,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <script type="module" src="./js/income-app.js?v=v2.105.0-income-edit-field-scope-20260612"></script>
   </body>
 </html>

@@ -63,6 +63,7 @@ const ACCOUNT_COLUMNS = [
   "business_entity_id",
   "is_active",
   "app_type",
+  "current_balance",
 ].join(",");
 
 const SETTLEMENT_COLUMNS = [
@@ -139,6 +140,40 @@ export async function reverseIncomeRecord(payload) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
     throw new Error("收入撤销失败。");
+  }
+
+  return result;
+}
+
+export async function updateIncomeRecord(payload) {
+  const { data, error } = await supabase.rpc("school_update_income_record", {
+    p_income_id: payload.incomeId,
+    p_income_date: payload.incomeDate,
+    p_settlement_month: payload.settlementMonth,
+    p_business_entity_id: payload.businessEntityId,
+    p_student_id: payload.studentId,
+    p_account_id: payload.accountId,
+    p_amount: payload.amount,
+    p_income_category: payload.incomeCategory,
+    p_description: payload.description || null,
+    p_currency: payload.currency,
+    p_payment_currency: payload.paymentCurrency,
+    p_exchange_rate: payload.exchangeRate || null,
+    p_payment_method: payload.paymentMethod || null,
+    p_is_taxable_income: Boolean(payload.isTaxableIncome),
+    p_tax_category: payload.taxCategory || null,
+    p_receipt_status: payload.receiptStatus || null,
+    p_include_in_student_settlement: payload.incomeCategory === "tuition",
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("收入编辑失败。");
   }
 
   return result;

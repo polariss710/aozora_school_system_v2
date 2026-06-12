@@ -1,5 +1,5 @@
 -- school_reverse_income_record_rpc.sql
--- Purpose: Reverse a received tuition income record by inserting a negative account transaction,
+-- Purpose: Reverse a received income record by inserting a negative account transaction,
 --          restoring the original income account balance, and marking the income as reversed.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested. Commit-tested.
 -- Verified: v2.26.11-income-reversal-rpc-verified-sql-commit-20260605
@@ -11,7 +11,7 @@
 --   - Duplicate reversal is rejected without a second write.
 --   - Expected failure cases rejected.
 -- Scope:
---   - Reverse received tuition income records only.
+--   - Reverse received income records only.
 --   - Keep original income records and original income_adjust account transactions.
 --   - Insert one negative income_reversal account transaction.
 --   - Update income reversal metadata fields.
@@ -81,10 +81,6 @@ begin
 
   if v_income.status is distinct from 'received' then
     raise exception '只能撤销已收款收入。';
-  end if;
-
-  if v_income.income_category is distinct from 'tuition' then
-    raise exception '第一版仅支持学费收入撤销。';
   end if;
 
   if v_income.student_payment_id is not null then
@@ -244,7 +240,7 @@ comment on function public.school_reverse_income_record(
   date,
   text
 ) is
-  'Draft RPC for v2 tuition income reversal: marks a received income as reversed, restores account balance, and inserts a negative income_reversal transaction.';
+  'Guarded RPC for v2 income reversal: marks a received income as reversed, restores account balance, and inserts a negative income_reversal transaction.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

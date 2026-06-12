@@ -49,7 +49,7 @@ export async function createIncomeRecord(payload) {
     p_student_id: payload.studentId,
     p_account_id: payload.accountId,
     p_amount: payload.amount,
-    p_income_category: "tuition",
+    p_income_category: payload.incomeCategory,
     p_description: payload.description || null,
     p_currency: payload.currency,
     p_payment_currency: payload.paymentCurrency,

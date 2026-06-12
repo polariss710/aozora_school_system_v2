@@ -1525,6 +1525,21 @@ h2 {
   gap: 8px;
 }
 
+.income-detail-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, max-content));
+  justify-content: end;
+  align-items: center;
+  gap: 10px;
+}
+
+.income-detail-actions .button,
+.income-detail-actions .status-badge {
+  min-width: 132px;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .table-action-button {
   min-height: 36px;
   padding: 5px 10px;
@@ -1900,6 +1915,15 @@ h2 {
     padding: 14px;
   }
 
+  .section-heading-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .section-heading-row > div {
+    min-width: 0;
+  }
+
   .filter-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2062,6 +2086,13 @@ h2 {
   .reimbursement-detail-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .income-detail-actions {
+    flex: 1 1 100%;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
   }
 
   .dialog-actions .button,

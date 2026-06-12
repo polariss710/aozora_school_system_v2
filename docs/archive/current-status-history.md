@@ -258,6 +258,9 @@
 
 ## Archived From Lightweight Current Status On 2026-06-12
 
+- Subject dialog/card field-scope checkpoint, 2026-06-12:
+  Subject create/edit dialogs were narrowed and unified to `name`, status mapped to `is_active`, `primary_category`, `category`, `sort_order`, and `note`. `primary_category` is now selected from `班课` / `VIP`; `category` is selected from `学部进学` / `大学院进学` / `资格考对策` / `特殊课程`. `tertiary_category` and `color` remain retained DB/RPC fields but are hidden from create/edit; create sends them empty, edit preserves existing values. Subject cards no longer show color swatches, color codes, or tertiary category. No SQL/RPC change was needed.
+
 - Codex/v2-test/sandbox DB cleanup checkpoint, 2026-06-12:
   One-time cleanup `school_cleanup_codex_test_data_20260612.sql` was executed with dry-run, rollback validation, commit, and post-cleanup residue check. It removed 36 confirmed Codex/v2-test/sandbox or directly associated test DB rows across master data, lesson, settlement, wage snapshot/detail, payment, expense, account adjustment, and account transaction tables. Storage candidate count was 0, so no Storage object was touched. Post-cleanup dry-run reports 0 DB candidates, 0 Storage candidates, 0 manual-review rows, and 0 risk rows.
 

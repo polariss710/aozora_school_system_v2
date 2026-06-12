@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchIncomeDetailPage, reverseIncomeRecord } from "../api/income-detail-api.js";
+import { fetchIncomeDetailPage, reverseIncomeRecord, updateIncomeRecord } from "../api/income-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const INCOME_STATUS_LABELS = {
@@ -9,7 +9,12 @@ const INCOME_STATUS_LABELS = {
 
 const INCOME_CATEGORY_LABELS = {
   tuition: "学费",
+  material_fee: "教材费",
+  registration_fee: "报名费",
+  other_fee: "其他费用",
 };
+
+const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee", "other_fee"];
 
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
@@ -32,7 +37,19 @@ const TRANSACTION_TYPE_LABELS = {
 const dom = {};
 let detailData = null;
 let isReverseSubmitting = false;
+let isEditSubmitting = false;
 const REVERSE_INCOME_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
+const EDIT_INCOME_FIELD_IDS = [
+  "incomeDate",
+  "settlementMonth",
+  "businessEntity",
+  "student",
+  "account",
+  "incomeCategory",
+  "amount",
+  "paymentMethod",
+  "exchangeRate",
+];
 
 export function initIncomeDetailPage() {
   cacheDom();
@@ -60,6 +77,7 @@ export function initIncomeDetailPage() {
 function cacheDom() {
   dom.messageArea = document.querySelector("#incomeDetailMessageArea");
   dom.actionStatus = document.querySelector("#incomeDetailActionStatus");
+  dom.openEditIncomeButton = document.querySelector("#openEditIncomeButton");
   dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
   dom.content = document.querySelector("#incomeDetailContent");
@@ -71,7 +89,6 @@ function cacheDom() {
   dom.reversalCard = document.querySelector("#incomeDetailReversalCard");
   dom.reversalInfo = document.querySelector("#incomeDetailReversalInfo");
   dom.noteBlock = document.querySelector("#incomeDetailNoteBlock");
-  dom.settlements = document.querySelector("#incomeDetailSettlements");
   dom.transactionCount = document.querySelector("#incomeDetailTransactionCount");
   dom.transactionEmpty = document.querySelector("#incomeDetailTransactionEmpty");
   dom.transactionRows = document.querySelector("#incomeDetailTransactionRows");
@@ -83,10 +100,61 @@ function cacheDom() {
   dom.reverseConfirmCheck = document.querySelector("#reverseIncomeConfirmCheck");
   dom.reverseSubmitButton = document.querySelector("#reverseIncomeSubmitButton");
   dom.reverseCancelButton = document.querySelector("#reverseIncomeCancelButton");
+  dom.editDialog = document.querySelector("#editIncomeDialog");
+  dom.editError = document.querySelector("#editIncomeError");
+  dom.editIncomeDateInput = document.querySelector("#editIncomeDateInput");
+  dom.editSettlementMonthInput = document.querySelector("#editSettlementMonthInput");
+  dom.editBusinessEntitySelect = document.querySelector("#editIncomeBusinessEntitySelect");
+  dom.editStudentSelect = document.querySelector("#editIncomeStudentSelect");
+  dom.editAccountSelect = document.querySelector("#editIncomeAccountSelect");
+  dom.editCategorySelect = document.querySelector("#editIncomeCategorySelect");
+  dom.editAmountInput = document.querySelector("#editIncomeAmountInput");
+  dom.editPaymentMethodSelect = document.querySelector("#editIncomePaymentMethodSelect");
+  dom.editDescriptionInput = document.querySelector("#editIncomeDescriptionInput");
+  dom.editExchangeRateInput = document.querySelector("#editIncomeExchangeRateInput");
+  dom.editTaxableSelect = document.querySelector("#editIncomeTaxableSelect");
+  dom.editTaxCategoryInput = document.querySelector("#editIncomeTaxCategoryInput");
+  dom.editReceiptStatusInput = document.querySelector("#editIncomeReceiptStatusInput");
+  dom.editNoteInput = document.querySelector("#editIncomeNoteInput");
+  dom.editSubmitButton = document.querySelector("#editIncomeSubmitButton");
+  dom.editCancelButton = document.querySelector("#editIncomeCancelButton");
 }
 
 function bindEvents() {
+  dom.openEditIncomeButton.addEventListener("click", openEditDialog);
   dom.openReverseIncomeButton.addEventListener("click", openReverseDialog);
+  dom.editCancelButton.addEventListener("click", closeEditDialog);
+  dom.editSubmitButton.addEventListener("click", submitEditIncome);
+  dom.editBusinessEntitySelect.addEventListener("change", () => {
+    renderEditStudentOptions();
+    renderEditAccountOptions();
+    setEditFieldInvalid("businessEntity", false);
+    hideEditErrorIfClean();
+  });
+  dom.editStudentSelect.addEventListener("change", () => {
+    setEditFieldInvalid("student", false);
+    hideEditErrorIfClean();
+  });
+  dom.editAccountSelect.addEventListener("change", () => {
+    setEditFieldInvalid("account", false);
+    hideEditErrorIfClean();
+  });
+  dom.editCategorySelect.addEventListener("change", () => {
+    setEditFieldInvalid("incomeCategory", false);
+    hideEditErrorIfClean();
+  });
+  for (const [input, fieldId] of [
+    [dom.editIncomeDateInput, "incomeDate"],
+    [dom.editSettlementMonthInput, "settlementMonth"],
+    [dom.editAmountInput, "amount"],
+    [dom.editPaymentMethodSelect, "paymentMethod"],
+    [dom.editExchangeRateInput, "exchangeRate"],
+  ]) {
+    input.addEventListener("input", () => {
+      setEditFieldInvalid(fieldId, false);
+      hideEditErrorIfClean();
+    });
+  }
   dom.reverseCancelButton.addEventListener("click", closeReverseDialog);
   dom.reverseSubmitButton.addEventListener("click", submitReverseIncome);
   dom.reverseDateInput.addEventListener("input", () => {
@@ -183,7 +251,6 @@ function renderIncomeDetail(data) {
 
   renderReversalInfo(income);
   dom.noteBlock.textContent = displayValue(income.note);
-  renderSettlements(data.settlements);
   renderTransactions(data.transactions);
 }
 
@@ -191,10 +258,27 @@ function renderActionArea(data) {
   const { income } = data;
   const status = income?.status || "";
   const canReverse = canReverseIncome(data);
+  const canEdit = canEditIncome(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = incomeStatusLabel(status);
+  dom.openEditIncomeButton.classList.toggle("is-hidden", !canEdit);
+  dom.openEditIncomeButton.disabled = !canEdit;
   dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseIncomeButton.disabled = !canReverse;
+}
+
+function canEditIncome(data) {
+  const income = data?.income;
+  if (!income) {
+    return false;
+  }
+
+  const hasLockedSettlement = (data.settlements || []).some((settlement) => settlement.settlement_status === "locked");
+  return income.status === "received"
+    && !income.reversed_at
+    && !income.reversal_account_transaction_id
+    && !income.student_payment_id
+    && !hasLockedSettlement;
 }
 
 function canReverseIncome(data) {
@@ -205,7 +289,6 @@ function canReverseIncome(data) {
 
   const hasLockedSettlement = (data.settlements || []).some((settlement) => settlement.settlement_status === "locked");
   return income.status === "received"
-    && income.income_category === "tuition"
     && !income.reversed_at
     && !income.reversal_account_transaction_id
     && !income.student_payment_id
@@ -230,35 +313,256 @@ function renderReversalInfo(income) {
   ]);
 }
 
-function renderSettlements(settlements) {
-  if (!settlements.length) {
-    dom.settlements.innerHTML = '<div class="state-text">无关联学生月度结算快照。</div>';
+function openEditDialog() {
+  if (isEditSubmitting) {
     return;
   }
 
-  dom.settlements.innerHTML = settlements.map((settlement) => `
-    <article class="detail-list-card">
-      <div class="detail-list-card-header">
-        <strong>${escapeHtml(shortId(settlement.id))}</strong>
-        <span class="status-badge ${escapeAttribute(statusClass(settlement.settlement_status))}">${escapeHtml(settlementStatusLabel(settlement.settlement_status))}</span>
-      </div>
-      <p><a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(settlement.id)}">查看学生月度结算详情</a></p>
-      ${renderDefinitionList([
-        ["结算月份", formatMonth(settlement.year_month)],
-        ["预设汇率", displayValue(settlement.preset_exchange_rate)],
-        ["计划课时费 JPY", formatCurrency(settlement.planned_lesson_fee_jpy, "JPY")],
-        ["计划课时费 CNY", formatCurrency(settlement.planned_lesson_fee_cny, "CNY")],
-        ["实际课时费 JPY", formatCurrency(settlement.actual_lesson_fee_jpy, "JPY")],
-        ["实际课时费 CNY", formatCurrency(settlement.actual_lesson_fee_cny, "CNY")],
-        ["已收 JPY", formatCurrency(settlement.received_jpy, "JPY")],
-        ["已收 CNY", formatCurrency(settlement.received_cny, "CNY")],
-        ["已收折算 CNY", formatCurrency(settlement.received_equivalent_cny, "CNY")],
-        ["结转 CNY", formatCurrency(settlement.carryover_amount_cny, "CNY")],
-        ["锁定时间", formatDate(settlement.locked_at)],
-        ["创建时间", formatDate(settlement.created_at)],
-      ])}
-    </article>
-  `).join("");
+  if (!detailData?.income) {
+    showMessage("error", "编辑对象不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!canEditIncome(detailData)) {
+    showMessage("error", editNotAllowedMessage(detailData));
+    return;
+  }
+
+  clearEditErrors();
+  populateEditDialog(detailData.income);
+  setEditSubmitting(false);
+  dom.editDialog.classList.remove("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeEditDialog() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  dom.editDialog.classList.add("is-hidden");
+  dom.editDialog.setAttribute("aria-hidden", "true");
+}
+
+function populateEditDialog(income) {
+  dom.editIncomeDateInput.value = income.income_date || "";
+  dom.editSettlementMonthInput.value = income.settlement_month || income.year_month || "";
+  dom.editAmountInput.value = income.amount ?? "";
+  dom.editPaymentMethodSelect.value = income.payment_method || "";
+  dom.editCategorySelect.value = EDITABLE_INCOME_CATEGORIES.includes(income.income_category)
+    ? income.income_category
+    : "tuition";
+  dom.editDescriptionInput.value = income.description || "";
+  dom.editExchangeRateInput.value = income.exchange_rate ?? "";
+  dom.editTaxableSelect.value = income.is_taxable_income ? "true" : "false";
+  dom.editTaxCategoryInput.value = income.tax_category || "";
+  dom.editReceiptStatusInput.value = income.receipt_status || "";
+  dom.editNoteInput.value = income.note || "";
+
+  renderEditBusinessEntityOptions();
+  dom.editBusinessEntitySelect.value = income.business_entity_id || "";
+  renderEditStudentOptions();
+  dom.editStudentSelect.value = filteredEditStudents().some((student) => student.id === income.student_id)
+    ? income.student_id
+    : "";
+  renderEditAccountOptions();
+  dom.editAccountSelect.value = filteredEditAccounts().some((account) => account.id === income.account_id)
+    ? income.account_id
+    : "";
+}
+
+async function submitEditIncome() {
+  if (isEditSubmitting) {
+    return;
+  }
+
+  clearEditErrors();
+  const payload = readEditIncomePayload();
+  if (!payload) {
+    return;
+  }
+
+  setEditSubmitting(true);
+
+  try {
+    await updateIncomeRecord(payload);
+    setEditSubmitting(false);
+    closeEditDialog();
+    await loadIncomeDetail(payload.incomeId);
+    showMessage("success", "收入记录已更新。");
+  } catch (error) {
+    console.error(error);
+    showEditError(`编辑收入失败：${error.message || error}`, editFieldIdsForError(error.message || ""));
+  } finally {
+    setEditSubmitting(false);
+  }
+}
+
+function readEditIncomePayload() {
+  const income = detailData?.income;
+  if (!income?.id) {
+    showEditError("编辑对象不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (!canEditIncome(detailData)) {
+    showEditError(editNotAllowedMessage(detailData));
+    return null;
+  }
+
+  const incomeDate = dom.editIncomeDateInput.value;
+  if (!incomeDate) {
+    showEditError("请选择实际收款日期。", ["incomeDate"]);
+    return null;
+  }
+
+  const settlementMonth = dom.editSettlementMonthInput.value;
+  if (!settlementMonth || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(settlementMonth)) {
+    showEditError("结算月份格式无效。", ["settlementMonth"]);
+    return null;
+  }
+
+  const businessEntityId = dom.editBusinessEntitySelect.value;
+  if (!businessEntityId) {
+    showEditError("请选择业务归属。", ["businessEntity"]);
+    return null;
+  }
+
+  const studentId = dom.editStudentSelect.value;
+  if (!studentId) {
+    showEditError("请选择学生。", ["student"]);
+    return null;
+  }
+
+  const accountId = dom.editAccountSelect.value;
+  if (!accountId) {
+    showEditError("请选择入账账户。", ["account"]);
+    return null;
+  }
+
+  const account = detailData.lookups.accounts.find((item) => item.id === accountId);
+  if (!account || account.is_active !== true || account.app_type !== "school") {
+    showEditError("入账账户无效或已停用。", ["account"]);
+    return null;
+  }
+
+  if (account.business_entity_id !== businessEntityId) {
+    showEditError("入账账户与业务归属不一致。", ["account"]);
+    return null;
+  }
+
+  if (!account.currency) {
+    showEditError("入账账户缺少币种。", ["account"]);
+    return null;
+  }
+
+  const incomeCategory = dom.editCategorySelect.value;
+  if (!EDITABLE_INCOME_CATEGORIES.includes(incomeCategory)) {
+    showEditError("请选择收入分类。", ["incomeCategory"]);
+    return null;
+  }
+
+  const amount = Number(dom.editAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showEditError("收入金额必须大于 0。", ["amount"]);
+    return null;
+  }
+
+  const paymentMethod = dom.editPaymentMethodSelect.value;
+  if (!paymentMethod) {
+    showEditError("请选择收款方式。", ["paymentMethod"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.editExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showEditError("汇率必须大于 0。", ["exchangeRate"]);
+    return null;
+  }
+
+  return {
+    incomeId: income.id,
+    incomeDate,
+    settlementMonth,
+    businessEntityId,
+    studentId,
+    accountId,
+    incomeCategory,
+    amount,
+    currency: account.currency,
+    paymentCurrency: account.currency,
+    exchangeRate,
+    paymentMethod,
+    description: dom.editDescriptionInput.value.trim(),
+    isTaxableIncome: dom.editTaxableSelect.value === "true",
+    taxCategory: dom.editTaxCategoryInput.value.trim(),
+    receiptStatus: dom.editReceiptStatusInput.value.trim(),
+    note: dom.editNoteInput.value.trim(),
+  };
+}
+
+function renderEditBusinessEntityOptions() {
+  const options = ['<option value="">请选择业务归属</option>'];
+  for (const entity of detailData.lookups.businessEntities.filter((item) => item.is_active !== false)) {
+    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessName(entity))}</option>`);
+  }
+  dom.editBusinessEntitySelect.innerHTML = options.join("");
+}
+
+function renderEditStudentOptions() {
+  const selectedValue = dom.editStudentSelect.value;
+  const options = ['<option value="">请选择学生</option>'];
+  for (const student of filteredEditStudents()) {
+    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
+  }
+  dom.editStudentSelect.innerHTML = options.join("");
+  if (filteredEditStudents().some((student) => student.id === selectedValue)) {
+    dom.editStudentSelect.value = selectedValue;
+  }
+}
+
+function renderEditAccountOptions() {
+  const selectedValue = dom.editAccountSelect.value;
+  const options = ['<option value="">请选择入账账户</option>'];
+  for (const account of filteredEditAccounts()) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(editAccountLabel(account))}</option>`);
+  }
+  dom.editAccountSelect.innerHTML = options.join("");
+  if (filteredEditAccounts().some((account) => account.id === selectedValue)) {
+    dom.editAccountSelect.value = selectedValue;
+  }
+}
+
+function filteredEditStudents() {
+  const businessEntityId = dom.editBusinessEntitySelect.value;
+  return detailData.lookups.students.filter((student) => {
+    if (businessEntityId && student.business_entity_id !== businessEntityId) {
+      return false;
+    }
+    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+  });
+}
+
+function filteredEditAccounts() {
+  const businessEntityId = dom.editBusinessEntitySelect.value;
+  return detailData.lookups.accounts.filter((account) => {
+    if (account.is_active !== true || account.app_type !== "school") {
+      return false;
+    }
+    if (businessEntityId && account.business_entity_id !== businessEntityId) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function editAccountLabel(account) {
+  return [
+    account.name || account.account_code || account.id,
+    account.currency || "-",
+    formatCurrency(account.current_balance, account.currency),
+  ].filter(Boolean).join(" / ");
 }
 
 function renderTransactions(transactions) {
@@ -396,12 +700,78 @@ function reverseNotAllowedMessage(data) {
     return "该收入已撤销，不能重复撤销。";
   }
   if (income.status !== "received") return "只能撤销已收款收入。";
-  if (income.income_category !== "tuition") return "第一版仅支持学费收入撤销。";
   if (income.student_payment_id) return "关联学生收款链路的收入暂不支持通过普通收入撤销处理。";
   if ((data.settlements || []).some((settlement) => settlement.settlement_status === "locked")) {
     return "目标学生月度结算已锁定，不能撤销收入。";
   }
   return "当前收入不能撤销。";
+}
+
+function editNotAllowedMessage(data) {
+  const income = data?.income;
+  if (!income) return "编辑对象不存在，请刷新后重试。";
+  if (income.status === "reversed" || income.reversed_at || income.reversal_account_transaction_id) {
+    return "该收入已撤销，不能编辑。";
+  }
+  if (income.status !== "received") return "只能编辑已收款收入。";
+  if (income.student_payment_id) return "关联学生收款链路的收入暂不支持普通编辑。";
+  if ((data.settlements || []).some((settlement) => settlement.settlement_status === "locked")) {
+    return "目标学生月度结算已锁定，不能编辑收入。";
+  }
+  return "当前收入不能编辑。";
+}
+
+function setEditSubmitting(isSubmitting) {
+  isEditSubmitting = isSubmitting;
+  dom.editSubmitButton.disabled = isSubmitting;
+  dom.editCancelButton.disabled = isSubmitting;
+  dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存收入";
+}
+
+function clearEditErrors() {
+  dom.editError.textContent = "";
+  dom.editError.classList.add("is-hidden");
+  for (const fieldId of EDIT_INCOME_FIELD_IDS) {
+    setEditFieldInvalid(fieldId, false);
+  }
+}
+
+function showEditError(message, fieldIds = []) {
+  dom.editError.textContent = message;
+  dom.editError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setEditFieldInvalid(fieldId, true);
+  }
+  dom.editDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function editFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("金额")) fields.push("amount");
+  if (text.includes("收款日期")) fields.push("incomeDate");
+  if (text.includes("结算月份") || text.includes("已锁定")) fields.push("settlementMonth");
+  if (text.includes("业务归属")) fields.push("businessEntity");
+  if (text.includes("学生")) fields.push("student");
+  if (text.includes("账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("分类")) fields.push("incomeCategory");
+  if (text.includes("汇率")) fields.push("exchangeRate");
+  return fields;
+}
+
+function setEditFieldInvalid(fieldId, invalid) {
+  const field = dom.editDialog.querySelector(`[data-edit-income-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideEditErrorIfClean() {
+  const hasInvalidField = Boolean(dom.editDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.editError.textContent = "";
+    dom.editError.classList.add("is-hidden");
+  }
 }
 
 function setReverseSubmitting(isSubmitting) {
@@ -509,6 +879,16 @@ function accountNameById(id) {
   const name = safeText(account.name) || "未设置";
   const currency = safeText(account.currency);
   return currency ? `${name} / ${currency}` : name;
+}
+
+function studentName(student) {
+  return safeText(student.display_name || student.name) || "未设置";
+}
+
+function businessName(entity) {
+  const name = safeText(entity.name) || "未设置";
+  const code = safeText(entity.code);
+  return code ? `${name} / ${code}` : name;
 }
 
 function accountFieldById(id, key) {

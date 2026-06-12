@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.105.0-income-edit-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -42,10 +42,11 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="incomeDetailPageTitle">详情</h2>
-              <p class="section-note">本页为收入记录只读详情。收入记录是审计明细，不代表学生月度结算实时重算结果，也不从账户流水反推收入金额。本页不提供新增、编辑、删除、收款确认或结算修改操作。</p>
+              <p class="section-note">本页为收入记录详情。编辑和撤销均通过 RPC 守卫执行，不从账户流水反推收入金额，也不修改学生月度结算快照。</p>
             </div>
-            <div class="reimbursement-detail-actions">
+            <div class="income-detail-actions">
               <span id="incomeDetailActionStatus" class="status-badge status-neutral">-</span>
+              <button class="button button-primary is-hidden" id="openEditIncomeButton" type="button">编辑收入</button>
               <button class="button button-danger is-hidden" id="openReverseIncomeButton" type="button">撤销收入</button>
               <a class="button" href="./income.html">返回收入记录</a>
             </div>
@@ -91,14 +92,6 @@
             <div id="incomeDetailNoteBlock" class="readonly-text-block"></div>
           </section>
 
-          <section class="panel" aria-labelledby="incomeDetailSettlementTitle">
-            <div class="section-heading">
-              <h2 id="incomeDetailSettlementTitle">学生月度结算参考</h2>
-              <p class="section-note">以下为按学生、结算月份、业务归属匹配到的学生月度结算快照参考，不用于本页重新计算收入或结算收款金额。</p>
-            </div>
-            <div id="incomeDetailSettlements" class="detail-list"></div>
-          </section>
-
           <section class="panel" aria-labelledby="incomeDetailTransactionTitle">
             <div class="section-heading section-heading-row">
               <div>
@@ -131,6 +124,109 @@
           </section>
         </section>
       </main>
+    </div>
+
+    <div id="editIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel income-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editIncomeTitle">
+        <div class="section-heading">
+          <h2 id="editIncomeTitle">编辑收入</h2>
+          <p class="section-note">账户币种由入账账户决定。已撤销、已锁定结算、学生收款链路或原始流水异常的收入不能编辑。</p>
+        </div>
+
+        <div id="editIncomeError" class="dialog-error is-hidden"></div>
+
+        <div class="income-create-field-grid">
+          <label class="field" data-edit-income-field="incomeDate">
+            <span>收款日期</span>
+            <input id="editIncomeDateInput" type="date">
+          </label>
+
+          <label class="field" data-edit-income-field="settlementMonth">
+            <span>结算归属月份</span>
+            <input id="editSettlementMonthInput" type="month">
+          </label>
+
+          <label class="field" data-edit-income-field="businessEntity">
+            <span>业务归属</span>
+            <select id="editIncomeBusinessEntitySelect"></select>
+          </label>
+
+          <label class="field" data-edit-income-field="student">
+            <span>学生</span>
+            <select id="editIncomeStudentSelect"></select>
+          </label>
+
+          <label class="field" data-edit-income-field="account">
+            <span>入账账户</span>
+            <select id="editIncomeAccountSelect"></select>
+          </label>
+
+          <label class="field" data-edit-income-field="incomeCategory">
+            <span>收入分类</span>
+            <select id="editIncomeCategorySelect">
+              <option value="tuition">学费</option>
+              <option value="material_fee">教材费</option>
+              <option value="registration_fee">报名费</option>
+              <option value="other_fee">其他费用</option>
+            </select>
+          </label>
+
+          <label class="field" data-edit-income-field="amount">
+            <span>金额</span>
+            <input id="editIncomeAmountInput" type="number" min="0" step="0.01" inputmode="decimal">
+          </label>
+
+          <label class="field" data-edit-income-field="paymentMethod">
+            <span>收款方式</span>
+            <select id="editIncomePaymentMethodSelect">
+              <option value="">请选择收款方式</option>
+              <option value="cash">现金</option>
+              <option value="bank_transfer">银行转账</option>
+              <option value="alipay">支付宝</option>
+              <option value="wechat">微信</option>
+              <option value="card">银行卡</option>
+            </select>
+          </label>
+
+          <label class="field income-create-wide-field">
+            <span>描述</span>
+            <input id="editIncomeDescriptionInput" type="text" autocomplete="off" placeholder="收入说明">
+          </label>
+
+          <label class="field" data-edit-income-field="exchangeRate">
+            <span>汇率</span>
+            <input id="editIncomeExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal" placeholder="可选">
+          </label>
+
+          <label class="field">
+            <span>课税区分</span>
+            <select id="editIncomeTaxableSelect">
+              <option value="false">非课税</option>
+              <option value="true">课税</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>税务分类</span>
+            <input id="editIncomeTaxCategoryInput" type="text" autocomplete="off" placeholder="売上">
+          </label>
+
+          <label class="field">
+            <span>收据状态</span>
+            <input id="editIncomeReceiptStatusInput" type="text" autocomplete="off" placeholder="待确认">
+          </label>
+
+          <label class="field income-create-wide-field">
+            <span>备注</span>
+            <textarea id="editIncomeNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="editIncomeSubmitButton" type="button">保存收入</button>
+          <button class="button" id="editIncomeCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="reverseIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
@@ -170,6 +266,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-detail-app.js?v=v2.24.15-reimbursement-reversal-frontend-20260604"></script>
+    <script type="module" src="./js/income-detail-app.js?v=v2.105.0-income-edit-field-scope-20260612"></script>
   </body>
 </html>

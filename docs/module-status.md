@@ -24,7 +24,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
 | 老师工资支付 | V1 可用 | Retest status actions before future changes |
 | 账户管理 | V1 可用 | Account/family ledger scope implementation requires separate guarded design |
-| 收入记录 | V1 可用 | Expand categories only after guard semantics are designed |
+| 收入记录 | V1 可用 | Keep edit guards narrow; older account-ledger rows should use reversal/recreate |
 | 支出记录 | V1 可用 | Real attachment storage is a separate storage/security phase |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
@@ -70,10 +70,10 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 收入记录
 
-- 当前状态: V1 可用。收入列表/详情、paid tuition income create、received tuition income reversal 已可用。
-- 最近关键更新: 当前收入仍限定学费收入链路，详情页显示结算与账户交易引用。
-- 当前限制 / hard stop: 不从 account transaction 反推收入；不删除收入；不重算 locked student settlement；reversal 必须保留原收入和原交易。
-- 下一步: 扩展收入类别前，先设计 settlement/account guard 语义。
+- 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。
+- 最近关键更新: 2026-06-12 收入新增/编辑字段统一；账户币种不再作为 dialog 输入，改由入账账户决定并由 RPC 校验。收入分类开放 `tuition` 学费、`material_fee` 教材费、`registration_fee` 报名费、`other_fee` 其他费用。只有学费收入进入学生月度结算读取/锁定 guard；非学费收入作为普通收入写入收入记录、账户余额和账户流水，`include_in_student_settlement = false`。收入详情页删除“学生月度结算参考”展示区，因为它只是按学生/月/业务归属查询到的只读参考，不影响真实结算且容易被误解为结算结果。
+- 当前限制 / hard stop: 不从 account transaction 反推收入；不删除收入；不重算 locked student settlement。编辑只允许未撤销、非学生收款链路、未被锁定学生月结阻挡、原始 `income_adjust` 流水唯一且一致、且该流水仍是账户最新流水的收入；不允许直接更换入账账户，旧流水或复杂账户链路应撤销后重新新增。Reversal 必须保留原收入和原交易。
+- 下一步: 更复杂的部分收款、付款计划、旧流水修正、跨账户收入迁移或结算外费用是否进入学生账单，需另开 guarded design。
 
 ## 支出记录
 

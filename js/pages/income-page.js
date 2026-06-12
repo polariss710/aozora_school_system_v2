@@ -28,7 +28,12 @@ const INCOME_STATUS_LABELS = {
 
 const INCOME_CATEGORY_LABELS = {
   tuition: "学费",
+  material_fee: "教材费",
+  registration_fee: "报名费",
+  other_fee: "其他费用",
 };
+
+const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee", "other_fee"];
 
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
@@ -92,7 +97,7 @@ function cacheDom() {
   dom.createIncomeBusinessEntitySelect = document.querySelector("#createIncomeBusinessEntitySelect");
   dom.createIncomeStudentSelect = document.querySelector("#createIncomeStudentSelect");
   dom.createIncomeAccountSelect = document.querySelector("#createIncomeAccountSelect");
-  dom.createIncomeCurrencyInput = document.querySelector("#createIncomeCurrencyInput");
+  dom.createIncomeCategorySelect = document.querySelector("#createIncomeCategorySelect");
   dom.createIncomeAmountInput = document.querySelector("#createIncomeAmountInput");
   dom.createIncomePaymentMethodSelect = document.querySelector("#createIncomePaymentMethodSelect");
   dom.createIncomeDescriptionInput = document.querySelector("#createIncomeDescriptionInput");
@@ -122,7 +127,6 @@ function bindEvents() {
   dom.createIncomeBusinessEntitySelect.addEventListener("change", () => {
     renderCreateStudentOptions();
     renderCreateAccountOptions();
-    updateCreateCurrency();
     clearCreateFieldInvalid("businessEntity");
     hideCreateErrorIfClean();
   });
@@ -131,8 +135,11 @@ function bindEvents() {
     hideCreateErrorIfClean();
   });
   dom.createIncomeAccountSelect.addEventListener("change", () => {
-    updateCreateCurrency();
     clearCreateFieldInvalid("account");
+    hideCreateErrorIfClean();
+  });
+  dom.createIncomeCategorySelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("incomeCategory");
     hideCreateErrorIfClean();
   });
 
@@ -366,6 +373,7 @@ function openCreateIncomeDialog() {
   dom.createSettlementMonthInput.value = filters?.month || currentYearMonth();
   dom.createIncomeAmountInput.value = "";
   dom.createIncomePaymentMethodSelect.value = "";
+  dom.createIncomeCategorySelect.value = "tuition";
   dom.createIncomeDescriptionInput.value = "";
   dom.createIncomeExchangeRateInput.value = "";
   dom.createIncomeTaxableSelect.value = "false";
@@ -387,7 +395,6 @@ function openCreateIncomeDialog() {
   dom.createIncomeAccountSelect.value = filteredCreateAccounts().some((account) => account.id === defaultAccountId)
     ? defaultAccountId
     : "";
-  updateCreateCurrency();
 
   dom.createIncomeDialog.classList.remove("is-hidden");
   dom.createIncomeDialog.setAttribute("aria-hidden", "false");
@@ -483,6 +490,12 @@ function readCreateIncomePayload() {
     return null;
   }
 
+  const incomeCategory = dom.createIncomeCategorySelect.value;
+  if (!EDITABLE_INCOME_CATEGORIES.includes(incomeCategory)) {
+    showCreateError("请选择收入分类。", ["incomeCategory"]);
+    return null;
+  }
+
   const paymentMethod = dom.createIncomePaymentMethodSelect.value;
   if (!paymentMethod) {
     showCreateError("请选择收款方式。", ["paymentMethod"]);
@@ -503,6 +516,7 @@ function readCreateIncomePayload() {
     studentId,
     accountId,
     amount,
+    incomeCategory,
     currency: account.currency,
     paymentCurrency: account.currency,
     exchangeRate,
@@ -602,11 +616,6 @@ function createAccountLabel(account) {
   ].filter(Boolean).join(" / ");
 }
 
-function updateCreateCurrency() {
-  const account = accounts.find((item) => item.id === dom.createIncomeAccountSelect.value);
-  dom.createIncomeCurrencyInput.value = account?.currency || "";
-}
-
 function setCreateSubmitting(isSubmitting) {
   isCreateSubmitting = isSubmitting;
   dom.createIncomeSubmitButton.disabled = isSubmitting;
@@ -617,7 +626,7 @@ function setCreateSubmitting(isSubmitting) {
 function clearCreateErrors() {
   dom.createIncomeError.textContent = "";
   dom.createIncomeError.classList.add("is-hidden");
-  for (const fieldId of ["incomeDate", "settlementMonth", "businessEntity", "student", "account", "amount", "paymentMethod", "exchangeRate"]) {
+  for (const fieldId of ["incomeDate", "settlementMonth", "businessEntity", "student", "account", "incomeCategory", "amount", "paymentMethod", "exchangeRate"]) {
     clearCreateFieldInvalid(fieldId);
   }
 }
@@ -640,6 +649,7 @@ function createFieldIdsForError(message) {
   if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("学生")) fields.push("student");
   if (text.includes("账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("分类")) fields.push("incomeCategory");
   if (text.includes("汇率")) fields.push("exchangeRate");
   return fields;
 }
