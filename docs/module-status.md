@@ -31,7 +31,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
 | 导入导出 | 已收口 | Planned-only import stable; full actual/history import deferred |
 | 利润分析 | 只读完成 | Keep read-only |
-| Backlog / 暂不实现 | Backlog | Separate guarded phases only |
+| Backlog / 暂不实现 | Backlog | Separate guarded phases only; Codex/v2-test/sandbox cleanup completed 2026-06-12 |
 
 ## 课时管理
 
@@ -125,6 +125,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 当前优先级仍是保护已完成 V1 surfaces，再按独立阶段推进新需求。
+- 最近关键更新: 2026-06-12 已完成一次性 Codex/v2-test/sandbox DB cleanup：dry-run、rollback validation、commit、post-cleanup residue check 均通过；Storage 候选为 0，未触碰 Storage。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
-- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、whitelist/codex-test cleanup、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
+- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。

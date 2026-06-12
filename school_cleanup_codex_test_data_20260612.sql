@@ -1,1001 +1,1038 @@
--- Cleanup clearly marked codex/test/测试 data and its derived records.
+-- school_cleanup_codex_test_data_20260612.sql
+-- Purpose: one-time cleanup for Codex / v2-test / sandbox test data and data clearly associated with it.
 --
--- Usage:
---   Dry-run / rollback test:
---     psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -v cleanup_commit=false -f school_cleanup_codex_test_data_20260612.sql
---   Verified commit:
---     psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -v cleanup_commit=true -f school_cleanup_codex_test_data_20260612.sql
+-- Run modes:
+--   Dry run only:
+--     psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -v cleanup_execute=0 -v cleanup_commit=0 -f school_cleanup_codex_test_data_20260612.sql
+--   Rollback validation:
+--     psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -v cleanup_execute=1 -v cleanup_commit=0 -f school_cleanup_codex_test_data_20260612.sql
+--   Commit cleanup:
+--     psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -v cleanup_execute=1 -v cleanup_commit=1 -f school_cleanup_codex_test_data_20260612.sql
 --
--- Safety model:
--- - Target roots are clearly marked test master data or data under clearly marked
---   test business/account/teacher/student/subject records.
--- - Account transactions are only deletable when they are on a target test account.
--- - If a target chain would touch a non-target account or non-target account
---   transaction dependency, the script raises an exception before deleting.
--- - No schema/RPC/function is created or changed.
+-- Safety:
+-- - No truncate/drop.
+-- - Candidates are explicit known test IDs, rows with Codex/v2-test/sandbox markers,
+--   or records directly related to those test rows.
+-- - Ambiguous Chinese-only test-looking rows are reported in manual review and not
+--   deleted unless they are also connected to a confirmed candidate.
 
+\set ON_ERROR_STOP on
+\if :{?cleanup_execute}
+\else
+\set cleanup_execute 0
+\endif
 \if :{?cleanup_commit}
 \else
-\set cleanup_commit false
+\set cleanup_commit 0
 \endif
-
-\echo cleanup_commit=:cleanup_commit
 
 begin;
 
-create temp table cleanup_marker(rx text not null) on commit drop;
-insert into cleanup_marker values
-  ('(codex|v2-test|sandbox|测试|(^|[^[:alnum:]])test([^[:alnum:]]|$))');
+create temp table cleanup_ids (
+  table_name text not null,
+  id uuid not null,
+  reason text not null,
+  sample text,
+  primary key (table_name, id)
+) on commit drop;
 
-create temp table target_business_entities as
-select distinct id
-from school_business_entities
-where concat_ws(' ', code, name, entity_type, default_currency, note) ~* (select rx from cleanup_marker);
+create temp table cleanup_manual_review (
+  table_name text not null,
+  id uuid not null,
+  reason text not null,
+  sample text,
+  primary key (table_name, id)
+) on commit drop;
 
-create temp table target_accounts as
-select distinct a.id
-from school_accounts a
-left join target_business_entities be on be.id = a.business_entity_id
-where be.id is not null
-   or concat_ws(' ', a.account_code, a.name, a.account_type, a.currency, a.note, a.app_type) ~* (select rx from cleanup_marker);
+create temp table cleanup_storage_objects (
+  id uuid not null primary key,
+  bucket_id text,
+  name text,
+  reason text not null,
+  sample text
+) on commit drop;
 
-create temp table target_subjects as
-select distinct id
-from school_subjects
-where concat_ws(' ', name, category, primary_category, tertiary_category, color, note) ~* (select rx from cleanup_marker);
+-- Explicit IDs supplied by the cleanup request.
+insert into cleanup_ids(table_name, id, reason, sample)
+values
+  ('school_accounts', '85ccb922-1a31-4086-a24d-a6c119f7c00c'::uuid, 'explicit test account id from request', null),
+  ('school_teachers', '685de03f-267d-4910-acfb-f318dad27784'::uuid, 'explicit test teacher id from request', null),
+  ('school_teachers', '2ccde8ba-d868-49bd-ac20-5d5d374f85f1'::uuid, 'explicit test teacher id from request', null),
+  ('school_students', 'a4bf5dcb-a792-4776-aaf9-bd769fdb7b25'::uuid, 'explicit test student id from request', null),
+  ('school_students', '91f81459-b2ea-411f-b81e-4d1e2006b256'::uuid, 'explicit test student id from request', null),
+  ('school_students', '7ea8f407-f84a-4aa7-860c-1b02781f8a55'::uuid, 'explicit test student id from request', null),
+  ('school_subjects', '8b5ee3b9-8cc2-4e73-9229-67ba8c2f7698'::uuid, 'explicit test subject id from request', null),
+  ('school_teacher_wage_rules', 'cdfc9cf7-d174-48cd-af9e-26972d6aaa10'::uuid, 'explicit test wage rule id from request', null)
+on conflict do nothing;
 
-create temp table target_teachers as
-select distinct t.id
-from school_teachers t
-left join target_business_entities be on be.id = t.default_business_entity_id
-where be.id is not null
-   or concat_ws(
-        ' ',
-        t.teacher_code, t.name, t.kana_name, t.display_name, t.department,
-        t.default_currency, t.default_payment_currency, t.default_payment_method,
-        t.default_account_name, t.phone, t.email, t.wechat, t.status, t.note, t.app_type
-      ) ~* (select rx from cleanup_marker);
-
-create temp table candidate_students as
-select distinct s.id
-from school_students s
-left join target_business_entities be on be.id = s.business_entity_id
-where be.id is not null
-   or concat_ws(
-        ' ',
-        s.student_code, s.name, s.kana_name, s.display_name, s.gender,
-        s.phone, s.email, s.wechat, s.parent_name, s.parent_phone, s.parent_wechat,
-        s.target_type, s.target_schools, s.status, s.default_currency,
-        s.course_track, s.note, s.app_type
-      ) ~* (select rx from cleanup_marker);
-
-create temp table protected_students as
-select distinct cs.id
-from candidate_students cs
-where exists (
-  select 1
-  from school_income_records i
-  left join target_accounts ta on ta.id = i.account_id
-  where i.student_id = cs.id
-    and i.account_id is not null
-    and ta.id is null
-)
-or exists (
-  select 1
-  from school_expense_records e
-  left join target_accounts ta on ta.id = e.account_id
-  where e.student_id = cs.id
-    and e.account_id is not null
-    and ta.id is null
-)
-or exists (
-  select 1
-  from school_student_payments sp
-  left join target_accounts ta on ta.id = sp.account_id
-  where sp.student_id = cs.id
-    and sp.account_id is not null
-    and ta.id is null
-);
-
-create temp table target_students as
-select id from candidate_students
-except
-select id from protected_students;
-
-create temp table protected_business_entities as
-select distinct s.business_entity_id as id
-from school_students s
-join protected_students ps on ps.id = s.id
-where s.business_entity_id is not null;
-
-delete from target_business_entities be
-using protected_business_entities pbe
-where be.id = pbe.id;
-
-delete from target_accounts ta
-using school_accounts a, protected_business_entities pbe
-where ta.id = a.id
-  and a.business_entity_id = pbe.id
-  and not (concat_ws(' ', a.account_code, a.name, a.account_type, a.currency, a.note, a.app_type) ~* (select rx from cleanup_marker));
-
-delete from target_teachers tt
-using school_teachers t, protected_business_entities pbe
-where tt.id = t.id
-  and t.default_business_entity_id = pbe.id
+delete from cleanup_ids c
+where c.reason like 'explicit test % id from request'
   and not (
-    concat_ws(
-      ' ',
-      t.teacher_code, t.name, t.kana_name, t.display_name, t.department,
-      t.default_currency, t.default_payment_currency, t.default_payment_method,
-      t.default_account_name, t.phone, t.email, t.wechat, t.status, t.note, t.app_type
-    ) ~* (select rx from cleanup_marker)
+    (c.table_name='school_accounts' and exists (select 1 from public.school_accounts t where t.id=c.id)) or
+    (c.table_name='school_teachers' and exists (select 1 from public.school_teachers t where t.id=c.id)) or
+    (c.table_name='school_students' and exists (select 1 from public.school_students t where t.id=c.id)) or
+    (c.table_name='school_subjects' and exists (select 1 from public.school_subjects t where t.id=c.id)) or
+    (c.table_name='school_teacher_wage_rules' and exists (select 1 from public.school_teacher_wage_rules t where t.id=c.id))
   );
 
-delete from target_students ts
-using school_students s, protected_business_entities pbe
-where ts.id = s.id
-  and s.business_entity_id = pbe.id
-  and not (
-    concat_ws(
-      ' ',
-      s.student_code, s.name, s.kana_name, s.display_name, s.gender,
-      s.phone, s.email, s.wechat, s.parent_name, s.parent_phone, s.parent_wechat,
-      s.target_type, s.target_schools, s.status, s.default_currency,
-      s.course_track, s.note, s.app_type
-    ) ~* (select rx from cleanup_marker)
-  );
+-- Confirmed marker patterns. Chinese-only "测试..." rows are manual-review unless
+-- they are also connected to confirmed candidates by FK/source relationships.
+-- The marker expression is repeated inline to keep the script portable.
 
-create temp table target_import_batches as
-select distinct b.id
-from school_import_batches b
-left join target_business_entities be on be.id = b.business_entity_id
-where be.id is not null
-   or concat_ws(' ', b.import_type, b.file_name, b.sheet_name, b.year_month, b.status, b.raw_meta::text, b.note, b.app_type) ~* (select rx from cleanup_marker);
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_accounts', id, 'account text marker', concat_ws(' | ', account_code, name, note)
+from public.school_accounts
+where concat_ws(' ', account_code, name, account_type, note, app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_lesson_schedules as
-select distinct ls.id
-from school_lesson_schedules ls
-left join target_business_entities be on be.id = ls.business_entity_id
-left join target_subjects sub on sub.id = ls.subject_id
-left join target_teachers tt on tt.id = ls.teacher_id
-where be.id is not null
-   or sub.id is not null
-   or tt.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_business_entities', id, 'business-entity text marker', concat_ws(' | ', code, name, note)
+from public.school_business_entities
+where concat_ws(' ', code, name, entity_type, note) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_schedule_students as
-select distinct ss.id
-from school_schedule_students ss
-left join target_lesson_schedules tls on tls.id = ss.schedule_id
-left join target_students ts on ts.id = ss.student_id
-where tls.id is not null
-   or ts.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_accounts', a.id, 'test account under confirmed test business entity', concat_ws(' | ', a.account_code, a.name, a.note)
+from public.school_accounts a
+where a.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+  and concat_ws(' ', a.account_code, a.name, a.note) ~ '(测试|沙盒)'
+on conflict do nothing;
 
-create temp table target_student_months as
-select distinct sm.id
-from school_student_months sm
-left join target_students ts on ts.id = sm.student_id
-left join target_business_entities be on be.id = sm.business_entity_id
-where ts.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teachers', id, 'teacher text marker', concat_ws(' | ', teacher_code, name, display_name, email, phone, wechat, note)
+from public.school_teachers
+where concat_ws(' ', teacher_code, name, kana_name, display_name, email, phone, wechat, bank_name, bank_branch_name, bank_account_name, alipay_account, wechat_account, note, app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_student_payments as
-select distinct sp.id
-from school_student_payments sp
-left join target_students ts on ts.id = sp.student_id
-left join target_student_months tsm on tsm.id = sp.student_month_id
-left join target_business_entities be on be.id = sp.business_entity_id
-left join target_accounts ta on ta.id = sp.account_id
-where ts.id is not null
-   or tsm.id is not null
-   or be.id is not null
-   or ta.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teachers', t.id, 'test teacher under confirmed test business entity', concat_ws(' | ', t.teacher_code, t.name, t.display_name, t.note)
+from public.school_teachers t
+where t.default_business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+  and concat_ws(' ', t.teacher_code, t.name, t.display_name, t.note) ~ '(测试|沙盒)'
+on conflict do nothing;
 
-create temp table target_student_monthly_settlements as
-select distinct sms.id
-from school_student_monthly_settlements sms
-left join target_students ts on ts.id = sms.student_id
-left join target_business_entities be on be.id = sms.business_entity_id
-where ts.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_students', id, 'student text marker', concat_ws(' | ', student_code, name, display_name, email, phone, wechat, parent_name, parent_phone, parent_wechat, note)
+from public.school_students
+where concat_ws(' ', student_code, name, kana_name, display_name, email, phone, wechat, parent_name, parent_phone, parent_wechat, target_schools, note, app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_student_settlement_adjustments as
-select distinct a.id
-from school_student_settlement_adjustments a
-left join target_student_monthly_settlements tsms on tsms.id = a.settlement_id
-left join target_students ts on ts.id = a.student_id
-left join target_business_entities be on be.id = a.business_entity_id
-where tsms.id is not null
-   or ts.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_subjects', id, 'subject text marker', concat_ws(' | ', name, primary_category, category, tertiary_category, note)
+from public.school_subjects
+where concat_ws(' ', name, category, primary_category, tertiary_category, note) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_student_settlement_adjustment_drafts as
-select distinct d.id
-from school_student_settlement_adjustment_drafts d
-left join target_student_monthly_settlements tsms on tsms.id = d.settlement_id
-left join target_students ts on ts.id = d.student_id
-left join target_business_entities be on be.id = d.business_entity_id
-where tsms.id is not null
-   or ts.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_wage_rules', id, 'wage-rule text marker', note
+from public.school_teacher_wage_rules
+where concat_ws(' ', settlement_type, note) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_student_settlement_carryovers as
-select distinct c.id
-from school_student_settlement_carryovers c
-left join target_students ts on ts.id = c.student_id
-left join target_student_monthly_settlements tsms on tsms.id = c.source_settlement_id
-where ts.id is not null
-   or tsms.id is not null;
+-- Manual-review rows: test-looking Chinese-only labels without Codex/v2-test/sandbox markers.
+insert into cleanup_manual_review(table_name, id, reason, sample)
+select 'school_business_entities', id, 'Chinese-only test-looking business entity; not auto-deleted unless linked to confirmed candidates', concat_ws(' | ', code, name, note)
+from public.school_business_entities
+where concat_ws(' ', code, name, note) ~ '(测试|沙盒)'
+  and not exists (select 1 from cleanup_ids c where c.table_name='school_business_entities' and c.id=school_business_entities.id)
+on conflict do nothing;
 
-create temp table target_planned_lessons as
-select distinct pl.id
-from school_planned_lessons pl
-left join target_student_months tsm on tsm.id = pl.student_month_id
-left join target_students ts on ts.id = pl.student_id
-left join target_business_entities be on be.id = pl.business_entity_id
-left join target_subjects sub on sub.id = pl.subject_id
-where tsm.id is not null
-   or ts.id is not null
-   or be.id is not null
-   or sub.id is not null;
+insert into cleanup_manual_review(table_name, id, reason, sample)
+select 'school_accounts', id, 'Chinese-only test-looking account; not auto-deleted unless linked to confirmed candidates', concat_ws(' | ', account_code, name, note)
+from public.school_accounts
+where concat_ws(' ', account_code, name, note) ~ '(测试|沙盒)'
+  and not exists (select 1 from cleanup_ids c where c.table_name='school_accounts' and c.id=school_accounts.id)
+on conflict do nothing;
 
-create temp table target_actual_lessons as
-select distinct al.id
-from school_actual_lessons al
-left join target_student_months tsm on tsm.id = al.student_month_id
-left join target_students ts on ts.id = al.student_id
-left join target_teachers tt on tt.id = al.teacher_id
-left join target_business_entities be on be.id = al.business_entity_id
-left join target_subjects sub on sub.id = al.subject_id
-where tsm.id is not null
-   or ts.id is not null
-   or tt.id is not null
-   or be.id is not null
-   or sub.id is not null;
+insert into cleanup_manual_review(table_name, id, reason, sample)
+select 'school_teachers', id, 'Chinese-only test-looking teacher; not auto-deleted unless linked to confirmed candidates', concat_ws(' | ', teacher_code, name, display_name, note)
+from public.school_teachers
+where concat_ws(' ', teacher_code, name, display_name, note) ~ '(测试|沙盒)'
+  and not exists (select 1 from cleanup_ids c where c.table_name='school_teachers' and c.id=school_teachers.id)
+on conflict do nothing;
 
-create temp table target_lesson_records as
-select distinct lr.id
-from school_lesson_records lr
-left join target_students ts on ts.id = lr.student_id
-left join target_teachers tt on tt.id = lr.teacher_id
-left join target_subjects sub on sub.id = lr.subject_id
-left join target_business_entities be on be.id = lr.business_entity_id
-left join target_import_batches tib on tib.id::text = lr.import_batch_id
-where ts.id is not null
-   or tt.id is not null
-   or sub.id is not null
-   or be.id is not null
-   or tib.id is not null;
+insert into cleanup_manual_review(table_name, id, reason, sample)
+select 'school_students', id, 'Chinese-only test-looking student; not auto-deleted unless linked to confirmed candidates', concat_ws(' | ', student_code, name, display_name, note)
+from public.school_students
+where concat_ws(' ', student_code, name, display_name, note) ~ '(测试|沙盒)'
+  and not exists (select 1 from cleanup_ids c where c.table_name='school_students' and c.id=school_students.id)
+on conflict do nothing;
 
-insert into target_lesson_records
-select distinct child.id
-from school_lesson_records child
-join target_lesson_records parent on parent.id = child.planned_lesson_id
-left join target_lesson_records existing on existing.id = child.id
-where existing.id is null;
+insert into cleanup_manual_review(table_name, id, reason, sample)
+select 'school_subjects', id, 'Chinese-only test-looking subject; not auto-deleted unless linked to confirmed candidates', concat_ws(' | ', name, primary_category, category, tertiary_category, note)
+from public.school_subjects
+where concat_ws(' ', name, primary_category, category, tertiary_category, note) ~ '(测试|沙盒)'
+  and not exists (select 1 from cleanup_ids c where c.table_name='school_subjects' and c.id=school_subjects.id)
+on conflict do nothing;
 
-create temp table target_teacher_work_logs as
-select distinct wl.id
-from school_teacher_work_logs wl
-left join target_teachers tt on tt.id = wl.teacher_id
-left join target_students ts on ts.id = wl.student_id
-left join target_business_entities be on be.id = wl.business_entity_id
-left join target_subjects sub on sub.id = wl.subject_id
-where tt.id is not null
-   or ts.id is not null
-   or be.id is not null
-   or sub.id is not null;
+-- Related master/config rows.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_wage_rules', r.id, 'wage rule references confirmed test master data', concat_ws(' | ', r.id::text, r.note)
+from public.school_teacher_wage_rules r
+where r.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or r.student_id in (select id from cleanup_ids where table_name='school_students')
+   or r.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or r.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+on conflict do nothing;
 
-create temp table target_salary_payments as
-select distinct sp.id
-from school_salary_payments sp
-left join target_teachers tt on tt.id = sp.teacher_id
-left join target_business_entities be on be.id = sp.business_entity_id
-left join target_accounts ta on ta.id = sp.account_id
-left join target_import_batches tib on tib.id = sp.source_import_batch_id
-where tt.id is not null
-   or be.id is not null
-   or ta.id is not null
-   or tib.id is not null;
+-- Lesson/import/schedule related data.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_lesson_records', l.id, 'lesson references confirmed test master data or marker text', concat_ws(' | ', l.lesson_date::text, l.year_month, l.lesson_content, l.note)
+from public.school_lesson_records l
+where l.student_id in (select id from cleanup_ids where table_name='school_students')
+   or l.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or l.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or l.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or l.planned_lesson_id in (select id from cleanup_ids where table_name='school_lesson_records')
+   or concat_ws(' ', l.lesson_content, l.note, l.import_batch_id, l.import_source, l.void_reason, l.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_wage_rules as
-select distinct wr.id
-from school_teacher_wage_rules wr
-left join target_teachers tt on tt.id = wr.teacher_id
-left join target_students ts on ts.id = wr.student_id
-left join target_subjects sub on sub.id = wr.subject_id
-left join target_business_entities be on be.id = wr.business_entity_id
-where tt.id is not null
-   or ts.id is not null
-   or sub.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_lesson_records', l.id, 'lesson linked to confirmed test planned lesson', concat_ws(' | ', l.lesson_date::text, l.year_month, l.lesson_content, l.note)
+from public.school_lesson_records l
+where l.planned_lesson_id in (select id from cleanup_ids where table_name='school_lesson_records')
+on conflict do nothing;
 
-create temp table target_wage_locks as
-select distinct wl.id
-from school_teacher_wage_locks wl
-left join target_teachers tt on tt.id = wl.teacher_id
-left join target_business_entities be on be.id = wl.business_entity_id
-where tt.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_import_batches', b.id, 'import batch text marker or confirmed test business entity', concat_ws(' | ', b.file_name, b.sheet_name, b.note, b.raw_meta::text)
+from public.school_import_batches b
+where b.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', b.import_type, b.file_name, b.sheet_name, b.raw_meta::text, b.note, b.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_wage_lock_details as
-select distinct d.id
-from school_teacher_wage_lock_details d
-left join target_wage_locks twl on twl.id = d.lock_id
-left join target_lesson_records tlr on tlr.id = d.lesson_record_id
-left join target_students ts on ts.id = d.student_id
-left join target_subjects sub on sub.id = d.subject_id
-left join target_business_entities be on be.id = d.business_entity_id
-where twl.id is not null
-   or tlr.id is not null
-   or ts.id is not null
-   or sub.id is not null
-   or be.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_import_errors', e.id, 'import error belongs to confirmed test import batch or marker text', concat_ws(' | ', e.field_name, e.error_message, e.raw_value)
+from public.school_import_errors e
+where e.import_batch_id in (select id from cleanup_ids where table_name='school_import_batches')
+   or concat_ws(' ', e.column_name, e.field_name, e.error_message, e.raw_value, e.severity) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-insert into target_wage_locks
-select distinct d.lock_id
-from school_teacher_wage_lock_details d
-join target_wage_lock_details td on td.id = d.id
-left join target_wage_locks twl on twl.id = d.lock_id
-where twl.id is null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_lesson_schedules', s.id, 'schedule references confirmed test master data or marker text', concat_ws(' | ', s.schedule_date::text, s.title, s.note)
+from public.school_lesson_schedules s
+where s.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or s.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or s.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', s.title, s.location, s.note, s.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_wage_detail_adjustments as
-select distinct a.id
-from school_teacher_wage_detail_adjustments a
-left join target_wage_locks twl on twl.id = a.wage_lock_id
-left join target_wage_lock_details td on td.id = a.wage_detail_id
-where twl.id is not null
-   or td.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_schedule_students', ss.id, 'schedule student links confirmed test schedule/student', concat_ws(' | ', ss.status, ss.note)
+from public.school_schedule_students ss
+where ss.schedule_id in (select id from cleanup_ids where table_name='school_lesson_schedules')
+   or ss.student_id in (select id from cleanup_ids where table_name='school_students')
+   or concat_ws(' ', ss.status, ss.note) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_payment_requests as
-select distinct pr.id
-from school_payment_requests pr
-left join target_wage_locks twl on pr.source_type = 'teacher_wage' and twl.id = pr.source_id
-left join target_teachers tt on pr.payee_type = 'teacher' and tt.id = pr.payee_id
-left join target_business_entities be on be.id = pr.business_entity_id
-left join target_accounts ta on ta.id = pr.account_id
-where twl.id is not null
-   or tt.id is not null
-   or be.id is not null
-   or ta.id is not null;
+-- Legacy monthly/payment/lesson tables.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_student_months', m.id, 'student month references confirmed test master data or marker text', concat_ws(' | ', m.year_month, m.status, m.note)
+from public.school_student_months m
+where m.student_id in (select id from cleanup_ids where table_name='school_students')
+   or m.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', m.year_month, m.status, m.note, m.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_expense_records as
-select distinct e.id
-from school_expense_records e
-left join target_business_entities be on be.id = e.business_entity_id
-left join target_teachers tt on tt.id = e.teacher_id
-left join target_students ts on ts.id = e.student_id
-left join target_salary_payments tsp on tsp.id = e.salary_payment_id
-left join target_accounts ta on ta.id = e.account_id
-left join school_payment_requests pr on pr.paid_expense_id = e.id
-left join target_payment_requests tpr on tpr.id = pr.id
-where be.id is not null
-   or tt.id is not null
-   or ts.id is not null
-   or tsp.id is not null
-   or ta.id is not null
-   or tpr.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_planned_lessons', p.id, 'planned lesson references confirmed test data or marker text', concat_ws(' | ', p.year_month, p.content, p.note)
+from public.school_planned_lessons p
+where p.student_month_id in (select id from cleanup_ids where table_name='school_student_months')
+   or p.student_id in (select id from cleanup_ids where table_name='school_students')
+   or p.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or p.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', p.content, p.note, p.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-insert into target_payment_requests
-select distinct pr.id
-from school_payment_requests pr
-join target_expense_records te on te.id = pr.paid_expense_id
-left join target_payment_requests existing on existing.id = pr.id
-where existing.id is null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_actual_lessons', a.id, 'actual lesson references confirmed test data or marker text', concat_ws(' | ', a.year_month, a.content, a.remark)
+from public.school_actual_lessons a
+where a.student_month_id in (select id from cleanup_ids where table_name='school_student_months')
+   or a.student_id in (select id from cleanup_ids where table_name='school_students')
+   or a.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or a.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or a.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', a.content, a.remark, a.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_expense_attachments as
-select distinct ea.id
-from school_expense_attachments ea
-left join target_expense_records te on te.id = ea.expense_id
-where te.id is not null
-;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_student_payments', p.id, 'student payment references confirmed test data or marker text', concat_ws(' | ', p.year_month, p.payment_type, p.note)
+from public.school_student_payments p
+where p.student_id in (select id from cleanup_ids where table_name='school_students')
+   or p.student_month_id in (select id from cleanup_ids where table_name='school_student_months')
+   or p.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or p.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or concat_ws(' ', p.payment_type, p.status, p.note, p.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_reimbursements as
-select distinct r.id
-from school_reimbursements r
-left join target_business_entities be on be.id = r.business_entity_id
-left join target_accounts fa on fa.id = r.from_account_id
-left join target_accounts ta on ta.id = r.to_account_id
-where be.id is not null
-   or fa.id is not null
-   or ta.id is not null;
+-- Student settlement data.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_student_monthly_settlements', s.id, 'settlement references confirmed test student/business or marker text', concat_ws(' | ', s.year_month, s.settlement_status, s.note)
+from public.school_student_monthly_settlements s
+where s.student_id in (select id from cleanup_ids where table_name='school_students')
+   or s.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', s.year_month, s.adjustment_reason, s.note, s.unlock_reason) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_reimbursement_items as
-select distinct ri.id
-from school_reimbursement_items ri
-left join target_reimbursements tr on tr.id = ri.reimbursement_id
-left join target_expense_records te on te.id = ri.expense_id
-where tr.id is not null
-   or te.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_student_settlement_adjustment_drafts', d.id, 'settlement draft references confirmed test settlement/student/business or marker text', concat_ws(' | ', d.year_month, d.adjustment_reason, d.note)
+from public.school_student_settlement_adjustment_drafts d
+where d.settlement_id in (select id from cleanup_ids where table_name='school_student_monthly_settlements')
+   or d.student_id in (select id from cleanup_ids where table_name='school_students')
+   or d.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', d.adjustment_source, d.adjustment_reason, d.note, d.created_by, d.updated_by, d.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-insert into target_reimbursements
-select distinct ri.reimbursement_id
-from school_reimbursement_items ri
-join target_reimbursement_items tri on tri.id = ri.id
-left join target_reimbursements existing on existing.id = ri.reimbursement_id
-where existing.id is null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_student_settlement_adjustments', a.id, 'settlement adjustment references confirmed test settlement/student/business or marker text', concat_ws(' | ', a.year_month, a.adjustment_reason, a.note)
+from public.school_student_settlement_adjustments a
+where a.settlement_id in (select id from cleanup_ids where table_name='school_student_monthly_settlements')
+   or a.student_id in (select id from cleanup_ids where table_name='school_students')
+   or a.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', a.adjustment_source, a.adjustment_reason, a.note, a.created_by, a.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_reimbursement_expenses as
-select distinct re.id
-from school_reimbursement_expenses re
-left join target_reimbursements tr on tr.id = re.reimbursement_id
-left join target_expense_records te on te.id = re.expense_id
-where tr.id is not null
-   or te.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_student_settlement_carryovers', c.id, 'settlement carryover references confirmed test student/settlement or marker text', concat_ws(' | ', c.from_year_month, c.to_year_month, c.note)
+from public.school_student_settlement_carryovers c
+where c.student_id in (select id from cleanup_ids where table_name='school_students')
+   or c.source_settlement_id in (select id from cleanup_ids where table_name='school_student_monthly_settlements')
+   or concat_ws(' ', c.from_year_month, c.to_year_month, c.source_settlement_month, c.status, c.note) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_income_records as
-select distinct i.id
-from school_income_records i
-left join target_business_entities be on be.id = i.business_entity_id
-left join target_students ts on ts.id = i.student_id
-left join target_student_payments tsp on tsp.id = i.student_payment_id
-left join target_accounts ta on ta.id = i.account_id
-where be.id is not null
-   or ts.id is not null
-   or tsp.id is not null
-   or ta.id is not null;
+-- Wage snapshot/payment data.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_wage_locks', l.id, 'wage lock references confirmed test teacher/business or marker text', concat_ws(' | ', l.settlement_month, l.teacher_name, l.business_name, l.void_reason)
+from public.school_teacher_wage_locks l
+where l.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or l.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', l.settlement_month, l.teacher_name, l.business_name, l.status, l.void_reason, l.voided_by, l.void_source) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_account_adjustments as
-select distinct aa.id
-from school_account_adjustments aa
-left join target_business_entities be on be.id = aa.business_entity_id
-left join target_accounts ta on ta.id = aa.account_id
-where be.id is not null
-   or ta.id is not null;
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_wage_lock_details', d.id, 'wage detail references confirmed test lock/lesson/master or marker text', concat_ws(' | ', d.lesson_date::text, d.student_name, d.subject_name, d.business_name, d.lesson_content)
+from public.school_teacher_wage_lock_details d
+where d.lock_id in (select id from cleanup_ids where table_name='school_teacher_wage_locks')
+   or d.lesson_record_id in (select id from cleanup_ids where table_name='school_lesson_records')
+   or d.student_id in (select id from cleanup_ids where table_name='school_students')
+   or d.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or d.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', d.student_name, d.subject_name, d.business_name, d.lesson_content, d.status) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
 
-create temp table target_account_transfers as
-select distinct at.id
-from school_account_transfers at
-left join target_business_entities be on be.id = at.business_entity_id
-left join target_accounts fa on fa.id = at.from_account_id
-left join target_accounts ta on ta.id = at.to_account_id
-where be.id is not null
-   or fa.id is not null
-   or ta.id is not null;
-
-create temp table target_monthly_reports as
-select distinct mr.id
-from school_monthly_reports mr
-left join target_business_entities be on be.id = mr.business_entity_id
-where be.id is not null
-;
-
-create temp table target_account_transactions as
-select distinct tx.id
-from school_account_transactions tx
-left join target_accounts ta on ta.id = tx.account_id
-left join target_business_entities be on be.id = tx.business_entity_id
-left join target_expense_records te on tx.related_table = 'school_expense_records' and tx.related_id = te.id
-left join target_income_records ti on tx.related_table = 'school_income_records' and tx.related_id = ti.id
-left join target_payment_requests tpr on tx.related_table = 'school_payment_requests' and tx.related_id = tpr.id
-left join target_reimbursements tr on tx.related_table = 'school_reimbursements' and tx.related_id = tr.id
-left join target_account_transfers tat on tx.related_table = 'school_account_transfers' and tx.related_id = tat.id
-left join target_account_adjustments taa on tx.related_table = 'school_account_adjustments' and tx.related_id = taa.id
-where ta.id is not null
-   or be.id is not null
-   or te.id is not null
-   or ti.id is not null
-   or tpr.id is not null
-   or tr.id is not null
-   or tat.id is not null
-   or taa.id is not null;
-
-create temp table cleanup_target_counts(table_name text primary key, target_count bigint not null) on commit drop;
-insert into cleanup_target_counts
-select * from (values
-  ('school_business_entities', (select count(*) from target_business_entities)),
-  ('school_accounts', (select count(*) from target_accounts)),
-  ('school_subjects', (select count(*) from target_subjects)),
-  ('school_teachers', (select count(*) from target_teachers)),
-  ('school_students', (select count(*) from target_students)),
-  ('school_import_batches', (select count(*) from target_import_batches)),
-  ('school_import_errors', (select count(*) from school_import_errors e join target_import_batches b on b.id = e.import_batch_id)),
-  ('school_lesson_schedules', (select count(*) from target_lesson_schedules)),
-  ('school_schedule_students', (select count(*) from target_schedule_students)),
-  ('school_student_months', (select count(*) from target_student_months)),
-  ('school_student_payments', (select count(*) from target_student_payments)),
-  ('school_student_monthly_settlements', (select count(*) from target_student_monthly_settlements)),
-  ('school_student_settlement_adjustments', (select count(*) from target_student_settlement_adjustments)),
-  ('school_student_settlement_adjustment_drafts', (select count(*) from target_student_settlement_adjustment_drafts)),
-  ('school_student_settlement_carryovers', (select count(*) from target_student_settlement_carryovers)),
-  ('school_planned_lessons', (select count(*) from target_planned_lessons)),
-  ('school_actual_lessons', (select count(*) from target_actual_lessons)),
-  ('school_lesson_records', (select count(*) from target_lesson_records)),
-  ('school_teacher_work_logs', (select count(*) from target_teacher_work_logs)),
-  ('school_salary_payments', (select count(*) from target_salary_payments)),
-  ('school_teacher_wage_rules', (select count(*) from target_wage_rules)),
-  ('school_teacher_wage_locks', (select count(*) from target_wage_locks)),
-  ('school_teacher_wage_lock_details', (select count(*) from target_wage_lock_details)),
-  ('school_teacher_wage_detail_adjustments', (select count(*) from target_wage_detail_adjustments)),
-  ('school_payment_requests', (select count(*) from target_payment_requests)),
-  ('school_expense_records', (select count(*) from target_expense_records)),
-  ('school_expense_attachments', (select count(*) from target_expense_attachments)),
-  ('school_reimbursements', (select count(*) from target_reimbursements)),
-  ('school_reimbursement_items', (select count(*) from target_reimbursement_items)),
-  ('school_reimbursement_expenses', (select count(*) from target_reimbursement_expenses)),
-  ('school_income_records', (select count(*) from target_income_records)),
-  ('school_account_adjustments', (select count(*) from target_account_adjustments)),
-  ('school_account_transfers', (select count(*) from target_account_transfers)),
-  ('school_monthly_reports', (select count(*) from target_monthly_reports)),
-  ('school_account_transactions', (select count(*) from target_account_transactions))
-) as v(table_name, target_count);
-
-\echo target_counts
-table cleanup_target_counts order by table_name;
-
-\echo key_target_samples
-select 'business_entity' as type, id::text, code as label, name as detail, null::text as amount_status
-from school_business_entities where id in (select id from target_business_entities)
-union all
-select 'account', id::text, account_code, name, currency || ' current=' || current_balance::text || ' company=' || is_company_account::text
-from school_accounts where id in (select id from target_accounts)
-union all
-select 'teacher', id::text, teacher_code, display_name, status
-from school_teachers where id in (select id from target_teachers)
-union all
-select 'student', id::text, student_code, display_name, status
-from school_students where id in (select id from target_students)
-union all
-select 'subject', id::text, name, category, is_active::text
-from school_subjects where id in (select id from target_subjects)
-union all
-select 'wage_lock', id::text, settlement_month, teacher_name || ' / ' || business_name, status || ' total_jpy=' || total_jpy::text
-from school_teacher_wage_locks where id in (select id from target_wage_locks)
-union all
-select 'payment_request', id::text, request_month, payee_name || ' / ' || business_name, status || ' amount=' || amount::text || ' ' || currency
-from school_payment_requests where id in (select id from target_payment_requests)
-union all
-select 'expense', id::text, year_month, description, status || ' amount=' || amount::text || ' ' || currency
-from school_expense_records where id in (select id from target_expense_records)
-union all
-select 'account_tx', id::text, year_month, description, amount::text || ' ' || currency || ' account=' || account_id::text
-from school_account_transactions where id in (select id from target_account_transactions)
-order by type, label, id
-limit 80;
-
-create temp table cleanup_unsafe(type text, id uuid, detail text) on commit drop;
-
-insert into cleanup_unsafe
-select 'target_account_transaction_on_non_target_account', tx.id,
-       concat_ws(' | ', tx.year_month, tx.related_table, tx.related_id::text, tx.amount::text, tx.currency, tx.description, tx.account_id::text)
-from school_account_transactions tx
-join target_account_transactions ttx on ttx.id = tx.id
-left join target_accounts ta on ta.id = tx.account_id
-where ta.id is null;
-
-insert into cleanup_unsafe
-select 'target_expense_uses_non_target_account', e.id,
-       concat_ws(' | ', e.year_month, e.status, e.amount::text, e.currency, e.description, e.account_id::text)
-from school_expense_records e
-join target_expense_records te on te.id = e.id
-left join target_accounts ta on ta.id = e.account_id
-where e.account_id is not null
-  and ta.id is null;
-
-insert into cleanup_unsafe
-select 'target_income_uses_non_target_account', i.id,
-       concat_ws(' | ', i.year_month, i.status, i.amount::text, i.currency, i.description, i.account_id::text)
-from school_income_records i
-join target_income_records ti on ti.id = i.id
-left join target_accounts ta on ta.id = i.account_id
-where i.account_id is not null
-  and ta.id is null;
-
-insert into cleanup_unsafe
-select 'target_student_payment_uses_non_target_account', sp.id,
-       concat_ws(' | ', sp.year_month, sp.status, sp.amount::text, sp.currency, sp.account_id::text)
-from school_student_payments sp
-join target_student_payments tsp on tsp.id = sp.id
-left join target_accounts ta on ta.id = sp.account_id
-where sp.account_id is not null
-  and ta.id is null;
-
-insert into cleanup_unsafe
-select 'target_salary_payment_uses_non_target_account', sp.id,
-       concat_ws(' | ', sp.year_month, sp.status, sp.salary_item, sp.account_id::text)
-from school_salary_payments sp
-join target_salary_payments tsp on tsp.id = sp.id
-left join target_accounts ta on ta.id = sp.account_id
-where sp.account_id is not null
-  and ta.id is null;
-
-insert into cleanup_unsafe
-select 'target_reimbursement_uses_non_target_account', r.id,
-       concat_ws(' | ', r.year_month, r.status, r.amount::text, r.currency, r.from_account_id::text, r.to_account_id::text)
-from school_reimbursements r
-join target_reimbursements tr on tr.id = r.id
-left join target_accounts fa on fa.id = r.from_account_id
-left join target_accounts ta on ta.id = r.to_account_id
-where (r.from_account_id is not null and fa.id is null)
-   or (r.to_account_id is not null and ta.id is null);
-
-insert into cleanup_unsafe
-select 'target_account_transfer_uses_non_target_account', at.id,
-       concat_ws(' | ', at.year_month, at.status, at.amount::text, at.currency, at.from_account_id::text, at.to_account_id::text)
-from school_account_transfers at
-join target_account_transfers tat on tat.id = at.id
-left join target_accounts fa on fa.id = at.from_account_id
-left join target_accounts ta on ta.id = at.to_account_id
-where (at.from_account_id is not null and fa.id is null)
-   or (at.to_account_id is not null and ta.id is null);
-
-insert into cleanup_unsafe
-select 'target_account_adjustment_uses_non_target_account', aa.id,
-       concat_ws(' | ', aa.year_month, aa.status, aa.amount::text, aa.currency, aa.account_id::text)
-from school_account_adjustments aa
-join target_account_adjustments taa on taa.id = aa.id
-left join target_accounts ta on ta.id = aa.account_id
-where aa.account_id is not null
-  and ta.id is null;
-
-insert into cleanup_unsafe
-select 'non_target_lesson_child_would_be_modified', lr.id,
-       concat_ws(' | ', lr.year_month, lr.lesson_type, lr.status, lr.planned_lesson_id::text)
-from school_lesson_records lr
-join target_lesson_records parent on parent.id = lr.planned_lesson_id
-left join target_lesson_records child on child.id = lr.id
-where child.id is null;
-
-insert into cleanup_unsafe
-select 'non_target_expense_references_target_salary_payment', e.id,
-       concat_ws(' | ', e.year_month, e.status, e.description, e.salary_payment_id::text)
-from school_expense_records e
-join target_salary_payments tsp on tsp.id = e.salary_payment_id
-left join target_expense_records te on te.id = e.id
-where te.id is null;
-
-insert into cleanup_unsafe
-select 'non_target_income_references_target_student_payment', i.id,
-       concat_ws(' | ', i.year_month, i.status, i.description, i.student_payment_id::text)
-from school_income_records i
-join target_student_payments tsp on tsp.id = i.student_payment_id
-left join target_income_records ti on ti.id = i.id
-where ti.id is null;
-
-insert into cleanup_unsafe
-select 'non_target_teacher_references_target_subject', t.id,
-       concat_ws(' | ', t.teacher_code, t.display_name, t.default_subject_id::text)
-from school_teachers t
-join target_subjects ts on ts.id = t.default_subject_id
-left join target_teachers tt on tt.id = t.id
-where tt.id is null;
-
-insert into cleanup_unsafe
-select 'non_target_account_tx_fk_reference', tx.id,
-       concat_ws(' | ', tx.year_month, tx.related_table, tx.related_id::text, tx.amount::text, tx.currency, tx.description)
-from school_account_transactions tx
-join target_account_transactions ttx on ttx.id = tx.id
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_wage_locks', l.id, 'wage lock has confirmed test wage detail', concat_ws(' | ', l.settlement_month, l.teacher_name, l.business_name)
+from public.school_teacher_wage_locks l
 where exists (
-  select 1 from school_expense_records e
-  left join target_expense_records te on te.id = e.id
-  where te.id is null and e.reversal_account_transaction_id = tx.id
+  select 1
+  from public.school_teacher_wage_lock_details d
+  join cleanup_ids c on c.table_name='school_teacher_wage_lock_details' and c.id=d.id
+  where d.lock_id=l.id
+)
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_wage_detail_adjustments', a.id, 'wage detail adjustment references confirmed test lock/detail or marker text', a.reason
+from public.school_teacher_wage_detail_adjustments a
+where a.wage_lock_id in (select id from cleanup_ids where table_name='school_teacher_wage_locks')
+   or a.wage_detail_id in (select id from cleanup_ids where table_name='school_teacher_wage_lock_details')
+   or coalesce(a.reason, '') ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_payment_requests', p.id, 'payment request references confirmed test source/payee/business/account/expense/transaction or marker text', concat_ws(' | ', p.source_type, p.request_month, p.payee_name, p.business_name, p.note, p.reversal_reason, p.reissue_reason)
+from public.school_payment_requests p
+where (p.source_type='teacher_wage' and p.source_id in (select id from cleanup_ids where table_name='school_teacher_wage_locks'))
+   or p.payee_id in (select id from cleanup_ids where table_name='school_teachers')
+   or p.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or p.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or p.paid_expense_id in (select id from cleanup_ids where table_name='school_expense_records')
+   or p.paid_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or p.reversal_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or p.reissued_from_payment_request_id in (select id from cleanup_ids where table_name='school_payment_requests')
+   or p.replacement_payment_request_id in (select id from cleanup_ids where table_name='school_payment_requests')
+   or concat_ws(' ', p.source_type, p.payee_type, p.payee_name, p.business_name, p.status, p.note, p.reversal_reason, p.reissue_reason) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+-- Income/expense/reimbursement/account data.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_salary_payments', s.id, 'salary payment references confirmed test master/account or marker text', concat_ws(' | ', s.year_month, s.salary_item, s.note)
+from public.school_salary_payments s
+where s.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or s.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or s.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or concat_ws(' ', s.year_month, s.salary_item, s.payment_method, s.bank_name, s.bank_account_name, s.alipay_account, s.wechat_account, s.status, s.current_location, s.source_type, s.note, s.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_income_records', i.id, 'income references confirmed test student/payment/account/business or marker text', concat_ws(' | ', i.year_month, i.description, i.note, i.reversal_reason)
+from public.school_income_records i
+where i.student_id in (select id from cleanup_ids where table_name='school_students')
+   or i.student_payment_id in (select id from cleanup_ids where table_name='school_student_payments')
+   or i.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or i.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', i.income_category, i.description, i.status, i.note, i.app_type, i.reversal_reason) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_expense_records', e.id, 'expense references confirmed test teacher/student/salary/account/business/payment or marker text', concat_ws(' | ', e.year_month, e.expense_category, e.description, e.note, e.reversal_reason)
+from public.school_expense_records e
+where e.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or e.student_id in (select id from cleanup_ids where table_name='school_students')
+   or e.salary_payment_id in (select id from cleanup_ids where table_name='school_salary_payments')
+   or e.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or e.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or e.id in (select paid_expense_id from public.school_payment_requests p join cleanup_ids c on c.table_name='school_payment_requests' and c.id=p.id where p.paid_expense_id is not null)
+   or concat_ws(' ', e.expense_category, e.description, e.status, e.note, e.app_type, e.reimbursement_note, e.reversal_reason) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_expense_attachments', a.id, 'expense attachment references confirmed test expense or marker text', concat_ws(' | ', a.file_name, a.storage_bucket, a.storage_path, a.note)
+from public.school_expense_attachments a
+where a.expense_id in (select id from cleanup_ids where table_name='school_expense_records')
+   or concat_ws(' ', a.file_name, a.file_type, a.storage_bucket, a.storage_path, a.public_url, a.source_type, a.extracted_text, a.note, a.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_reimbursements', r.id, 'reimbursement references confirmed test account/business or marker text', concat_ws(' | ', r.year_month, r.status, r.note, r.reversal_reason)
+from public.school_reimbursements r
+where r.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or r.from_account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or r.to_account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or concat_ws(' ', r.year_month, r.status, r.note, r.app_type, r.reversal_reason) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_reimbursement_items', i.id, 'reimbursement item references confirmed test reimbursement/expense or marker text', i.note
+from public.school_reimbursement_items i
+where i.reimbursement_id in (select id from cleanup_ids where table_name='school_reimbursements')
+   or i.expense_id in (select id from cleanup_ids where table_name='school_expense_records')
+   or concat_ws(' ', i.note, i.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_reimbursement_expenses', e.id, 'legacy reimbursement-expense link references confirmed test reimbursement/expense', e.amount::text
+from public.school_reimbursement_expenses e
+where e.reimbursement_id in (select id from cleanup_ids where table_name='school_reimbursements')
+   or e.expense_id in (select id from cleanup_ids where table_name='school_expense_records')
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_reimbursements', r.id, 'reimbursement has confirmed test reimbursement item/link', concat_ws(' | ', r.year_month, r.status, r.note)
+from public.school_reimbursements r
+where exists (
+  select 1
+  from public.school_reimbursement_items i
+  join cleanup_ids c on c.table_name='school_reimbursement_items' and c.id=i.id
+  where i.reimbursement_id=r.id
 )
 or exists (
-  select 1 from school_income_records i
-  left join target_income_records ti on ti.id = i.id
-  where ti.id is null and i.reversal_account_transaction_id = tx.id
+  select 1
+  from public.school_reimbursement_expenses e
+  join cleanup_ids c on c.table_name='school_reimbursement_expenses' and c.id=e.id
+  where e.reimbursement_id=r.id
 )
-or exists (
-  select 1 from school_reimbursements r
-  left join target_reimbursements tr on tr.id = r.id
-  where tr.id is null and (r.reversal_from_account_transaction_id = tx.id or r.reversal_to_account_transaction_id = tx.id)
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_account_adjustments', a.id, 'account adjustment references confirmed test account/business/transaction or marker text', concat_ws(' | ', a.year_month, a.reason, a.note, a.reversal_reason)
+from public.school_account_adjustments a
+where a.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or a.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or a.account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or a.reversal_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or concat_ws(' ', a.reason, a.note, a.status, a.reversal_reason, a.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_account_transfers', t.id, 'account transfer references confirmed test account/business/transaction or marker text', concat_ws(' | ', t.year_month, t.reason, t.note, t.reversal_reason)
+from public.school_account_transfers t
+where t.from_account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or t.to_account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or t.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or t.from_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or t.to_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or t.reversal_from_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or t.reversal_to_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or concat_ws(' ', t.reason, t.note, t.status, t.reversal_reason, t.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_account_transactions', tx.id, 'account transaction references confirmed test account/business/source or marker text', concat_ws(' | ', tx.year_month, tx.transaction_type, tx.related_table, tx.description, tx.note)
+from public.school_account_transactions tx
+where tx.account_id in (select id from cleanup_ids where table_name='school_accounts')
+   or tx.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or (tx.related_table='school_income_records' and tx.related_id in (select id from cleanup_ids where table_name='school_income_records'))
+   or (tx.related_table='school_expense_records' and tx.related_id in (select id from cleanup_ids where table_name='school_expense_records'))
+   or (tx.related_table='school_reimbursements' and tx.related_id in (select id from cleanup_ids where table_name='school_reimbursements'))
+   or (tx.related_table='school_account_adjustments' and tx.related_id in (select id from cleanup_ids where table_name='school_account_adjustments'))
+   or (tx.related_table='school_account_transfers' and tx.related_id in (select id from cleanup_ids where table_name='school_account_transfers'))
+   or (tx.related_table='school_payment_requests' and tx.related_id in (select id from cleanup_ids where table_name='school_payment_requests'))
+   or tx.id in (select reversal_account_transaction_id from public.school_income_records i join cleanup_ids c on c.table_name='school_income_records' and c.id=i.id where i.reversal_account_transaction_id is not null)
+   or tx.id in (select reversal_account_transaction_id from public.school_expense_records e join cleanup_ids c on c.table_name='school_expense_records' and c.id=e.id where e.reversal_account_transaction_id is not null)
+   or tx.id in (select reversal_from_account_transaction_id from public.school_reimbursements r join cleanup_ids c on c.table_name='school_reimbursements' and c.id=r.id where r.reversal_from_account_transaction_id is not null)
+   or tx.id in (select reversal_to_account_transaction_id from public.school_reimbursements r join cleanup_ids c on c.table_name='school_reimbursements' and c.id=r.id where r.reversal_to_account_transaction_id is not null)
+   or tx.id in (select account_transaction_id from public.school_account_adjustments a join cleanup_ids c on c.table_name='school_account_adjustments' and c.id=a.id where a.account_transaction_id is not null)
+   or tx.id in (select reversal_account_transaction_id from public.school_account_adjustments a join cleanup_ids c on c.table_name='school_account_adjustments' and c.id=a.id where a.reversal_account_transaction_id is not null)
+   or tx.id in (select from_account_transaction_id from public.school_account_transfers t join cleanup_ids c on c.table_name='school_account_transfers' and c.id=t.id where t.from_account_transaction_id is not null)
+   or tx.id in (select to_account_transaction_id from public.school_account_transfers t join cleanup_ids c on c.table_name='school_account_transfers' and c.id=t.id where t.to_account_transaction_id is not null)
+   or tx.id in (select reversal_from_account_transaction_id from public.school_account_transfers t join cleanup_ids c on c.table_name='school_account_transfers' and c.id=t.id where t.reversal_from_account_transaction_id is not null)
+   or tx.id in (select reversal_to_account_transaction_id from public.school_account_transfers t join cleanup_ids c on c.table_name='school_account_transfers' and c.id=t.id where t.reversal_to_account_transaction_id is not null)
+   or tx.id in (select paid_account_transaction_id from public.school_payment_requests p join cleanup_ids c on c.table_name='school_payment_requests' and c.id=p.id where p.paid_account_transaction_id is not null)
+   or tx.id in (select reversal_transaction_id from public.school_payment_requests p join cleanup_ids c on c.table_name='school_payment_requests' and c.id=p.id where p.reversal_transaction_id is not null)
+   or concat_ws(' ', tx.transaction_type, tx.related_table, tx.description, tx.note, tx.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+-- Re-run source tables once now that account transaction candidates exist.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_account_adjustments', a.id, 'account adjustment references confirmed test transaction', concat_ws(' | ', a.year_month, a.reason, a.note)
+from public.school_account_adjustments a
+where a.account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or a.reversal_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_account_transfers', t.id, 'account transfer references confirmed test transaction', concat_ws(' | ', t.year_month, t.reason, t.note)
+from public.school_account_transfers t
+where t.from_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or t.to_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or t.reversal_from_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+   or t.reversal_to_account_transaction_id in (select id from cleanup_ids where table_name='school_account_transactions')
+on conflict do nothing;
+
+-- Other peripheral tables.
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_monthly_reports', r.id, 'monthly report references confirmed test business or marker text', concat_ws(' | ', r.year_month, r.note, r.report_data::text)
+from public.school_monthly_reports r
+where r.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', r.year_month, r.report_data::text, r.note, r.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_teacher_work_logs', w.id, 'teacher work log references confirmed test master or marker text', concat_ws(' | ', w.year_month, w.work_content, w.note)
+from public.school_teacher_work_logs w
+where w.teacher_id in (select id from cleanup_ids where table_name='school_teachers')
+   or w.student_id in (select id from cleanup_ids where table_name='school_students')
+   or w.subject_id in (select id from cleanup_ids where table_name='school_subjects')
+   or w.business_entity_id in (select id from cleanup_ids where table_name='school_business_entities')
+   or concat_ws(' ', w.work_content, w.department, w.source_type, w.note, w.app_type) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_ids(table_name, id, reason, sample)
+select 'school_settings', s.id, 'setting contains test marker', concat_ws(' | ', s.setting_key, s.setting_value::text, s.note)
+from public.school_settings s
+where concat_ws(' ', s.setting_key, s.setting_value::text, s.note) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+-- Storage objects: direct marker or referenced by candidate expense attachments.
+insert into cleanup_storage_objects(id, bucket_id, name, reason, sample)
+select o.id, o.bucket_id, o.name, 'storage object direct marker', concat_ws(' | ', o.bucket_id, o.name, o.metadata::text, o.user_metadata::text)
+from storage.objects o
+where concat_ws(' ', o.bucket_id, o.name, o.metadata::text, o.user_metadata::text) ~* '(codex|v2-test|sandbox|browser test|commit[[:space:][:alpha:]-]*test|rollback test)'
+on conflict do nothing;
+
+insert into cleanup_storage_objects(id, bucket_id, name, reason, sample)
+select o.id, o.bucket_id, o.name, 'storage object referenced by candidate expense attachment', concat_ws(' | ', o.bucket_id, o.name)
+from storage.objects o
+where exists (
+  select 1
+  from public.school_expense_attachments a
+  join cleanup_ids c on c.table_name='school_expense_attachments' and c.id=a.id
+  where a.storage_bucket = o.bucket_id
+    and a.storage_path = o.name
 )
-or exists (
-  select 1 from school_account_adjustments aa
-  left join target_account_adjustments taa on taa.id = aa.id
-  where taa.id is null and (aa.account_transaction_id = tx.id or aa.reversal_account_transaction_id = tx.id)
-)
-or exists (
-  select 1 from school_account_transfers at
-  left join target_account_transfers tat on tat.id = at.id
-  where tat.id is null and (
-    at.from_account_transaction_id = tx.id
-    or at.to_account_transaction_id = tx.id
-    or at.reversal_from_account_transaction_id = tx.id
-    or at.reversal_to_account_transaction_id = tx.id
+on conflict do nothing;
+
+-- Risk checks: if these return rows, do not commit automatically. For real
+-- accounts, only a zero-net candidate transaction set is allowed; non-zero
+-- candidate rows would require account balance repair and must stop cleanup.
+create temp table cleanup_non_candidate_account_tx_sums as
+select tx.account_id, sum(tx.amount) as candidate_amount_sum
+from public.school_account_transactions tx
+join cleanup_ids c on c.table_name='school_account_transactions' and c.id=tx.id
+where tx.account_id not in (select id from cleanup_ids where table_name='school_accounts')
+group by tx.account_id;
+
+create temp table cleanup_risks as
+select 'candidate account transaction on non-candidate account may require balance repair' as risk_type,
+       tx.id,
+       concat_ws(' | ', tx.account_id::text, tx.transaction_type, tx.amount::text, tx.description, tx.note) as sample
+from public.school_account_transactions tx
+join cleanup_ids c on c.table_name='school_account_transactions' and c.id=tx.id
+where tx.account_id not in (select id from cleanup_ids where table_name='school_accounts')
+  and not exists (
+    select 1
+    from cleanup_non_candidate_account_tx_sums s
+    where s.account_id=tx.account_id and s.candidate_amount_sum=0
   )
-);
+union all
+select 'candidate income on non-candidate account may require balance repair',
+       i.id,
+       concat_ws(' | ', i.account_id::text, i.amount::text, i.description, i.note)
+from public.school_income_records i
+join cleanup_ids c on c.table_name='school_income_records' and c.id=i.id
+where i.account_id is not null
+  and i.account_id not in (select id from cleanup_ids where table_name='school_accounts')
+  and not exists (
+    select 1
+    from cleanup_non_candidate_account_tx_sums s
+    where s.account_id=i.account_id and s.candidate_amount_sum=0
+  )
+union all
+select 'candidate expense on non-candidate account may require balance repair',
+       e.id,
+       concat_ws(' | ', e.account_id::text, e.amount::text, e.description, e.note)
+from public.school_expense_records e
+join cleanup_ids c on c.table_name='school_expense_records' and c.id=e.id
+where e.account_id is not null
+  and e.account_id not in (select id from cleanup_ids where table_name='school_accounts')
+  and not exists (
+    select 1
+    from cleanup_non_candidate_account_tx_sums s
+    where s.account_id=e.account_id and s.candidate_amount_sum=0
+  )
+union all
+select 'candidate reimbursement uses non-candidate account may require balance repair',
+       r.id,
+       concat_ws(' | ', r.from_account_id::text, r.to_account_id::text, r.amount::text, r.note)
+from public.school_reimbursements r
+join cleanup_ids c on c.table_name='school_reimbursements' and c.id=r.id
+where (r.from_account_id is not null and r.from_account_id not in (select id from cleanup_ids where table_name='school_accounts'))
+   or (r.to_account_id is not null and r.to_account_id not in (select id from cleanup_ids where table_name='school_accounts'))
+union all
+select 'candidate transfer uses non-candidate account may require balance repair',
+       t.id,
+       concat_ws(' | ', t.from_account_id::text, t.to_account_id::text, t.amount::text, t.note)
+from public.school_account_transfers t
+join cleanup_ids c on c.table_name='school_account_transfers' and c.id=t.id
+where (t.from_account_id is not null and t.from_account_id not in (select id from cleanup_ids where table_name='school_accounts'))
+   or (t.to_account_id is not null and t.to_account_id not in (select id from cleanup_ids where table_name='school_accounts'))
+union all
+select 'candidate adjustment uses non-candidate account may require balance repair',
+       a.id,
+       concat_ws(' | ', a.account_id::text, a.amount::text, a.reason, a.note)
+from public.school_account_adjustments a
+join cleanup_ids c on c.table_name='school_account_adjustments' and c.id=a.id
+where a.account_id is not null
+  and a.account_id not in (select id from cleanup_ids where table_name='school_accounts')
+  and not exists (
+    select 1
+    from cleanup_non_candidate_account_tx_sums s
+    where s.account_id=a.account_id and s.candidate_amount_sum=0
+  );
 
-\echo unsafe_findings
-select type, count(*) as row_count
-from cleanup_unsafe
-group by type
-order by type;
+-- Dry-run outputs.
+\echo 'cleanup_mode'
+select :'cleanup_execute' as cleanup_execute, :'cleanup_commit' as cleanup_commit;
 
-select *
-from cleanup_unsafe
-order by type, id
-limit 80;
+\echo 'candidate_counts_by_table'
+select table_name, count(*) as candidate_count
+from cleanup_ids
+group by table_name
+order by table_name;
 
+\echo 'candidate_sample_ids'
+select table_name, id, reason, left(coalesce(sample, ''), 180) as sample
+from (
+  select c.*, row_number() over (partition by table_name order by id) as rn
+  from cleanup_ids c
+) s
+where rn <= 12
+order by table_name, id;
+
+\echo 'storage_candidate_counts'
+select bucket_id, count(*) as candidate_count
+from cleanup_storage_objects
+group by bucket_id
+order by bucket_id;
+
+\echo 'storage_candidate_sample'
+select id, bucket_id, name, reason, left(coalesce(sample, ''), 180) as sample
+from cleanup_storage_objects
+order by bucket_id, name
+limit 20;
+
+\echo 'manual_review_list'
+select table_name, id, reason, left(coalesce(sample, ''), 220) as sample
+from cleanup_manual_review
+order by table_name, id;
+
+\echo 'risk_list'
+select risk_type, id, left(coalesce(sample, ''), 220) as sample
+from cleanup_risks
+order by risk_type, id;
+
+\echo 'candidate_totals'
+select
+  (select count(*) from cleanup_ids) as db_candidate_rows,
+  (select count(*) from cleanup_storage_objects) as storage_candidate_rows,
+  (select count(*) from cleanup_manual_review) as manual_review_rows,
+  (select count(*) from cleanup_risks) as risk_rows;
+
+\if :cleanup_execute
+\echo 'executing_cleanup_deletes'
+
+-- Guard: do not execute cleanup if deleting financial/account rows would require
+-- non-test account balance repair.
 do $$
-declare
-  unsafe_count integer;
 begin
-  select count(*) into unsafe_count from cleanup_unsafe;
-  if unsafe_count <> 0 then
-    raise exception 'cleanup aborted: % unsafe target dependencies found', unsafe_count;
+  if exists (select 1 from cleanup_risks) then
+    raise exception 'Cleanup risk list is not empty. Stop before delete/commit.';
+  end if;
+  if exists (select 1 from cleanup_storage_objects) then
+    raise exception 'Storage cleanup candidates exist. Stop and clean via the Storage API, not direct storage table delete.';
   end if;
 end $$;
 
-create temp table cleanup_delete_counts(table_name text primary key, deleted_count bigint not null default 0) on commit drop;
+create temp table cleanup_deleted_counts(table_name text primary key, deleted_count integer not null) on commit drop;
+
+insert into cleanup_deleted_counts values ('storage.objects', 0);
 
 with deleted as (
-  delete from school_import_errors e
-  using target_import_batches t
-  where e.import_batch_id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_import_errors', (select count(*) from deleted));
+  delete from public.school_expense_attachments t
+  using cleanup_ids c
+  where c.table_name='school_expense_attachments' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_expense_attachments', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_schedule_students ss
-  using target_schedule_students t
-  where ss.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_schedule_students', (select count(*) from deleted));
+  delete from public.school_reimbursement_expenses t
+  using cleanup_ids c
+  where c.table_name='school_reimbursement_expenses' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_reimbursement_expenses', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_reimbursement_expenses re
-  using target_reimbursement_expenses t
-  where re.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_reimbursement_expenses', (select count(*) from deleted));
+  delete from public.school_reimbursement_items t
+  using cleanup_ids c
+  where c.table_name='school_reimbursement_items' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_reimbursement_items', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_reimbursement_items ri
-  using target_reimbursement_items t
-  where ri.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_reimbursement_items', (select count(*) from deleted));
+  delete from public.school_teacher_wage_detail_adjustments t
+  using cleanup_ids c
+  where c.table_name='school_teacher_wage_detail_adjustments' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_teacher_wage_detail_adjustments', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_expense_attachments ea
-  using target_expense_attachments t
-  where ea.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_expense_attachments', (select count(*) from deleted));
+  delete from public.school_teacher_wage_lock_details t
+  using cleanup_ids c
+  where c.table_name='school_teacher_wage_lock_details' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_teacher_wage_lock_details', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_teacher_wage_detail_adjustments a
-  using target_wage_detail_adjustments t
-  where a.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_teacher_wage_detail_adjustments', (select count(*) from deleted));
+  delete from public.school_payment_requests t
+  using cleanup_ids c
+  where c.table_name='school_payment_requests' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_payment_requests', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_teacher_wage_lock_details d
-  using target_wage_lock_details t
-  where d.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_teacher_wage_lock_details', (select count(*) from deleted));
+  delete from public.school_expense_records t
+  using cleanup_ids c
+  where c.table_name='school_expense_records' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_expense_records', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_student_settlement_adjustment_drafts d
-  using target_student_settlement_adjustment_drafts t
-  where d.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_student_settlement_adjustment_drafts', (select count(*) from deleted));
+  delete from public.school_income_records t
+  using cleanup_ids c
+  where c.table_name='school_income_records' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_income_records', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_student_settlement_adjustments a
-  using target_student_settlement_adjustments t
-  where a.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_student_settlement_adjustments', (select count(*) from deleted));
+  delete from public.school_reimbursements t
+  using cleanup_ids c
+  where c.table_name='school_reimbursements' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_reimbursements', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_student_settlement_carryovers c
-  using target_student_settlement_carryovers t
-  where c.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_student_settlement_carryovers', (select count(*) from deleted));
+  delete from public.school_account_adjustments t
+  using cleanup_ids c
+  where c.table_name='school_account_adjustments' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_account_adjustments', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_account_adjustments aa
-  using target_account_adjustments t
-  where aa.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_account_adjustments', (select count(*) from deleted));
+  delete from public.school_account_transfers t
+  using cleanup_ids c
+  where c.table_name='school_account_transfers' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_account_transfers', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_account_transfers at
-  using target_account_transfers t
-  where at.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_account_transfers', (select count(*) from deleted));
+  delete from public.school_account_transactions t
+  using cleanup_ids c
+  where c.table_name='school_account_transactions' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_account_transactions', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_reimbursements r
-  using target_reimbursements t
-  where r.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_reimbursements', (select count(*) from deleted));
+  delete from public.school_student_settlement_adjustment_drafts t
+  using cleanup_ids c
+  where c.table_name='school_student_settlement_adjustment_drafts' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_student_settlement_adjustment_drafts', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_payment_requests pr
-  using target_payment_requests t
-  where pr.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_payment_requests', (select count(*) from deleted));
+  delete from public.school_student_settlement_adjustments t
+  using cleanup_ids c
+  where c.table_name='school_student_settlement_adjustments' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_student_settlement_adjustments', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_expense_records e
-  using target_expense_records t
-  where e.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_expense_records', (select count(*) from deleted));
+  delete from public.school_student_settlement_carryovers t
+  using cleanup_ids c
+  where c.table_name='school_student_settlement_carryovers' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_student_settlement_carryovers', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_income_records i
-  using target_income_records t
-  where i.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_income_records', (select count(*) from deleted));
+  delete from public.school_student_monthly_settlements t
+  using cleanup_ids c
+  where c.table_name='school_student_monthly_settlements' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_student_monthly_settlements', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_student_payments sp
-  using target_student_payments t
-  where sp.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_student_payments', (select count(*) from deleted));
+  delete from public.school_actual_lessons t
+  using cleanup_ids c
+  where c.table_name='school_actual_lessons' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_actual_lessons', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_salary_payments sp
-  using target_salary_payments t
-  where sp.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_salary_payments', (select count(*) from deleted));
+  delete from public.school_planned_lessons t
+  using cleanup_ids c
+  where c.table_name='school_planned_lessons' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_planned_lessons', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_teacher_wage_locks wl
-  using target_wage_locks t
-  where wl.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_teacher_wage_locks', (select count(*) from deleted));
+  delete from public.school_student_payments t
+  using cleanup_ids c
+  where c.table_name='school_student_payments' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_student_payments', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_teacher_wage_rules wr
-  using target_wage_rules t
-  where wr.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_teacher_wage_rules', (select count(*) from deleted));
+  delete from public.school_student_months t
+  using cleanup_ids c
+  where c.table_name='school_student_months' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_student_months', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_lesson_records lr
-  using target_lesson_records t
-  where lr.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_lesson_records', (select count(*) from deleted));
+  delete from public.school_schedule_students t
+  using cleanup_ids c
+  where c.table_name='school_schedule_students' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_schedule_students', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_actual_lessons al
-  using target_actual_lessons t
-  where al.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_actual_lessons', (select count(*) from deleted));
+  delete from public.school_lesson_schedules t
+  using cleanup_ids c
+  where c.table_name='school_lesson_schedules' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_lesson_schedules', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_planned_lessons pl
-  using target_planned_lessons t
-  where pl.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_planned_lessons', (select count(*) from deleted));
+  delete from public.school_lesson_records t
+  using cleanup_ids c
+  where c.table_name='school_lesson_records' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_lesson_records', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_lesson_schedules ls
-  using target_lesson_schedules t
-  where ls.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_lesson_schedules', (select count(*) from deleted));
+  delete from public.school_import_errors t
+  using cleanup_ids c
+  where c.table_name='school_import_errors' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_import_errors', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_teacher_work_logs wl
-  using target_teacher_work_logs t
-  where wl.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_teacher_work_logs', (select count(*) from deleted));
+  delete from public.school_import_batches t
+  using cleanup_ids c
+  where c.table_name='school_import_batches' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_import_batches', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_monthly_reports mr
-  using target_monthly_reports t
-  where mr.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_monthly_reports', (select count(*) from deleted));
+  delete from public.school_monthly_reports t
+  using cleanup_ids c
+  where c.table_name='school_monthly_reports' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_monthly_reports', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_import_batches b
-  using target_import_batches t
-  where b.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_import_batches', (select count(*) from deleted));
+  delete from public.school_teacher_work_logs t
+  using cleanup_ids c
+  where c.table_name='school_teacher_work_logs' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_teacher_work_logs', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_student_monthly_settlements sms
-  using target_student_monthly_settlements t
-  where sms.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_student_monthly_settlements', (select count(*) from deleted));
+  delete from public.school_salary_payments t
+  using cleanup_ids c
+  where c.table_name='school_salary_payments' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_salary_payments', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_student_months sm
-  using target_student_months t
-  where sm.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_student_months', (select count(*) from deleted));
+  delete from public.school_teacher_wage_locks t
+  using cleanup_ids c
+  where c.table_name='school_teacher_wage_locks' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_teacher_wage_locks', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_account_transactions tx
-  using target_account_transactions t
-  where tx.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_account_transactions', (select count(*) from deleted));
+  delete from public.school_teacher_wage_rules t
+  using cleanup_ids c
+  where c.table_name='school_teacher_wage_rules' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_teacher_wage_rules', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_accounts a
-  using target_accounts t
-  where a.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_accounts', (select count(*) from deleted));
+  delete from public.school_settings t
+  using cleanup_ids c
+  where c.table_name='school_settings' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_settings', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_teachers t
-  using target_teachers tt
-  where t.id = tt.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_teachers', (select count(*) from deleted));
+  delete from public.school_accounts t
+  using cleanup_ids c
+  where c.table_name='school_accounts' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_accounts', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_students s
-  using target_students t
-  where s.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_students', (select count(*) from deleted));
+  delete from public.school_students t
+  using cleanup_ids c
+  where c.table_name='school_students' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_students', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_subjects s
-  using target_subjects t
-  where s.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_subjects', (select count(*) from deleted));
+  delete from public.school_teachers t
+  using cleanup_ids c
+  where c.table_name='school_teachers' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_teachers', (select count(*) from deleted));
 
 with deleted as (
-  delete from school_business_entities be
-  using target_business_entities t
-  where be.id = t.id
-  returning 1
-) insert into cleanup_delete_counts values ('school_business_entities', (select count(*) from deleted));
+  delete from public.school_subjects t
+  using cleanup_ids c
+  where c.table_name='school_subjects' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_subjects', (select count(*) from deleted));
 
-\echo delete_counts
-table cleanup_delete_counts order by table_name;
+with deleted as (
+  delete from public.school_business_entities t
+  using cleanup_ids c
+  where c.table_name='school_business_entities' and c.id=t.id
+  returning t.id
+)
+insert into cleanup_deleted_counts values ('school_business_entities', (select count(*) from deleted));
 
-\echo zero_orphan_checks_after_delete
-select 'payment_requests_paid_expense_missing' as check_name, count(*) as count
-from school_payment_requests pr
-left join school_expense_records e on e.id = pr.paid_expense_id
-where pr.paid_expense_id is not null and e.id is null
-union all
-select 'payment_requests_paid_tx_missing', count(*)
-from school_payment_requests pr
-left join school_account_transactions tx on tx.id = pr.paid_account_transaction_id
-where pr.paid_account_transaction_id is not null and tx.id is null
-union all
-select 'expense_reversal_tx_missing', count(*)
-from school_expense_records e
-left join school_account_transactions tx on tx.id = e.reversal_account_transaction_id
-where e.reversal_account_transaction_id is not null and tx.id is null
-union all
-select 'income_reversal_tx_missing', count(*)
-from school_income_records i
-left join school_account_transactions tx on tx.id = i.reversal_account_transaction_id
-where i.reversal_account_transaction_id is not null and tx.id is null
-union all
-select 'wage_details_lock_missing', count(*)
-from school_teacher_wage_lock_details d
-left join school_teacher_wage_locks wl on wl.id = d.lock_id
-where wl.id is null;
+\echo 'deleted_counts'
+select * from cleanup_deleted_counts where deleted_count <> 0 order by table_name;
+
+\echo 'post_delete_candidate_residue_before_transaction_end'
+select c.table_name, count(*) as still_present_count
+from cleanup_ids c
+where (
+  (c.table_name='school_account_adjustments' and exists (select 1 from public.school_account_adjustments t where t.id=c.id)) or
+  (c.table_name='school_account_transactions' and exists (select 1 from public.school_account_transactions t where t.id=c.id)) or
+  (c.table_name='school_account_transfers' and exists (select 1 from public.school_account_transfers t where t.id=c.id)) or
+  (c.table_name='school_accounts' and exists (select 1 from public.school_accounts t where t.id=c.id)) or
+  (c.table_name='school_actual_lessons' and exists (select 1 from public.school_actual_lessons t where t.id=c.id)) or
+  (c.table_name='school_business_entities' and exists (select 1 from public.school_business_entities t where t.id=c.id)) or
+  (c.table_name='school_expense_attachments' and exists (select 1 from public.school_expense_attachments t where t.id=c.id)) or
+  (c.table_name='school_expense_records' and exists (select 1 from public.school_expense_records t where t.id=c.id)) or
+  (c.table_name='school_import_batches' and exists (select 1 from public.school_import_batches t where t.id=c.id)) or
+  (c.table_name='school_import_errors' and exists (select 1 from public.school_import_errors t where t.id=c.id)) or
+  (c.table_name='school_income_records' and exists (select 1 from public.school_income_records t where t.id=c.id)) or
+  (c.table_name='school_lesson_records' and exists (select 1 from public.school_lesson_records t where t.id=c.id)) or
+  (c.table_name='school_lesson_schedules' and exists (select 1 from public.school_lesson_schedules t where t.id=c.id)) or
+  (c.table_name='school_monthly_reports' and exists (select 1 from public.school_monthly_reports t where t.id=c.id)) or
+  (c.table_name='school_payment_requests' and exists (select 1 from public.school_payment_requests t where t.id=c.id)) or
+  (c.table_name='school_planned_lessons' and exists (select 1 from public.school_planned_lessons t where t.id=c.id)) or
+  (c.table_name='school_reimbursement_expenses' and exists (select 1 from public.school_reimbursement_expenses t where t.id=c.id)) or
+  (c.table_name='school_reimbursement_items' and exists (select 1 from public.school_reimbursement_items t where t.id=c.id)) or
+  (c.table_name='school_reimbursements' and exists (select 1 from public.school_reimbursements t where t.id=c.id)) or
+  (c.table_name='school_salary_payments' and exists (select 1 from public.school_salary_payments t where t.id=c.id)) or
+  (c.table_name='school_schedule_students' and exists (select 1 from public.school_schedule_students t where t.id=c.id)) or
+  (c.table_name='school_settings' and exists (select 1 from public.school_settings t where t.id=c.id)) or
+  (c.table_name='school_student_monthly_settlements' and exists (select 1 from public.school_student_monthly_settlements t where t.id=c.id)) or
+  (c.table_name='school_student_months' and exists (select 1 from public.school_student_months t where t.id=c.id)) or
+  (c.table_name='school_student_payments' and exists (select 1 from public.school_student_payments t where t.id=c.id)) or
+  (c.table_name='school_student_settlement_adjustment_drafts' and exists (select 1 from public.school_student_settlement_adjustment_drafts t where t.id=c.id)) or
+  (c.table_name='school_student_settlement_adjustments' and exists (select 1 from public.school_student_settlement_adjustments t where t.id=c.id)) or
+  (c.table_name='school_student_settlement_carryovers' and exists (select 1 from public.school_student_settlement_carryovers t where t.id=c.id)) or
+  (c.table_name='school_students' and exists (select 1 from public.school_students t where t.id=c.id)) or
+  (c.table_name='school_subjects' and exists (select 1 from public.school_subjects t where t.id=c.id)) or
+  (c.table_name='school_teacher_wage_detail_adjustments' and exists (select 1 from public.school_teacher_wage_detail_adjustments t where t.id=c.id)) or
+  (c.table_name='school_teacher_wage_lock_details' and exists (select 1 from public.school_teacher_wage_lock_details t where t.id=c.id)) or
+  (c.table_name='school_teacher_wage_locks' and exists (select 1 from public.school_teacher_wage_locks t where t.id=c.id)) or
+  (c.table_name='school_teacher_wage_rules' and exists (select 1 from public.school_teacher_wage_rules t where t.id=c.id)) or
+  (c.table_name='school_teacher_work_logs' and exists (select 1 from public.school_teacher_work_logs t where t.id=c.id)) or
+  (c.table_name='school_teachers' and exists (select 1 from public.school_teachers t where t.id=c.id))
+)
+group by c.table_name
+order by c.table_name;
+
+\echo 'post_delete_storage_residue_before_transaction_end'
+select count(*) as storage_candidate_residue
+from cleanup_storage_objects c
+where exists (select 1 from storage.objects o where o.id=c.id);
+
+\endif
 
 \if :cleanup_commit
 commit;
-\echo cleanup committed
+\echo 'transaction_result: committed'
 \else
 rollback;
-\echo cleanup rolled back
+\echo 'transaction_result: rolled back'
 \endif
