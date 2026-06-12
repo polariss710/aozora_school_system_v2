@@ -104,9 +104,9 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 工资规则
 
 - 当前状态: V1 可用。工资规则列表、只读详情、future-use rule create/edit、soft-disable/restore 已可用。
-- 最近关键更新: 编辑已开放 matching keys 和配置字段；`is_active` 仍通过停用/恢复专用 action 修改，不在通用 edit 中直接改。
-- 当前限制 / hard stop: 不物理删除；不重算 historical wages；不改 wage locks/details、payment requests、expenses、account balances、account transactions。restore 必须拒绝冲突 active rules。
-- 下一步: 保持 future-lock config 口径；generic student-empty rules 或更复杂匹配需独立冲突语义设计。
+- 最近关键更新: 2026-06-12 工资规则新增/编辑 dialog 已收窄为 matching keys、结算类型、日元/人民币时薪和备注；汇率、交通费、教室费、启用状态 select、编辑摘要不再暴露在新增/编辑 dialog。隐藏 DB/RPC 字段暂保留：新增传 `0`，编辑保留原值，`no_wage` 时按 RPC 规则传 `0`。`is_active` 仍通过停用/恢复专用 action 修改。
+- 当前限制 / hard stop: 不物理删除；不重算 historical wages；不改 wage locks/details、payment requests、expenses、account balances、account transactions。restore 必须拒绝冲突 active rules。工资规则暂不维护交通费、教室费或日常汇率。
+- 下一步: 保持 future-lock config 口径；交通费/教室费后续进入老师工资结算调整项设计；支付请求生成时实时汇率换算人民币金额另开设计；generic student-empty rules 或更复杂匹配需独立冲突语义设计。
 
 ## 导入导出
 
@@ -127,4 +127,4 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
 - 最近关键更新: 当前优先级仍是保护已完成 V1 surfaces，再按独立阶段推进新需求。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
-- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、whitelist/codex-test cleanup、expanded wage-lock lifecycle、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
+- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、whitelist/codex-test cleanup、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。

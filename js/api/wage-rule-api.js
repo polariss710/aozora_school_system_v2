@@ -51,6 +51,8 @@ const BUSINESS_ENTITY_COLUMNS = [
   "is_active",
 ].join(",");
 
+const RULE_AMOUNT_DEFAULT = 0;
+
 export async function fetchWageRules() {
   const { data, error } = await supabase
     .from("school_teacher_wage_rules")
@@ -141,9 +143,9 @@ export async function createWageRuleConfig(payload) {
     p_settlement_type: payload.settlementType,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
     p_hourly_rate_cny: payload.hourlyRateCny,
-    p_exchange_rate: payload.exchangeRate,
-    p_transport_fee_jpy: payload.transportFeeJpy,
-    p_classroom_fee_jpy: payload.classroomFeeJpy,
+    p_exchange_rate: payload.exchangeRate ?? RULE_AMOUNT_DEFAULT,
+    p_transport_fee_jpy: payload.transportFeeJpy ?? RULE_AMOUNT_DEFAULT,
+    p_classroom_fee_jpy: payload.classroomFeeJpy ?? RULE_AMOUNT_DEFAULT,
     p_is_active: payload.isActive,
     p_note: payload.note || null,
   });

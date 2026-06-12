@@ -1612,8 +1612,7 @@ h2 {
 .expense-create-dialog-panel,
 .reimbursement-create-dialog-panel,
 .lesson-create-dialog-panel,
-.account-create-dialog-panel,
-.wage-rule-create-dialog-panel {
+.account-create-dialog-panel {
   width: min(820px, 100%);
 }
 
@@ -1637,7 +1636,7 @@ h2 {
 .student-profile-dialog-panel .dialog-error,
 .teacher-profile-dialog-panel .dialog-error,
 .business-entity-profile-dialog-panel .dialog-error,
-.wage-rule-create-dialog-panel .dialog-error {
+.wage-rule-config-dialog-panel .dialog-error {
   position: sticky;
   top: -1px;
   z-index: 1;
@@ -1735,7 +1734,7 @@ h2 {
 .account-create-dialog-panel,
 .student-profile-dialog-panel,
 .teacher-profile-dialog-panel,
-.wage-rule-create-dialog-panel {
+.wage-rule-config-dialog-panel {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 14px;
@@ -1754,11 +1753,11 @@ h2 {
 .teacher-profile-dialog-panel > .dialog-error,
 .teacher-profile-dialog-panel > .dialog-actions,
 .teacher-profile-wide-field,
-.wage-rule-create-dialog-panel > .section-heading,
-.wage-rule-create-dialog-panel > .dialog-error,
-.wage-rule-create-dialog-panel > .dialog-warning,
-.wage-rule-create-dialog-panel > .dialog-actions,
-.wage-rule-create-wide-field {
+.wage-rule-config-dialog-panel > .section-heading,
+.wage-rule-config-dialog-panel > .dialog-error,
+.wage-rule-config-dialog-panel > .dialog-warning,
+.wage-rule-config-dialog-panel > .dialog-actions,
+.wage-rule-config-wide-field {
   grid-column: 1 / -1;
 }
 
@@ -2055,7 +2054,7 @@ h2 {
   .account-create-dialog-panel,
   .student-profile-dialog-panel,
   .teacher-profile-dialog-panel,
-  .wage-rule-create-dialog-panel {
+  .wage-rule-config-dialog-panel {
     grid-template-columns: minmax(0, 1fr);
   }
 

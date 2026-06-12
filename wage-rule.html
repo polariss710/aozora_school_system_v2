@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资规则</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.99.0-master-editable-fields-open-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.103.0-wage-rule-dialog-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -154,7 +154,7 @@
     </div>
 
     <div id="createWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel wage-rule-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="createWageRuleConfigTitle">
+      <section class="dialog-panel wage-rule-config-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="createWageRuleConfigTitle">新增工资规则</h2>
           <p class="section-note">仅新增未来使用的老师工资规则配置；不会回算历史工资快照，也不会修改支付请求、支出或账户流水。</p>
@@ -200,30 +200,7 @@
           <input id="createWageRuleHourlyRateCnyInput" type="number" min="0" step="0.01" inputmode="decimal">
         </label>
 
-        <label class="field" data-create-wage-rule-field="exchangeRate">
-          <span>汇率</span>
-          <input id="createWageRuleExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
-        </label>
-
-        <label class="field" data-create-wage-rule-field="transportFeeJpy">
-          <span>交通费 JPY</span>
-          <input id="createWageRuleTransportFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
-        </label>
-
-        <label class="field" data-create-wage-rule-field="classroomFeeJpy">
-          <span>教室费 JPY</span>
-          <input id="createWageRuleClassroomFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
-        </label>
-
-        <label class="field" data-create-wage-rule-field="activeState">
-          <span>启用状态</span>
-          <select id="createWageRuleActiveSelect">
-            <option value="active">启用</option>
-            <option value="inactive">停用</option>
-          </select>
-        </label>
-
-        <label class="field wage-rule-create-wide-field">
+        <label class="field wage-rule-config-wide-field">
           <span>备注</span>
           <textarea id="createWageRuleNoteInput" rows="3"></textarea>
         </label>
@@ -238,13 +215,12 @@
     </div>
 
     <div id="editWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
+      <section class="dialog-panel wage-rule-config-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="editWageRuleConfigTitle">编辑工资规则基础配置</h2>
-          <p class="section-note">仅更新工资规则匹配键、结算类型、费率、汇率、费用和备注；启用状态请使用列表中的停用 / 恢复操作。修改只影响未来工资快照生成，不重算历史工资快照。</p>
+          <p class="section-note">仅更新工资规则匹配键、结算类型、时薪和备注；修改只影响未来工资快照生成，不重算历史工资快照。</p>
         </div>
 
-        <div id="editWageRuleConfigSummary" class="dialog-summary"></div>
         <div id="editWageRuleConfigError" class="dialog-error is-hidden"></div>
 
         <label class="field" data-edit-wage-rule-field="teacher">
@@ -285,30 +261,7 @@
           <input id="editWageRuleHourlyRateCnyInput" type="number" min="0" step="0.01" inputmode="decimal">
         </label>
 
-        <label class="field" data-edit-wage-rule-field="exchangeRate">
-          <span>汇率</span>
-          <input id="editWageRuleExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
-        </label>
-
-        <label class="field" data-edit-wage-rule-field="transportFeeJpy">
-          <span>交通费 JPY</span>
-          <input id="editWageRuleTransportFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
-        </label>
-
-        <label class="field" data-edit-wage-rule-field="classroomFeeJpy">
-          <span>教室费 JPY</span>
-          <input id="editWageRuleClassroomFeeJpyInput" type="number" min="0" step="0.01" inputmode="decimal">
-        </label>
-
-        <label class="field" data-edit-wage-rule-field="activeState">
-          <span>启用状态（请用停用 / 恢复操作变更）</span>
-          <select id="editWageRuleActiveSelect">
-            <option value="active">启用</option>
-            <option value="inactive">停用</option>
-          </select>
-        </label>
-
-        <label class="field">
+        <label class="field wage-rule-config-wide-field">
           <span>备注</span>
           <textarea id="editWageRuleNoteInput" rows="3"></textarea>
         </label>
@@ -349,6 +302,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=v2.99.0-master-editable-fields-open-20260612"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=v2.103.0-wage-rule-dialog-field-scope-20260612"></script>
   </body>
 </html>

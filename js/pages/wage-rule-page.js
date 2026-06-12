@@ -33,11 +33,13 @@ const CREATE_FIELD_IDS = [
   "settlementType",
   "hourlyRateJpy",
   "hourlyRateCny",
-  "exchangeRate",
-  "transportFeeJpy",
-  "classroomFeeJpy",
-  "activeState",
 ];
+
+const HIDDEN_RULE_AMOUNT_DEFAULTS = {
+  exchangeRate: 0,
+  transportFeeJpy: 0,
+  classroomFeeJpy: 0,
+};
 
 const TEACHER_STATUS_LABELS = {
   employed: "在职",
@@ -102,15 +104,10 @@ function cacheDom() {
   dom.createSettlementTypeSelect = document.querySelector("#createWageRuleSettlementTypeSelect");
   dom.createHourlyRateJpyInput = document.querySelector("#createWageRuleHourlyRateJpyInput");
   dom.createHourlyRateCnyInput = document.querySelector("#createWageRuleHourlyRateCnyInput");
-  dom.createExchangeRateInput = document.querySelector("#createWageRuleExchangeRateInput");
-  dom.createTransportFeeJpyInput = document.querySelector("#createWageRuleTransportFeeJpyInput");
-  dom.createClassroomFeeJpyInput = document.querySelector("#createWageRuleClassroomFeeJpyInput");
-  dom.createActiveSelect = document.querySelector("#createWageRuleActiveSelect");
   dom.createNoteInput = document.querySelector("#createWageRuleNoteInput");
   dom.createSubmitButton = document.querySelector("#createWageRuleSubmitButton");
   dom.createCancelButton = document.querySelector("#createWageRuleCancelButton");
   dom.editDialog = document.querySelector("#editWageRuleConfigDialog");
-  dom.editSummary = document.querySelector("#editWageRuleConfigSummary");
   dom.editError = document.querySelector("#editWageRuleConfigError");
   dom.editTeacherSelect = document.querySelector("#editWageRuleTeacherSelect");
   dom.editStudentSelect = document.querySelector("#editWageRuleStudentSelect");
@@ -119,10 +116,6 @@ function cacheDom() {
   dom.editSettlementTypeSelect = document.querySelector("#editWageRuleSettlementTypeSelect");
   dom.editHourlyRateJpyInput = document.querySelector("#editWageRuleHourlyRateJpyInput");
   dom.editHourlyRateCnyInput = document.querySelector("#editWageRuleHourlyRateCnyInput");
-  dom.editExchangeRateInput = document.querySelector("#editWageRuleExchangeRateInput");
-  dom.editTransportFeeJpyInput = document.querySelector("#editWageRuleTransportFeeJpyInput");
-  dom.editClassroomFeeJpyInput = document.querySelector("#editWageRuleClassroomFeeJpyInput");
-  dom.editActiveSelect = document.querySelector("#editWageRuleActiveSelect");
   dom.editNoteInput = document.querySelector("#editWageRuleNoteInput");
   dom.editSubmitButton = document.querySelector("#editWageRuleSubmitButton");
   dom.editCancelButton = document.querySelector("#editWageRuleCancelButton");
@@ -160,10 +153,6 @@ function bindEvents() {
     dom.createSettlementTypeSelect,
     dom.createHourlyRateJpyInput,
     dom.createHourlyRateCnyInput,
-    dom.createExchangeRateInput,
-    dom.createTransportFeeJpyInput,
-    dom.createClassroomFeeJpyInput,
-    dom.createActiveSelect,
   ].forEach((field) => {
     field.addEventListener("input", hideCreateErrorIfClean);
     field.addEventListener("change", handleCreateFieldChange);
@@ -197,10 +186,6 @@ function bindEvents() {
     dom.editSettlementTypeSelect,
     dom.editHourlyRateJpyInput,
     dom.editHourlyRateCnyInput,
-    dom.editExchangeRateInput,
-    dom.editTransportFeeJpyInput,
-    dom.editClassroomFeeJpyInput,
-    dom.editActiveSelect,
   ].forEach((field) => {
     field.addEventListener("input", hideEditErrorIfClean);
     field.addEventListener("change", handleEditFieldChange);
@@ -361,10 +346,6 @@ function openCreateDialog() {
   dom.createSettlementTypeSelect.value = "jpy_hourly";
   dom.createHourlyRateJpyInput.value = "0";
   dom.createHourlyRateCnyInput.value = "0";
-  dom.createExchangeRateInput.value = "0";
-  dom.createTransportFeeJpyInput.value = "0";
-  dom.createClassroomFeeJpyInput.value = "0";
-  dom.createActiveSelect.value = "active";
   dom.createNoteInput.value = "";
   syncCreateNoWageFields();
   dom.createDialog.classList.remove("is-hidden");
@@ -396,16 +377,14 @@ async function submitCreateDialog() {
     settlementType: dom.createSettlementTypeSelect.value,
     hourlyRateJpy: readNonNegativeNumber(dom.createHourlyRateJpyInput.value),
     hourlyRateCny: readNonNegativeNumber(dom.createHourlyRateCnyInput.value),
-    exchangeRate: readNonNegativeNumber(dom.createExchangeRateInput.value),
-    transportFeeJpy: readNonNegativeNumber(dom.createTransportFeeJpyInput.value),
-    classroomFeeJpy: readNonNegativeNumber(dom.createClassroomFeeJpyInput.value),
-    isActive: dom.createActiveSelect.value === "active",
+    ...HIDDEN_RULE_AMOUNT_DEFAULTS,
+    isActive: true,
     note: dom.createNoteInput.value.trim(),
   };
 
   const invalidFields = validateCreatePayload(payload);
   if (invalidFields.length > 0) {
-    showCreateError("请检查老师、学生、科目、业务归属、结算类型、费率、汇率、费用和启用状态。", invalidFields);
+    showCreateError("请检查老师、学生、科目、业务归属、结算类型和时薪。", invalidFields);
     return;
   }
 
@@ -450,7 +429,7 @@ function validateCreatePayload(payload) {
     invalidFields.push("businessEntity");
   }
 
-  return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload, dom.createActiveSelect)]);
+  return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload)]);
 }
 
 function renderCreateLookupOptions() {
@@ -530,16 +509,10 @@ function openEditDialog(wageRuleId) {
   }
 
   editingWageRule = rule;
-  dom.editSummary.innerHTML = renderEditSummary(rule);
   renderEditLookupOptions(rule);
   dom.editSettlementTypeSelect.value = rule.settlement_type || "jpy_hourly";
   dom.editHourlyRateJpyInput.value = displayNumberInput(rule.hourly_rate_jpy);
   dom.editHourlyRateCnyInput.value = displayNumberInput(rule.hourly_rate_cny);
-  dom.editExchangeRateInput.value = displayNumberInput(rule.exchange_rate);
-  dom.editTransportFeeJpyInput.value = displayNumberInput(rule.transport_fee_jpy);
-  dom.editClassroomFeeJpyInput.value = displayNumberInput(rule.classroom_fee_jpy);
-  dom.editActiveSelect.value = rule.is_active === false ? "inactive" : "active";
-  dom.editActiveSelect.disabled = true;
   dom.editNoteInput.value = rule.note || "";
   clearEditErrors();
   setEditSubmitting(false);
@@ -650,16 +623,16 @@ async function submitEditDialog() {
     settlementType: dom.editSettlementTypeSelect.value,
     hourlyRateJpy: readNonNegativeNumber(dom.editHourlyRateJpyInput.value),
     hourlyRateCny: readNonNegativeNumber(dom.editHourlyRateCnyInput.value),
-    exchangeRate: readNonNegativeNumber(dom.editExchangeRateInput.value),
-    transportFeeJpy: readNonNegativeNumber(dom.editTransportFeeJpyInput.value),
-    classroomFeeJpy: readNonNegativeNumber(dom.editClassroomFeeJpyInput.value),
-    isActive: dom.editActiveSelect.value === "active",
+    exchangeRate: readExistingNonNegativeNumber(editingWageRule.exchange_rate),
+    transportFeeJpy: readExistingNonNegativeNumber(editingWageRule.transport_fee_jpy),
+    classroomFeeJpy: readExistingNonNegativeNumber(editingWageRule.classroom_fee_jpy),
+    isActive: editingWageRule.is_active !== false,
     note: dom.editNoteInput.value.trim(),
   };
 
   const invalidFields = validateEditPayload(payload);
   if (invalidFields.length > 0) {
-    showEditError("请检查老师、学生、科目、业务归属、结算类型、费率、汇率、费用和启用状态。", invalidFields);
+    showEditError("请检查老师、学生、科目、业务归属、结算类型和时薪。", invalidFields);
     return;
   }
 
@@ -704,10 +677,10 @@ function validateEditPayload(payload) {
     invalidFields.push("businessEntity");
   }
 
-  return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload, dom.editActiveSelect)]);
+  return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload)]);
 }
 
-function validateConfigPayload(payload, activeSelect) {
+function validateConfigPayload(payload) {
   const invalidFields = [];
 
   if (!EDITABLE_SETTLEMENT_TYPES.includes(payload.settlementType)) {
@@ -717,38 +690,17 @@ function validateConfigPayload(payload, activeSelect) {
   [
     ["hourlyRateJpy", payload.hourlyRateJpy],
     ["hourlyRateCny", payload.hourlyRateCny],
-    ["exchangeRate", payload.exchangeRate],
-    ["transportFeeJpy", payload.transportFeeJpy],
-    ["classroomFeeJpy", payload.classroomFeeJpy],
   ].forEach(([fieldId, value]) => {
     if (!Number.isFinite(value) || value < 0) {
       invalidFields.push(fieldId);
     }
   });
 
-  if (!["active", "inactive"].includes(activeSelect.value)) {
-    invalidFields.push("activeState");
+  if (typeof payload.isActive !== "boolean") {
+    invalidFields.push("settlementType");
   }
 
   return invalidFields;
-}
-
-function renderEditSummary(rule) {
-  const rows = [
-    ["规则 ID", shortId(rule.id)],
-    ["不可编辑字段", "规则 ID、创建时间、更新时间、历史工资快照、支付请求、支出、账户流水"],
-  ];
-
-  return `
-    <dl class="detail-definition-list">
-      ${rows.map(([label, value]) => `
-        <div>
-          <dt>${escapeHtml(label)}</dt>
-          <dd>${escapeHtml(displayValue(value))}</dd>
-        </div>
-      `).join("")}
-    </dl>
-  `;
 }
 
 function renderActiveStateAction(rule) {
@@ -848,9 +800,6 @@ function syncNoWageFields() {
   const amountFields = [
     dom.editHourlyRateJpyInput,
     dom.editHourlyRateCnyInput,
-    dom.editExchangeRateInput,
-    dom.editTransportFeeJpyInput,
-    dom.editClassroomFeeJpyInput,
   ];
 
   amountFields.forEach((field) => {
@@ -866,9 +815,6 @@ function syncCreateNoWageFields() {
   const amountFields = [
     dom.createHourlyRateJpyInput,
     dom.createHourlyRateCnyInput,
-    dom.createExchangeRateInput,
-    dom.createTransportFeeJpyInput,
-    dom.createClassroomFeeJpyInput,
   ];
 
   amountFields.forEach((field) => {
@@ -886,6 +832,11 @@ function readNonNegativeNumber(value) {
   }
 
   return Number(trimmed);
+}
+
+function readExistingNonNegativeNumber(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) && numberValue >= 0 ? numberValue : 0;
 }
 
 function displayNumberInput(value) {
@@ -939,10 +890,6 @@ function createFieldIdForElement(field) {
   if (field === dom.createSettlementTypeSelect) return "settlementType";
   if (field === dom.createHourlyRateJpyInput) return "hourlyRateJpy";
   if (field === dom.createHourlyRateCnyInput) return "hourlyRateCny";
-  if (field === dom.createExchangeRateInput) return "exchangeRate";
-  if (field === dom.createTransportFeeJpyInput) return "transportFeeJpy";
-  if (field === dom.createClassroomFeeJpyInput) return "classroomFeeJpy";
-  if (field === dom.createActiveSelect) return "activeState";
   return "";
 }
 
@@ -954,10 +901,6 @@ function editFieldIdForElement(field) {
   if (field === dom.editSettlementTypeSelect) return "settlementType";
   if (field === dom.editHourlyRateJpyInput) return "hourlyRateJpy";
   if (field === dom.editHourlyRateCnyInput) return "hourlyRateCny";
-  if (field === dom.editExchangeRateInput) return "exchangeRate";
-  if (field === dom.editTransportFeeJpyInput) return "transportFeeJpy";
-  if (field === dom.editClassroomFeeJpyInput) return "classroomFeeJpy";
-  if (field === dom.editActiveSelect) return "activeState";
   return "";
 }
 
@@ -969,9 +912,8 @@ function createFieldIdsForError(error) {
   if (message.includes("业务归属")) return ["businessEntity"];
   if (message.includes("结算类型")) return ["settlementType"];
   if (message.includes("负数") || message.includes("费率") || message.includes("汇率") || message.includes("费用")) {
-    return ["hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
+    return ["hourlyRateJpy", "hourlyRateCny"];
   }
-  if (message.includes("启用状态")) return ["activeState"];
   return [];
 }
 
@@ -993,10 +935,6 @@ function clearEditErrors() {
     "settlementType",
     "hourlyRateJpy",
     "hourlyRateCny",
-    "exchangeRate",
-    "transportFeeJpy",
-    "classroomFeeJpy",
-    "activeState",
   ].forEach(clearEditFieldInvalid);
 }
 
@@ -1033,12 +971,11 @@ function editFieldIdsForError(error) {
   if (message.includes("业务归属")) return ["businessEntity"];
   if (message.includes("结算类型")) return ["settlementType"];
   if (message.includes("负数")) {
-    return ["hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
+    return ["hourlyRateJpy", "hourlyRateCny"];
   }
   if (message.includes("无工资规则")) {
-    return ["settlementType", "hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
+    return ["settlementType", "hourlyRateJpy", "hourlyRateCny"];
   }
-  if (message.includes("启用状态")) return ["activeState"];
   return [];
 }
 
@@ -1297,10 +1234,6 @@ function uniqueFieldIds(fieldIds) {
 
 function displayValue(value) {
   return safeText(value) || "-";
-}
-
-function shortId(id) {
-  return id ? `${String(id).slice(0, 8)}...` : "-";
 }
 
 function setLoading(isLoading) {
