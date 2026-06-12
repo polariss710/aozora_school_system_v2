@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-12
+Status date: 2026-06-13
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -23,20 +23,20 @@ Stop and report immediately for:
 
 ## Latest 5 Key Updates
 
-1. Payment cleanup and optional exchange-rate checkpoint, 2026-06-12:
+1. Payment cache-bust and page-path exchange-rate validation checkpoint, 2026-06-13:
+   Follow-up investigation found payment management frontend/API had no `exchange_rate` required-field or `<= 0` guard in the confirm-payment path; payment method protection remains `p_payment_method = bank_transfer`. The stale surface was the payment entry cache-bust/version: `APP_VERSION`, `index.html`, and `js/app.js` were updated to `v2.107.0-payment-exchange-optional-cache-bust-20260613`. Browser validation through the actual payment page path, with Supabase endpoints mocked to avoid DB writes, confirmed the displayed version is v2.107.0, confirm dialog submits successfully with JPY amount and CNY amount = 0, no confirm error appears, and the `school_confirm_payment_request` request body contains no exchange-rate field.
+
+2. Payment cleanup and optional exchange-rate checkpoint, 2026-06-12:
    Cleaned the previous expense-test whitelist data after dry-run, rollback validation, commit delete, and residue check: business entity `f500595d-5455-4460-b826-757c8f834d20`, account `7ea665f1-74b0-4177-90d8-6e79002e3082`, expense `e37287bc-81f2-4714-b79c-a31894b8144b`, and account transaction `f444efb6-7f32-4b39-93d7-69ed3ce9b235` were removed; no related attachments, reimbursements, payment requests, income, or Storage objects were candidates. Re-executed `school_confirm_payment_request` so generated teacher-wage expenses store `exchange_rate = NULL` when JPY/CNY amounts cannot derive a positive rate. Payment method behavior is unchanged: the API/RPC path still defaults/protects payment method as `bank_transfer`. Rollback and whitelist commit tests verified the optional exchange-rate behavior, then the self-created whitelist rows were cleaned to 0 residue.
 
-2. Expense record field-scope/edit checkpoint, 2026-06-12:
+3. Expense record field-scope/edit checkpoint, 2026-06-12:
    Expense create dialog was narrowed to current operational fields: expense date, business entity, payment account, expense category, amount, description, payment method (`cash`, `bank_transfer`, `card`, `alipay`), receipt status, reimbursement status, tax category, exchange rate, and note. Account currency, business-expense toggle, teacher, and student are hidden from ordinary expense create/edit; currency is derived from the selected account and hidden DB fields are preserved/defaulted rather than physically removed. New guarded RPC `school_update_expense_record` edits ordinary paid expenses only when they are not reversed, not teacher-wage/source-payment-request expenses, not reimbursed or reimbursement-linked, have exactly one matching original `expense_adjust` transaction, and that transaction is still the latest account transaction. Already ledgered expenses cannot change payment account; use reversal/recreate for account migration. Expense detail now hides source payment request and account transaction display blocks, while retaining reimbursement and attachment sections. Attachment upload/preview/replace was investigated and deferred: DB/storage bucket support exists, but current attachment RPC is metadata-only with placeholder paths and no upload/replace lifecycle RPC, so real file handling remains a separate storage/security phase.
 
-3. Income record field-scope/edit checkpoint, 2026-06-12:
+4. Income record field-scope/edit checkpoint, 2026-06-12:
    Income create/edit now exposes the same operational fields and hides account-currency input; account currency is derived from the selected account and still guarded by RPC. Income category is now a dropdown: `tuition` 学费, `material_fee` 教材费, `registration_fee` 报名费, and `other_fee` 其他费用. Only tuition income participates in student monthly settlement guards/calculation; non-tuition categories are ordinary income with `include_in_student_settlement = false`. New guarded RPC `school_update_income_record` edits received income only when the income is not reversed, not linked to student-payment chain, not locked by student settlement, has exactly one matching original `income_adjust` transaction, and that transaction is still the latest account transaction. The income detail page removed the student monthly settlement reference section because it was read-only lookup context and not a real settlement result; account transaction reference remains. Detail action buttons now use a responsive side-by-side layout for edit/reverse/return.
 
-4. Codex/v2-test/sandbox DB cleanup round 2 checkpoint, 2026-06-12:
+5. Codex/v2-test/sandbox DB cleanup round 2 checkpoint, 2026-06-12:
    One-time cleanup `school_cleanup_codex_test_data_round2_20260612.sql` was executed with dry-run, rollback validation, commit, and post-cleanup residue check. It removed 3 confirmed whitelist test DB rows: account `3c50704b-4c59-4253-a094-9eac0fea6c73` and business entities `8cbb40db-b6e5-48e1-9fe4-caf536f5efc1` / `2efabba9-59e9-49f6-915d-578440123c8d`. No related lesson, settlement, wage, payment, reimbursement, income/expense, account-transaction, attachment, or Storage rows were candidates. Post-cleanup dry-run reports 0 DB candidates, 0 Storage candidates, 0 manual-review rows, and 0 risk rows.
-
-5. Account/family ledger and part-time wage design checkpoint, 2026-06-12:
-   Added design-only docs `docs/account-family-account-integration-design-2026-06-12.md` and `docs/part-time-wage-record-module-design-2026-06-12.md`. Recommended direction: use explicit account app/scope isolation before introducing family ledger accounts, and build non-lesson part-time wage records as an independent source that can later integrate with payment requests without entering teacher lesson-wage snapshots. No SQL/RPC/API/page implementation was performed.
 
 ## Current To-Do / Priority
 

@@ -1,6 +1,6 @@
 # Module Status
 
-Status date: 2026-06-12
+Status date: 2026-06-13
 
 This is the lightweight module summary for daily sessions. It keeps only each module's current state, recent key update, current limits / hard stops, and next step. Older module history, long commit/test logs, and completed detail records are archived in `docs/archive/module-status-history.md`.
 
@@ -57,7 +57,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 老师工资支付
 
 - 当前状态: V1 可用。支付列表可确认支付、反转已支付请求、取消 pending、恢复 cancelled、reissue reversed；详情页只读。
-- 最近关键更新: 2026-06-12 重新执行 `school_confirm_payment_request`，当 JPY/CNY 金额无法推导正数汇率时，生成的 teacher_wage expense 写入 `exchange_rate = NULL`，不再把可选汇率当作编辑/确认保护条件；支付方式保护不变，API/RPC 仍默认并写入 `bank_transfer`。支付确认仍按所选账户类型设置 teacher_wage expense reimbursement status：公司账户 `not_required`，垫付/个人账户 `pending`；报销 RPC 继续拒绝 teacher_wage expense。
+- 最近关键更新: 2026-06-13 完成支付管理汇率阻断 follow-up：前端/API 确认支付路径没有 `exchange_rate` 必填或 `<= 0` guard，实际问题是支付入口 cache-bust/version 未更新；`APP_VERSION`, `index.html`, `js/app.js` 已更新到 `v2.107.0-payment-exchange-optional-cache-bust-20260613`。浏览器页面路径验证确认 dialog 成功提交，RPC 请求体不包含 exchange-rate 字段，支付方式保护仍写入 `bank_transfer`。2026-06-12 已重新执行 `school_confirm_payment_request`，当 JPY/CNY 金额无法推导正数汇率时，生成的 teacher_wage expense 写入 `exchange_rate = NULL`。支付确认仍按所选账户类型设置 teacher_wage expense reimbursement status：公司账户 `not_required`，垫付/个人账户 `pending`；报销 RPC 继续拒绝 teacher_wage expense。
 - 当前限制 / hard stop: 不删除 payment request、wage lock、expense、account transaction。确认支付必须不创建 reimbursement/income/student settlement/wage/lesson 等非本链路数据。
 - 下一步: 未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard，不能绕过现有支付确认/反转链路。
 
