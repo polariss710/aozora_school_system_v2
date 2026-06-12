@@ -6,8 +6,11 @@
 --   the payment request as paid.
 -- - Set expense reimbursement_status from the selected account type:
 --   company account => not_required, advance/personal account => pending.
+-- - Treat exchange_rate as optional metadata. If JPY/CNY amounts do not allow
+--   deriving a positive exchange rate, store NULL and do not block payment.
 -- - Do not create reimbursements, reimbursement items, income, student
 --   settlements, teacher wage locks, or teacher wage details.
+-- Status: re-executed on 2026-06-12 for optional exchange_rate behavior.
 
 create or replace function public.school_confirm_payment_request(
   p_payment_request_id uuid,
@@ -142,7 +145,7 @@ begin
   v_exchange_rate := case
     when coalesce(v_amount_jpy, 0) > 0 and coalesce(v_amount_cny, 0) > 0
       then round((v_amount_cny / v_amount_jpy) * 1000000) / 1000000
-    else 0
+    else null
   end;
 
   v_reimbursement_status := case
@@ -274,7 +277,7 @@ comment on function public.school_confirm_payment_request(
   text,
   text
 ) is
-  'Confirms one pending teacher wage payment request. Creates one teacher_wage expense and one account transaction, marks the request paid, and sets expense reimbursement_status by account type.';
+  'Confirms one pending teacher wage payment request. Creates one teacher_wage expense and one account transaction, marks the request paid, sets expense reimbursement_status by account type, and treats exchange_rate as optional metadata.';
 
 grant execute on function public.school_confirm_payment_request(
   uuid,

@@ -22,7 +22,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 课时管理 | 已收口 | Keep planned-only V1 stable; full actual/history import stays backlog |
 | 学生月度结算 | 已收口 | No immediate V1 work; future reversal/history requires new design |
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
-| 老师工资支付 | V1 可用 | Retest status actions before future changes |
+| 老师工资支付 | V1 可用 | Retest status actions before future changes; exchange rate is optional metadata on generated wage expenses |
 | 账户管理 | V1 可用 | Account/family ledger scope implementation requires separate guarded design |
 | 收入记录 | V1 可用 | Keep edit guards narrow; older account-ledger rows should use reversal/recreate |
 | 支出记录 | V1 可用 | Keep edit guards narrow; real attachment storage is a separate storage/security phase |
@@ -57,9 +57,9 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 老师工资支付
 
 - 当前状态: V1 可用。支付列表可确认支付、反转已支付请求、取消 pending、恢复 cancelled、reissue reversed；详情页只读。
-- 最近关键更新: 支付确认按所选账户类型设置 teacher_wage expense reimbursement status：公司账户 `not_required`，垫付/个人账户 `pending`；报销 RPC 继续拒绝 teacher_wage expense。
+- 最近关键更新: 2026-06-12 重新执行 `school_confirm_payment_request`，当 JPY/CNY 金额无法推导正数汇率时，生成的 teacher_wage expense 写入 `exchange_rate = NULL`，不再把可选汇率当作编辑/确认保护条件；支付方式保护不变，API/RPC 仍默认并写入 `bank_transfer`。支付确认仍按所选账户类型设置 teacher_wage expense reimbursement status：公司账户 `not_required`，垫付/个人账户 `pending`；报销 RPC 继续拒绝 teacher_wage expense。
 - 当前限制 / hard stop: 不删除 payment request、wage lock、expense、account transaction。确认支付必须不创建 reimbursement/income/student settlement/wage/lesson 等非本链路数据。
-- 下一步: 未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路。
+- 下一步: 未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard，不能绕过现有支付确认/反转链路。
 
 ## 账户管理
 
@@ -125,6 +125,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 2026-06-12 已完成 Codex/v2-test/sandbox DB cleanup round 2：`school_cleanup_codex_test_data_round2_20260612.sql` 经 dry-run、rollback validation、commit、residue check 后删除 3 条明确白名单测试主数据；无关联业务链路、Storage、人工确认或风险残留。账户/家庭账本账户联动设计 `docs/account-family-account-integration-design-2026-06-12.md` 和打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
+- 最近关键更新: 2026-06-12 已清理上一轮支出测试数据：business entity `f500595d-5455-4460-b826-757c8f834d20`、account `7ea665f1-74b0-4177-90d8-6e79002e3082`、expense `e37287bc-81f2-4714-b79c-a31894b8144b`、account transaction `f444efb6-7f32-4b39-93d7-69ed3ce9b235` 经 dry-run、rollback validation、commit delete、residue check 后删除；无关联附件、报销、支付请求、收入或 Storage 候选。早前 Codex/v2-test/sandbox DB cleanup round 2 也已删除 3 条明确白名单测试主数据。账户/家庭账本账户联动设计 `docs/account-family-account-integration-design-2026-06-12.md` 和打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
 - 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account/family ledger scope implementation、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
