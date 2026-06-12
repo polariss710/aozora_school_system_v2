@@ -43,6 +43,13 @@ const TRANSACTION_TYPE_LABELS = {
   payment_reversal: "支付撤销",
 };
 
+const CASH_LINKAGE_STATUS_LABELS = {
+  pending: "待写入 Cash System",
+  synced: "已写入 Cash System",
+  failed: "写入失败",
+  blocked: "已阻断",
+};
+
 const dom = {};
 let detailData = null;
 
@@ -83,6 +90,7 @@ function cacheDom() {
   dom.accountInfo = document.querySelector("#paymentDetailAccountInfo");
   dom.paidTransaction = document.querySelector("#paymentDetailPaidTransaction");
   dom.reversalTransaction = document.querySelector("#paymentDetailReversalTransaction");
+  dom.cashLinkage = document.querySelector("#paymentDetailCashLinkage");
   dom.chainSummary = document.querySelector("#paymentDetailChainSummary");
   dom.chainCount = document.querySelector("#paymentDetailChainCount");
   dom.chainRows = document.querySelector("#paymentDetailChainRows");
@@ -165,6 +173,7 @@ function renderPaymentDetail(data) {
   renderAccount(paymentRequest.account_id);
   renderTransaction(dom.paidTransaction, findTransactionById(paymentRequest.paid_account_transaction_id), "无原扣款流水。");
   renderTransaction(dom.reversalTransaction, findTransactionById(paymentRequest.reversal_transaction_id), "无撤销冲销流水。");
+  renderCashLinkage(data.cashLinkageEvents || []);
   renderReissueChain(paymentRequest, data.sourceRequests);
 }
 
@@ -282,6 +291,35 @@ function renderTransaction(container, transaction, emptyText) {
   `;
 }
 
+function renderCashLinkage(events) {
+  if (!events.length) {
+    dom.cashLinkage.innerHTML = '<div class="state-text">无 Cash System 联动事件。</div>';
+    return;
+  }
+
+  dom.cashLinkage.innerHTML = events.map((event) => `
+    <article class="detail-list-card">
+      <div class="detail-list-card-header">
+        <strong>${escapeHtml(cashLinkageStatusLabel(event.sync_status))}</strong>
+        <span class="status-badge ${escapeAttribute(cashLinkageStatusClass(event.sync_status))}">${escapeHtml(displayValue(event.currency))}</span>
+      </div>
+      ${renderDefinitionList([
+        ["event_id", shortId(event.id)],
+        ["Cash 账户", displayValue(event.cash_account_name_snapshot || event.cash_account_id)],
+        ["金额", formatCurrency(event.amount, event.currency)],
+        ["状态", cashLinkageStatusLabel(event.sync_status)],
+        ["Cash transaction id", shortId(event.cash_transaction_id)],
+        ["attempt_count", displayValue(event.attempt_count)],
+        ["last_error", displayValue(event.last_error)],
+        ["idempotency_key", displayValue(event.idempotency_key)],
+        ["created_at", formatDate(event.created_at)],
+        ["updated_at", formatDate(event.updated_at)],
+        ["synced_at", formatDate(event.synced_at)],
+      ])}
+    </article>
+  `).join("");
+}
+
 function renderReissueChain(paymentRequest, sourceRequests) {
   dom.chainSummary.innerHTML = renderDefinitionList([
     ["reissued_from", shortId(paymentRequest.reissued_from_payment_request_id)],
@@ -382,6 +420,26 @@ function reimbursementStatusLabel(value, expenseCategory = "") {
 
 function transactionTypeLabel(value) {
   return TRANSACTION_TYPE_LABELS[value] || displayValue(value);
+}
+
+function cashLinkageStatusLabel(value) {
+  return CASH_LINKAGE_STATUS_LABELS[value] || displayValue(value);
+}
+
+function cashLinkageStatusClass(value) {
+  if (value === "synced") {
+    return "status-paid";
+  }
+
+  if (value === "failed" || value === "blocked") {
+    return "status-cancelled";
+  }
+
+  if (value === "pending") {
+    return "status-pending";
+  }
+
+  return "status-neutral";
 }
 
 function statusClass(value) {

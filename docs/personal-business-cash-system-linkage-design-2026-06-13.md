@@ -297,7 +297,7 @@ After MVP:
 
 ## Phase 1 Implementation Status
 
-Status: Cash System side Phase 1 schema/RPC completed on 2026-06-13. School-side mapping/outbox schema/RPC/API completed on 2026-06-13. Payment confirmation integration and cross-project write path are not implemented.
+Status: Cash System side Phase 1 schema/RPC completed on 2026-06-13. School-side mapping/outbox schema/RPC/API completed on 2026-06-13. Payment confirmation UI/API/RPC integration to school pending outbox completed on 2026-06-13. Cross-project Cash write path is not implemented.
 
 Cash completed:
 
@@ -311,7 +311,6 @@ Cash completed:
 
 Not completed:
 
-- payment confirmation UI/API/RPC integration
 - cross-project write path
 
 Target flow:
@@ -400,6 +399,38 @@ Implemented on 2026-06-13 in the school project:
 - No Cash DB writes were performed in the school-side phase.
 - No existing payment confirmation, teacher wage generation, reimbursement, income, student settlement, or page module was changed.
 
+Payment confirmation outbox integration implemented on 2026-06-13:
+
+- SQL archive: `school_confirm_personal_cash_payment_request_rpc.sql`
+- Frontend/API files:
+  - `js/api/payment-api.js`
+  - `js/api/payment-detail-api.js`
+  - `js/pages/payment-page.js`
+  - `js/pages/payment-detail-page.js`
+  - `index.html`
+  - `payment-detail.html`
+- Added RPC `school_confirm_personal_cash_payment_request`.
+- Personal-business `teacher_wage` JPY pending payment confirmation now:
+  - requires an active `school_personal_cash_account_mappings` row for the payment business entity
+  - marks the school payment request `paid`
+  - creates one pending `school_personal_cash_linkage_events` outbox row in the same school DB transaction
+  - leaves `paid_expense_id`, `paid_account_transaction_id`, and `account_id` null because no school account ledger is written for the personal Cash path
+  - does not write Cash DB
+- Company / 青空塾 payment confirmation remains on the existing `school_confirm_payment_request` path with school account selector, expense, account transaction, and school account balance update.
+- Payment detail now shows Cash linkage status for existing outbox events.
+- Paid payment requests with a Cash outbox event do not expose the reversal action in the payment list because reversal sync is out of this phase.
+- Rollback test verified:
+  - personal-business confirm creates exactly one pending outbox event
+  - company / 青空塾-style payment cannot use the personal Cash confirm RPC
+  - repeated confirm is blocked after payment status changes from `pending`
+  - rollback residue was 0
+- Whitelist commit test left clearly marked school test data only:
+  - business entity: `93000000-0000-4000-8000-000000141001`
+  - payment request: `93000000-0000-4000-8000-000000141101`
+  - mapping: `eaf3b59d-f944-441f-911f-b639ba284c78`
+  - linkage event: `11f8f9ee-cbf4-4a29-8d6a-dc56a7d2e7e4`
+  - event status: `pending`
+
 Add a personal Cash account mapping table:
 
 - suggested name: `school_personal_cash_account_mappings`
@@ -485,6 +516,7 @@ Cross-DB transaction rule:
    - API wrapper chooses legacy school account path for company business entities
    - API wrapper chooses personal Cash mapping path for personal JPY teacher wage requests
    - payment page shows Cash account selector only for eligible personal JPY teacher wage requests
+   - status: completed on 2026-06-13 for school outbox creation only; Cash DB write is still not implemented
 4. End-to-end verification:
    - rollback test for school confirm + event creation
    - rollback test for Cash external insert + duplicate idempotency

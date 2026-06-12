@@ -29,6 +29,7 @@ const PAYMENT_REQUEST_COLUMNS = [
 ].join(",");
 
 const BUSINESS_ENTITY_SELECT_CANDIDATES = [
+  "id,code,name,entity_type,is_active",
   "id,name",
   "id,business_name",
   "id,entity_name",
@@ -139,6 +140,22 @@ export async function confirmPaymentRequest(payload) {
   return data;
 }
 
+export async function confirmPersonalCashPaymentRequest(payload) {
+  const { data, error } = await supabase.rpc("school_confirm_personal_cash_payment_request", {
+    p_payment_request_id: payload.paymentRequestId,
+    p_cash_account_mapping_id: payload.cashAccountMappingId,
+    p_pay_date: payload.payDate,
+    p_amount: payload.amount,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
 export async function reversePaidPaymentRequest(payload) {
   const { data, error } = await supabase.rpc("school_reverse_paid_payment_request", {
     p_payment_request_id: payload.paymentRequestId,
@@ -195,7 +212,10 @@ function normalizeBusinessEntities(rows) {
   return rows
     .map((row) => ({
       id: row.id,
+      code: row.code || "",
       name: row.name || row.business_name || row.entity_name || row.label || row.id,
+      entityType: row.entity_type || "",
+      isActive: row.is_active,
     }))
     .sort((a, b) => String(a.name).localeCompare(String(b.name), "zh-CN"));
 }

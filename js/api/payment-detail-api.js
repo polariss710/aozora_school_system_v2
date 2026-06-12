@@ -123,7 +123,7 @@ const CHAIN_PAYMENT_REQUEST_COLUMNS = [
 export async function fetchPaymentDetailPage(paymentRequestId) {
   const paymentRequest = await fetchPaymentRequest(paymentRequestId);
 
-  const [wageLock, expense, accounts, transactions, sourceRequests] = await Promise.all([
+  const [wageLock, expense, accounts, transactions, sourceRequests, cashLinkageEvents] = await Promise.all([
     fetchWageLock(paymentRequest),
     fetchExpense(paymentRequest.paid_expense_id),
     fetchAccounts(),
@@ -132,6 +132,7 @@ export async function fetchPaymentDetailPage(paymentRequestId) {
       paymentRequest.reversal_transaction_id,
     ]),
     fetchSourcePaymentRequests(paymentRequest),
+    fetchCashLinkageEvents(paymentRequest.id),
   ]);
 
   return {
@@ -141,6 +142,7 @@ export async function fetchPaymentDetailPage(paymentRequestId) {
     accounts,
     transactions,
     sourceRequests,
+    cashLinkageEvents,
   };
 }
 
@@ -245,6 +247,19 @@ async function fetchSourcePaymentRequests(paymentRequest) {
     .eq("source_id", paymentRequest.source_id)
     .order("created_at", { ascending: true })
     .order("updated_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function fetchCashLinkageEvents(paymentRequestId) {
+  const { data, error } = await supabase.rpc("school_get_personal_cash_linkage_events", {
+    p_payment_request_id: paymentRequestId,
+    p_sync_status: null,
+  });
 
   if (error) {
     throw error;

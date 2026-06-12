@@ -3,6 +3,7 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,
+  confirmPersonalCashPaymentRequest,
   fetchAccounts,
   fetchBusinessEntities,
   fetchPaymentRequests,
@@ -11,6 +12,10 @@ import {
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
 } from "../api/payment-api.js";
+import {
+  fetchPersonalCashLinkageEvents,
+  listPersonalCashAccountMappings,
+} from "../api/personal-cash-linkage-api.js";
 import {
   formatCurrency,
   formatDate,
@@ -36,7 +41,11 @@ const SUMMARY_FIELDS = [
 
 const dom = {};
 let accounts = [];
+let businessEntities = [];
+let cashMappings = [];
+let cashLinkageEvents = [];
 let currentConfirmRow = null;
+let currentConfirmMode = "school";
 let isConfirmSubmitting = false;
 let currentReverseRow = null;
 let isReverseSubmitting = false;
@@ -86,7 +95,9 @@ function cacheDom() {
   dom.recordCount = document.querySelector("#recordCount");
   dom.confirmPaymentDialog = document.querySelector("#confirmPaymentDialog");
   dom.confirmPaymentSummary = document.querySelector("#confirmPaymentSummary");
+  dom.confirmPaymentWarning = document.querySelector("#confirmPaymentWarning");
   dom.confirmPaymentError = document.querySelector("#confirmPaymentError");
+  dom.confirmAccountLabel = document.querySelector("#confirmAccountLabel");
   dom.confirmAccountSelect = document.querySelector("#confirmAccountSelect");
   dom.confirmPayDateInput = document.querySelector("#confirmPayDateInput");
   dom.confirmAmountInput = document.querySelector("#confirmAmountInput");
@@ -205,7 +216,8 @@ function setDefaultFilters() {
 
 async function loadBusinessEntities() {
   const result = await fetchBusinessEntities();
-  renderBusinessEntities(result.data);
+  setBusinessEntities(result.data);
+  renderBusinessEntities(businessEntities);
 
   if (result.warning) {
     showMessage("warning", `业务归属选项读取失败，已继续加载支付数据：${result.warning}`);
@@ -235,10 +247,20 @@ async function loadPaymentData() {
   showMessage("info", "正在加载老师工资支付数据...");
 
   try {
-    const [summary, requests] = await Promise.all([
+    const [entitiesResult, summary, requests] = await Promise.all([
+      fetchBusinessEntities(),
       fetchPaymentSummary(filters),
       fetchPaymentRequests(filters),
     ]);
+
+    setBusinessEntities(entitiesResult.data);
+    renderBusinessEntities(businessEntities);
+    dom.businessEntitySelect.value = filters.businessEntityId;
+    if (entitiesResult.warning) {
+      showMessage("warning", `业务归属选项读取失败，已继续加载支付数据：${entitiesResult.warning}`);
+    }
+
+    await loadPersonalCashLookups();
 
     renderSummary(normalizeSummary(summary));
     renderRows(requests);
@@ -250,6 +272,16 @@ async function loadPaymentData() {
   } finally {
     setLoading(false);
   }
+}
+
+async function loadPersonalCashLookups() {
+  const [mappingRows, eventRows] = await Promise.all([
+    listPersonalCashAccountMappings({ includeInactive: false }),
+    fetchPersonalCashLinkageEvents(),
+  ]);
+
+  cashMappings = mappingRows || [];
+  cashLinkageEvents = eventRows || [];
 }
 
 function readFilters() {
@@ -328,6 +360,10 @@ function renderBusinessEntities(items) {
   dom.businessEntitySelect.innerHTML = options.join("");
 }
 
+function setBusinessEntities(items) {
+  businessEntities = items || [];
+}
+
 function renderSummary(summary) {
   const cards = SUMMARY_FIELDS.map((field) => {
     const value = summary[field.key];
@@ -375,6 +411,8 @@ function renderRows(rows) {
 }
 
 function renderPaymentActions(row) {
+  const linkageEvent = findCashLinkageEvent(row.id);
+
   if (row.status === "pending") {
     return `
       <div class="action-buttons">
@@ -389,6 +427,14 @@ function renderPaymentActions(row) {
   }
 
   if (row.status === "paid") {
+    if (linkageEvent) {
+      return `
+        <div class="action-buttons">
+          <span class="status-badge status-neutral">${escapeHtml(cashLinkageStatusLabel(linkageEvent.sync_status))}</span>
+        </div>
+      `;
+    }
+
     return `
       <div class="action-buttons">
         <button class="button button-danger table-action-button" type="button" data-reverse-payment-id="${escapeAttribute(row.id)}">
@@ -431,18 +477,47 @@ function openConfirmPaymentDialog(row) {
     return;
   }
 
-  if (accounts.length === 0) {
+  const mode = getConfirmMode(row);
+  const availableCashMappings = getCashMappingsForPayment(row);
+
+  if (mode === "school" && accounts.length === 0) {
     showMessage("error", "暂无可用支付账户，无法确认支付。");
     return;
   }
 
+  if (mode === "unknown") {
+    showMessage("error", "无法确认业务归属类型，请刷新后重试。");
+    return;
+  }
+
+  if (mode === "personalUnsupported") {
+    showMessage("error", "个人业务 Cash 联动第一阶段只支持 JPY 老师工资支付。");
+    return;
+  }
+
+  if (mode === "personalCash" && availableCashMappings.length === 0) {
+    showMessage("error", "该个人业务没有启用的 Cash System JPY 账户映射，请先配置映射。");
+    return;
+  }
+
+  if (mode === "personalCash" && findCashLinkageEvent(row.id)) {
+    showMessage("error", "该支付请求已经存在 Cash 联动事件，不能重复创建。");
+    return;
+  }
+
   currentConfirmRow = row;
+  currentConfirmMode = mode;
   clearConfirmErrors();
   dom.confirmPaymentSummary.innerHTML = renderConfirmSummary(row);
+  renderConfirmWarning(mode);
   dom.confirmPayDateInput.value = currentDate();
   dom.confirmAmountInput.value = row.amount || "";
   dom.confirmNoteInput.value = "";
-  renderAccountOptions(row);
+  if (mode === "personalCash") {
+    renderCashMappingOptions(availableCashMappings);
+  } else {
+    renderAccountOptions(row);
+  }
   setConfirmSubmitting(false);
   dom.confirmPaymentDialog.classList.remove("is-hidden");
   dom.confirmPaymentDialog.setAttribute("aria-hidden", "false");
@@ -454,11 +529,13 @@ function closeConfirmPaymentDialog() {
   }
 
   currentConfirmRow = null;
+  currentConfirmMode = "school";
   dom.confirmPaymentDialog.classList.add("is-hidden");
   dom.confirmPaymentDialog.setAttribute("aria-hidden", "true");
 }
 
 function renderAccountOptions(row) {
+  dom.confirmAccountLabel.textContent = "支付账户";
   const orderedAccounts = [...accounts].sort((left, right) => {
     const leftMatches = left.business_entity_id === row.business_entity_id ? 0 : 1;
     const rightMatches = right.business_entity_id === row.business_entity_id ? 0 : 1;
@@ -485,6 +562,27 @@ function renderAccountOptions(row) {
   dom.confirmAccountSelect.innerHTML = options.join("");
 }
 
+function renderCashMappingOptions(mappings) {
+  dom.confirmAccountLabel.textContent = "Cash System 账户";
+  const options = ['<option value="">请选择 Cash System 账户</option>'];
+
+  for (const mapping of mappings) {
+    const label = [
+      mapping.cash_account_name_snapshot || mapping.cash_account_id,
+      mapping.cash_currency || "JPY",
+      mapping.cash_account_type_snapshot || "",
+    ]
+      .filter(Boolean)
+      .join(" / ");
+
+    options.push(
+      `<option value="${escapeAttribute(mapping.id)}">${escapeHtml(label)}</option>`
+    );
+  }
+
+  dom.confirmAccountSelect.innerHTML = options.join("");
+}
+
 async function submitConfirmPayment() {
   if (isConfirmSubmitting) {
     return;
@@ -497,21 +595,37 @@ async function submitConfirmPayment() {
     return;
   }
 
-  const accountId = dom.confirmAccountSelect.value;
-  if (!accountId) {
-    showConfirmError("请选择支付账户。", ["account"]);
+  const selectedAccountId = dom.confirmAccountSelect.value;
+  if (!selectedAccountId) {
+    showConfirmError(
+      currentConfirmMode === "personalCash" ? "请选择 Cash System 账户映射。" : "请选择支付账户。",
+      ["account"]
+    );
     return;
   }
 
-  const account = accounts.find((item) => item.id === accountId);
-  if (!account) {
-    showConfirmError("支付账户信息无效，请重新选择。", ["account"]);
-    return;
-  }
+  if (currentConfirmMode === "school") {
+    const account = accounts.find((item) => item.id === selectedAccountId);
+    if (!account) {
+      showConfirmError("支付账户信息无效，请重新选择。", ["account"]);
+      return;
+    }
 
-  if (account.currency !== currentConfirmRow.currency) {
-    showConfirmError("支付账户币种与支付请求币种不一致。", ["account"]);
-    return;
+    if (account.currency !== currentConfirmRow.currency) {
+      showConfirmError("支付账户币种与支付请求币种不一致。", ["account"]);
+      return;
+    }
+  } else {
+    const mapping = cashMappings.find((item) => item.id === selectedAccountId);
+    if (!mapping) {
+      showConfirmError("Cash System 账户映射无效，请重新选择。", ["account"]);
+      return;
+    }
+
+    if (mapping.business_entity_id !== currentConfirmRow.business_entity_id) {
+      showConfirmError("Cash System 账户映射与支付请求业务归属不一致。", ["account"]);
+      return;
+    }
   }
 
   const payDate = dom.confirmPayDateInput.value;
@@ -532,18 +646,35 @@ async function submitConfirmPayment() {
   setConfirmSubmitting(true);
 
   try {
-    await confirmPaymentRequest({
-      paymentRequestId: currentConfirmRow.id,
-      accountId,
-      payDate,
-      amount: currentConfirmRow.amount,
-      note: dom.confirmNoteInput.value.trim(),
-    });
+    const submittedMode = currentConfirmMode;
+
+    if (submittedMode === "personalCash") {
+      await confirmPersonalCashPaymentRequest({
+        paymentRequestId: currentConfirmRow.id,
+        cashAccountMappingId: selectedAccountId,
+        payDate,
+        amount: currentConfirmRow.amount,
+        note: dom.confirmNoteInput.value.trim(),
+      });
+    } else {
+      await confirmPaymentRequest({
+        paymentRequestId: currentConfirmRow.id,
+        accountId: selectedAccountId,
+        payDate,
+        amount: currentConfirmRow.amount,
+        note: dom.confirmNoteInput.value.trim(),
+      });
+    }
 
     setConfirmSubmitting(false);
     closeConfirmPaymentDialog();
     await loadPaymentData();
-    showMessage("success", "支付已确认。");
+    showMessage(
+      "success",
+      submittedMode === "personalCash"
+        ? "支付已确认，Cash System 联动事件已创建为 pending。"
+        : "支付已确认。"
+    );
   } catch (error) {
     console.error(error);
     showConfirmError(`确认支付失败：${error.message || error}`);
@@ -580,12 +711,77 @@ function renderConfirmSummary(row) {
     .join("");
 }
 
+function renderConfirmWarning(mode) {
+  if (mode === "personalCash") {
+    dom.confirmPaymentWarning.textContent =
+      "个人业务支付确认会在 school 中标记支付请求为已支付，并创建一条 Cash System 联动待处理事件。本阶段不会直接写入 Cash DB。";
+    return;
+  }
+
+  dom.confirmPaymentWarning.textContent =
+    "确认支付会生成工资支出和账户流水。公司账户支付标记为无需报销；垫付/个人账户支付保留待报销状态，后续报销只归还垫付账户，不再次生成老师工资支出。";
+}
+
 function clearConfirmErrors() {
   dom.confirmPaymentError.textContent = "";
   dom.confirmPaymentError.classList.add("is-hidden");
   setConfirmFieldInvalid("account", false);
   setConfirmFieldInvalid("payDate", false);
   setConfirmFieldInvalid("amount", false);
+}
+
+function getConfirmMode(row) {
+  const entity = businessEntities.find((item) => item.id === row.business_entity_id);
+  if (!entity) {
+    return "unknown";
+  }
+
+  if (entity.entityType === "personal") {
+    return isPersonalBusinessPayment(row) ? "personalCash" : "personalUnsupported";
+  }
+
+  return "school";
+}
+
+function isPersonalBusinessPayment(row) {
+  const entity = businessEntities.find((item) => item.id === row.business_entity_id);
+  return (
+    entity?.entityType === "personal" &&
+    row.source_type === "teacher_wage" &&
+    row.currency === "JPY"
+  );
+}
+
+function getCashMappingsForPayment(row) {
+  return cashMappings
+    .filter((mapping) =>
+      mapping.business_entity_id === row.business_entity_id &&
+      mapping.flow_type === "teacher_wage_payment" &&
+      mapping.school_currency === "JPY" &&
+      mapping.cash_currency === "JPY" &&
+      mapping.is_active !== false
+    )
+    .sort((left, right) =>
+      safeText(left.cash_account_name_snapshot).localeCompare(
+        safeText(right.cash_account_name_snapshot),
+        "zh-CN"
+      )
+    );
+}
+
+function findCashLinkageEvent(paymentRequestId) {
+  return cashLinkageEvents.find((event) => event.payment_request_id === paymentRequestId) || null;
+}
+
+function cashLinkageStatusLabel(status) {
+  const labels = {
+    pending: "Cash 联动待处理",
+    synced: "Cash 联动完成",
+    failed: "Cash 联动失败",
+    blocked: "Cash 联动阻断",
+  };
+
+  return labels[status] || "Cash 联动已记录";
 }
 
 function showConfirmError(message, fieldIds = []) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资支付</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.107.0-payment-exchange-optional-cache-bust-20260613">
+    <link rel="stylesheet" href="./css/app.css?v=v2.110.0-personal-cash-payment-outbox-20260613">
   </head>
   <body>
     <div class="app-shell">
@@ -143,13 +143,13 @@
         </div>
 
         <div id="confirmPaymentSummary" class="dialog-summary"></div>
-        <div class="dialog-warning">
+        <div id="confirmPaymentWarning" class="dialog-warning">
           确认支付会生成工资支出和账户流水。公司账户支付标记为无需报销；垫付/个人账户支付保留待报销状态，后续报销只归还垫付账户，不再次生成老师工资支出。
         </div>
         <div id="confirmPaymentError" class="dialog-error is-hidden"></div>
 
         <label class="field" data-confirm-field="account">
-          <span>支付账户</span>
+          <span id="confirmAccountLabel">支付账户</span>
           <select id="confirmAccountSelect"></select>
         </label>
 
@@ -255,6 +255,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/app.js?v=v2.107.0-payment-exchange-optional-cache-bust-20260613"></script>
+    <script type="module" src="./js/app.js?v=v2.110.0-personal-cash-payment-outbox-20260613"></script>
   </body>
 </html>
