@@ -68,6 +68,7 @@ Reference baseline:
 
 ## Boundary Questions To Recheck Before Future Work
 
+- Personal-business Cash System linkage is planning-only in `docs/personal-business-cash-system-linkage-design-2026-06-13.md`. Future implementation must start with Cash System schema/RPC support for external JPY transactions and idempotency, then add school-side personal Cash mapping and linkage event/outbox, then wire payment confirmation UI/API/RPC. Phase 1 is limited to `个人名义` teacher-wage JPY payment confirmation; it excludes 青空塾 linkage, reimbursements, legal/company accounts, CNY, tuition income, part-time wages, cross-DB strong transactions, automatic retry background jobs, and historical backfill.
 - Payment cancel/restore/reissue actions are present in current UI/API and SQL files, while `current-status.md` only names teacher wage payment confirmation and reversal in the completed write-flow summary. Treat any future change around these status actions as requiring explicit retest against the full write-RPC workflow.
 - Account transfer/reversal and profit summary filters/drilldown now have real browser verification recorded in `current-status.md`; future changes around these surfaces should retest the same workflows.
 - Account/family ledger account integration has first-stage `app_type` isolation in account management: family accounts can exist as master data rows, but family income/expense/transfer, `account_scope`, household/member owner fields, and family reporting remain future phases.

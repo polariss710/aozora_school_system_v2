@@ -295,6 +295,171 @@ After MVP:
 - Add CNY support after currency and Cash account selection rules are confirmed.
 - Add part-time wage linkage only after the part-time wage module and `part_time_wage` payment source are implemented.
 
+## Phase 1 Pre-Implementation Plan
+
+Status: planning only. No SQL file was generated or executed in this phase.
+
+Target flow:
+
+- `个人名义` / `entity_type = personal`
+- `school_payment_requests.source_type = teacher_wage`
+- `currency = JPY`
+- payment confirmation selects a Cash System JPY account
+- Cash System receives one JPY `expense` transaction for the paid wage
+
+### Cash System Minimum Schema / RPC
+
+Add external reference metadata to `home_jpy_transactions` only for Phase 1:
+
+- `external_source_app text`
+- `external_source_table text`
+- `external_source_id uuid`
+- `external_event_type text`
+- `external_idempotency_key text`
+- `external_reference text`
+- optional `external_payload_hash text`
+- optional `external_created_at timestamptz default now()`
+
+Recommended constraints / indexes:
+
+- Partial unique index on `external_idempotency_key` where not null.
+- Partial unique index on `external_source_app, external_source_table, external_source_id, external_event_type` where all are not null.
+- Check constraint for Cash-owned external rows:
+  - `external_source_app = 'aozora_school'`
+  - `external_source_table = 'school_payment_requests'`
+  - `external_event_type in ('teacher_wage_payment_confirm', 'teacher_wage_payment_reverse')`
+
+Recommended RPC:
+
+- `home_create_external_jpy_transaction(...)`
+- Security definer or server-only execution should be decided before SQL implementation. The RPC must not be callable by ordinary browser UI unless RLS/auth ownership is fully designed.
+- Inputs:
+  - target `home_accounts.id`
+  - transaction date
+  - transaction type: Phase 1 should allow only `expense`; if reversal is included in the same RPC, also allow `income`
+  - positive amount
+  - description and note
+  - external source metadata
+  - idempotency key
+- Guards:
+  - account exists, is active, belongs to the intended Cash user, and `currency = JPY`
+  - amount > 0
+  - `transfer_account_id` must be null
+  - duplicate idempotency key returns the existing transaction id instead of inserting a second row
+  - source triple duplicate returns the existing transaction id only if amount/account/date/type match; otherwise returns a conflict error
+
+Reversal / reverse posting:
+
+- Do not delete the original Cash transaction.
+- Preferred Phase 1 support: create an opposite JPY `income` transaction with `external_event_type = teacher_wage_payment_reverse` and a new idempotency key.
+- If the frontend integration does not wire reversal in the first UI pass, school should block reversing a synced personal-business Cash-linked payment until the reverse posting path is available. Silent divergence is worse than a blocked reversal.
+
+### School Minimum Schema / RPC
+
+Add a personal Cash account mapping table:
+
+- suggested name: `school_personal_cash_account_mappings`
+- fields:
+  - `id`
+  - `business_entity_id`
+  - `flow_type`: Phase 1 value `teacher_wage_payment`
+  - `school_currency`: Phase 1 value `JPY`
+  - `cash_currency`: Phase 1 value `JPY`
+  - `cash_user_id`
+  - `cash_account_id`
+  - `cash_account_name_snapshot`
+  - `cash_account_type_snapshot`
+  - `is_active`
+  - `note`
+  - audit timestamps
+- Guards:
+  - referenced school business entity must be active and `entity_type = personal`
+  - no mapping for `company` / 青空塾 business entities
+  - no FK to Cash DB
+  - uniqueness on active `business_entity_id + flow_type + school_currency + cash_account_id`
+
+Add a school outbox / linkage event table:
+
+- suggested name: `school_personal_cash_linkage_events`
+- fields:
+  - `id`
+  - `source_table`: Phase 1 `school_payment_requests`
+  - `source_id`
+  - `source_event_type`: `teacher_wage_payment_confirm`, later `teacher_wage_payment_reverse`
+  - `business_entity_id`
+  - `payment_request_id`
+  - `school_account_id` nullable, if the legacy school account flow is still used for school-side audit
+  - `cash_user_id`
+  - `cash_account_id`
+  - `cash_account_name_snapshot`
+  - `cash_transaction_table`: Phase 1 `home_jpy_transactions`
+  - `cash_transaction_id`
+  - `currency`: Phase 1 `JPY`
+  - `amount`
+  - `idempotency_key`
+  - `sync_status`: `pending`, `synced`, `failed`, `blocked`
+  - `attempt_count`
+  - `last_error`
+  - timestamps: `created_at`, `updated_at`, `synced_at`
+- Constraints:
+  - unique `idempotency_key`
+  - unique source event: `source_table + source_id + source_event_type`
+  - positive amount
+  - Phase 1 check for `currency = 'JPY'`
+
+Payment confirmation behavior:
+
+- For `entity_type = company` / 青空塾: keep the current school account selector and current `school_confirm_payment_request` behavior.
+- For `entity_type = personal` / personal business teacher wage JPY payment:
+  - show a Cash account selector populated from active mappings
+  - selected account is a Cash account, not a school account
+  - page calls the school API layer, never Cash DB directly
+  - school RPC records the paid school payment state and inserts a pending linkage event in the same school DB transaction
+  - server/integration step calls Cash `home_create_external_jpy_transaction`
+  - after Cash succeeds, update the school linkage event with `cash_transaction_id` and `sync_status = synced`
+
+Cross-DB transaction rule:
+
+- Do not attempt cross-DB strong transactions.
+- If school confirmation succeeds and Cash write fails, keep the school event as `failed` or `pending` with `last_error`; expose manual retry later.
+- Automatic background retry is explicitly out of Phase 1.
+
+### Phase 1 Implementation Order
+
+1. Cash System schema/RPC draft:
+   - add external metadata columns / indexes to `home_jpy_transactions`
+   - add `home_create_external_jpy_transaction`
+   - rollback test duplicate/idempotency behavior
+   - whitelist commit test with clearly marked Cash test data only
+2. School schema/RPC draft:
+   - add mapping table
+   - add linkage event / outbox table
+   - add read APIs/RPCs for active personal Cash mappings
+   - add school-side linkage event creation/update helpers
+3. Payment confirmation integration:
+   - API wrapper chooses legacy school account path for company business entities
+   - API wrapper chooses personal Cash mapping path for personal JPY teacher wage requests
+   - payment page shows Cash account selector only for eligible personal JPY teacher wage requests
+4. End-to-end verification:
+   - rollback test for school confirm + event creation
+   - rollback test for Cash external insert + duplicate idempotency
+   - whitelist commit test with explicitly marked personal business test data
+   - verify no 青空塾 / company records enter the Cash path
+   - verify duplicate confirm/retry does not duplicate Cash transactions
+
+### Explicitly Out Of Phase 1
+
+- 青空塾 linkage
+- reimbursement linkage
+- legal/company account linkage
+- cross-DB strong transactions
+- automatic retry background jobs
+- Cash System full ledger refactor
+- CNY linkage
+- tuition income linkage
+- part-time wage linkage
+- historical backfill or real-data repair
+
 ## Not Recommended
 
 Do not implement in the first phase:

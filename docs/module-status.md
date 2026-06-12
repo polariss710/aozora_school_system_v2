@@ -22,7 +22,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 课时管理 | 已收口 | Keep planned-only V1 stable; full actual/history import stays backlog |
 | 学生月度结算 | 已收口 | No immediate V1 work; future reversal/history requires new design |
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
-| 老师工资支付 | V1 可用 | Retest status actions before future changes; exchange rate is optional metadata on generated wage expenses |
+| 老师工资支付 | V1 可用 | Retest status actions before future changes; personal-business Cash linkage is planning-only and requires separate guarded implementation |
 | 账户管理 | V1 可用 + first-stage family account isolation | Account scope/household owner expansion and family ledger records require separate guarded phases |
 | 收入记录 | V1 可用 | Keep edit guards narrow; older account-ledger rows should use reversal/recreate |
 | 支出记录 | V1 可用 | Keep edit guards narrow; exchange rate is optional; real attachment storage is separate |
@@ -57,9 +57,9 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 老师工资支付
 
 - 当前状态: V1 可用。支付列表可确认支付、反转已支付请求、取消 pending、恢复 cancelled、reissue reversed；详情页只读。
-- 最近关键更新: 2026-06-13 完成支付管理汇率阻断 follow-up：前端/API 确认支付路径没有 `exchange_rate` 必填或 `<= 0` guard，实际问题是支付入口 cache-bust/version 未更新；`APP_VERSION`, `index.html`, `js/app.js` 已更新到 `v2.107.0-payment-exchange-optional-cache-bust-20260613`。浏览器页面路径验证确认 dialog 成功提交，RPC 请求体不包含 exchange-rate 字段，支付方式保护仍写入 `bank_transfer`。2026-06-12 已重新执行 `school_confirm_payment_request`，当 JPY/CNY 金额无法推导正数汇率时，生成的 teacher_wage expense 写入 `exchange_rate = NULL`。支付确认仍按所选账户类型设置 teacher_wage expense reimbursement status：公司账户 `not_required`，垫付/个人账户 `pending`；报销 RPC 继续拒绝 teacher_wage expense。
-- 当前限制 / hard stop: 不删除 payment request、wage lock、expense、account transaction。确认支付必须不创建 reimbursement/income/student settlement/wage/lesson 等非本链路数据。
-- 下一步: 未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard，不能绕过现有支付确认/反转链路。
+- 最近关键更新: 2026-06-13 完成个人业务老师工资 JPY 支付联动 Cash System 的 Phase 1 预实装规划：本轮仅更新设计文档和状态文档，不生成 SQL、不执行 SQL、不写 DB。规划要求 Cash 先补 `home_jpy_transactions` external/idempotency metadata 和 `home_create_external_jpy_transaction`，school 再补 personal Cash account mapping 与 linkage event/outbox，最后 payment confirm UI/API/RPC 按业务归属选择 legacy school path 或 personal Cash path。此前同日完成支付管理汇率阻断 follow-up：前端/API 确认支付路径没有 `exchange_rate` 必填或 `<= 0` guard，实际问题是支付入口 cache-bust/version 未更新；`APP_VERSION`, `index.html`, `js/app.js` 已更新到 `v2.107.0-payment-exchange-optional-cache-bust-20260613`。
+- 当前限制 / hard stop: 不删除 payment request、wage lock、expense、account transaction。确认支付必须不创建 reimbursement/income/student settlement/wage/lesson 等非本链路数据。Cash System linkage 尚未实装；青空塾、报销、法人账户、CNY、学费收入、兼职工资、跨 DB 强事务、自动重试后台任务、历史 backfill 均不在 Phase 1。
+- 下一步: 未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard，不能绕过现有支付确认/反转链路。若进入 personal Cash linkage implementation，必须从 Cash schema/RPC 开始，再做 school mapping/outbox，再接 payment confirm UI/API/RPC，最后做 rollback/白名单端到端验证。
 
 ## 账户管理
 
@@ -125,6 +125,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 2026-06-13 账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。first-stage whitelist commit-test family 账户 `d3734cd7-fa94-4be3-b8dc-3cdc3690f667` / `codex-test-family-app-type-commit-20260613` 已经 dry-run、rollback validation、commit delete、residue check 清理完成。2026-06-12 已清理上一轮支出测试数据：business entity `f500595d-5455-4460-b826-757c8f834d20`、account `7ea665f1-74b0-4177-90d8-6e79002e3082`、expense `e37287bc-81f2-4714-b79c-a31894b8144b`、account transaction `f444efb6-7f32-4b39-93d7-69ed3ce9b235`；无关联附件、报销、支付请求、收入或 Storage 候选。早前 Codex/v2-test/sandbox DB cleanup round 2 也已删除 3 条明确白名单测试主数据。打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
+- 最近关键更新: 2026-06-13 个人业务 Cash System linkage 设计已完成 live DB 验证和 Phase 1 预实装规划：Cash live DB 存在目标 home tables，但没有 external-source/idempotency/school-reference 字段；school live DB 没有 cash/linkage/outbox 表。设计文档要求 Phase 1 只做个人业务老师工资 JPY 支付确认联动，不做青空塾、报销、法人账户、跨 DB 强事务或自动重试后台任务。账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。first-stage whitelist commit-test family 账户 `d3734cd7-fa94-4be3-b8dc-3cdc3690f667` / `codex-test-family-app-type-commit-20260613` 已经 dry-run、rollback validation、commit delete、residue check 清理完成。打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
-- 下一步候选: payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account_scope/household owner expansion、family ledger records/reporting、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
+- 下一步候选: personal-business Cash System linkage Phase 1 guarded implementation、payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account_scope/household owner expansion、family ledger records/reporting、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。
