@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612";
+import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=v2.108.0-expense-exchange-rate-optional-20260613";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

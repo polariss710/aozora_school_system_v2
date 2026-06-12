@@ -25,7 +25,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 老师工资支付 | V1 可用 | Retest status actions before future changes; exchange rate is optional metadata on generated wage expenses |
 | 账户管理 | V1 可用 | Account/family ledger scope implementation requires separate guarded design |
 | 收入记录 | V1 可用 | Keep edit guards narrow; older account-ledger rows should use reversal/recreate |
-| 支出记录 | V1 可用 | Keep edit guards narrow; real attachment storage is a separate storage/security phase |
+| 支出记录 | V1 可用 | Keep edit guards narrow; exchange rate is optional; real attachment storage is separate |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
@@ -78,7 +78,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 支出记录
 
 - 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。
-- 最近关键更新: 2026-06-12 支出新增/编辑 dialog 已收窄并统一。开放字段为 `expense_date`, `business_entity_id`, `account_id`, `expense_category`, `amount`, `description`, `payment_method`（`cash`, `bank_transfer`, `card`, `alipay`）, `receipt_status`, `reimbursement_status`, `tax_category`, `exchange_rate`, `note`。隐藏 `account currency`, `is_business_expense`, `teacher_id`, `student_id`；币种由付款账户派生，普通新增默认 `is_business_expense = true`，隐藏 legacy/低频字段暂不物理删除。详情页隐藏来源支付请求和账户流水展示块，保留报销信息和附件信息。
+- 最近关键更新: 2026-06-13 支出新增/编辑的 `exchange_rate` 改为可选：空白和 `0` 提交为 `NULL`，正数正常提交，负数或非数字才阻断；编辑回填 DB `NULL` 时保持空白。页面版本/cache-bust 更新到 `v2.108.0-expense-exchange-rate-optional-20260613`，并已用 mock Supabase 的实际新增/编辑页面路径验证四种输入。2026-06-12 支出新增/编辑 dialog 已收窄并统一。开放字段为 `expense_date`, `business_entity_id`, `account_id`, `expense_category`, `amount`, `description`, `payment_method`（`cash`, `bank_transfer`, `card`, `alipay`）, `receipt_status`, `reimbursement_status`, `tax_category`, `exchange_rate`, `note`。隐藏 `account currency`, `is_business_expense`, `teacher_id`, `student_id`；币种由付款账户派生，普通新增默认 `is_business_expense = true`，隐藏 legacy/低频字段暂不物理删除。详情页隐藏来源支付请求和账户流水展示块，保留报销信息和附件信息。
 - 当前限制 / hard stop: ordinary reversal/edit 不得用于 teacher_wage expenses、来源支付请求生成的支出、已撤销支出、已报销支出或已进入报销链路的支出。编辑必须有且只有一条匹配原始 `expense_adjust` 账户流水，且该流水仍是账户最新流水；已出账支出暂不允许更换付款账户，需撤销后重新新增。Teacher_wage expense 不得加 ordinary attachment metadata；已报销 expense 必须先反转报销才能反转支出。不得删除 expense records、attachments、payment requests 或 original transactions。
 - 下一步: Supabase Storage 文件上传/下载/预览/替换/删除和 OCR 另开 storage/security phase。调查结论：`school-expense-files` bucket 和附件表 storage 字段存在，但当前 `school_create_expense_attachment_metadata` 只创建 metadata-only 占位路径，没有上传/替换生命周期 RPC；本轮不开放真实上传/预览/替换。
 

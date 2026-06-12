@@ -670,11 +670,12 @@ function readEditExpensePayload() {
   }
 
   const exchangeRateText = dom.editExchangeRateInput.value.trim();
-  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
-  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-    showEditError("汇率必须大于 0。", ["exchangeRate"]);
+  const parsedExchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(parsedExchangeRate) || parsedExchangeRate < 0)) {
+    showEditError("汇率必须为空、0 或大于 0。", ["exchangeRate"]);
     return null;
   }
+  const exchangeRate = parsedExchangeRate && parsedExchangeRate > 0 ? parsedExchangeRate : null;
 
   return {
     expenseId: expense.id,

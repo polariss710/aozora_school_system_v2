@@ -605,11 +605,12 @@ function readCreateExpensePayload() {
   }
 
   const exchangeRateText = dom.createExpenseExchangeRateInput.value.trim();
-  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
-  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-    showCreateError("汇率必须大于 0。", ["exchangeRate"]);
+  const parsedExchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(parsedExchangeRate) || parsedExchangeRate < 0)) {
+    showCreateError("汇率必须为空、0 或大于 0。", ["exchangeRate"]);
     return null;
   }
+  const exchangeRate = parsedExchangeRate && parsedExchangeRate > 0 ? parsedExchangeRate : null;
 
   return {
     expenseDate,
