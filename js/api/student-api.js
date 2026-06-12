@@ -5,13 +5,12 @@ const STUDENT_COLUMNS = [
   "student_code",
   "name",
   "display_name",
-  "kana_name",
+  "wechat",
+  "phone",
   "business_entity_id",
-  "target_type",
   "target_schools",
   "entrance_date",
   "status",
-  "default_currency",
   "course_track",
   "preset_exchange_rate",
   "note",
@@ -41,7 +40,7 @@ export async function fetchStudents(filters) {
 export async function fetchStudentFilterOptions() {
   const { data, error } = await supabase
     .from("school_students")
-    .select("status,course_track,target_type,business_entity_id,default_currency")
+    .select("status,course_track,business_entity_id")
     .eq("app_type", "school");
 
   if (error) {
@@ -67,16 +66,14 @@ export async function fetchBusinessEntitiesForStudents() {
 export async function updateStudentProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_student_profile", {
     p_student_id: payload.studentId,
-    p_display_name: payload.displayName,
     p_name: payload.name,
-    p_kana_name: payload.kanaName || null,
-    p_status: payload.status,
-    p_course_track: payload.courseTrack || null,
-    p_target_type: payload.targetType || null,
-    p_target_schools: payload.targetSchools || null,
     p_default_business_entity_id: payload.defaultBusinessEntityId || null,
-    p_default_currency: payload.defaultCurrency || null,
+    p_course_track: payload.courseTrack || null,
     p_preset_exchange_rate: payload.presetExchangeRate,
+    p_wechat: payload.wechat || null,
+    p_phone: payload.phone || null,
+    p_entrance_date: payload.entranceDate || null,
+    p_target_schools: payload.targetSchools || null,
     p_note: payload.note || null,
   });
 
@@ -94,16 +91,14 @@ export async function updateStudentProfile(payload) {
 
 export async function createStudentProfile(payload) {
   const { data, error } = await supabase.rpc("school_create_student_profile", {
-    p_display_name: payload.displayName,
-    p_student_code: payload.studentCode || null,
     p_name: payload.name || null,
-    p_kana_name: payload.kanaName || null,
-    p_status: payload.status,
-    p_course_track: payload.courseTrack || null,
-    p_target_type: payload.targetType || null,
-    p_target_schools: payload.targetSchools || null,
     p_default_business_entity_id: payload.defaultBusinessEntityId || null,
-    p_default_currency: payload.defaultCurrency || null,
+    p_course_track: payload.courseTrack || null,
+    p_preset_exchange_rate: payload.presetExchangeRate,
+    p_wechat: payload.wechat || null,
+    p_phone: payload.phone || null,
+    p_entrance_date: payload.entranceDate || null,
+    p_target_schools: payload.targetSchools || null,
     p_note: payload.note || null,
   });
 
@@ -128,20 +123,10 @@ function applyStudentFilters(query, filters) {
     query = query.eq("course_track", filters.courseTrack);
   }
 
-  if (filters.targetType === "__unset__") {
-    query = query.or("target_type.is.null,target_type.eq.");
-  } else if (filters.targetType) {
-    query = query.eq("target_type", filters.targetType);
-  }
-
   if (filters.businessEntityId === "__unset__") {
     query = query.is("business_entity_id", null);
   } else if (filters.businessEntityId) {
     query = query.eq("business_entity_id", filters.businessEntityId);
-  }
-
-  if (filters.defaultCurrency) {
-    query = query.eq("default_currency", filters.defaultCurrency);
   }
 
   return query;

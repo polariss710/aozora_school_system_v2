@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.99.0-master-editable-fields-open-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.100.0-student-dialog-field-scope-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -46,7 +46,7 @@
           <form id="studentFilterForm" class="filter-grid">
             <label class="field">
               <span>关键字</span>
-              <input id="studentKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 读音 / 编号 / 目标学校 / 备注">
+              <input id="studentKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 编号 / 微信 / 电话 / 目标学校 / 备注">
             </label>
 
             <label class="field">
@@ -64,22 +64,8 @@
             </label>
 
             <label class="field">
-              <span>目标类型</span>
-              <select id="studentTargetTypeSelect" name="targetType">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>业务归属</span>
               <select id="studentBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>默认币种</span>
-              <select id="studentDefaultCurrencySelect" name="defaultCurrency">
                 <option value="">全部</option>
               </select>
             </label>
@@ -108,56 +94,17 @@
     </div>
 
     <div id="createStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel student-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
+      <section class="dialog-panel student-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
         <div class="section-heading">
           <h2 id="createStudentProfileTitle">新增学生</h2>
-          <p class="section-note">仅新增未来使用的学生主数据；不会创建或修改月度结算、carryover、收入、课时、工资或账户流水。</p>
+          <p class="section-note">仅维护学生基础资料和默认值；不会创建或修改结算、收入、课时、工资或账户流水。</p>
         </div>
 
         <div id="createStudentProfileError" class="dialog-error is-hidden"></div>
 
-        <label class="field" data-create-student-field="studentCode">
-          <span>学生编号</span>
-          <input id="createStudentCodeInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-create-student-field="displayName">
-          <span>显示名称</span>
-          <input id="createStudentDisplayNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field">
-          <span>系统姓名</span>
+        <label class="field" data-create-student-field="name">
+          <span>姓名</span>
           <input id="createStudentNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field">
-          <span>读音</span>
-          <input id="createStudentKanaNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-create-student-field="status">
-          <span>状态</span>
-          <select id="createStudentStatusSelect"></select>
-        </label>
-
-        <div class="dialog-subsection-heading">
-          <h3>课程/目标信息</h3>
-        </div>
-
-        <label class="field" data-create-student-field="courseTrack">
-          <span>课程方向</span>
-          <select id="createStudentCourseTrackSelect"></select>
-        </label>
-
-        <label class="field">
-          <span>目标类型</span>
-          <input id="createStudentTargetTypeInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field student-create-wide-field">
-          <span>目标学校</span>
-          <input id="createStudentTargetSchoolsInput" type="text" autocomplete="off">
         </label>
 
         <label class="field" data-create-student-field="defaultBusinessEntity">
@@ -165,12 +112,37 @@
           <select id="createStudentBusinessEntitySelect"></select>
         </label>
 
-        <label class="field" data-create-student-field="defaultCurrency">
-          <span>默认币种</span>
-          <select id="createStudentDefaultCurrencySelect"></select>
+        <label class="field" data-create-student-field="courseTrack">
+          <span>文理区分</span>
+          <select id="createStudentCourseTrackSelect"></select>
         </label>
 
-        <label class="field student-create-wide-field">
+        <label class="field" data-create-student-field="presetExchangeRate">
+          <span>预设汇率</span>
+          <input id="createStudentPresetExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
+        </label>
+
+        <label class="field">
+          <span>微信</span>
+          <input id="createStudentWechatInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>电话</span>
+          <input id="createStudentPhoneInput" type="tel" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>入学日期</span>
+          <input id="createStudentEntranceDateInput" type="date">
+        </label>
+
+        <label class="field student-profile-wide-field" data-create-student-field="targetSchools">
+          <span>目标学校（最多 3 个，每行一个）</span>
+          <textarea id="createStudentTargetSchoolsInput" rows="3"></textarea>
+        </label>
+
+        <label class="field student-profile-wide-field">
           <span>备注</span>
           <textarea id="createStudentNoteInput" rows="3"></textarea>
         </label>
@@ -183,52 +155,17 @@
     </div>
 
     <div id="editStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="editStudentProfileTitle">
+      <section class="dialog-panel student-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="editStudentProfileTitle">
         <div class="section-heading">
-          <h2 id="editStudentProfileTitle">编辑学生基础信息</h2>
-          <p class="section-note">仅更新学生主数据展示、筛选和默认值；不会修改余额、结算、收入、支付请求、课时、工资或账户流水。</p>
+          <h2 id="editStudentProfileTitle">编辑学生</h2>
+          <p class="section-note">仅维护学生基础资料和默认值；不会修改余额、结算、收入、支付请求、课时、工资或账户流水。</p>
         </div>
 
-        <div id="editStudentProfileSummary" class="dialog-summary"></div>
         <div id="editStudentProfileError" class="dialog-error is-hidden"></div>
 
-        <label class="field" data-edit-student-field="displayName">
-          <span>显示名称</span>
-          <input id="editStudentDisplayNameInput" type="text" autocomplete="off">
-        </label>
-
         <label class="field" data-edit-student-field="name">
-          <span>系统姓名</span>
+          <span>姓名</span>
           <input id="editStudentNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field">
-          <span>读音</span>
-          <input id="editStudentKanaNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-edit-student-field="status">
-          <span>状态</span>
-          <select id="editStudentStatusSelect"></select>
-        </label>
-
-        <div class="dialog-subsection-heading">
-          <h3>课程/目标信息</h3>
-        </div>
-
-        <label class="field" data-edit-student-field="courseTrack">
-          <span>课程方向</span>
-          <select id="editStudentCourseTrackSelect"></select>
-        </label>
-
-        <label class="field" data-edit-student-field="targetType">
-          <span>目标类型</span>
-          <input id="editStudentTargetTypeInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field student-create-wide-field">
-          <span>目标学校</span>
-          <input id="editStudentTargetSchoolsInput" type="text" autocomplete="off">
         </label>
 
         <label class="field" data-edit-student-field="defaultBusinessEntity">
@@ -236,9 +173,9 @@
           <select id="editStudentBusinessEntitySelect"></select>
         </label>
 
-        <label class="field" data-edit-student-field="defaultCurrency">
-          <span>默认币种</span>
-          <select id="editStudentDefaultCurrencySelect"></select>
+        <label class="field" data-edit-student-field="courseTrack">
+          <span>文理区分</span>
+          <select id="editStudentCourseTrackSelect"></select>
         </label>
 
         <label class="field" data-edit-student-field="presetExchangeRate">
@@ -246,7 +183,27 @@
           <input id="editStudentPresetExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
         </label>
 
-        <label class="field student-create-wide-field">
+        <label class="field">
+          <span>微信</span>
+          <input id="editStudentWechatInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>电话</span>
+          <input id="editStudentPhoneInput" type="tel" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>入学日期</span>
+          <input id="editStudentEntranceDateInput" type="date">
+        </label>
+
+        <label class="field student-profile-wide-field" data-edit-student-field="targetSchools">
+          <span>目标学校（最多 3 个，每行一个）</span>
+          <textarea id="editStudentTargetSchoolsInput" rows="3"></textarea>
+        </label>
+
+        <label class="field student-profile-wide-field">
           <span>备注</span>
           <textarea id="editStudentNoteInput" rows="3"></textarea>
         </label>
@@ -258,6 +215,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v2.99.0-master-editable-fields-open-20260612"></script>
+    <script type="module" src="./js/student-app.js?v=v2.100.0-student-dialog-field-scope-20260612"></script>
   </body>
 </html>

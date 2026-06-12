@@ -12,9 +12,7 @@ const DEFAULT_FILTERS = {
   keyword: "",
   status: "",
   courseTrack: "",
-  targetType: "",
   businessEntityId: "",
-  defaultCurrency: "",
 };
 
 const UNSET_VALUE = "__unset__";
@@ -31,16 +29,13 @@ const COURSE_TRACK_LABELS = {
   science: "理科",
 };
 
-const EDITABLE_STATUS_OPTIONS = ["active", "paused", "inactive", "graduated"];
 const EDITABLE_COURSE_TRACK_OPTIONS = ["science", "humanities"];
-const EDITABLE_DEFAULT_CURRENCY_OPTIONS = ["CNY", "JPY"];
-const CREATE_FIELD_IDS = [
-  "studentCode",
-  "displayName",
-  "status",
-  "courseTrack",
+const STUDENT_FIELD_IDS = [
+  "name",
   "defaultBusinessEntity",
-  "defaultCurrency",
+  "courseTrack",
+  "presetExchangeRate",
+  "targetSchools",
 ];
 
 const dom = {};
@@ -73,43 +68,38 @@ function cacheDom() {
   dom.keywordInput = document.querySelector("#studentKeywordInput");
   dom.statusSelect = document.querySelector("#studentStatusSelect");
   dom.courseTrackSelect = document.querySelector("#studentCourseTrackSelect");
-  dom.targetTypeSelect = document.querySelector("#studentTargetTypeSelect");
   dom.businessEntitySelect = document.querySelector("#studentBusinessEntitySelect");
-  dom.defaultCurrencySelect = document.querySelector("#studentDefaultCurrencySelect");
   dom.resetButton = document.querySelector("#studentResetButton");
   dom.studentGrid = document.querySelector("#studentGrid");
   dom.studentLoadingState = document.querySelector("#studentLoadingState");
   dom.studentEmptyState = document.querySelector("#studentEmptyState");
   dom.studentCount = document.querySelector("#studentCount");
   dom.createButton = document.querySelector("#createStudentButton");
+
   dom.createDialog = document.querySelector("#createStudentProfileDialog");
   dom.createError = document.querySelector("#createStudentProfileError");
-  dom.createStudentCodeInput = document.querySelector("#createStudentCodeInput");
-  dom.createDisplayNameInput = document.querySelector("#createStudentDisplayNameInput");
   dom.createNameInput = document.querySelector("#createStudentNameInput");
-  dom.createKanaNameInput = document.querySelector("#createStudentKanaNameInput");
-  dom.createStatusSelect = document.querySelector("#createStudentStatusSelect");
-  dom.createCourseTrackSelect = document.querySelector("#createStudentCourseTrackSelect");
-  dom.createTargetTypeInput = document.querySelector("#createStudentTargetTypeInput");
-  dom.createTargetSchoolsInput = document.querySelector("#createStudentTargetSchoolsInput");
   dom.createBusinessEntitySelect = document.querySelector("#createStudentBusinessEntitySelect");
-  dom.createDefaultCurrencySelect = document.querySelector("#createStudentDefaultCurrencySelect");
+  dom.createCourseTrackSelect = document.querySelector("#createStudentCourseTrackSelect");
+  dom.createPresetExchangeRateInput = document.querySelector("#createStudentPresetExchangeRateInput");
+  dom.createWechatInput = document.querySelector("#createStudentWechatInput");
+  dom.createPhoneInput = document.querySelector("#createStudentPhoneInput");
+  dom.createEntranceDateInput = document.querySelector("#createStudentEntranceDateInput");
+  dom.createTargetSchoolsInput = document.querySelector("#createStudentTargetSchoolsInput");
   dom.createNoteInput = document.querySelector("#createStudentNoteInput");
   dom.createCancelButton = document.querySelector("#createStudentCancelButton");
   dom.createSubmitButton = document.querySelector("#createStudentSubmitButton");
+
   dom.editDialog = document.querySelector("#editStudentProfileDialog");
-  dom.editSummary = document.querySelector("#editStudentProfileSummary");
   dom.editError = document.querySelector("#editStudentProfileError");
-  dom.editDisplayNameInput = document.querySelector("#editStudentDisplayNameInput");
   dom.editNameInput = document.querySelector("#editStudentNameInput");
-  dom.editKanaNameInput = document.querySelector("#editStudentKanaNameInput");
-  dom.editStatusSelect = document.querySelector("#editStudentStatusSelect");
-  dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
-  dom.editTargetTypeInput = document.querySelector("#editStudentTargetTypeInput");
-  dom.editTargetSchoolsInput = document.querySelector("#editStudentTargetSchoolsInput");
   dom.editBusinessEntitySelect = document.querySelector("#editStudentBusinessEntitySelect");
-  dom.editDefaultCurrencySelect = document.querySelector("#editStudentDefaultCurrencySelect");
+  dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
   dom.editPresetExchangeRateInput = document.querySelector("#editStudentPresetExchangeRateInput");
+  dom.editWechatInput = document.querySelector("#editStudentWechatInput");
+  dom.editPhoneInput = document.querySelector("#editStudentPhoneInput");
+  dom.editEntranceDateInput = document.querySelector("#editStudentEntranceDateInput");
+  dom.editTargetSchoolsInput = document.querySelector("#editStudentTargetSchoolsInput");
   dom.editNoteInput = document.querySelector("#editStudentNoteInput");
   dom.editCancelButton = document.querySelector("#editStudentCancelButton");
   dom.editSubmitButton = document.querySelector("#editStudentSubmitButton");
@@ -129,30 +119,7 @@ function bindEvents() {
   dom.createButton.addEventListener("click", openCreateDialog);
   dom.createCancelButton.addEventListener("click", closeCreateDialog);
   dom.createSubmitButton.addEventListener("click", submitCreateDialog);
-  dom.createStudentCodeInput.addEventListener("input", () => {
-    clearCreateFieldInvalid("studentCode");
-    hideCreateErrorIfClean();
-  });
-  dom.createDisplayNameInput.addEventListener("input", () => {
-    clearCreateFieldInvalid("displayName");
-    hideCreateErrorIfClean();
-  });
-  dom.createStatusSelect.addEventListener("change", () => {
-    clearCreateFieldInvalid("status");
-    hideCreateErrorIfClean();
-  });
-  dom.createCourseTrackSelect.addEventListener("change", () => {
-    clearCreateFieldInvalid("courseTrack");
-    hideCreateErrorIfClean();
-  });
-  dom.createBusinessEntitySelect.addEventListener("change", () => {
-    clearCreateFieldInvalid("defaultBusinessEntity");
-    hideCreateErrorIfClean();
-  });
-  dom.createDefaultCurrencySelect.addEventListener("change", () => {
-    clearCreateFieldInvalid("defaultCurrency");
-    hideCreateErrorIfClean();
-  });
+  bindDialogFieldEvents("create");
 
   dom.studentGrid.addEventListener("click", (event) => {
     const button = event.target.closest("[data-edit-student-id]");
@@ -165,47 +132,44 @@ function bindEvents() {
 
   dom.editCancelButton.addEventListener("click", closeEditDialog);
   dom.editSubmitButton.addEventListener("click", submitEditDialog);
-  dom.editDisplayNameInput.addEventListener("input", () => {
-    clearEditFieldInvalid("displayName");
-    hideEditErrorIfClean();
-  });
-  dom.editNameInput.addEventListener("input", () => {
-    clearEditFieldInvalid("name");
-    hideEditErrorIfClean();
-  });
-  dom.editStatusSelect.addEventListener("change", () => {
-    clearEditFieldInvalid("status");
-    hideEditErrorIfClean();
-  });
-  dom.editCourseTrackSelect.addEventListener("change", () => {
-    clearEditFieldInvalid("courseTrack");
-    hideEditErrorIfClean();
-  });
-  dom.editTargetTypeInput.addEventListener("input", () => {
-    clearEditFieldInvalid("targetType");
-    hideEditErrorIfClean();
-  });
-  dom.editBusinessEntitySelect.addEventListener("change", () => {
-    clearEditFieldInvalid("defaultBusinessEntity");
-    hideEditErrorIfClean();
-  });
-  dom.editDefaultCurrencySelect.addEventListener("change", () => {
-    clearEditFieldInvalid("defaultCurrency");
-    hideEditErrorIfClean();
-  });
-  dom.editPresetExchangeRateInput.addEventListener("input", () => {
-    clearEditFieldInvalid("presetExchangeRate");
-    hideEditErrorIfClean();
-  });
+  bindDialogFieldEvents("edit");
+}
+
+function bindDialogFieldEvents(scope) {
+  const fields = scope === "create"
+    ? [
+        ["name", dom.createNameInput, "input"],
+        ["defaultBusinessEntity", dom.createBusinessEntitySelect, "change"],
+        ["courseTrack", dom.createCourseTrackSelect, "change"],
+        ["presetExchangeRate", dom.createPresetExchangeRateInput, "input"],
+        ["targetSchools", dom.createTargetSchoolsInput, "input"],
+      ]
+    : [
+        ["name", dom.editNameInput, "input"],
+        ["defaultBusinessEntity", dom.editBusinessEntitySelect, "change"],
+        ["courseTrack", dom.editCourseTrackSelect, "change"],
+        ["presetExchangeRate", dom.editPresetExchangeRateInput, "input"],
+        ["targetSchools", dom.editTargetSchoolsInput, "input"],
+      ];
+
+  for (const [fieldId, element, eventName] of fields) {
+    element.addEventListener(eventName, () => {
+      if (scope === "create") {
+        clearCreateFieldInvalid(fieldId);
+        hideCreateErrorIfClean();
+      } else {
+        clearEditFieldInvalid(fieldId);
+        hideEditErrorIfClean();
+      }
+    });
+  }
 }
 
 function setDefaultFilters() {
   dom.keywordInput.value = DEFAULT_FILTERS.keyword;
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.courseTrackSelect.value = DEFAULT_FILTERS.courseTrack;
-  dom.targetTypeSelect.value = DEFAULT_FILTERS.targetType;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
-  dom.defaultCurrencySelect.value = DEFAULT_FILTERS.defaultCurrency;
 }
 
 async function loadStudentData() {
@@ -227,9 +191,7 @@ async function loadStudentData() {
     businessEntities = businessEntityRows;
     renderStatusOptions(filterRows);
     renderCourseTrackOptions(filterRows);
-    renderTargetTypeOptions(filterRows);
     renderBusinessEntityOptions(businessEntities, filterRows);
-    renderDefaultCurrencyOptions(filterRows);
     restoreFilterSelections(filters);
     students = studentRows;
     renderStudents(filterStudentsByKeyword(studentRows, filters.keyword));
@@ -239,9 +201,7 @@ async function loadStudentData() {
     students = [];
     renderStatusOptions([]);
     renderCourseTrackOptions([]);
-    renderTargetTypeOptions([]);
     renderBusinessEntityOptions([], []);
-    renderDefaultCurrencyOptions([]);
     renderStudents([]);
     showMessage("error", `读取学生管理数据失败：${error.message || error}`);
   } finally {
@@ -254,9 +214,7 @@ function readFilters() {
     keyword: dom.keywordInput.value.trim(),
     status: dom.statusSelect.value,
     courseTrack: dom.courseTrackSelect.value,
-    targetType: dom.targetTypeSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
-    defaultCurrency: dom.defaultCurrencySelect.value,
   };
 }
 
@@ -264,9 +222,7 @@ function restoreFilterSelections(filters) {
   dom.keywordInput.value = filters.keyword;
   dom.statusSelect.value = filters.status;
   dom.courseTrackSelect.value = filters.courseTrack;
-  dom.targetTypeSelect.value = filters.targetType;
   dom.businessEntitySelect.value = filters.businessEntityId;
-  dom.defaultCurrencySelect.value = filters.defaultCurrency;
 }
 
 function renderStatusOptions(rows) {
@@ -293,22 +249,6 @@ function renderCourseTrackOptions(rows) {
   dom.courseTrackSelect.innerHTML = options.join("");
 }
 
-function renderTargetTypeOptions(rows) {
-  const options = ['<option value="">全部</option>'];
-
-  if (rows.some((student) => !student.target_type)) {
-    options.push(`<option value="${UNSET_VALUE}">未设置</option>`);
-  }
-
-  for (const targetType of distinctValues(rows, "target_type")) {
-    options.push(
-      `<option value="${escapeAttribute(targetType)}">${escapeHtml(displayValue(targetType))}</option>`
-    );
-  }
-
-  dom.targetTypeSelect.innerHTML = options.join("");
-}
-
 function renderBusinessEntityOptions(items, studentRows) {
   const options = ['<option value="">全部</option>'];
 
@@ -323,18 +263,6 @@ function renderBusinessEntityOptions(items, studentRows) {
   }
 
   dom.businessEntitySelect.innerHTML = options.join("");
-}
-
-function renderDefaultCurrencyOptions(rows) {
-  const options = ['<option value="">全部</option>'];
-
-  for (const currency of distinctValues(rows, "default_currency")) {
-    options.push(
-      `<option value="${escapeAttribute(currency)}">${escapeHtml(displayValue(currency))}</option>`
-    );
-  }
-
-  dom.defaultCurrencySelect.innerHTML = options.join("");
 }
 
 function renderStudents(items) {
@@ -359,37 +287,37 @@ function renderStudents(items) {
       </div>
 
       <div class="table-actions">
-        <button class="button" type="button" data-edit-student-id="${escapeAttribute(student.id)}">编辑基础信息</button>
+        <button class="button" type="button" data-edit-student-id="${escapeAttribute(student.id)}">编辑学生</button>
       </div>
 
       <dl class="student-meta">
         <div>
-          <dt>读音</dt>
-          <dd>${escapeHtml(displayValue(student.kana_name))}</dd>
-        </div>
-        <div>
-          <dt>课程方向</dt>
+          <dt>文理区分</dt>
           <dd>${escapeHtml(courseTrackLabel(student.course_track))}</dd>
         </div>
         <div>
-          <dt>目标类型</dt>
-          <dd>${escapeHtml(displayValue(student.target_type))}</dd>
-        </div>
-        <div>
           <dt>目标学校</dt>
-          <dd>${escapeHtml(displayValue(student.target_schools))}</dd>
+          <dd>${escapeHtml(targetSchoolsDisplay(student.target_schools))}</dd>
         </div>
         <div>
           <dt>业务归属</dt>
           <dd>${escapeHtml(businessEntityName(student.business_entity_id))}</dd>
         </div>
         <div>
-          <dt>默认币种</dt>
-          <dd>${escapeHtml(displayValue(student.default_currency))}</dd>
-        </div>
-        <div>
           <dt>预设汇率</dt>
           <dd>${escapeHtml(displayValue(student.preset_exchange_rate))}</dd>
+        </div>
+        <div>
+          <dt>微信</dt>
+          <dd>${escapeHtml(displayValue(student.wechat))}</dd>
+        </div>
+        <div>
+          <dt>电话</dt>
+          <dd>${escapeHtml(displayValue(student.phone))}</dd>
+        </div>
+        <div>
+          <dt>入学日期</dt>
+          <dd>${escapeHtml(formatDateOnly(student.entrance_date))}</dd>
         </div>
         <div>
           <dt>备注</dt>
@@ -407,20 +335,18 @@ function renderStudents(items) {
 function openCreateDialog() {
   clearCreateErrors();
   setCreateSubmitting(false);
-  dom.createStudentCodeInput.value = "";
-  dom.createDisplayNameInput.value = "";
   dom.createNameInput.value = "";
-  dom.createKanaNameInput.value = "";
-  renderCreateStatusOptions("active");
-  renderCreateCourseTrackOptions("science");
-  dom.createTargetTypeInput.value = "";
-  dom.createTargetSchoolsInput.value = "";
   renderCreateBusinessEntityOptions("");
-  renderCreateDefaultCurrencyOptions("CNY");
+  renderCreateCourseTrackOptions("science");
+  dom.createPresetExchangeRateInput.value = "0";
+  dom.createWechatInput.value = "";
+  dom.createPhoneInput.value = "";
+  dom.createEntranceDateInput.value = "";
+  dom.createTargetSchoolsInput.value = "";
   dom.createNoteInput.value = "";
   dom.createDialog.classList.remove("is-hidden");
   dom.createDialog.setAttribute("aria-hidden", "false");
-  dom.createDisplayNameInput.focus();
+  dom.createNameInput.focus();
 }
 
 function closeCreateDialog({ force = false } = {}) {
@@ -439,42 +365,10 @@ async function submitCreateDialog() {
 
   clearCreateErrors();
 
-  const payload = {
-    studentCode: dom.createStudentCodeInput.value.trim(),
-    displayName: dom.createDisplayNameInput.value.trim(),
-    name: dom.createNameInput.value.trim(),
-    kanaName: dom.createKanaNameInput.value.trim(),
-    status: dom.createStatusSelect.value,
-    courseTrack: dom.createCourseTrackSelect.value,
-    targetType: dom.createTargetTypeInput.value.trim(),
-    targetSchools: dom.createTargetSchoolsInput.value.trim(),
-    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
-    defaultCurrency: dom.createDefaultCurrencySelect.value,
-    note: dom.createNoteInput.value.trim(),
-  };
-
-  if (!payload.displayName) {
-    showCreateError("请输入学生显示名称。", ["displayName"]);
-    return;
-  }
-
-  if (!payload.status) {
-    showCreateError("请选择学生状态。", ["status"]);
-    return;
-  }
-
-  if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
-    showCreateError("请选择有效学生状态。", ["status"]);
-    return;
-  }
-
-  if (payload.courseTrack && !EDITABLE_COURSE_TRACK_OPTIONS.includes(payload.courseTrack)) {
-    showCreateError("请选择有效课程方向。", ["courseTrack"]);
-    return;
-  }
-
-  if (!payload.defaultCurrency || !EDITABLE_DEFAULT_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
-    showCreateError("请选择有效默认币种。", ["defaultCurrency"]);
+  const payload = readCreatePayload();
+  const validation = validateStudentPayload(payload);
+  if (validation) {
+    showCreateError(validation.message, validation.fieldIds);
     return;
   }
 
@@ -486,10 +380,24 @@ async function submitCreateDialog() {
     await reloadStudentDataPreservingViewport();
     showMessage("success", "学生已新增，可用于未来课时、筛选和结算默认值。");
   } catch (error) {
-    showCreateError(error.message || String(error), createFieldIdsForError(error));
+    showCreateError(error.message || String(error), studentFieldIdsForError(error));
   } finally {
     setCreateSubmitting(false);
   }
+}
+
+function readCreatePayload() {
+  return {
+    name: dom.createNameInput.value.trim(),
+    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
+    courseTrack: dom.createCourseTrackSelect.value,
+    presetExchangeRate: readNonNegativeNumber(dom.createPresetExchangeRateInput.value),
+    wechat: dom.createWechatInput.value.trim(),
+    phone: dom.createPhoneInput.value.trim(),
+    entranceDate: dom.createEntranceDateInput.value,
+    targetSchools: normalizeTargetSchools(dom.createTargetSchoolsInput.value),
+    note: dom.createNoteInput.value.trim(),
+  };
 }
 
 function openEditDialog(studentId) {
@@ -500,23 +408,20 @@ function openEditDialog(studentId) {
   }
 
   editingStudent = student;
-  dom.editSummary.innerHTML = renderEditSummary(student);
-  dom.editDisplayNameInput.value = student.display_name || student.name || "";
   dom.editNameInput.value = student.name || student.display_name || "";
-  dom.editKanaNameInput.value = student.kana_name || "";
-  renderEditStatusOptions(student.status);
-  renderEditCourseTrackOptions(student.course_track);
-  dom.editTargetTypeInput.value = student.target_type || "";
-  dom.editTargetSchoolsInput.value = student.target_schools || "";
   renderEditBusinessEntityOptions(student.business_entity_id);
-  renderEditDefaultCurrencyOptions(student.default_currency);
+  renderEditCourseTrackOptions(student.course_track);
   dom.editPresetExchangeRateInput.value = displayNumberInput(student.preset_exchange_rate);
+  dom.editWechatInput.value = student.wechat || "";
+  dom.editPhoneInput.value = student.phone || "";
+  dom.editEntranceDateInput.value = formatDateInput(student.entrance_date);
+  dom.editTargetSchoolsInput.value = normalizeTargetSchools(student.target_schools);
   dom.editNoteInput.value = student.note || "";
   clearEditErrors();
   setEditSubmitting(false);
   dom.editDialog.classList.remove("is-hidden");
   dom.editDialog.setAttribute("aria-hidden", "false");
-  dom.editDisplayNameInput.focus();
+  dom.editNameInput.focus();
 }
 
 function closeEditDialog({ force = false } = {}) {
@@ -541,48 +446,10 @@ async function submitEditDialog() {
     return;
   }
 
-  const payload = {
-    studentId: editingStudent.id,
-    displayName: dom.editDisplayNameInput.value.trim(),
-    name: dom.editNameInput.value.trim(),
-    kanaName: dom.editKanaNameInput.value.trim(),
-    status: dom.editStatusSelect.value,
-    courseTrack: dom.editCourseTrackSelect.value,
-    targetType: dom.editTargetTypeInput.value.trim(),
-    targetSchools: dom.editTargetSchoolsInput.value.trim(),
-    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
-    defaultCurrency: dom.editDefaultCurrencySelect.value,
-    presetExchangeRate: readNonNegativeNumber(dom.editPresetExchangeRateInput.value),
-    note: dom.editNoteInput.value.trim(),
-  };
-
-  if (!payload.displayName) {
-    showEditError("请输入学生显示名称。", ["displayName"]);
-    return;
-  }
-
-  if (!payload.name) {
-    showEditError("请输入学生系统姓名。", ["name"]);
-    return;
-  }
-
-  if (!payload.status) {
-    showEditError("请选择学生状态。", ["status"]);
-    return;
-  }
-
-  if (payload.courseTrack && !EDITABLE_COURSE_TRACK_OPTIONS.includes(payload.courseTrack)) {
-    showEditError("请选择有效课程方向。", ["courseTrack"]);
-    return;
-  }
-
-  if (!payload.defaultCurrency || !EDITABLE_DEFAULT_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
-    showEditError("请选择有效默认币种。", ["defaultCurrency"]);
-    return;
-  }
-
-  if (!Number.isFinite(payload.presetExchangeRate) || payload.presetExchangeRate < 0) {
-    showEditError("预设汇率需为 0 或正数。", ["presetExchangeRate"]);
+  const payload = readEditPayload();
+  const validation = validateStudentPayload(payload);
+  if (validation) {
+    showEditError(validation.message, validation.fieldIds);
     return;
   }
 
@@ -592,106 +459,89 @@ async function submitEditDialog() {
     await updateStudentProfile(payload);
     closeEditDialog({ force: true });
     await reloadStudentDataPreservingViewport();
-    showMessage("success", "学生基础信息和课程/目标信息已更新。");
+    showMessage("success", "学生资料已更新。");
   } catch (error) {
-    showEditError(error.message || String(error), editFieldIdsForError(error));
+    showEditError(error.message || String(error), studentFieldIdsForError(error));
   } finally {
     setEditSubmitting(false);
   }
 }
 
-function renderEditSummary(student) {
-  const rows = [
-    ["学生编号", student.student_code || shortId(student.id)],
-    ["不可编辑字段", "学生编号、余额、结算、学费规则、联系方式、家长信息、生日、历史财务链路"],
-  ];
-
-  return `
-    <dl class="detail-definition-list">
-      ${rows.map(([label, value]) => `
-        <div>
-          <dt>${escapeHtml(label)}</dt>
-          <dd>${escapeHtml(displayValue(value))}</dd>
-        </div>
-      `).join("")}
-    </dl>
-  `;
+function readEditPayload() {
+  return {
+    studentId: editingStudent.id,
+    name: dom.editNameInput.value.trim(),
+    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    courseTrack: dom.editCourseTrackSelect.value,
+    presetExchangeRate: readNonNegativeNumber(dom.editPresetExchangeRateInput.value),
+    wechat: dom.editWechatInput.value.trim(),
+    phone: dom.editPhoneInput.value.trim(),
+    entranceDate: dom.editEntranceDateInput.value,
+    targetSchools: normalizeTargetSchools(dom.editTargetSchoolsInput.value),
+    note: dom.editNoteInput.value.trim(),
+  };
 }
 
-function renderEditStatusOptions(selectedStatus) {
-  dom.editStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
-    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`)
-    .join("");
-  dom.editStatusSelect.value = selectedStatus || "active";
-}
+function validateStudentPayload(payload) {
+  if (!payload.name) {
+    return { message: "请输入学生姓名。", fieldIds: ["name"] };
+  }
 
-function renderCreateStatusOptions(selectedStatus) {
-  dom.createStatusSelect.innerHTML = EDITABLE_STATUS_OPTIONS
-    .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`)
-    .join("");
-  dom.createStatusSelect.value = selectedStatus || "active";
+  if (payload.courseTrack && !EDITABLE_COURSE_TRACK_OPTIONS.includes(payload.courseTrack)) {
+    return { message: "请选择有效文理区分。", fieldIds: ["courseTrack"] };
+  }
+
+  if (!Number.isFinite(payload.presetExchangeRate) || payload.presetExchangeRate < 0) {
+    return { message: "预设汇率需为 0 或正数。", fieldIds: ["presetExchangeRate"] };
+  }
+
+  if (targetSchoolCount(payload.targetSchools) > 3) {
+    return { message: "目标学校最多填写 3 个。", fieldIds: ["targetSchools"] };
+  }
+
+  return null;
 }
 
 function renderEditCourseTrackOptions(selectedCourseTrack) {
-  dom.editCourseTrackSelect.innerHTML = [
-    '<option value="">未设置</option>',
-    ...EDITABLE_COURSE_TRACK_OPTIONS.map((courseTrack) =>
-      `<option value="${escapeAttribute(courseTrack)}">${escapeHtml(courseTrackLabel(courseTrack))}</option>`
-    ),
-  ].join("");
+  dom.editCourseTrackSelect.innerHTML = courseTrackEditOptions();
   dom.editCourseTrackSelect.value = selectedCourseTrack || "";
 }
 
 function renderCreateCourseTrackOptions(selectedCourseTrack) {
-  dom.createCourseTrackSelect.innerHTML = [
+  dom.createCourseTrackSelect.innerHTML = courseTrackEditOptions();
+  dom.createCourseTrackSelect.value = selectedCourseTrack || "";
+}
+
+function courseTrackEditOptions() {
+  return [
     '<option value="">未设置</option>',
     ...EDITABLE_COURSE_TRACK_OPTIONS.map((courseTrack) =>
       `<option value="${escapeAttribute(courseTrack)}">${escapeHtml(courseTrackLabel(courseTrack))}</option>`
     ),
   ].join("");
-  dom.createCourseTrackSelect.value = selectedCourseTrack || "";
 }
 
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
-  const activeOptions = businessEntities
-    .filter((entity) => entity?.id && entity.is_active !== false)
-    .map((entity) =>
-      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-    );
-
-  dom.editBusinessEntitySelect.innerHTML = [
-    '<option value="">未设置</option>',
-    ...activeOptions,
-  ].join("");
+  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions();
   dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
 function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
+  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions();
+  dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
+}
+
+function businessEntityEditOptions() {
   const activeOptions = businessEntities
     .filter((entity) => entity?.id && entity.is_active !== false)
     .map((entity) =>
       `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
     );
 
-  dom.createBusinessEntitySelect.innerHTML = [
+  return [
     '<option value="">未设置</option>',
     ...activeOptions,
   ].join("");
-  dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
-}
-
-function renderEditDefaultCurrencyOptions(selectedDefaultCurrency) {
-  dom.editDefaultCurrencySelect.innerHTML = EDITABLE_DEFAULT_CURRENCY_OPTIONS
-    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
-    .join("");
-  dom.editDefaultCurrencySelect.value = selectedDefaultCurrency || "CNY";
-}
-
-function renderCreateDefaultCurrencyOptions(selectedDefaultCurrency) {
-  dom.createDefaultCurrencySelect.innerHTML = EDITABLE_DEFAULT_CURRENCY_OPTIONS
-    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
-    .join("");
-  dom.createDefaultCurrencySelect.value = selectedDefaultCurrency || "CNY";
 }
 
 function showCreateError(message, fieldIds = []) {
@@ -704,7 +554,7 @@ function showCreateError(message, fieldIds = []) {
 function clearCreateErrors() {
   dom.createError.textContent = "";
   dom.createError.classList.add("is-hidden");
-  CREATE_FIELD_IDS.forEach(clearCreateFieldInvalid);
+  STUDENT_FIELD_IDS.forEach(clearCreateFieldInvalid);
 }
 
 function hideCreateErrorIfClean() {
@@ -732,17 +582,6 @@ function setCreateSubmitting(isSubmitting) {
   dom.createSubmitButton.textContent = isSubmitting ? "新增中..." : "新增";
 }
 
-function createFieldIdsForError(error) {
-  const message = error?.message || String(error || "");
-  if (message.includes("编号")) return ["studentCode"];
-  if (message.includes("显示名称")) return ["displayName"];
-  if (message.includes("状态")) return ["status"];
-  if (message.includes("课程方向")) return ["courseTrack"];
-  if (message.includes("业务归属")) return ["defaultBusinessEntity"];
-  if (message.includes("默认币种")) return ["defaultCurrency"];
-  return [];
-}
-
 function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
@@ -753,16 +592,7 @@ function showEditError(message, fieldIds = []) {
 function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
-  [
-    "displayName",
-    "name",
-    "status",
-    "courseTrack",
-    "targetType",
-    "defaultBusinessEntity",
-    "defaultCurrency",
-    "presetExchangeRate",
-  ].forEach(clearEditFieldInvalid);
+  STUDENT_FIELD_IDS.forEach(clearEditFieldInvalid);
 }
 
 function hideEditErrorIfClean() {
@@ -790,16 +620,13 @@ function setEditSubmitting(isSubmitting) {
   dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存";
 }
 
-function editFieldIdsForError(error) {
+function studentFieldIdsForError(error) {
   const message = error?.message || String(error || "");
-  if (message.includes("显示名称")) return ["displayName"];
-  if (message.includes("系统姓名")) return ["name"];
-  if (message.includes("状态")) return ["status"];
-  if (message.includes("课程方向")) return ["courseTrack"];
-  if (message.includes("目标类型")) return ["targetType"];
+  if (message.includes("姓名")) return ["name"];
+  if (message.includes("文理")) return ["courseTrack"];
   if (message.includes("业务归属")) return ["defaultBusinessEntity"];
-  if (message.includes("默认币种")) return ["defaultCurrency"];
   if (message.includes("预设汇率")) return ["presetExchangeRate"];
+  if (message.includes("目标学校")) return ["targetSchools"];
   return [];
 }
 
@@ -821,7 +648,8 @@ function filterStudentsByKeyword(items, keyword) {
       student.student_code,
       student.name,
       student.display_name,
-      student.kana_name,
+      student.wechat,
+      student.phone,
       student.note,
       student.target_schools,
     ]
@@ -850,7 +678,7 @@ function businessEntityName(entityId) {
 }
 
 function studentName(student) {
-  return student.display_name || student.name || "未命名学生";
+  return student.name || student.display_name || "未命名学生";
 }
 
 function studentStatusLabel(status) {
@@ -869,6 +697,27 @@ function courseTrackLabel(courseTrack) {
   return COURSE_TRACK_LABELS[courseTrack] || safeText(courseTrack);
 }
 
+function normalizeTargetSchools(value) {
+  return safeText(value)
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+function targetSchoolCount(value) {
+  if (!value) {
+    return 0;
+  }
+
+  return normalizeTargetSchools(value).split("\n").filter(Boolean).length;
+}
+
+function targetSchoolsDisplay(value) {
+  const normalized = normalizeTargetSchools(value);
+  return normalized ? normalized.replaceAll("\n", "、") : "未设置";
+}
+
 function readNonNegativeNumber(value) {
   const text = safeText(value).trim();
   if (!text) {
@@ -881,6 +730,16 @@ function readNonNegativeNumber(value) {
 function displayNumberInput(value) {
   const text = safeText(value);
   return text || "0";
+}
+
+function formatDateInput(value) {
+  const text = safeText(value);
+  return text ? text.slice(0, 10) : "";
+}
+
+function formatDateOnly(value) {
+  const text = formatDateInput(value);
+  return text || "未设置";
 }
 
 function displayValue(value) {
