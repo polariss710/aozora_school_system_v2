@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 科目管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.98.0-master-simple-edit-open-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -103,7 +103,7 @@
     </div>
 
     <div id="createSubjectProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createSubjectProfileTitle">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createSubjectProfileTitle">
         <div class="section-heading">
           <h2 id="createSubjectProfileTitle">新增科目</h2>
           <p class="section-note">仅新增未来录入和筛选可用的科目主数据；不会删除科目，也不会修改历史课时、工资、结算、支付、收支或账户流水。</p>
@@ -152,14 +152,14 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="createSubjectSubmitButton" type="button">新增</button>
           <button class="button" id="createSubjectCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="createSubjectSubmitButton" type="button">新增</button>
         </div>
       </section>
     </div>
 
     <div id="editSubjectProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editSubjectProfileTitle">
+      <section class="dialog-panel app-dialog--sm" role="dialog" aria-modal="true" aria-labelledby="editSubjectProfileTitle">
         <div class="section-heading">
           <h2 id="editSubjectProfileTitle">编辑科目基础信息</h2>
           <p class="section-note">第一版仅允许编辑科目名称、启用状态和备注；不会删除科目，也不会修改历史课时、工资、结算或支付数据。</p>
@@ -184,12 +184,12 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="editSubjectSubmitButton" type="button">保存</button>
           <button class="button" id="editSubjectCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="editSubjectSubmitButton" type="button">保存</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/subject-app.js?v=v2.44.0-subject-create-full-autopilot-20260606"></script>
+    <script type="module" src="./js/subject-app.js?v=v2.98.0-master-simple-edit-open-20260612"></script>
   </body>
 </html>

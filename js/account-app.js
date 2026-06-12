@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountPage } from "./pages/account-page.js?v=v2.40.0-account-profile-update-full-autopilot-20260607";
+import { initAccountPage } from "./pages/account-page.js?v=v2.98.0-master-simple-edit-open-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

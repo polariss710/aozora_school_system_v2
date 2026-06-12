@@ -139,13 +139,14 @@ async function loadSubjectData() {
     return;
   }
 
+  const filters = readFilters();
   setLoading(true);
   showMessage("info", "正在加载科目管理数据...");
 
   try {
     allSubjects = sortSubjects(await fetchSubjects());
     renderFilterOptions(allSubjects);
-    restoreFilterSelections(readFilters());
+    restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "科目管理数据已加载。");
   } catch (error) {
@@ -340,7 +341,7 @@ async function submitCreateDialog() {
   try {
     await createSubjectProfile(payload);
     closeCreateDialog({ force: true });
-    await loadSubjectData();
+    await reloadSubjectDataPreservingViewport();
     showMessage("success", "科目已新增，可用于未来录入和筛选。");
   } catch (error) {
     showCreateError(error.message || String(error), createFieldIdsForError(error));
@@ -417,7 +418,7 @@ async function submitEditDialog() {
   try {
     await updateSubjectProfile(payload);
     closeEditDialog({ force: true });
-    await loadSubjectData();
+    await reloadSubjectDataPreservingViewport();
     showMessage("success", "科目基础信息已更新。");
   } catch (error) {
     showEditError(error.message || String(error), editFieldIdsForError(error));
@@ -464,6 +465,7 @@ function showCreateError(message, fieldIds = []) {
   dom.createError.textContent = message;
   dom.createError.classList.remove("is-hidden");
   fieldIds.forEach(setCreateFieldInvalid);
+  dom.createDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearCreateErrors() {
@@ -510,6 +512,7 @@ function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
   fieldIds.forEach(setEditFieldInvalid);
+  dom.editDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearEditErrors() {
@@ -548,6 +551,13 @@ function editFieldIdsForError(error) {
   if (message.includes("名称")) return ["name"];
   if (message.includes("状态")) return ["status"];
   return [];
+}
+
+async function reloadSubjectDataPreservingViewport() {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  await loadSubjectData();
+  window.scrollTo(scrollX, scrollY);
 }
 
 function parseOptionalInteger(value) {

@@ -1574,6 +1574,18 @@ h2 {
   padding: 18px;
 }
 
+.app-dialog--sm {
+  width: min(520px, 100%);
+}
+
+.app-dialog--md {
+  width: min(620px, 100%);
+}
+
+.app-dialog--lg {
+  width: min(820px, 100%);
+}
+
 @supports (height: 100dvh) {
   .dialog-panel {
     max-height: calc(100dvh - 32px);
@@ -2010,6 +2022,12 @@ h2 {
     width: calc(100vw - 24px);
     min-width: 0;
     padding: 16px;
+  }
+
+  .app-dialog--sm,
+  .app-dialog--md,
+  .app-dialog--lg {
+    width: calc(100vw - 24px);
   }
 
   .app-dialog--xl {

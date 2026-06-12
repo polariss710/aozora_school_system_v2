@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.43.0-student-course-target-default-edit-20260606">
+    <link rel="stylesheet" href="./css/app.css?v=v2.98.0-master-simple-edit-open-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -108,7 +108,7 @@
     </div>
 
     <div id="createStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel student-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
+      <section class="dialog-panel student-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
         <div class="section-heading">
           <h2 id="createStudentProfileTitle">新增学生</h2>
           <p class="section-note">仅新增未来使用的学生主数据；不会创建或修改月度结算、carryover、收入、课时、工资或账户流水。</p>
@@ -176,14 +176,14 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="createStudentSubmitButton" type="button">新增</button>
           <button class="button" id="createStudentCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="createStudentSubmitButton" type="button">新增</button>
         </div>
       </section>
     </div>
 
     <div id="editStudentProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editStudentProfileTitle">
+      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="editStudentProfileTitle">
         <div class="section-heading">
           <h2 id="editStudentProfileTitle">编辑学生基础信息</h2>
           <p class="section-note">仅更新学生主数据展示、筛选和默认值；不会修改余额、结算、收入、支付请求、课时、工资或账户流水。</p>
@@ -232,12 +232,12 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="editStudentSubmitButton" type="button">保存</button>
           <button class="button" id="editStudentCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="editStudentSubmitButton" type="button">保存</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v2.45.0-teacher-student-create-full-autopilot-20260606"></script>
+    <script type="module" src="./js/student-app.js?v=v2.98.0-master-simple-edit-open-20260612"></script>
   </body>
 </html>

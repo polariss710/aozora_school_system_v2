@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.97.0-student-settlement-wage-chain-guard-20260612";
+export const APP_VERSION = "v2.98.0-master-simple-edit-open-20260612";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,

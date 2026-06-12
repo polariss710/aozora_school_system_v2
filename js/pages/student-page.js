@@ -471,7 +471,7 @@ async function submitCreateDialog() {
   try {
     await createStudentProfile(payload);
     closeCreateDialog({ force: true });
-    await loadStudentData();
+    await reloadStudentDataPreservingViewport();
     showMessage("success", "学生已新增，可用于未来课时、筛选和结算默认值。");
   } catch (error) {
     showCreateError(error.message || String(error), createFieldIdsForError(error));
@@ -561,7 +561,7 @@ async function submitEditDialog() {
   try {
     await updateStudentProfile(payload);
     closeEditDialog({ force: true });
-    await loadStudentData();
+    await reloadStudentDataPreservingViewport();
     showMessage("success", "学生基础信息和课程/目标信息已更新。");
   } catch (error) {
     showEditError(error.message || String(error), editFieldIdsForError(error));
@@ -671,6 +671,7 @@ function showCreateError(message, fieldIds = []) {
   dom.createError.textContent = message;
   dom.createError.classList.remove("is-hidden");
   fieldIds.forEach(setCreateFieldInvalid);
+  dom.createDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearCreateErrors() {
@@ -719,6 +720,7 @@ function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
   fieldIds.forEach(setEditFieldInvalid);
+  dom.editDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearEditErrors() {
@@ -768,6 +770,13 @@ function editFieldIdsForError(error) {
   if (message.includes("业务归属")) return ["defaultBusinessEntity"];
   if (message.includes("默认币种")) return ["defaultCurrency"];
   return [];
+}
+
+async function reloadStudentDataPreservingViewport() {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  await loadStudentData();
+  window.scrollTo(scrollX, scrollY);
 }
 
 function filterStudentsByKeyword(items, keyword) {

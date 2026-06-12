@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资规则</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.42.0-wage-rule-config-edit-20260606">
+    <link rel="stylesheet" href="./css/app.css?v=v2.98.0-master-simple-edit-open-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -154,7 +154,7 @@
     </div>
 
     <div id="createWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel wage-rule-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createWageRuleConfigTitle">
+      <section class="dialog-panel wage-rule-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="createWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="createWageRuleConfigTitle">新增工资规则</h2>
           <p class="section-note">仅新增未来使用的老师工资规则配置；不会回算历史工资快照，也不会修改支付请求、支出或账户流水。</p>
@@ -231,14 +231,14 @@
         <div class="dialog-warning">新增后不会重算历史工资快照，也不会修改支付请求、支出或账户流水；老师、学生、科目、业务归属作为匹配键保存后不可在编辑 dialog 修改。</div>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="createWageRuleSubmitButton" type="button">新增</button>
           <button class="button" id="createWageRuleCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="createWageRuleSubmitButton" type="button">新增</button>
         </div>
       </section>
     </div>
 
     <div id="editWageRuleConfigDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
+      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="editWageRuleConfigTitle">
         <div class="section-heading">
           <h2 id="editWageRuleConfigTitle">编辑工资规则基础配置</h2>
           <p class="section-note">仅允许编辑结算类型、费率、汇率、费用和备注；老师、学生、科目、业务归属不可编辑。启用状态请使用列表中的停用 / 恢复操作。修改只影响未来工资快照生成，不重算历史工资快照。</p>
@@ -296,14 +296,14 @@
         <div class="dialog-warning">保存后不会重算历史工资快照，也不会修改支付请求、支出或账户流水。</div>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="editWageRuleSubmitButton" type="button">保存</button>
           <button class="button" id="editWageRuleCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="editWageRuleSubmitButton" type="button">保存</button>
         </div>
       </section>
     </div>
 
     <div id="wageRuleActiveStateDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="wageRuleActiveStateTitle">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="wageRuleActiveStateTitle">
         <div class="section-heading">
           <h2 id="wageRuleActiveStateTitle">停用工资规则</h2>
           <p id="wageRuleActiveStateDescription" class="section-note">停用或恢复只影响未来工资规则匹配，不重算历史工资。</p>
@@ -323,12 +323,12 @@
         </label>
 
         <div class="dialog-actions">
-          <button class="button button-primary" id="wageRuleActiveStateSubmitButton" type="button">确认</button>
           <button class="button" id="wageRuleActiveStateCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="wageRuleActiveStateSubmitButton" type="button">确认</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=v2.84.0-wage-snapshot-copy-20260610"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=v2.98.0-master-simple-edit-open-20260612"></script>
   </body>
 </html>

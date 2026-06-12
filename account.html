@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 账户管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v2.98.0-master-simple-edit-open-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -138,7 +138,7 @@
     </div>
 
     <div id="accountCreateDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel account-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountCreateTitle">
+      <section class="dialog-panel account-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="accountCreateTitle">
         <div class="section-heading">
           <h2 id="accountCreateTitle">新增账户</h2>
           <p class="section-note">仅新增未来使用的账户主数据，期初余额和当前余额固定为 0；不会生成账户流水或回写历史业务数据。</p>
@@ -211,7 +211,7 @@
     </div>
 
     <div id="accountProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountProfileTitle">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="accountProfileTitle">
         <div class="section-heading">
           <h2 id="accountProfileTitle">编辑账户基础信息</h2>
           <p class="section-note">第一版仅允许编辑账户名称、账户类型、公司账户标记、启用状态和备注；不会修改余额、账户流水或任何历史业务数据。</p>
@@ -359,6 +359,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.48.0-account-create-full-autopilot-20260607"></script>
+    <script type="module" src="./js/account-app.js?v=v2.98.0-master-simple-edit-open-20260612"></script>
   </body>
 </html>

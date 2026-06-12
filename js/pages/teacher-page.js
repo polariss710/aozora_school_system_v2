@@ -369,7 +369,7 @@ async function submitCreateDialog() {
   try {
     await createTeacherProfile(payload);
     closeCreateDialog({ force: true });
-    await loadTeacherData();
+    await reloadTeacherDataPreservingViewport();
     showMessage("success", "老师已新增，可用于未来排课、筛选和工资规则配置。");
   } catch (error) {
     showCreateError(error.message || String(error), createFieldIdsForError(error));
@@ -448,7 +448,7 @@ async function submitEditDialog() {
   try {
     await updateTeacherProfile(payload);
     closeEditDialog({ force: true });
-    await loadTeacherData();
+    await reloadTeacherDataPreservingViewport();
     showMessage("success", "老师基础信息已更新。");
   } catch (error) {
     showEditError(error.message || String(error), editFieldIdsForError(error));
@@ -519,6 +519,7 @@ function showCreateError(message, fieldIds = []) {
   dom.createError.textContent = message;
   dom.createError.classList.remove("is-hidden");
   fieldIds.forEach(setCreateFieldInvalid);
+  dom.createDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearCreateErrors() {
@@ -565,6 +566,7 @@ function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
   fieldIds.forEach(setEditFieldInvalid);
+  dom.editDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearEditErrors() {
@@ -604,6 +606,13 @@ function editFieldIdsForError(error) {
   if (message.includes("状态")) return ["status"];
   if (message.includes("业务归属")) return ["businessEntity"];
   return [];
+}
+
+async function reloadTeacherDataPreservingViewport() {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  await loadTeacherData();
+  window.scrollTo(scrollX, scrollY);
 }
 
 function filterTeachersByKeyword(items, keyword) {

@@ -615,11 +615,7 @@ async function submitAccountCreate() {
 }
 
 async function refreshAfterAccountCreate(result) {
-  dom.accountSelect.value = "";
-  dom.businessEntitySelect.value = "";
-  dom.currencySelect.value = "";
-  dom.transactionTypeSelect.value = "";
-  await loadAccountData();
+  await reloadAccountDataPreservingViewport();
 }
 
 function renderAccountCreateTypeOptions(selectedType) {
@@ -721,8 +717,8 @@ function openAccountProfileDialog(accountId) {
   dom.accountProfileNameInput.focus();
 }
 
-function closeAccountProfileDialog() {
-  if (isAccountProfileSubmitting) {
+function closeAccountProfileDialog({ force = false } = {}) {
+  if (isAccountProfileSubmitting && !force) {
     return;
   }
 
@@ -776,9 +772,8 @@ async function submitAccountProfile() {
 
   try {
     await updateAccountProfile(payload);
-    setAccountProfileSubmitting(false);
-    closeAccountProfileDialog();
-    await loadAccountData();
+    closeAccountProfileDialog({ force: true });
+    await reloadAccountDataPreservingViewport();
     showMessage("success", "账户基础信息已更新。余额修正请继续使用账户调整流程。");
   } catch (error) {
     showAccountProfileError(`账户基础信息更新失败：${error.message || error}`, accountProfileFieldIdsForError(error.message || ""));
@@ -868,6 +863,13 @@ function hideAccountProfileErrorIfClean() {
     dom.accountProfileError.textContent = "";
     dom.accountProfileError.classList.add("is-hidden");
   }
+}
+
+async function reloadAccountDataPreservingViewport() {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  await loadAccountData();
+  window.scrollTo(scrollX, scrollY);
 }
 
 function renderTransactions(items) {

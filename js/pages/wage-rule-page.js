@@ -211,6 +211,7 @@ function setDefaultFilters() {
 }
 
 async function loadWageRuleData() {
+  const filters = readFilters();
   setLoading(true);
   showMessage("info", "正在加载老师工资规则数据...");
 
@@ -227,7 +228,7 @@ async function loadWageRuleData() {
     wageRules = sortWageRules(ruleRows);
 
     renderFilterOptions(wageRules);
-    restoreFilterSelections(readFilters());
+    restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "老师工资规则数据已加载。");
   } catch (error) {
@@ -413,7 +414,7 @@ async function submitCreateDialog() {
   try {
     await createWageRuleConfig(payload);
     closeCreateDialog({ force: true });
-    await loadWageRuleData();
+    await reloadWageRuleDataPreservingViewport();
     showMessage("success", "老师工资规则已新增；仅影响未来工资快照生成。");
   } catch (error) {
     showCreateError(error.message || String(error), createFieldIdsForError(error));
@@ -550,7 +551,7 @@ async function submitActiveStateDialog() {
   try {
     await setWageRuleActiveState(payload);
     closeActiveStateDialog({ force: true });
-    await loadWageRuleData();
+    await reloadWageRuleDataPreservingViewport();
     showMessage("success", payload.isActive ? "老师工资规则已恢复；仅影响未来工资快照生成。" : "老师工资规则已停用；历史数据已保留。");
   } catch (error) {
     showActiveStateError(error.message || String(error));
@@ -612,7 +613,7 @@ async function submitEditDialog() {
   try {
     await updateWageRuleConfig(payload);
     closeEditDialog({ force: true });
-    await loadWageRuleData();
+    await reloadWageRuleDataPreservingViewport();
     showMessage("success", "老师工资规则配置已更新；仅影响未来工资快照生成。");
   } catch (error) {
     showEditError(error.message || String(error), editFieldIdsForError(error));
@@ -710,6 +711,7 @@ function showActiveStateError(message, fieldIds = []) {
   dom.activeStateError.textContent = message;
   dom.activeStateError.classList.remove("is-hidden");
   fieldIds.forEach(setActiveStateFieldInvalid);
+  dom.activeStateDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearActiveStateErrors() {
@@ -815,6 +817,7 @@ function showCreateError(message, fieldIds = []) {
   dom.createError.textContent = message;
   dom.createError.classList.remove("is-hidden");
   fieldIds.forEach(setCreateFieldInvalid);
+  dom.createDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearCreateErrors() {
@@ -881,6 +884,7 @@ function showEditError(message, fieldIds = []) {
   dom.editError.textContent = message;
   dom.editError.classList.remove("is-hidden");
   fieldIds.forEach(setEditFieldInvalid);
+  dom.editDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function clearEditErrors() {
@@ -933,6 +937,13 @@ function editFieldIdsForError(error) {
   }
   if (message.includes("启用状态")) return ["activeState"];
   return [];
+}
+
+async function reloadWageRuleDataPreservingViewport() {
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  await loadWageRuleData();
+  window.scrollTo(scrollX, scrollY);
 }
 
 function filterWageRules(rows, filters) {
