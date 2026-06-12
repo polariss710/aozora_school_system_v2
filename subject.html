@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 科目管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.98.0-master-simple-edit-open-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.99.0-master-editable-fields-open-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -159,10 +159,10 @@
     </div>
 
     <div id="editSubjectProfileDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--sm" role="dialog" aria-modal="true" aria-labelledby="editSubjectProfileTitle">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="editSubjectProfileTitle">
         <div class="section-heading">
           <h2 id="editSubjectProfileTitle">编辑科目基础信息</h2>
-          <p class="section-note">第一版仅允许编辑科目名称、启用状态和备注；不会删除科目，也不会修改历史课时、工资、结算或支付数据。</p>
+          <p class="section-note">仅更新科目主数据展示和筛选字段；不会删除科目，也不会修改历史课时、工资、结算或支付数据。</p>
         </div>
 
         <div id="editSubjectProfileSummary" class="dialog-summary"></div>
@@ -179,6 +179,31 @@
         </label>
 
         <label class="field">
+          <span>一级分类</span>
+          <input id="editSubjectPrimaryCategoryInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>分类</span>
+          <input id="editSubjectCategoryInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>三级分类</span>
+          <input id="editSubjectTertiaryCategoryInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-edit-subject-field="color">
+          <span>颜色</span>
+          <input id="editSubjectColorInput" type="text" autocomplete="off" placeholder="#0f766e">
+        </label>
+
+        <label class="field" data-edit-subject-field="sortOrder">
+          <span>排序</span>
+          <input id="editSubjectSortOrderInput" type="number" min="0" step="1" inputmode="numeric">
+        </label>
+
+        <label class="field">
           <span>备注</span>
           <textarea id="editSubjectNoteInput" rows="3"></textarea>
         </label>
@@ -190,6 +215,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/subject-app.js?v=v2.98.0-master-simple-edit-open-20260612"></script>
+    <script type="module" src="./js/subject-app.js?v=v2.99.0-master-editable-fields-open-20260612"></script>
   </body>
 </html>

@@ -91,6 +91,7 @@ Completion snapshot:
 - 只读/预览功能: account list, account transaction list/filter, transaction detail with linked source summaries for income, expense, payment, reimbursement, adjustment, transfer, and account origin.
 - guard/锁定保护: account create fixes opening/current balance at 0 and creates no transaction; profile edit cannot alter code, business ownership, currency, opening/current balances, or historical chains. Adjustment/transfer reversal preserves audit history through reversal records/transactions.
 - 编辑范围: 账户新增可填写 `account_code`, `name`, `account_type`, `currency`, `business_entity_id`, `is_company_account`, `is_active`, `note`; `opening_balance` 和 `current_balance` 固定为 `0`，不生成 `school_account_transactions`。账户资料编辑仅允许 `name`, `account_type`, `is_company_account`, `is_active`, `note`。不可编辑/受保护字段包括 `account_code`, `currency`, `business_entity_id`, `opening_balance`, `current_balance`, `app_type`, `created_at`，以及 `school_account_transactions` 和历史收入、支出、报销、支付、转账、调整、结算、工资链路；余额修正只能走已验证的 account adjustment flow。
+- 可编辑字段开放复核: 2026-06-12 已重新盘点账户列表/编辑 dialog 字段；除现有 `name`, `account_type`, `is_company_account`, `is_active`, `note` 外没有新增可安全开放字段。`account_code` 是稳定审计/对账标识，`business_entity_id` 和 `currency` 会影响财务归属/币种链路，`opening_balance/current_balance` 必须由收入、支出、报销、支付、转账、调整等验证流程维护。
 - 简单编辑体验: 2026-06-12 收口新增/编辑 dialog 尺寸、按钮、loading、错误显示、失败保留输入、成功保留筛选和列表位置；账户新增成功不再清空当前筛选。
 - 未完成: standalone account transfer detail page.
 - 已知限制: balance changes are intentionally limited to verified income, expense, reimbursement, payment, adjustment, and transfer flows. Account transaction detail is the current audit surface for transfers.
@@ -136,13 +137,14 @@ Completion snapshot:
 
 - 状态标签: V1 可用
 - 完成度: 12/16
-- 已完成: student, teacher, subject, and business entity readable lists; future-use profile creation; narrow profile update.
+- 已完成: student, teacher, subject, and business entity readable lists; future-use profile creation; safe displayed master-data profile update.
 - 可写入功能: create/update student profile, teacher profile, subject profile, and business entity profile through API-layer RPC wrappers.
 - 只读/预览功能: master-data list/filter surfaces and lookup sources for lesson, settlement, wage, income, expense, account, payment, and profit modules.
-- guard/锁定保护: master-data writes are narrow future-use changes and must not rewrite historical lessons, settlements, wages, payments, income, expenses, accounts, balances, or account transactions. Subject `status` maps to `is_active`; subject display name maps to `name`.
+- guard/锁定保护: master-data writes are future-use/default/display changes and must not rewrite historical lessons, settlements, wages, payments, income, expenses, accounts, balances, or account transactions. Subject `status` maps to `is_active`; subject display name maps to `name`.
+- 编辑范围: 老师编辑开放 `display_name`, `name`, `kana_name`, `department`, `status`, `default_hourly_rate`, `default_currency`, `default_payment_currency`, `default_payment_method`, `default_business_entity_id`, `note`；继续只读 `teacher_code`, `default_subject_id`, 联系方式、收款账户、工资规则、工资锁定、支付、课时、结算链路。学生编辑开放 `display_name`, `name`, `kana_name`, `status`, `course_track`, `target_type`, `target_schools`, `business_entity_id`, `default_currency`, `preset_exchange_rate`, `note`；继续只读 `student_code`, 余额、月结/carryover、学费规则、联系方式、家长信息、生日、收入/支付/课时/工资/账户链路。科目编辑开放 `name`, `is_active` via status, `primary_category`, `category`, `tertiary_category`, `color`, `sort_order`, `note`；继续只读 id/timestamps 和历史课时、工资、结算、支付链路。
 - 简单编辑体验: 2026-06-12 老师、学生、科目基础编辑继续只走 API/RPC layer，dialog 行为统一为小/中/大尺寸、取消/保存按钮顺序、保存中 loading、内联错误、失败不关闭且不清空输入、成功后保留筛选和列表位置；科目重载筛选选项前会先保存当前筛选。
 - 未完成: delete/merge flows, broad contact/parent/tuition-rule editing, business entity account auto-create, business entity company-report inclusion edit.
-- 已知限制: teacher edit scope is narrow; student create/update excludes balances and historical financial fields; business entity default currency changes must not imply historical rewrite.
+- 已知限制: contact/payment-account/parent/tuition-rule editing remains closed; business entity default currency changes must not imply historical rewrite.
 - 后续优先级: keep master-data writes narrow; defer delete/merge to explicit audit-safe workflows.
 
 ## 工资规则
@@ -152,7 +154,8 @@ Completion snapshot:
 - 已完成: wage rule list, read-only detail, future-use rule config create, config edit, soft-disable/restore instead of delete.
 - 可写入功能: create/update wage rule config and set active state through API-layer RPC wrappers.
 - 只读/预览功能: wage rule list/detail, teacher/student/subject/business entity lookups, future-lock-only/no-history-recalculation notice.
-- guard/锁定保护: create/edit/soft-disable/restore must not recalculate historical wages or mutate wage locks, wage lock details, payment requests, expenses, account balances, or account transactions; edit cannot change teacher/student/subject/business linkage; restore rejects conflicting active rules.
+- guard/锁定保护: create/edit/soft-disable/restore must not recalculate historical wages or mutate wage locks, wage lock details, payment requests, expenses, account balances, or account transactions; restore rejects conflicting active rules.
+- 编辑范围: 工资规则编辑开放 `teacher_id`, `student_id`, `subject_id`, `business_entity_id`, `settlement_type`, `hourly_rate_jpy`, `hourly_rate_cny`, `exchange_rate`, `transport_fee_jpy`, `classroom_fee_jpy`, `note`。匹配键变更要求新老师/学生/科目/业务归属可用于新规则；保持当前已停用关联可继续保存其他配置。`id`, `created_at`, `updated_at`, 历史工资快照、支付请求、支出、账户流水继续只读；`is_active` 仍通过停用/恢复专用 dialog 修改。
 - 简单编辑体验: 2026-06-12 工资规则新增/编辑/停用恢复 dialog 使用统一大/中尺寸、按钮顺序、loading 和错误显示；失败不关闭并保留输入，成功后保留筛选和列表位置；重载筛选选项前会先保存当前筛选。
 - 未完成: physical delete, generic student-empty rules, historical wage recalculation.
 - 已知限制: first create version requires explicit teacher/student/subject/business entity. Active-state changes use the dedicated soft-disable/restore action instead of the generic edit dialog.

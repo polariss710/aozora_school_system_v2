@@ -163,6 +163,10 @@ export async function createWageRuleConfig(payload) {
 export async function updateWageRuleConfig(payload) {
   const { data, error } = await supabase.rpc("school_update_teacher_wage_rule_config", {
     p_wage_rule_id: payload.wageRuleId,
+    p_teacher_id: payload.teacherId,
+    p_student_id: payload.studentId,
+    p_subject_id: payload.subjectId,
+    p_business_entity_id: payload.businessEntityId,
     p_settlement_type: payload.settlementType,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
     p_hourly_rate_cny: payload.hourlyRateCny,

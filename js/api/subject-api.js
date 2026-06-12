@@ -34,6 +34,11 @@ export async function updateSubjectProfile(payload) {
     p_subject_id: payload.subjectId,
     p_name: payload.name,
     p_status: payload.status,
+    p_category: payload.category || null,
+    p_primary_category: payload.primaryCategory || null,
+    p_tertiary_category: payload.tertiaryCategory || null,
+    p_color: payload.color || null,
+    p_sort_order: payload.sortOrder,
     p_note: payload.note || null,
   });
 

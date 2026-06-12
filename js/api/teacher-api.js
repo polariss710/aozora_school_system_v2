@@ -67,7 +67,14 @@ export async function updateTeacherProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_teacher_profile", {
     p_teacher_id: payload.teacherId,
     p_display_name: payload.displayName,
+    p_name: payload.name,
+    p_kana_name: payload.kanaName || null,
+    p_department: payload.department || null,
     p_status: payload.status,
+    p_default_hourly_rate: payload.defaultHourlyRate,
+    p_default_currency: payload.defaultCurrency || null,
+    p_default_payment_currency: payload.defaultPaymentCurrency || null,
+    p_default_payment_method: payload.defaultPaymentMethod || null,
     p_default_business_entity_id: payload.defaultBusinessEntityId || null,
     p_note: payload.note || null,
   });

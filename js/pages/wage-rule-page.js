@@ -112,6 +112,10 @@ function cacheDom() {
   dom.editDialog = document.querySelector("#editWageRuleConfigDialog");
   dom.editSummary = document.querySelector("#editWageRuleConfigSummary");
   dom.editError = document.querySelector("#editWageRuleConfigError");
+  dom.editTeacherSelect = document.querySelector("#editWageRuleTeacherSelect");
+  dom.editStudentSelect = document.querySelector("#editWageRuleStudentSelect");
+  dom.editSubjectSelect = document.querySelector("#editWageRuleSubjectSelect");
+  dom.editBusinessEntitySelect = document.querySelector("#editWageRuleBusinessEntitySelect");
   dom.editSettlementTypeSelect = document.querySelector("#editWageRuleSettlementTypeSelect");
   dom.editHourlyRateJpyInput = document.querySelector("#editWageRuleHourlyRateJpyInput");
   dom.editHourlyRateCnyInput = document.querySelector("#editWageRuleHourlyRateCnyInput");
@@ -186,6 +190,10 @@ function bindEvents() {
   dom.activeStateConfirmCheck.addEventListener("change", hideActiveStateErrorIfClean);
 
   [
+    dom.editTeacherSelect,
+    dom.editStudentSelect,
+    dom.editSubjectSelect,
+    dom.editBusinessEntitySelect,
     dom.editSettlementTypeSelect,
     dom.editHourlyRateJpyInput,
     dom.editHourlyRateCnyInput,
@@ -452,6 +460,41 @@ function renderCreateLookupOptions() {
   renderCreateEntityOptions(dom.createBusinessEntitySelect, businessEntities.filter(isUsableBusinessEntity), businessEntityName, "请选择业务归属");
 }
 
+function renderEditLookupOptions(rule) {
+  renderEditEntityOptions(
+    dom.editTeacherSelect,
+    teachers,
+    rule.teacher_id,
+    isUsableTeacher,
+    teacherName,
+    "请选择老师"
+  );
+  renderEditEntityOptions(
+    dom.editStudentSelect,
+    students,
+    rule.student_id,
+    isUsableStudent,
+    studentName,
+    "请选择学生"
+  );
+  renderEditEntityOptions(
+    dom.editSubjectSelect,
+    subjects,
+    rule.subject_id,
+    isUsableSubject,
+    subjectName,
+    "请选择科目"
+  );
+  renderEditEntityOptions(
+    dom.editBusinessEntitySelect,
+    businessEntities,
+    rule.business_entity_id,
+    isUsableBusinessEntity,
+    businessEntityName,
+    "请选择业务归属"
+  );
+}
+
 function renderCreateEntityOptions(selectEl, rows, labelGetter, placeholder) {
   const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
 
@@ -464,6 +507,21 @@ function renderCreateEntityOptions(selectEl, rows, labelGetter, placeholder) {
   selectEl.innerHTML = options.join("");
 }
 
+function renderEditEntityOptions(selectEl, rows, currentId, usablePredicate, labelGetter, placeholder) {
+  const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
+  const optionRows = rows.filter((row) => row?.id && (row.id === currentId || usablePredicate(row)));
+
+  for (const row of optionRows) {
+    const suffix = row.id === currentId && !usablePredicate(row) ? "（当前不可新选）" : "";
+    options.push(
+      `<option value="${escapeAttribute(row.id)}">${escapeHtml(`${labelGetter(row)}${suffix}`)}</option>`
+    );
+  }
+
+  selectEl.innerHTML = options.join("");
+  selectEl.value = currentId || "";
+}
+
 function openEditDialog(wageRuleId) {
   const rule = wageRules.find((item) => item.id === wageRuleId);
   if (!rule) {
@@ -473,6 +531,7 @@ function openEditDialog(wageRuleId) {
 
   editingWageRule = rule;
   dom.editSummary.innerHTML = renderEditSummary(rule);
+  renderEditLookupOptions(rule);
   dom.editSettlementTypeSelect.value = rule.settlement_type || "jpy_hourly";
   dom.editHourlyRateJpyInput.value = displayNumberInput(rule.hourly_rate_jpy);
   dom.editHourlyRateCnyInput.value = displayNumberInput(rule.hourly_rate_cny);
@@ -487,7 +546,7 @@ function openEditDialog(wageRuleId) {
   syncNoWageFields();
   dom.editDialog.classList.remove("is-hidden");
   dom.editDialog.setAttribute("aria-hidden", "false");
-  dom.editSettlementTypeSelect.focus();
+  dom.editTeacherSelect.focus();
 }
 
 function openActiveStateDialog(wageRuleId) {
@@ -584,6 +643,10 @@ async function submitEditDialog() {
 
   const payload = {
     wageRuleId: editingWageRule.id,
+    teacherId: dom.editTeacherSelect.value,
+    studentId: dom.editStudentSelect.value,
+    subjectId: dom.editSubjectSelect.value,
+    businessEntityId: dom.editBusinessEntitySelect.value,
     settlementType: dom.editSettlementTypeSelect.value,
     hourlyRateJpy: readNonNegativeNumber(dom.editHourlyRateJpyInput.value),
     hourlyRateCny: readNonNegativeNumber(dom.editHourlyRateCnyInput.value),
@@ -596,7 +659,7 @@ async function submitEditDialog() {
 
   const invalidFields = validateEditPayload(payload);
   if (invalidFields.length > 0) {
-    showEditError("请检查结算类型、费率、汇率、费用和启用状态。", invalidFields);
+    showEditError("请检查老师、学生、科目、业务归属、结算类型、费率、汇率、费用和启用状态。", invalidFields);
     return;
   }
 
@@ -623,7 +686,25 @@ async function submitEditDialog() {
 }
 
 function validateEditPayload(payload) {
-  return validateConfigPayload(payload, dom.editActiveSelect);
+  const invalidFields = [];
+
+  if (!editableTeacherById(payload.teacherId, editingWageRule?.teacher_id)) {
+    invalidFields.push("teacher");
+  }
+
+  if (!editableStudentById(payload.studentId, editingWageRule?.student_id)) {
+    invalidFields.push("student");
+  }
+
+  if (!editableSubjectById(payload.subjectId, editingWageRule?.subject_id)) {
+    invalidFields.push("subject");
+  }
+
+  if (!editableBusinessEntityById(payload.businessEntityId, editingWageRule?.business_entity_id)) {
+    invalidFields.push("businessEntity");
+  }
+
+  return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload, dom.editActiveSelect)]);
 }
 
 function validateConfigPayload(payload, activeSelect) {
@@ -654,11 +735,8 @@ function validateConfigPayload(payload, activeSelect) {
 
 function renderEditSummary(rule) {
   const rows = [
-    ["老师", teacherNameById(rule.teacher_id)],
-    ["学生", studentNameById(rule.student_id)],
-    ["科目", subjectNameById(rule.subject_id)],
-    ["业务归属", businessNameById(rule.business_entity_id)],
-    ["不可编辑字段", "老师、学生、科目、业务归属、历史工资快照、支付请求、支出、账户流水"],
+    ["规则 ID", shortId(rule.id)],
+    ["不可编辑字段", "规则 ID、创建时间、更新时间、历史工资快照、支付请求、支出、账户流水"],
   ];
 
   return `
@@ -746,6 +824,8 @@ function setActiveStateSubmitting(isSubmitting) {
 }
 
 function handleEditFieldChange(event) {
+  clearEditFieldInvalid(editFieldIdForElement(event.currentTarget));
+
   if (event.currentTarget === dom.editSettlementTypeSelect) {
     syncNoWageFields();
   }
@@ -866,6 +946,21 @@ function createFieldIdForElement(field) {
   return "";
 }
 
+function editFieldIdForElement(field) {
+  if (field === dom.editTeacherSelect) return "teacher";
+  if (field === dom.editStudentSelect) return "student";
+  if (field === dom.editSubjectSelect) return "subject";
+  if (field === dom.editBusinessEntitySelect) return "businessEntity";
+  if (field === dom.editSettlementTypeSelect) return "settlementType";
+  if (field === dom.editHourlyRateJpyInput) return "hourlyRateJpy";
+  if (field === dom.editHourlyRateCnyInput) return "hourlyRateCny";
+  if (field === dom.editExchangeRateInput) return "exchangeRate";
+  if (field === dom.editTransportFeeJpyInput) return "transportFeeJpy";
+  if (field === dom.editClassroomFeeJpyInput) return "classroomFeeJpy";
+  if (field === dom.editActiveSelect) return "activeState";
+  return "";
+}
+
 function createFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("老师")) return ["teacher"];
@@ -891,6 +986,10 @@ function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
   [
+    "teacher",
+    "student",
+    "subject",
+    "businessEntity",
     "settlementType",
     "hourlyRateJpy",
     "hourlyRateCny",
@@ -928,6 +1027,10 @@ function setEditSubmitting(isSubmitting) {
 
 function editFieldIdsForError(error) {
   const message = error?.message || String(error || "");
+  if (message.includes("老师")) return ["teacher"];
+  if (message.includes("学生")) return ["student"];
+  if (message.includes("科目")) return ["subject"];
+  if (message.includes("业务归属")) return ["businessEntity"];
   if (message.includes("结算类型")) return ["settlementType"];
   if (message.includes("负数")) {
     return ["hourlyRateJpy", "hourlyRateCny", "exchangeRate", "transportFeeJpy", "classroomFeeJpy"];
@@ -1058,16 +1161,32 @@ function usableTeacherById(id) {
   return teachers.find((teacher) => teacher.id === id && isUsableTeacher(teacher)) || null;
 }
 
+function editableTeacherById(id, currentId) {
+  return id && (id === currentId ? teacherById(id) : usableTeacherById(id));
+}
+
 function usableStudentById(id) {
   return students.find((student) => student.id === id && isUsableStudent(student)) || null;
+}
+
+function editableStudentById(id, currentId) {
+  return id && (id === currentId ? students.find((student) => student.id === id) : usableStudentById(id));
 }
 
 function usableSubjectById(id) {
   return subjects.find((subject) => subject.id === id && isUsableSubject(subject)) || null;
 }
 
+function editableSubjectById(id, currentId) {
+  return id && (id === currentId ? subjects.find((subject) => subject.id === id) : usableSubjectById(id));
+}
+
 function usableBusinessEntityById(id) {
   return businessEntities.find((entity) => entity.id === id && isUsableBusinessEntity(entity)) || null;
+}
+
+function editableBusinessEntityById(id, currentId) {
+  return id && (id === currentId ? businessEntities.find((entity) => entity.id === id) : usableBusinessEntityById(id));
 }
 
 function teacherNameById(id) {
@@ -1178,6 +1297,10 @@ function uniqueFieldIds(fieldIds) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function shortId(id) {
+  return id ? `${String(id).slice(0, 8)}...` : "-";
 }
 
 function setLoading(isLoading) {

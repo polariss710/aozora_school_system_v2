@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initStudentPage } from "./pages/student-page.js?v=v2.98.0-master-simple-edit-open-20260612";
+import { initStudentPage } from "./pages/student-page.js?v=v2.99.0-master-editable-fields-open-20260612";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

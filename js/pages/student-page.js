@@ -101,11 +101,15 @@ function cacheDom() {
   dom.editSummary = document.querySelector("#editStudentProfileSummary");
   dom.editError = document.querySelector("#editStudentProfileError");
   dom.editDisplayNameInput = document.querySelector("#editStudentDisplayNameInput");
+  dom.editNameInput = document.querySelector("#editStudentNameInput");
+  dom.editKanaNameInput = document.querySelector("#editStudentKanaNameInput");
   dom.editStatusSelect = document.querySelector("#editStudentStatusSelect");
   dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
   dom.editTargetTypeInput = document.querySelector("#editStudentTargetTypeInput");
+  dom.editTargetSchoolsInput = document.querySelector("#editStudentTargetSchoolsInput");
   dom.editBusinessEntitySelect = document.querySelector("#editStudentBusinessEntitySelect");
   dom.editDefaultCurrencySelect = document.querySelector("#editStudentDefaultCurrencySelect");
+  dom.editPresetExchangeRateInput = document.querySelector("#editStudentPresetExchangeRateInput");
   dom.editNoteInput = document.querySelector("#editStudentNoteInput");
   dom.editCancelButton = document.querySelector("#editStudentCancelButton");
   dom.editSubmitButton = document.querySelector("#editStudentSubmitButton");
@@ -165,6 +169,10 @@ function bindEvents() {
     clearEditFieldInvalid("displayName");
     hideEditErrorIfClean();
   });
+  dom.editNameInput.addEventListener("input", () => {
+    clearEditFieldInvalid("name");
+    hideEditErrorIfClean();
+  });
   dom.editStatusSelect.addEventListener("change", () => {
     clearEditFieldInvalid("status");
     hideEditErrorIfClean();
@@ -183,6 +191,10 @@ function bindEvents() {
   });
   dom.editDefaultCurrencySelect.addEventListener("change", () => {
     clearEditFieldInvalid("defaultCurrency");
+    hideEditErrorIfClean();
+  });
+  dom.editPresetExchangeRateInput.addEventListener("input", () => {
+    clearEditFieldInvalid("presetExchangeRate");
     hideEditErrorIfClean();
   });
 }
@@ -490,11 +502,15 @@ function openEditDialog(studentId) {
   editingStudent = student;
   dom.editSummary.innerHTML = renderEditSummary(student);
   dom.editDisplayNameInput.value = student.display_name || student.name || "";
+  dom.editNameInput.value = student.name || student.display_name || "";
+  dom.editKanaNameInput.value = student.kana_name || "";
   renderEditStatusOptions(student.status);
   renderEditCourseTrackOptions(student.course_track);
   dom.editTargetTypeInput.value = student.target_type || "";
+  dom.editTargetSchoolsInput.value = student.target_schools || "";
   renderEditBusinessEntityOptions(student.business_entity_id);
   renderEditDefaultCurrencyOptions(student.default_currency);
+  dom.editPresetExchangeRateInput.value = displayNumberInput(student.preset_exchange_rate);
   dom.editNoteInput.value = student.note || "";
   clearEditErrors();
   setEditSubmitting(false);
@@ -528,16 +544,25 @@ async function submitEditDialog() {
   const payload = {
     studentId: editingStudent.id,
     displayName: dom.editDisplayNameInput.value.trim(),
+    name: dom.editNameInput.value.trim(),
+    kanaName: dom.editKanaNameInput.value.trim(),
     status: dom.editStatusSelect.value,
     courseTrack: dom.editCourseTrackSelect.value,
     targetType: dom.editTargetTypeInput.value.trim(),
+    targetSchools: dom.editTargetSchoolsInput.value.trim(),
     defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
     defaultCurrency: dom.editDefaultCurrencySelect.value,
+    presetExchangeRate: readNonNegativeNumber(dom.editPresetExchangeRateInput.value),
     note: dom.editNoteInput.value.trim(),
   };
 
   if (!payload.displayName) {
     showEditError("请输入学生显示名称。", ["displayName"]);
+    return;
+  }
+
+  if (!payload.name) {
+    showEditError("请输入学生系统姓名。", ["name"]);
     return;
   }
 
@@ -553,6 +578,11 @@ async function submitEditDialog() {
 
   if (!payload.defaultCurrency || !EDITABLE_DEFAULT_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
     showEditError("请选择有效默认币种。", ["defaultCurrency"]);
+    return;
+  }
+
+  if (!Number.isFinite(payload.presetExchangeRate) || payload.presetExchangeRate < 0) {
+    showEditError("预设汇率需为 0 或正数。", ["presetExchangeRate"]);
     return;
   }
 
@@ -573,10 +603,7 @@ async function submitEditDialog() {
 function renderEditSummary(student) {
   const rows = [
     ["学生编号", student.student_code || shortId(student.id)],
-    ["系统姓名", student.name],
-    ["当前业务归属", businessEntityName(student.business_entity_id)],
-    ["当前默认币种", student.default_currency],
-    ["不可编辑字段", "余额、结算、学费规则、联系方式、家长信息、生日、历史财务链路"],
+    ["不可编辑字段", "学生编号、余额、结算、学费规则、联系方式、家长信息、生日、历史财务链路"],
   ];
 
   return `
@@ -728,11 +755,13 @@ function clearEditErrors() {
   dom.editError.classList.add("is-hidden");
   [
     "displayName",
+    "name",
     "status",
     "courseTrack",
     "targetType",
     "defaultBusinessEntity",
     "defaultCurrency",
+    "presetExchangeRate",
   ].forEach(clearEditFieldInvalid);
 }
 
@@ -764,11 +793,13 @@ function setEditSubmitting(isSubmitting) {
 function editFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("显示名称")) return ["displayName"];
+  if (message.includes("系统姓名")) return ["name"];
   if (message.includes("状态")) return ["status"];
   if (message.includes("课程方向")) return ["courseTrack"];
   if (message.includes("目标类型")) return ["targetType"];
   if (message.includes("业务归属")) return ["defaultBusinessEntity"];
   if (message.includes("默认币种")) return ["defaultCurrency"];
+  if (message.includes("预设汇率")) return ["presetExchangeRate"];
   return [];
 }
 
@@ -836,6 +867,20 @@ function courseTrackLabel(courseTrack) {
   }
 
   return COURSE_TRACK_LABELS[courseTrack] || safeText(courseTrack);
+}
+
+function readNonNegativeNumber(value) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return 0;
+  }
+
+  return Number(text);
+}
+
+function displayNumberInput(value) {
+  const text = safeText(value);
+  return text || "0";
 }
 
 function displayValue(value) {

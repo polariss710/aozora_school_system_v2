@@ -69,6 +69,11 @@ function cacheDom() {
   dom.editError = document.querySelector("#editSubjectProfileError");
   dom.editNameInput = document.querySelector("#editSubjectNameInput");
   dom.editStatusSelect = document.querySelector("#editSubjectStatusSelect");
+  dom.editPrimaryCategoryInput = document.querySelector("#editSubjectPrimaryCategoryInput");
+  dom.editCategoryInput = document.querySelector("#editSubjectCategoryInput");
+  dom.editTertiaryCategoryInput = document.querySelector("#editSubjectTertiaryCategoryInput");
+  dom.editColorInput = document.querySelector("#editSubjectColorInput");
+  dom.editSortOrderInput = document.querySelector("#editSubjectSortOrderInput");
   dom.editNoteInput = document.querySelector("#editSubjectNoteInput");
   dom.editCancelButton = document.querySelector("#editSubjectCancelButton");
   dom.editSubmitButton = document.querySelector("#editSubjectSubmitButton");
@@ -122,6 +127,14 @@ function bindEvents() {
   });
   dom.editStatusSelect.addEventListener("change", () => {
     clearEditFieldInvalid("status");
+    hideEditErrorIfClean();
+  });
+  dom.editColorInput.addEventListener("input", () => {
+    clearEditFieldInvalid("color");
+    hideEditErrorIfClean();
+  });
+  dom.editSortOrderInput.addEventListener("input", () => {
+    clearEditFieldInvalid("sortOrder");
     hideEditErrorIfClean();
   });
 }
@@ -361,6 +374,11 @@ function openEditDialog(subjectId) {
   dom.editSummary.innerHTML = renderEditSummary(subject);
   dom.editNameInput.value = subject.name || "";
   renderEditStatusOptions(subject.is_active === false ? "inactive" : "active");
+  dom.editPrimaryCategoryInput.value = subject.primary_category || "班课";
+  dom.editCategoryInput.value = subject.category || "";
+  dom.editTertiaryCategoryInput.value = subject.tertiary_category || "";
+  dom.editColorInput.value = subject.color || "";
+  dom.editSortOrderInput.value = String(subject.sort_order ?? 0);
   dom.editNoteInput.value = subject.note || "";
   clearEditErrors();
   setEditSubmitting(false);
@@ -395,6 +413,11 @@ async function submitEditDialog() {
     subjectId: editingSubject.id,
     name: dom.editNameInput.value.trim(),
     status: dom.editStatusSelect.value,
+    primaryCategory: dom.editPrimaryCategoryInput.value.trim(),
+    category: dom.editCategoryInput.value.trim(),
+    tertiaryCategory: dom.editTertiaryCategoryInput.value.trim(),
+    color: dom.editColorInput.value.trim(),
+    sortOrder: parseOptionalInteger(dom.editSortOrderInput.value),
     note: dom.editNoteInput.value.trim(),
   };
 
@@ -410,6 +433,16 @@ async function submitEditDialog() {
 
   if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
     showEditError("请选择有效科目状态。", ["status"]);
+    return;
+  }
+
+  if (payload.color && !VALID_COLOR_PATTERN.test(payload.color)) {
+    showEditError("颜色格式需为 #RRGGBB。", ["color"]);
+    return;
+  }
+
+  if (payload.sortOrder === null) {
+    showEditError("排序需为 0 或正整数。", ["sortOrder"]);
     return;
   }
 
@@ -429,10 +462,8 @@ async function submitEditDialog() {
 
 function renderEditSummary(subject) {
   const rows = [
-    ["一级分类", displayValue(subject.primary_category)],
-    ["分类", displayValue(subject.category)],
-    ["三级分类", displayValue(subject.tertiary_category)],
-    ["不可编辑字段", "分类、颜色、排序、历史课时、工资、结算、支付"],
+    ["科目 ID", shortId(subject.id)],
+    ["不可编辑字段", "科目 ID、创建时间、更新时间、历史课时、工资、结算、支付"],
   ];
 
   return `
@@ -518,7 +549,7 @@ function showEditError(message, fieldIds = []) {
 function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
-  ["name", "status"].forEach(clearEditFieldInvalid);
+  ["name", "status", "color", "sortOrder"].forEach(clearEditFieldInvalid);
 }
 
 function hideEditErrorIfClean() {
@@ -550,6 +581,8 @@ function editFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("名称")) return ["name"];
   if (message.includes("状态")) return ["status"];
+  if (message.includes("颜色")) return ["color"];
+  if (message.includes("排序")) return ["sortOrder"];
   return [];
 }
 
@@ -670,6 +703,10 @@ function normalizedColor(value) {
 
 function displayValue(value) {
   return safeText(value) || "未设置";
+}
+
+function shortId(id) {
+  return id ? `${String(id).slice(0, 8)}...` : "未设置";
 }
 
 function subjectStatusLabel(status) {

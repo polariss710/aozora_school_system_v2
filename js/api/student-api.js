@@ -68,11 +68,15 @@ export async function updateStudentProfile(payload) {
   const { data, error } = await supabase.rpc("school_update_student_profile", {
     p_student_id: payload.studentId,
     p_display_name: payload.displayName,
+    p_name: payload.name,
+    p_kana_name: payload.kanaName || null,
     p_status: payload.status,
     p_course_track: payload.courseTrack || null,
     p_target_type: payload.targetType || null,
+    p_target_schools: payload.targetSchools || null,
     p_default_business_entity_id: payload.defaultBusinessEntityId || null,
     p_default_currency: payload.defaultCurrency || null,
+    p_preset_exchange_rate: payload.presetExchangeRate,
     p_note: payload.note || null,
   });
 

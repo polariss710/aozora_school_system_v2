@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.98.0-master-simple-edit-open-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.99.0-master-editable-fields-open-20260612">
   </head>
   <body>
     <div class="app-shell">
@@ -197,6 +197,16 @@
           <input id="editStudentDisplayNameInput" type="text" autocomplete="off">
         </label>
 
+        <label class="field" data-edit-student-field="name">
+          <span>系统姓名</span>
+          <input id="editStudentNameInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>读音</span>
+          <input id="editStudentKanaNameInput" type="text" autocomplete="off">
+        </label>
+
         <label class="field" data-edit-student-field="status">
           <span>状态</span>
           <select id="editStudentStatusSelect"></select>
@@ -216,6 +226,11 @@
           <input id="editStudentTargetTypeInput" type="text" autocomplete="off">
         </label>
 
+        <label class="field student-create-wide-field">
+          <span>目标学校</span>
+          <input id="editStudentTargetSchoolsInput" type="text" autocomplete="off">
+        </label>
+
         <label class="field" data-edit-student-field="defaultBusinessEntity">
           <span>默认业务归属</span>
           <select id="editStudentBusinessEntitySelect"></select>
@@ -226,7 +241,12 @@
           <select id="editStudentDefaultCurrencySelect"></select>
         </label>
 
-        <label class="field">
+        <label class="field" data-edit-student-field="presetExchangeRate">
+          <span>预设汇率</span>
+          <input id="editStudentPresetExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal">
+        </label>
+
+        <label class="field student-create-wide-field">
           <span>备注</span>
           <textarea id="editStudentNoteInput" rows="3"></textarea>
         </label>
@@ -238,6 +258,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v2.98.0-master-simple-edit-open-20260612"></script>
+    <script type="module" src="./js/student-app.js?v=v2.99.0-master-editable-fields-open-20260612"></script>
   </body>
 </html>

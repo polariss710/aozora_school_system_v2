@@ -25,6 +25,7 @@ const TEACHER_STATUS_LABELS = {
 };
 
 const EDITABLE_STATUS_OPTIONS = ["employed", "paused", "inactive", "resigned"];
+const EDITABLE_CURRENCY_OPTIONS = ["JPY", "CNY"];
 const CREATE_FIELD_IDS = ["teacherCode", "displayName", "status", "businessEntity"];
 
 const dom = {};
@@ -80,8 +81,15 @@ function cacheDom() {
   dom.editSummary = document.querySelector("#editTeacherProfileSummary");
   dom.editError = document.querySelector("#editTeacherProfileError");
   dom.editDisplayNameInput = document.querySelector("#editTeacherDisplayNameInput");
+  dom.editNameInput = document.querySelector("#editTeacherNameInput");
+  dom.editKanaNameInput = document.querySelector("#editTeacherKanaNameInput");
   dom.editStatusSelect = document.querySelector("#editTeacherStatusSelect");
+  dom.editDepartmentInput = document.querySelector("#editTeacherDepartmentInput");
   dom.editBusinessEntitySelect = document.querySelector("#editTeacherBusinessEntitySelect");
+  dom.editDefaultHourlyRateInput = document.querySelector("#editTeacherDefaultHourlyRateInput");
+  dom.editDefaultCurrencySelect = document.querySelector("#editTeacherDefaultCurrencySelect");
+  dom.editDefaultPaymentCurrencySelect = document.querySelector("#editTeacherDefaultPaymentCurrencySelect");
+  dom.editDefaultPaymentMethodInput = document.querySelector("#editTeacherDefaultPaymentMethodInput");
   dom.editNoteInput = document.querySelector("#editTeacherNoteInput");
   dom.editCancelButton = document.querySelector("#editTeacherCancelButton");
   dom.editSubmitButton = document.querySelector("#editTeacherSubmitButton");
@@ -133,12 +141,28 @@ function bindEvents() {
     clearEditFieldInvalid("displayName");
     hideEditErrorIfClean();
   });
+  dom.editNameInput.addEventListener("input", () => {
+    clearEditFieldInvalid("name");
+    hideEditErrorIfClean();
+  });
   dom.editStatusSelect.addEventListener("change", () => {
     clearEditFieldInvalid("status");
     hideEditErrorIfClean();
   });
   dom.editBusinessEntitySelect.addEventListener("change", () => {
     clearEditFieldInvalid("businessEntity");
+    hideEditErrorIfClean();
+  });
+  dom.editDefaultHourlyRateInput.addEventListener("input", () => {
+    clearEditFieldInvalid("defaultHourlyRate");
+    hideEditErrorIfClean();
+  });
+  dom.editDefaultCurrencySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("defaultCurrency");
+    hideEditErrorIfClean();
+  });
+  dom.editDefaultPaymentCurrencySelect.addEventListener("change", () => {
+    clearEditFieldInvalid("defaultPaymentCurrency");
     hideEditErrorIfClean();
   });
 }
@@ -388,8 +412,15 @@ function openEditDialog(teacherId) {
   editingTeacher = teacher;
   dom.editSummary.innerHTML = renderEditSummary(teacher);
   dom.editDisplayNameInput.value = teacher.display_name || teacher.name || "";
+  dom.editNameInput.value = teacher.name || teacher.display_name || "";
+  dom.editKanaNameInput.value = teacher.kana_name || "";
   renderEditStatusOptions(teacher.status);
+  dom.editDepartmentInput.value = teacher.department || "";
   renderEditBusinessEntityOptions(teacher.default_business_entity_id);
+  dom.editDefaultHourlyRateInput.value = displayNumberInput(teacher.default_hourly_rate);
+  renderEditCurrencyOptions(dom.editDefaultCurrencySelect, teacher.default_currency || "JPY");
+  renderEditCurrencyOptions(dom.editDefaultPaymentCurrencySelect, teacher.default_payment_currency || "JPY");
+  dom.editDefaultPaymentMethodInput.value = teacher.default_payment_method || "";
   dom.editNoteInput.value = teacher.note || "";
   clearEditErrors();
   setEditSubmitting(false);
@@ -423,13 +454,25 @@ async function submitEditDialog() {
   const payload = {
     teacherId: editingTeacher.id,
     displayName: dom.editDisplayNameInput.value.trim(),
+    name: dom.editNameInput.value.trim(),
+    kanaName: dom.editKanaNameInput.value.trim(),
     status: dom.editStatusSelect.value,
+    department: dom.editDepartmentInput.value.trim(),
     defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    defaultHourlyRate: readNonNegativeNumber(dom.editDefaultHourlyRateInput.value),
+    defaultCurrency: dom.editDefaultCurrencySelect.value,
+    defaultPaymentCurrency: dom.editDefaultPaymentCurrencySelect.value,
+    defaultPaymentMethod: dom.editDefaultPaymentMethodInput.value.trim(),
     note: dom.editNoteInput.value.trim(),
   };
 
   if (!payload.displayName) {
     showEditError("请输入老师显示名称。", ["displayName"]);
+    return;
+  }
+
+  if (!payload.name) {
+    showEditError("请输入老师系统姓名。", ["name"]);
     return;
   }
 
@@ -440,6 +483,21 @@ async function submitEditDialog() {
 
   if (!EDITABLE_STATUS_OPTIONS.includes(payload.status)) {
     showEditError("请选择有效老师状态。", ["status"]);
+    return;
+  }
+
+  if (!Number.isFinite(payload.defaultHourlyRate) || payload.defaultHourlyRate < 0) {
+    showEditError("默认时薪需为 0 或正数。", ["defaultHourlyRate"]);
+    return;
+  }
+
+  if (!EDITABLE_CURRENCY_OPTIONS.includes(payload.defaultCurrency)) {
+    showEditError("请选择有效默认币种。", ["defaultCurrency"]);
+    return;
+  }
+
+  if (!EDITABLE_CURRENCY_OPTIONS.includes(payload.defaultPaymentCurrency)) {
+    showEditError("请选择有效支付币种。", ["defaultPaymentCurrency"]);
     return;
   }
 
@@ -460,9 +518,7 @@ async function submitEditDialog() {
 function renderEditSummary(teacher) {
   const rows = [
     ["老师编号", teacher.teacher_code || shortId(teacher.id)],
-    ["系统姓名", teacher.name],
-    ["老师分类", displayValue(teacher.department)],
-    ["不可编辑字段", "工资规则、结算、支付、课时、联系方式、收款账户"],
+    ["不可编辑字段", "老师编号、默认科目、联系方式、收款账户、工资规则、工资锁定、结算、支付、课时"],
   ];
 
   return `
@@ -489,6 +545,13 @@ function renderCreateStatusOptions(selectedStatus) {
     .map((status) => `<option value="${escapeAttribute(status)}">${escapeHtml(teacherStatusLabel(status))}</option>`)
     .join("");
   dom.createStatusSelect.value = selectedStatus || "employed";
+}
+
+function renderEditCurrencyOptions(selectEl, selectedCurrency) {
+  selectEl.innerHTML = EDITABLE_CURRENCY_OPTIONS
+    .map((currency) => `<option value="${escapeAttribute(currency)}">${escapeHtml(currency)}</option>`)
+    .join("");
+  selectEl.value = selectedCurrency || "JPY";
 }
 
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
@@ -572,7 +635,15 @@ function showEditError(message, fieldIds = []) {
 function clearEditErrors() {
   dom.editError.textContent = "";
   dom.editError.classList.add("is-hidden");
-  ["displayName", "status", "businessEntity"].forEach(clearEditFieldInvalid);
+  [
+    "displayName",
+    "name",
+    "status",
+    "businessEntity",
+    "defaultHourlyRate",
+    "defaultCurrency",
+    "defaultPaymentCurrency",
+  ].forEach(clearEditFieldInvalid);
 }
 
 function hideEditErrorIfClean() {
@@ -603,8 +674,12 @@ function setEditSubmitting(isSubmitting) {
 function editFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("显示名称")) return ["displayName"];
+  if (message.includes("系统姓名")) return ["name"];
   if (message.includes("状态")) return ["status"];
   if (message.includes("业务归属")) return ["businessEntity"];
+  if (message.includes("时薪")) return ["defaultHourlyRate"];
+  if (message.includes("支付币种")) return ["defaultPaymentCurrency"];
+  if (message.includes("币种")) return ["defaultCurrency"];
   return [];
 }
 
@@ -671,6 +746,20 @@ function formatTeacherRate(teacher) {
   }
 
   return formatCurrency(teacher.default_hourly_rate, teacher.default_currency || "JPY");
+}
+
+function readNonNegativeNumber(value) {
+  const text = safeText(value).trim();
+  if (!text) {
+    return 0;
+  }
+
+  return Number(text);
+}
+
+function displayNumberInput(value) {
+  const text = safeText(value);
+  return text || "0";
 }
 
 function displayValue(value) {
