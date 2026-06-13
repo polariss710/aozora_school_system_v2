@@ -1,8 +1,8 @@
 -- school_personal_cash_payment_request_result_rpcs.sql
 -- Status: pending apply on school DB.
 -- Purpose:
--- - Reflect Cash-side approval/rejection of a v2 personal-business
---   teacher_wage JPY payment confirmation request back to School.
+-- - Reflect Cash-side approval/rejection of a v2 teacher_wage JPY/CNY Cash
+--   payment confirmation request back to School.
 -- - Cash approval is the first point where the School payment request becomes
 --   paid.
 -- - Do not write school expense records, school account transactions, school
@@ -161,7 +161,7 @@ end;
 $$;
 
 comment on function public.school_mark_personal_cash_payment_request_confirmed(uuid, uuid, uuid, timestamptz) is
-  'Reflects Cash approval of a v2 personal-business teacher_wage JPY payment request. Marks the School payment request paid and linkage synced, without writing school ledgers or Cash DB.';
+  'Reflects Cash approval of a v2 teacher_wage JPY/CNY payment request. Marks the School payment request paid and linkage synced, without writing school ledgers or Cash DB.';
 
 grant execute on function public.school_mark_personal_cash_payment_request_confirmed(uuid, uuid, uuid, timestamptz) to authenticated, service_role;
 
@@ -302,6 +302,6 @@ end;
 $$;
 
 comment on function public.school_mark_personal_cash_payment_request_rejected(uuid, uuid, text, timestamptz) is
-  'Reflects Cash rejection of a v2 personal-business teacher_wage JPY payment request. Keeps the School payment request pending and linkage cash_rejected, without writing school ledgers or Cash DB.';
+  'Reflects Cash rejection of a v2 teacher_wage JPY/CNY payment request. Keeps the School payment request pending and linkage cash_rejected, without writing school ledgers or Cash DB.';
 
 grant execute on function public.school_mark_personal_cash_payment_request_rejected(uuid, uuid, text, timestamptz) to authenticated, service_role;

@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initPaymentDetailPage } from "./pages/payment-detail-page.js?v=v2.110.0-personal-cash-payment-outbox-20260613";
+import { initPaymentDetailPage } from "./pages/payment-detail-page.js?v=v2.112.0-cash-retry-attempts-20260614";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

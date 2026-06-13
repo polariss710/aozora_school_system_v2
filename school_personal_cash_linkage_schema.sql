@@ -63,6 +63,7 @@ create table public.school_personal_cash_linkage_events (
   amount numeric not null,
   idempotency_key text not null,
   sync_status text not null default 'pending',
+  attempt_no integer not null default 1,
   attempt_count integer not null default 0,
   last_error text,
   note text,
@@ -81,6 +82,8 @@ create table public.school_personal_cash_linkage_events (
     check (amount > 0),
   constraint school_personal_cash_linkage_events_status_check
     check (sync_status in ('pending', 'synced', 'failed', 'blocked')),
+  constraint school_personal_cash_linkage_events_attempt_no_check
+    check (attempt_no > 0),
   constraint school_personal_cash_linkage_events_attempt_count_check
     check (attempt_count >= 0),
   constraint school_personal_cash_linkage_events_synced_id_check
@@ -90,12 +93,21 @@ create table public.school_personal_cash_linkage_events (
 create unique index school_personal_cash_linkage_events_idempotency_uniq
   on public.school_personal_cash_linkage_events (idempotency_key);
 
-create unique index school_personal_cash_linkage_events_source_event_uniq
+create unique index school_personal_cash_linkage_events_source_event_attempt_uniq
+  on public.school_personal_cash_linkage_events (
+    source_table,
+    source_id,
+    source_event_type,
+    attempt_no
+  );
+
+create unique index school_personal_cash_linkage_events_active_attempt_uniq
   on public.school_personal_cash_linkage_events (
     source_table,
     source_id,
     source_event_type
-  );
+  )
+  where sync_status in ('pending_cash_request', 'awaiting_cash_confirmation');
 
 create index school_personal_cash_linkage_events_payment_request_idx
   on public.school_personal_cash_linkage_events (payment_request_id);

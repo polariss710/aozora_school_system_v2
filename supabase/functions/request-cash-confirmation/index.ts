@@ -30,6 +30,7 @@ type SchoolRequestRow = {
   payment_request_id: string;
   linkage_event_id: string;
   sync_status: string;
+  attempt_no: number;
   idempotency_key: string;
   amount: number | string;
   currency: string;
@@ -335,6 +336,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       payment_currency: schoolRequest.payment_currency,
       payment_exchange_rate: Number(schoolRequest.payment_exchange_rate),
       payment_amount: Number(schoolRequest.payment_amount),
+      attempt_no: schoolRequest.attempt_no,
       school_sync_status: schoolRequest.sync_status,
       school_message: schoolRequest.message,
     };

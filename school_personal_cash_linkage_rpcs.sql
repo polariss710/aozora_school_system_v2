@@ -528,6 +528,8 @@ comment on function public.school_create_personal_cash_linkage_event(uuid, uuid,
 
 grant execute on function public.school_create_personal_cash_linkage_event(uuid, uuid, text) to authenticated;
 
+drop function if exists public.school_get_personal_cash_linkage_events(uuid, text);
+
 create or replace function public.school_get_personal_cash_linkage_events(
   p_payment_request_id uuid default null,
   p_sync_status text default null
@@ -544,13 +546,26 @@ returns table (
   cash_user_id uuid,
   cash_account_id uuid,
   cash_account_name_snapshot text,
+  cash_account_type_snapshot text,
   cash_transaction_table text,
   cash_transaction_id uuid,
   currency text,
   amount numeric,
+  school_amount_jpy numeric,
+  payment_currency text,
+  payment_exchange_rate numeric,
+  payment_amount numeric,
   idempotency_key text,
   sync_status text,
+  attempt_no integer,
   attempt_count integer,
+  cash_request_id uuid,
+  cash_request_status text,
+  requested_at timestamptz,
+  confirmed_at timestamptz,
+  rejected_at timestamptz,
+  rejected_reason text,
+  cash_request_last_checked_at timestamptz,
   last_error text,
   note text,
   created_at timestamptz,
@@ -574,13 +589,26 @@ as $$
     e.cash_user_id,
     e.cash_account_id,
     e.cash_account_name_snapshot,
+    e.cash_account_type_snapshot,
     e.cash_transaction_table,
     e.cash_transaction_id,
     e.currency,
     e.amount,
+    e.school_amount_jpy,
+    e.payment_currency,
+    e.payment_exchange_rate,
+    e.payment_amount,
     e.idempotency_key,
     e.sync_status,
+    e.attempt_no,
     e.attempt_count,
+    e.cash_request_id,
+    e.cash_request_status,
+    e.requested_at,
+    e.confirmed_at,
+    e.rejected_at,
+    e.rejected_reason,
+    e.cash_request_last_checked_at,
     e.last_error,
     e.note,
     e.created_at,
@@ -589,14 +617,13 @@ as $$
   from public.school_personal_cash_linkage_events e
   join public.school_business_entities b
     on b.id = e.business_entity_id
-  where b.entity_type = 'personal'
-    and (p_payment_request_id is null or e.payment_request_id = p_payment_request_id)
+  where (p_payment_request_id is null or e.payment_request_id = p_payment_request_id)
     and (p_sync_status is null or e.sync_status = p_sync_status)
-  order by e.created_at desc, e.id desc;
+  order by e.attempt_no desc, e.created_at desc, e.id desc;
 $$;
 
 comment on function public.school_get_personal_cash_linkage_events(uuid, text) is
-  'Lists school-side personal-business Cash linkage events. Does not write Cash DB.';
+  'Lists school-side Cash linkage events for teacher wage payment confirmation attempts. Does not write Cash DB.';
 
 grant execute on function public.school_get_personal_cash_linkage_events(uuid, text) to authenticated;
 

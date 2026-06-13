@@ -15,10 +15,46 @@ alter table public.school_personal_cash_linkage_events
   add column if not exists school_amount_jpy numeric,
   add column if not exists payment_currency text,
   add column if not exists payment_exchange_rate numeric,
-  add column if not exists payment_amount numeric;
+  add column if not exists payment_amount numeric,
+  add column if not exists attempt_no integer;
+
+with ranked_events as (
+  select
+    id,
+    row_number() over (
+      partition by source_table, source_id, source_event_type
+      order by created_at, id
+    ) as derived_attempt_no
+  from public.school_personal_cash_linkage_events
+)
+update public.school_personal_cash_linkage_events as e
+   set attempt_no = ranked_events.derived_attempt_no
+  from ranked_events
+ where e.id = ranked_events.id
+   and e.attempt_no is null;
 
 alter table public.school_personal_cash_linkage_events
-  alter column cash_account_mapping_id drop not null;
+  alter column cash_account_mapping_id drop not null,
+  alter column attempt_no set default 1,
+  alter column attempt_no set not null;
+
+drop index if exists public.school_personal_cash_linkage_events_source_event_uniq;
+
+create unique index if not exists school_personal_cash_linkage_events_source_event_attempt_uniq
+  on public.school_personal_cash_linkage_events (
+    source_table,
+    source_id,
+    source_event_type,
+    attempt_no
+  );
+
+create unique index if not exists school_personal_cash_linkage_events_active_attempt_uniq
+  on public.school_personal_cash_linkage_events (
+    source_table,
+    source_id,
+    source_event_type
+  )
+  where sync_status in ('pending_cash_request', 'awaiting_cash_confirmation');
 
 alter table public.school_personal_cash_linkage_events
   drop constraint if exists school_personal_cash_linkage_events_currency_check,
@@ -27,6 +63,7 @@ alter table public.school_personal_cash_linkage_events
   drop constraint if exists school_personal_cash_linkage_events_payment_amount_check,
   drop constraint if exists school_personal_cash_linkage_events_school_amount_jpy_check,
   drop constraint if exists school_personal_cash_linkage_events_exchange_rate_check,
+  drop constraint if exists school_personal_cash_linkage_events_attempt_no_check,
   add constraint school_personal_cash_linkage_events_currency_check
     check (currency in ('JPY', 'CNY')),
   add constraint school_personal_cash_linkage_events_cash_table_check
@@ -38,7 +75,9 @@ alter table public.school_personal_cash_linkage_events
   add constraint school_personal_cash_linkage_events_school_amount_jpy_check
     check (school_amount_jpy is null or school_amount_jpy > 0),
   add constraint school_personal_cash_linkage_events_exchange_rate_check
-    check (payment_exchange_rate is null or payment_exchange_rate > 0);
+    check (payment_exchange_rate is null or payment_exchange_rate > 0),
+  add constraint school_personal_cash_linkage_events_attempt_no_check
+    check (attempt_no > 0);
 
 comment on column public.school_personal_cash_linkage_events.cash_account_mapping_id is
   'Historical personal-business Cash mapping id. New all-scope teacher_wage Cash requests use Cash-owned eligible accounts directly and leave this null.';
@@ -58,6 +97,21 @@ comment on column public.school_personal_cash_linkage_events.payment_exchange_ra
 comment on column public.school_personal_cash_linkage_events.payment_amount is
   'Actual Cash payment amount sent to Cash external transaction request.';
 
+comment on column public.school_personal_cash_linkage_events.attempt_no is
+  'Business retry attempt number for one School payment request Cash confirmation. Rejected attempts are retained as immutable history.';
+
+drop function if exists public.school_request_cash_payment_confirmation(
+  uuid,
+  uuid,
+  uuid,
+  text,
+  text,
+  text,
+  numeric,
+  numeric,
+  text
+);
+
 create or replace function public.school_request_cash_payment_confirmation(
   p_payment_request_id uuid,
   p_cash_user_id uuid,
@@ -73,6 +127,7 @@ returns table (
   payment_request_id uuid,
   linkage_event_id uuid,
   sync_status text,
+  attempt_no integer,
   idempotency_key text,
   amount numeric,
   currency text,
@@ -96,7 +151,9 @@ declare
   v_payment public.school_payment_requests%rowtype;
   v_entity public.school_business_entities%rowtype;
   v_existing public.school_personal_cash_linkage_events%rowtype;
+  v_latest public.school_personal_cash_linkage_events%rowtype;
   v_event_id uuid;
+  v_attempt_no integer;
   v_idempotency_key text;
   v_school_amount_jpy numeric;
   v_payment_currency text := upper(trim(coalesce(p_payment_currency, '')));
@@ -216,18 +273,13 @@ begin
     raise exception 'Cash payment amount must be greater than 0';
   end if;
 
-  v_idempotency_key := concat(
-    'aozora_school:school_payment_requests:',
-    p_payment_request_id::text,
-    ':teacher_wage_payment_confirm'
-  );
-
   select *
     into v_existing
     from public.school_personal_cash_linkage_events e
    where e.source_table = 'school_payment_requests'
      and e.source_id = p_payment_request_id
      and e.source_event_type = 'teacher_wage_payment_confirm'
+     and e.sync_status in ('pending_cash_request', 'awaiting_cash_confirmation')
    for update;
 
   if found then
@@ -243,8 +295,7 @@ begin
        or v_existing.school_amount_jpy is distinct from v_school_amount_jpy
        or v_existing.payment_currency is distinct from v_payment_currency
        or v_existing.payment_exchange_rate is distinct from v_exchange_rate
-       or v_existing.payment_amount is distinct from v_payment_amount
-       or v_existing.idempotency_key is distinct from v_idempotency_key then
+       or v_existing.payment_amount is distinct from v_payment_amount then
       raise exception 'existing Cash linkage event conflicts with requested Cash payment snapshot: %', v_existing.id;
     end if;
 
@@ -257,7 +308,31 @@ begin
     end if;
 
     v_event_id := v_existing.id;
+    v_attempt_no := v_existing.attempt_no;
+    v_idempotency_key := v_existing.idempotency_key;
   else
+    select *
+      into v_latest
+      from public.school_personal_cash_linkage_events e
+     where e.source_table = 'school_payment_requests'
+       and e.source_id = p_payment_request_id
+       and e.source_event_type = 'teacher_wage_payment_confirm'
+     order by e.attempt_no desc, e.created_at desc, e.id desc
+     limit 1
+     for update;
+
+    if found and v_latest.sync_status <> 'cash_rejected' then
+      raise exception 'latest Cash linkage event is not rejected or requestable: %', v_latest.sync_status;
+    end if;
+
+    v_attempt_no := coalesce(v_latest.attempt_no, 0) + 1;
+    v_idempotency_key := concat(
+      'aozora_school:school_payment_requests:',
+      p_payment_request_id::text,
+      ':teacher_wage_payment_confirm:attempt:',
+      v_attempt_no::text
+    );
+
     insert into public.school_personal_cash_linkage_events (
       source_table,
       source_id,
@@ -280,6 +355,7 @@ begin
       payment_amount,
       idempotency_key,
       sync_status,
+      attempt_no,
       cash_request_id,
       cash_request_status,
       requested_at,
@@ -316,6 +392,7 @@ begin
       v_payment_amount,
       v_idempotency_key,
       'pending_cash_request',
+      v_attempt_no,
       null,
       null,
       null,
@@ -338,6 +415,7 @@ begin
     e.payment_request_id,
     e.id,
     e.sync_status,
+    e.attempt_no,
     e.idempotency_key,
     e.amount,
     e.currency,

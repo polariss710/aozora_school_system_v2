@@ -1585,6 +1585,19 @@ h2 {
   min-width: 0;
 }
 
+.action-buttons-stacked {
+  align-items: flex-start;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.action-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  max-width: 220px;
+}
+
 .reimbursement-detail-actions {
   display: flex;
   flex-wrap: wrap;

@@ -1,5 +1,5 @@
-import { APP_VERSION } from "./config.js?v=v2.111.0-supabase-auth-client-init-20260614";
-import { initPaymentPage } from "./pages/payment-page.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { APP_VERSION } from "./config.js?v=v2.112.0-cash-retry-attempts-20260614";
+import { initPaymentPage } from "./pages/payment-page.js?v=v2.112.0-cash-retry-attempts-20260614";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

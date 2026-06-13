@@ -1,6 +1,6 @@
-import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=v2.111.0-supabase-auth-client-init-20260614";
-import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js?v=v2.111.0-supabase-auth-client-init-20260614";
-import { hasSupabaseConfig } from "../supabase-client.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=v2.112.0-cash-retry-attempts-20260614";
+import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js?v=v2.112.0-cash-retry-attempts-20260614";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v2.112.0-cash-retry-attempts-20260614";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,
@@ -13,8 +13,8 @@ import {
   requestCashConfirmationViaFunction,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
-} from "../api/payment-api.js?v=v2.111.0-supabase-auth-client-init-20260614";
-import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=v2.111.0-supabase-auth-client-init-20260614";
+} from "../api/payment-api.js?v=v2.112.0-cash-retry-attempts-20260614";
+import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=v2.112.0-cash-retry-attempts-20260614";
 import {
   formatCurrency,
   formatDate,
@@ -422,6 +422,22 @@ function renderPaymentActions(row) {
 
   if (row.status === "pending") {
     if (linkageEvent) {
+      if (isTeacherWagePayment(row) && linkageEvent.sync_status === "cash_rejected") {
+        const reason = safeText(linkageEvent.rejected_reason);
+        return `
+          <div class="action-buttons action-buttons-stacked">
+            <span class="status-badge status-neutral">${escapeHtml(cashLinkageStatusLabel(linkageEvent.sync_status))}</span>
+            ${reason ? `<span class="action-note">拒绝理由：${escapeHtml(reason)}</span>` : ""}
+            <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}" data-confirm-mode="cash">
+              重新提交到 Cash 确认
+            </button>
+            <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
+              取消
+            </button>
+          </div>
+        `;
+      }
+
       return `
         <div class="action-buttons">
           <span class="status-badge status-neutral">${escapeHtml(cashLinkageStatusLabel(linkageEvent.sync_status))}</span>
@@ -523,7 +539,8 @@ async function openConfirmPaymentDialog(row, requestedMode = "") {
     return;
   }
 
-  if (mode === "cash" && findCashLinkageEvent(row.id)) {
+  const linkageEvent = findCashLinkageEvent(row.id);
+  if (mode === "cash" && linkageEvent && linkageEvent.sync_status !== "cash_rejected") {
     showMessage("error", "该支付请求已经提交到 Cash 确认，不能重复提交。");
     return;
   }
@@ -915,7 +932,19 @@ function roundCurrencyAmount(value) {
 }
 
 function findCashLinkageEvent(paymentRequestId) {
-  return cashLinkageEvents.find((event) => event.payment_request_id === paymentRequestId) || null;
+  return cashLinkageEvents
+    .filter((event) => event.payment_request_id === paymentRequestId)
+    .sort(compareCashLinkageEvents)[0] || null;
+}
+
+function compareCashLinkageEvents(left, right) {
+  const leftAttempt = Number(left?.attempt_no || 0);
+  const rightAttempt = Number(right?.attempt_no || 0);
+  if (leftAttempt !== rightAttempt) {
+    return rightAttempt - leftAttempt;
+  }
+
+  return new Date(right?.created_at || 0).getTime() - new Date(left?.created_at || 0).getTime();
 }
 
 function cashLinkageStatusLabel(status) {

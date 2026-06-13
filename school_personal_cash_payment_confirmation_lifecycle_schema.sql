@@ -15,7 +15,52 @@ alter table public.school_personal_cash_linkage_events
   add column if not exists confirmed_at timestamptz,
   add column if not exists rejected_at timestamptz,
   add column if not exists rejected_reason text,
-  add column if not exists cash_request_last_checked_at timestamptz;
+  add column if not exists cash_request_last_checked_at timestamptz,
+  add column if not exists attempt_no integer;
+
+with ranked_events as (
+  select
+    id,
+    row_number() over (
+      partition by source_table, source_id, source_event_type
+      order by created_at, id
+    ) as derived_attempt_no
+  from public.school_personal_cash_linkage_events
+)
+update public.school_personal_cash_linkage_events as e
+   set attempt_no = ranked_events.derived_attempt_no
+  from ranked_events
+ where e.id = ranked_events.id
+   and e.attempt_no is null;
+
+alter table public.school_personal_cash_linkage_events
+  alter column attempt_no set default 1,
+  alter column attempt_no set not null;
+
+alter table public.school_personal_cash_linkage_events
+  drop constraint if exists school_personal_cash_linkage_events_attempt_no_check;
+
+alter table public.school_personal_cash_linkage_events
+  add constraint school_personal_cash_linkage_events_attempt_no_check
+  check (attempt_no > 0);
+
+drop index if exists public.school_personal_cash_linkage_events_source_event_uniq;
+
+create unique index if not exists school_personal_cash_linkage_events_source_event_attempt_uniq
+  on public.school_personal_cash_linkage_events (
+    source_table,
+    source_id,
+    source_event_type,
+    attempt_no
+  );
+
+create unique index if not exists school_personal_cash_linkage_events_active_attempt_uniq
+  on public.school_personal_cash_linkage_events (
+    source_table,
+    source_id,
+    source_event_type
+  )
+  where sync_status in ('pending_cash_request', 'awaiting_cash_confirmation');
 
 alter table public.school_personal_cash_linkage_events
   drop constraint if exists school_personal_cash_linkage_events_status_check;
@@ -113,6 +158,8 @@ comment on column public.school_personal_cash_linkage_events.rejected_reason is
   'Cash rejection reason snapshot, if any.';
 comment on column public.school_personal_cash_linkage_events.cash_request_last_checked_at is
   'Last time School checked or refreshed the Cash request status.';
+comment on column public.school_personal_cash_linkage_events.attempt_no is
+  'Business retry attempt number for one School source event. Rejected attempts are retained; new Cash submissions create later attempts.';
 
 comment on column public.school_personal_cash_linkage_events.sync_status is
   'School-side Cash linkage lifecycle. Phase 1 operation states remain pending/synced/failed/blocked. Cash linkage v2 adds pending_cash_request, awaiting_cash_confirmation, and cash_rejected for page-driven Cash approval.';

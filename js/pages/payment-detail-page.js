@@ -44,9 +44,13 @@ const TRANSACTION_TYPE_LABELS = {
 };
 
 const CASH_LINKAGE_STATUS_LABELS = {
-  pending: "待写入 Cash System",
-  synced: "已写入 Cash System",
-  failed: "写入失败",
+  pending: "Cash待确认",
+  pending_cash_request: "待提交到 Cash",
+  awaiting_cash_confirmation: "Cash待确认",
+  synced: "Cash已确认",
+  cash_confirmed: "Cash已确认",
+  cash_rejected: "Cash已拒绝",
+  failed: "Cash请求失败",
   blocked: "已阻断",
 };
 
@@ -305,11 +309,21 @@ function renderCashLinkage(events) {
       </div>
       ${renderDefinitionList([
         ["event_id", shortId(event.id)],
+        ["attempt_no", displayValue(event.attempt_no)],
         ["Cash 账户", displayValue(event.cash_account_name_snapshot || event.cash_account_id)],
         ["金额", formatCurrency(event.amount, event.currency)],
+        ["School JPY 成本", formatCurrency(event.school_amount_jpy, "JPY")],
+        ["Cash 实付", formatCurrency(event.payment_amount, event.payment_currency || event.currency)],
+        ["汇率", displayValue(event.payment_exchange_rate)],
         ["状态", cashLinkageStatusLabel(event.sync_status)],
+        ["Cash request id", shortId(event.cash_request_id)],
+        ["Cash request status", displayValue(event.cash_request_status)],
         ["Cash transaction id", shortId(event.cash_transaction_id)],
         ["attempt_count", displayValue(event.attempt_count)],
+        ["requested_at", formatDate(event.requested_at)],
+        ["confirmed_at", formatDate(event.confirmed_at)],
+        ["rejected_at", formatDate(event.rejected_at)],
+        ["rejected_reason", displayValue(event.rejected_reason)],
         ["last_error", displayValue(event.last_error)],
         ["idempotency_key", displayValue(event.idempotency_key)],
         ["created_at", formatDate(event.created_at)],
@@ -431,11 +445,11 @@ function cashLinkageStatusClass(value) {
     return "status-paid";
   }
 
-  if (value === "failed" || value === "blocked") {
+  if (value === "failed" || value === "blocked" || value === "cash_rejected") {
     return "status-cancelled";
   }
 
-  if (value === "pending") {
+  if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") {
     return "status-pending";
   }
 
