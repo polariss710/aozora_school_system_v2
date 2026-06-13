@@ -652,7 +652,8 @@ Still unsupported:
 - CNY
 - 青空塾 / company income
 - non-`tuition` income
-- automatic scheduled sync; Phase 2 v1 still uses the manual sync script
+- automatic scheduled sync; Phase 2 v1 still uses the manual sync script and
+  documented operator runbook
 
 ### Current-State Investigation Summary
 
@@ -931,6 +932,75 @@ Executor rules:
 - If Cash returns an existing idempotent transaction, mark `synced`.
 - The retry UI does not call Cash RPC and does not run the sync executor; it
   only changes the school event back to `pending`.
+
+### Manual Sync Operations
+
+There is no browser-based sync runner and no automatic background scheduler in
+Phase 2 v1. The current operations entry is the checked-in manual executor:
+
+```sh
+scripts/sync-personal-cash-linkage.zsh
+```
+
+Supported objects:
+
+- `teacher_wage` payment linkage:
+  - reads pending `school_personal_cash_linkage_events`
+  - source event type `teacher_wage_payment_confirm`
+  - creates Cash JPY `expense` transactions
+- personal-business `tuition` income linkage:
+  - reads pending `school_personal_cash_income_linkage_events`
+  - source event type `tuition_income_received`
+  - creates Cash JPY `income` transactions
+
+Common commands:
+
+```sh
+# Inspect eligible pending events without writing Cash or school status.
+scripts/sync-personal-cash-linkage.zsh --dry-run --limit 20
+
+# Process eligible pending events, up to the default or supplied limit.
+scripts/sync-personal-cash-linkage.zsh --limit 20
+
+# Inspect one specific linkage event.
+scripts/sync-personal-cash-linkage.zsh --event-id <event_uuid> --dry-run
+
+# Process one specific pending linkage event.
+scripts/sync-personal-cash-linkage.zsh --event-id <event_uuid>
+```
+
+Recommended timing:
+
+- after confirming a personal-business teacher wage payment that should sync
+  to Cash System
+- after creating a personal-business tuition JPY income through the Cash System
+  mode
+- after seeing `pending` or `failed` Cash sync status in the payment/income UI
+- during incident follow-up, prefer `--event-id` to keep the run focused
+
+Operational guardrails:
+
+- Do not manually edit DB rows to force sync state.
+- For failed tuition income linkage, first use the income detail `重新同步`
+  action to reset the event back to `pending`, then run the script.
+- Payment linkage failed retry does not yet have a dedicated UI; handle it as a
+  separate guarded operator workflow rather than ad hoc DB edits.
+- `synced` events do not need repeat processing.
+- Cash RPC idempotency protects duplicate event replay, but operators should
+  still use `--dry-run` and `--event-id` when investigating a specific event.
+- The script loads DB connection helpers from the local shell environment; do
+  not print, paste, save, or commit DB URLs or other secrets.
+
+Future automatic scheduling requires a separate design. Compare at least:
+
+- cron on a controlled machine
+- GitHub Actions
+- Supabase Edge Function / scheduled function
+- local `launchd`
+
+That design must cover secret management, logs and alerting, retry policy,
+single-run/duplicate-run protection, and operator visibility before enabling
+any unattended execution.
 
 ### Edit / Reverse Guard Strategy
 
