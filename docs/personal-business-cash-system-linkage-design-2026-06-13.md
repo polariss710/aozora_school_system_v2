@@ -815,8 +815,8 @@ School repo candidates:
   - `js/pages/income-detail-page.js`
   - `js/api/personal-cash-linkage-api.js`
 - Sync:
-  - either extend `scripts/sync-personal-cash-linkage.zsh` with a flow selector,
-    or add a dedicated `scripts/sync-personal-cash-income-linkage.zsh`
+  - `scripts/sync-personal-cash-linkage.zsh` extended to process both
+    payment linkage and income linkage branches, prepared but not run
 
 Cash repo candidates:
 
@@ -865,6 +865,14 @@ Executor rules:
 - Read only pending income events.
 - Require personal business, tuition income, JPY, positive amount, received
   status, not reversed, and no existing `cash_transaction_id`.
+- Cash RPC call for tuition income uses:
+  - `transaction_type = income`
+  - `external_source = aozora_school`
+  - `external_source_id = school_personal_cash_income_linkage_events.id`
+  - `external_event_type = tuition_income_received`
+  - `external_reference_type = school_income_records`
+  - `external_reference_id = school_income_records.id`
+  - `external_idempotency_key = event.idempotency_key`
 - If Cash RPC execution fails or returns `ok=false`, mark `failed` and store
   the message in `last_error`.
 - If Cash returns an existing idempotent transaction, mark `synced`.
