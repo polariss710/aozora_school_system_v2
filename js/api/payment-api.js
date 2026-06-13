@@ -140,23 +140,28 @@ export async function confirmPaymentRequest(payload) {
   return data;
 }
 
-export async function requestPersonalCashPaymentConfirmation(payload) {
-  const { data, error } = await supabase.rpc("school_request_personal_cash_payment_confirmation", {
-    p_payment_request_id: payload.paymentRequestId,
-    p_cash_account_mapping_id: payload.cashAccountMappingId,
-    p_note: payload.note || null,
+export async function requestCashConfirmationViaFunction(payload) {
+  const { data, error } = await supabase.functions.invoke("request-cash-confirmation", {
+    body: {
+      payment_request_id: payload.paymentRequestId,
+      cash_account_mapping_id: payload.cashAccountMappingId,
+      note: payload.note || null,
+    },
   });
 
   if (error) {
     throw error;
   }
 
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result) {
-    throw new Error("Cash 支付确认请求提交失败：RPC 没有返回结果。");
+  if (!data) {
+    throw new Error("Cash System 确认请求提交失败：Function 没有返回结果。");
   }
 
-  return result;
+  if (data.ok === false) {
+    throw new Error(data.details || data.message || "Cash System 确认请求提交失败。");
+  }
+
+  return data;
 }
 
 export async function reversePaidPaymentRequest(payload) {

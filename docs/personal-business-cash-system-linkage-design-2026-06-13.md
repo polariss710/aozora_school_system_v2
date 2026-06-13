@@ -835,12 +835,14 @@ Edge Function bridge checkpoint, 2026-06-13:
   `transacted_at` because the School request RPC does not yet return a
   user-selected payment date. If business requires explicit pay date selection,
   add that to the School UI/RPC in a later guarded phase.
-- This checkpoint only adds code. It is not deployed, not invoked, not wired to
-  School business pages, and not tested against DB in this phase.
+- The payment page now invokes this function through API wrapper
+  `requestCashConfirmationViaFunction(...)` for personal-business
+  `teacher_wage` JPY payment requests. This checkpoint still does not deploy or
+  run the function and is not tested against DB in this phase.
 - Cash approve/reject -> School confirmed/rejected writeback remains a later
   phase.
 
-Teacher wage payment page School-only request checkpoint, 2026-06-13:
+Teacher wage payment page Edge Function request checkpoint, 2026-06-13:
 
 - The payment page now embeds the first v2 business action for personal
   `teacher_wage` JPY payment requests.
@@ -856,25 +858,29 @@ Teacher wage payment page School-only request checkpoint, 2026-06-13:
   `school_personal_cash_account_mappings.flow_type = teacher_wage_payment`
   and `JPY -> JPY`.
 - The page calls API wrapper
-  `requestPersonalCashPaymentConfirmation(...)` in `js/api/payment-api.js`.
-  Page code still does not call Supabase `.rpc()` directly.
-- The wrapper calls School RPC
-  `school_request_personal_cash_payment_confirmation(...)`, creating/reusing
-  only the School linkage event with `sync_status = pending_cash_request`.
+  `requestCashConfirmationViaFunction(...)` in `js/api/payment-api.js`.
+  Page code still does not call Supabase `.rpc()`, `fetch`, or DB writes
+  directly.
+- The wrapper invokes Supabase Edge Function `request-cash-confirmation` with
+  `payment_request_id`, `cash_account_mapping_id`, and optional `note`.
+- The function creates/reuses the School linkage event, creates the Cash
+  pending request, and then marks the School event
+  `awaiting_cash_confirmation`.
+- On success, the page shows `已提交到 Cash System 待确认` and reloads the
+  payment list. The payment request remains `pending`.
 - This checkpoint intentionally does not:
-  - call the Edge Function
-  - create a Cash pending request
   - create a Cash transaction
   - set `school_payment_requests.status = paid`
   - write `paid_at`
   - create school expense records
   - create `school_account_transactions`
+  - deploy the Edge Function
+  - run the Edge Function
+  - test with DB writes
 - Existing company / 青空塾 / CNY / non-personal-Cash payment flows keep the
   ordinary school-account `确认支付` behavior.
-- The next implementation step should replace or wrap this School-only request
-  action with the Edge Function bridge so successful submission creates the
-  Cash pending request and then moves the School event to
-  `awaiting_cash_confirmation`.
+- The next implementation steps are deployment/configuration and Cash
+  approve/reject -> School confirmed/rejected writeback.
 
 ### Corrected School UI Direction
 
@@ -910,9 +916,7 @@ Teacher wage payment page target behavior:
 3. The primary action should be labelled `提交到 Cash 确认` or `请求支付确认`,
    not a generic sync action.
 4. School does not mark the payment request `paid` at this step.
-5. In the current School-only checkpoint, School records
-   `pending_cash_request`; after Edge Function wiring, School should show
-   `Cash待确认` while Cash has a pending request.
+5. School shows `Cash待确认` while Cash has a pending request.
 6. Cash approval creates the Cash JPY expense transaction and only then should
    School mark the payment request `paid` / `Cash已确认`.
 7. Cash rejection creates no Cash transaction; School keeps the payment request

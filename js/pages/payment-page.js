@@ -8,7 +8,7 @@ import {
   fetchPaymentRequests,
   fetchPaymentSummary,
   reissueReversedPaymentRequest,
-  requestPersonalCashPaymentConfirmation,
+  requestCashConfirmationViaFunction,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
 } from "../api/payment-api.js";
@@ -666,7 +666,7 @@ async function submitConfirmPayment() {
     const submittedMode = currentConfirmMode;
 
     if (submittedMode === "personalCash") {
-      await requestPersonalCashPaymentConfirmation({
+      await requestCashConfirmationViaFunction({
         paymentRequestId: currentConfirmRow.id,
         cashAccountMappingId: selectedAccountId,
         note: dom.confirmNoteInput.value.trim(),
@@ -687,7 +687,7 @@ async function submitConfirmPayment() {
     showMessage(
       "success",
       submittedMode === "personalCash"
-        ? "已提交到 Cash 确认，待账本端确认后完成支付。"
+        ? "已提交到 Cash System 待确认。"
         : "支付已确认。"
     );
   } catch (error) {
@@ -811,6 +811,7 @@ function cashLinkageStatusLabel(status) {
     pending_cash_request: "待提交到 Cash",
     awaiting_cash_confirmation: "Cash待确认",
     synced: "Cash已确认",
+    cash_confirmed: "Cash已确认",
     cash_rejected: "Cash已拒绝",
     failed: "Cash请求失败",
     blocked: "Cash请求阻断",
