@@ -884,14 +884,22 @@ Executor rules:
 
 Phase 2 v1 does not include reverse sync.
 
-Required guards before implementation:
+Prepared guards, not executed against DB yet:
 
-- Cash-linked tuition income with a `synced` event must not use the ordinary
-  `school_update_income_record` path.
-- Cash-linked tuition income with a `synced` event must not use the ordinary
-  `school_reverse_income_record` path.
-- Income detail UI should hide or disable ordinary edit/reverse for synced
-  Cash-linked tuition rows and explain that reversal sync is a later phase.
+- `school_update_income_record_rpc.sql` rejects ordinary edit when the income
+  has a `school_personal_cash_income_linkage_events` row with
+  `source_event_type = tuition_income_received`.
+- `school_reverse_income_record_rpc.sql` rejects ordinary reverse when the
+  income has a `school_personal_cash_income_linkage_events` row with
+  `source_event_type = tuition_income_received`.
+- Income detail API reads minimal linkage metadata for the current
+  `school_income_records.id`.
+- Income detail UI hides ordinary edit/reverse for any Cash-linked tuition row
+  and shows:
+  - synced: already synced to Cash System; linked edit/reverse is unsupported
+    in the current version.
+  - pending/failed: already entered the Cash System linkage flow; ordinary
+    edit/reverse is blocked.
 - Pending/failed rows:
   - retry may be allowed through executor.
   - editing amount/date/business/student/mapping before sync should be treated
@@ -911,6 +919,9 @@ Income create-entry UI, prepared but not yet run:
 - Personal Cash tuition income mode hides the school account field and calls
   `school_create_personal_cash_tuition_income_record` through the income API
   wrapper, not directly from the page module.
+- Income detail guard is prepared in `income-detail.html`,
+  `js/api/income-detail-api.js`, and `js/pages/income-detail-page.js`, but has
+  not been browser-tested or DB-tested in this checkpoint.
 
 ### E2E Test Plan
 
@@ -946,7 +957,13 @@ Frontend/browser tests:
 - personal tuition JPY create dialog shows Cash account selector.
 - 青空塾 or non-personal income uses existing school account flow or is blocked
   from the personal Cash path according to final UX.
-- synced Cash-linked income detail hides ordinary edit/reverse.
+- synced Cash-linked income detail hides ordinary edit/reverse and shows the
+  Cash System synced reason.
+- pending/failed Cash-linked income detail hides ordinary edit/reverse and
+  shows the in-linkage-flow reason.
+- direct calls to `school_update_income_record` and
+  `school_reverse_income_record` reject linked tuition income once the SQL is
+  executed.
 - page modules still do not call `.rpc()` directly.
 
 ### Risks
@@ -960,7 +977,8 @@ Frontend/browser tests:
   Cash-linked income if it reads `school_income_records`, which is likely
   correct for school-side operating profit but should be verified.
 - Ordinary income edit/reverse paths can create school ledger inconsistency if
-  not blocked for synced Cash-linked tuition rows.
+  not blocked for Cash-linked tuition rows; the prepared frontend and RPC guard
+  covers synced, pending, and failed linkage statuses.
 - Cash RPC check constraints must be expanded carefully; otherwise the Cash
   transaction insert will fail even if the executor is correct.
 - Cross-DB strong transaction is still impossible; idempotency and retry remain

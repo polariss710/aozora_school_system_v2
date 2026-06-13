@@ -16,7 +16,8 @@
 --   - Insert one negative income_reversal account transaction.
 --   - Update income reversal metadata fields.
 --   - Does not delete historical data.
---   - Does not support student_payment linked income, partial reversal, frontend, attachments, OCR, or statistics.
+--   - Does not support student_payment linked income, personal Cash-linked
+--     tuition income, partial reversal, frontend, attachments, OCR, or statistics.
 -- Review before execution:
 --   - Confirm transaction_type value income_reversal.
 --   - Confirm status value reversed is accepted.
@@ -85,6 +86,16 @@ begin
 
   if v_income.student_payment_id is not null then
     raise exception '关联学生收款链路的收入暂不支持通过普通收入撤销处理。';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_personal_cash_income_linkage_events e
+    where e.income_record_id = v_income.id
+      and e.source_table = 'school_income_records'
+      and e.source_event_type = 'tuition_income_received'
+  ) then
+    raise exception '该收入已进入 Cash System 联动流程，当前版本暂不支持普通收入撤销。';
   end if;
 
   if coalesce(v_income.amount, 0) <= 0
@@ -240,7 +251,7 @@ comment on function public.school_reverse_income_record(
   date,
   text
 ) is
-  'Guarded RPC for v2 income reversal: marks a received income as reversed, restores account balance, and inserts a negative income_reversal transaction.';
+  'Guarded RPC for v2 income reversal: marks a received income as reversed, restores account balance, inserts a negative income_reversal transaction, and rejects personal Cash-linked tuition income.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

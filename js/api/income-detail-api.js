@@ -109,13 +109,25 @@ const ACCOUNT_TRANSACTION_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const CASH_INCOME_LINKAGE_COLUMNS = [
+  "id",
+  "income_record_id",
+  "sync_status",
+  "cash_transaction_id",
+  "last_error",
+  "created_at",
+  "updated_at",
+  "synced_at",
+].join(",");
+
 export async function fetchIncomeDetailPage(incomeId) {
   const income = await fetchIncomeDetail(incomeId);
 
-  const [lookups, settlements, transactions] = await Promise.all([
+  const [lookups, settlements, transactions, cashIncomeLinkageEvents] = await Promise.all([
     fetchIncomeDetailLookups(),
     fetchSettlementReferences(income),
     fetchAccountTransactions(income.id),
+    fetchPersonalCashIncomeLinkageEvents(income.id),
   ]);
 
   return {
@@ -123,6 +135,7 @@ export async function fetchIncomeDetailPage(incomeId) {
     lookups,
     settlements,
     transactions,
+    cashIncomeLinkageEvents,
   };
 }
 
@@ -265,6 +278,25 @@ async function fetchAccountTransactions(incomeId) {
     .order("created_at", { ascending: true });
 
   if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+async function fetchPersonalCashIncomeLinkageEvents(incomeId) {
+  const { data, error } = await supabase
+    .from("school_personal_cash_income_linkage_events")
+    .select(CASH_INCOME_LINKAGE_COLUMNS)
+    .eq("income_record_id", incomeId)
+    .eq("source_table", "school_income_records")
+    .eq("source_event_type", "tuition_income_received")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.code === "42P01") {
+      return [];
+    }
     throw error;
   }
 

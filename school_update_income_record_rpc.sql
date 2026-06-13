@@ -8,7 +8,8 @@
 -- - Adjust the linked account current_balance and original income_adjust transaction
 --   only when the original transaction is still the latest transaction for the account.
 -- - Reject reversed income, student-payment-chain income, locked tuition settlement,
---   account changes, currency mismatches, and abnormal account transaction history.
+--   personal Cash-linked tuition income, account changes, currency mismatches,
+--   and abnormal account transaction history.
 --
 -- Notes:
 -- - Account currency is not user-maintained. The selected account owns the currency.
@@ -145,6 +146,16 @@ begin
 
   if v_income.student_payment_id is not null then
     raise exception '关联学生收款链路的收入暂不支持普通编辑。';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_personal_cash_income_linkage_events e
+    where e.income_record_id = v_income.id
+      and e.source_table = 'school_income_records'
+      and e.source_event_type = 'tuition_income_received'
+  ) then
+    raise exception '该收入已进入 Cash System 联动流程，不能通过普通收入编辑。';
   end if;
 
   select count(*)::integer
@@ -388,7 +399,7 @@ comment on function public.school_update_income_record(
   boolean,
   text
 ) is
-  'Guarded v2 income edit: updates one received income and its original account transaction only when settlement/account guards pass.';
+  'Guarded v2 income edit: updates one received income and its original account transaction only when settlement/account guards pass; rejects personal Cash-linked tuition income.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

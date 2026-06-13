@@ -29,6 +29,12 @@ const SETTLEMENT_STATUS_LABELS = {
   draft: "草稿",
 };
 
+const CASH_LINKAGE_STATUS_LABELS = {
+  pending: "待同步",
+  synced: "已同步",
+  failed: "同步失败",
+};
+
 const TRANSACTION_TYPE_LABELS = {
   income_adjust: "收入调整",
   income_reversal: "收入撤销",
@@ -77,6 +83,7 @@ export function initIncomeDetailPage() {
 function cacheDom() {
   dom.messageArea = document.querySelector("#incomeDetailMessageArea");
   dom.actionStatus = document.querySelector("#incomeDetailActionStatus");
+  dom.actionReason = document.querySelector("#incomeDetailActionReason");
   dom.openEditIncomeButton = document.querySelector("#openEditIncomeButton");
   dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
@@ -197,6 +204,7 @@ async function loadIncomeDetail(incomeId) {
 
 function renderIncomeDetail(data) {
   const { income } = data;
+  const cashLinkageEvent = cashIncomeLinkageEvent(data);
   renderActionArea(data);
   dom.titleText.textContent = `${formatDateOnly(income.income_date)} / ${incomeCategoryLabel(income.income_category)} / ${formatCurrency(income.amount, income.currency)}`;
 
@@ -244,6 +252,7 @@ function renderIncomeDetail(data) {
     ["student_payment_id", shortId(income.student_payment_id)],
     ["account_id", shortId(income.account_id)],
     ["business_entity_id", shortId(income.business_entity_id)],
+    ["Cash linkage", cashLinkageEvent ? cashIncomeLinkageSummary(cashLinkageEvent) : "-"],
     ["app_type", displayValue(income.app_type)],
     ["created_at", formatDate(income.created_at)],
     ["updated_at", formatDate(income.updated_at)],
@@ -259,8 +268,11 @@ function renderActionArea(data) {
   const status = income?.status || "";
   const canReverse = canReverseIncome(data);
   const canEdit = canEditIncome(data);
+  const actionReason = cashIncomeLinkageNotAllowedMessage(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = incomeStatusLabel(status);
+  dom.actionReason.textContent = actionReason;
+  dom.actionReason.classList.toggle("is-hidden", !actionReason);
   dom.openEditIncomeButton.classList.toggle("is-hidden", !canEdit);
   dom.openEditIncomeButton.disabled = !canEdit;
   dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
@@ -270,6 +282,9 @@ function renderActionArea(data) {
 function canEditIncome(data) {
   const income = data?.income;
   if (!income) {
+    return false;
+  }
+  if (cashIncomeLinkageEvent(data)) {
     return false;
   }
 
@@ -284,6 +299,9 @@ function canEditIncome(data) {
 function canReverseIncome(data) {
   const income = data?.income;
   if (!income) {
+    return false;
+  }
+  if (cashIncomeLinkageEvent(data)) {
     return false;
   }
 
@@ -696,6 +714,8 @@ function renderReverseSummary(income) {
 function reverseNotAllowedMessage(data) {
   const income = data?.income;
   if (!income) return "撤销对象不存在，请刷新后重试。";
+  const cashLinkageMessage = cashIncomeLinkageNotAllowedMessage(data);
+  if (cashLinkageMessage) return cashLinkageMessage;
   if (income.status === "reversed" || income.reversed_at || income.reversal_account_transaction_id) {
     return "该收入已撤销，不能重复撤销。";
   }
@@ -710,6 +730,8 @@ function reverseNotAllowedMessage(data) {
 function editNotAllowedMessage(data) {
   const income = data?.income;
   if (!income) return "编辑对象不存在，请刷新后重试。";
+  const cashLinkageMessage = cashIncomeLinkageNotAllowedMessage(data);
+  if (cashLinkageMessage) return cashLinkageMessage;
   if (income.status === "reversed" || income.reversed_at || income.reversal_account_transaction_id) {
     return "该收入已撤销，不能编辑。";
   }
@@ -719,6 +741,26 @@ function editNotAllowedMessage(data) {
     return "目标学生月度结算已锁定，不能编辑收入。";
   }
   return "当前收入不能编辑。";
+}
+
+function cashIncomeLinkageEvent(data) {
+  const events = data?.cashIncomeLinkageEvents || [];
+  return events[0] || null;
+}
+
+function cashIncomeLinkageNotAllowedMessage(data) {
+  const event = cashIncomeLinkageEvent(data);
+  if (!event) {
+    return "";
+  }
+  if (event.sync_status === "synced") {
+    return "该收入已同步到 Cash System，当前版本暂不支持联动编辑 / 撤销。";
+  }
+  return "该收入已进入 Cash System 联动流程，不能走普通收入编辑 / 撤销。";
+}
+
+function cashIncomeLinkageSummary(event) {
+  return `${cashLinkageStatusLabel(event.sync_status)} / ${shortId(event.id)}`;
 }
 
 function setEditSubmitting(isSubmitting) {
@@ -910,6 +952,10 @@ function paymentMethodLabel(value) {
 
 function settlementStatusLabel(value) {
   return SETTLEMENT_STATUS_LABELS[value] || displayValue(value);
+}
+
+function cashLinkageStatusLabel(value) {
+  return CASH_LINKAGE_STATUS_LABELS[value] || displayValue(value);
 }
 
 function transactionTypeLabel(value) {

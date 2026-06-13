@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.105.0-income-edit-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.111.0-cash-linked-income-guard-20260613">
   </head>
   <body>
     <div class="app-shell">
@@ -43,6 +43,7 @@
             <div>
               <h2 id="incomeDetailPageTitle">详情</h2>
               <p class="section-note">本页为收入记录详情。编辑和撤销均通过 RPC 守卫执行，不从账户流水反推收入金额，也不修改学生月度结算快照。</p>
+              <p id="incomeDetailActionReason" class="section-note is-hidden"></p>
             </div>
             <div class="income-detail-actions">
               <span id="incomeDetailActionStatus" class="status-badge status-neutral">-</span>
@@ -266,6 +267,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-detail-app.js?v=v2.105.0-income-edit-field-scope-20260612"></script>
+    <script type="module" src="./js/income-detail-app.js?v=v2.111.0-cash-linked-income-guard-20260613"></script>
   </body>
 </html>
