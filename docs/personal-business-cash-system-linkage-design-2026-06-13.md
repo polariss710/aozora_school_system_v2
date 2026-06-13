@@ -797,7 +797,11 @@ Edge Function bridge checkpoint, 2026-06-13:
 
 - Added `supabase/functions/request-cash-confirmation/index.ts`.
 - The function is the intended backend bridge behind an embedded School business
-  action, not a standalone School sync entry:
+  action, not a standalone School sync entry.
+- The current implementation supports only personal-business `teacher_wage`
+  JPY payment requests. It does not route the income page or tuition income
+  requests yet.
+- The current RPC order is:
   1. validate POST JSON body and School bearer token
   2. call School `school_request_personal_cash_payment_confirmation(...)`
   3. call Cash `home_create_external_transaction_request(...)`
@@ -819,6 +823,9 @@ Edge Function bridge checkpoint, 2026-06-13:
 - The Cash RPC call creates only `home_external_transaction_requests.status =
   pending`. It does not create `home_jpy_transactions`, does not call Cash
   approve, and does not change Cash balance.
+- If the idempotent Cash request already exists but is no longer `pending`,
+  the function returns a conflict instead of treating approved/rejected requests
+  as a new submitted request.
 - The School submitted RPC records the Cash request id and moves the School
   event to `awaiting_cash_confirmation`; it does not set
   `school_payment_requests.status = paid` and does not write `paid_at`.

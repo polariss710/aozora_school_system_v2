@@ -43,6 +43,12 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const CASH_EXTERNAL_SOURCE = "aozora_school";
+const CASH_REFERENCE_TYPE = "school_payment_requests";
+const CASH_REQUEST_TYPE = "teacher_wage_payment_confirm";
+const CASH_TRANSACTION_TYPE = "expense";
+const SUPPORTED_CURRENCY = "JPY";
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -188,7 +194,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "school_request_personal_cash_payment_confirmation",
     );
 
-    if (schoolRequest.currency !== "JPY") {
+    if (schoolRequest.currency !== SUPPORTED_CURRENCY) {
       return jsonResponse(
         { ok: false, message: "Only JPY Cash confirmation requests are supported" },
         400,
@@ -204,13 +210,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const cashPayload = {
-      external_source: "aozora_school",
+      external_source: CASH_EXTERNAL_SOURCE,
       external_event_id: schoolRequest.linkage_event_id,
-      external_reference_type: "school_payment_requests",
+      external_reference_type: CASH_REFERENCE_TYPE,
       external_reference_id: schoolRequest.payment_request_id,
-      request_type: "teacher_wage_payment_confirm",
-      transaction_type: "expense",
-      currency: "JPY",
+      request_type: CASH_REQUEST_TYPE,
+      transaction_type: CASH_TRANSACTION_TYPE,
+      currency: SUPPORTED_CURRENCY,
       amount,
       account_id: schoolRequest.cash_account_id,
       cash_account_name_snapshot: schoolRequest.cash_account_name_snapshot,
@@ -222,12 +228,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
       await cashClient.rpc("home_create_external_transaction_request", {
         p_user_id: schoolRequest.cash_user_id,
         p_account_id: schoolRequest.cash_account_id,
-        p_external_source: "aozora_school",
+        p_external_source: CASH_EXTERNAL_SOURCE,
         p_external_event_id: schoolRequest.linkage_event_id,
-        p_external_reference_type: "school_payment_requests",
+        p_external_reference_type: CASH_REFERENCE_TYPE,
         p_external_reference_id: schoolRequest.payment_request_id,
-        p_request_type: "teacher_wage_payment_confirm",
-        p_transaction_type: "expense",
+        p_request_type: CASH_REQUEST_TYPE,
+        p_transaction_type: CASH_TRANSACTION_TYPE,
         p_transacted_at: todayIsoDate(),
         p_amount: amount,
         p_idempotency_key: schoolRequest.idempotency_key,
@@ -259,6 +265,20 @@ Deno.serve(async (request: Request): Promise<Response> => {
           message: cashRequest?.message ??
             "Cash pending request was not created",
           cash_status: cashRequest?.status ?? null,
+        },
+        409,
+      );
+    }
+
+    if (cashRequest.status !== "pending") {
+      return jsonResponse(
+        {
+          ok: false,
+          payment_request_id: schoolRequest.payment_request_id,
+          linkage_event_id: schoolRequest.linkage_event_id,
+          cash_request_id: cashRequest.request_id,
+          cash_request_status: cashRequest.status ?? null,
+          message: "Cash request already exists but is not pending",
         },
         409,
       );
