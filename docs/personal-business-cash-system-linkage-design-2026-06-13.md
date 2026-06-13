@@ -673,23 +673,38 @@ Current verified teacher-wage payment chain:
 
 Target Cash linkage v2 chain:
 
-1. Pending teacher wage payment request exists in School.
-2. School user clicks `请求同步到 Cash System`.
-3. School creates/marks a linkage request, but this does not mean paid.
-4. A Cash pending external transaction request appears in Cash System.
-5. Cash user approves or rejects in the Cash page.
-6. Approve calls existing Cash `home_create_external_jpy_transaction(...)`,
-   creates the Cash transaction, and changes Cash balance.
-7. Reject creates no Cash transaction and does not change Cash balance.
-8. School shows `synced/cash_confirmed` after approval, or `cash_rejected`
-   after rejection. For teacher wage payment, the payment request should become
-   `paid` only after Cash approval; rejection should leave it unpaid or clearly
-   rejected without paid side effects.
+The corrected product direction does not add an independent School sync page.
+Cash linkage is embedded into the two real School business pages:
+
+1. Income record page:
+   - user records personal-business `tuition` JPY income
+   - user selects a Cash 收款账户, such as Alipay or a JPY account
+   - submitting the income record creates the school income record and submits
+     the Cash confirmation request
+   - Cash approval later creates the Cash JPY income transaction and School
+     displays `Cash已确认`
+   - Cash rejection creates no Cash transaction and School displays `Cash已拒绝`
+2. Teacher wage payment page:
+   - user confirms a personal-business `teacher_wage` JPY payment
+   - user selects a Cash 支付账户, such as Alipay or a JPY account
+   - button copy should be business-oriented, for example `提交到 Cash 确认`
+     or `请求支付确认`
+   - School creates/marks the payment Cash request, but this does not mean paid
+   - Cash approval later creates the Cash JPY expense transaction and only then
+     should the School payment request become `paid`
+   - Cash rejection creates no Cash transaction; the payment request remains
+     pending and School displays `Cash已拒绝` with the rejection reason
+3. Cash System keeps the separate `外部待确认` page as the ledger-side
+   confirmation entry. This is not a School sync page.
 
 Key principles:
 
 - Cash balance can change only after Cash-side approval.
-- School-side sync request is not payment confirmation.
+- School business submission to Cash is not Cash payment/income confirmation.
+- Ordinary School users should not see sync executor, pending event, outbox, or
+  batch terminology.
+- School UI wording should use business terms: 收款账户, 支付账户, 提交到 Cash
+  确认, Cash待确认, Cash已确认, Cash已拒绝.
 - Idempotency starts at pending request creation.
 - Cash transaction creation still uses the existing external/idempotency guard.
 - Continue excluding 青空塾, CNY, non-target linkage, reimbursement, company
@@ -707,7 +722,8 @@ Recommended architecture:
 - Add Cash UI for pending request list, request detail, approve, reject, and
   approve confirmation.
 - Add a Supabase Edge Function as the School-click backend bridge:
-  - School page calls the function when the user requests sync
+  - School income/payment page calls the function as part of the business
+    submission
   - the function writes/returns the Cash pending request
   - service keys stay server-side
 - Do not let a School browser directly write the Cash project with a Cash anon
@@ -723,8 +739,11 @@ School-side objects likely needed:
   `rejected_at`, and `rejected_reason`.
 - Add/adjust RPCs so School can request Cash sync without marking the payment
   request paid and without creating Cash transactions.
-- Add School UI action on payment list/detail for personal-business
-  `teacher_wage` JPY rows: `请求同步到 Cash System`.
+- Embed the Cash account selector and confirmation action into the existing
+  School business pages:
+  - income page: Cash 收款账户 for personal `tuition` JPY income
+  - teacher wage payment page: Cash 支付账户 for personal `teacher_wage` JPY
+    payment
 
 School-side v2 lifecycle checkpoint, 2026-06-13:
 
@@ -777,7 +796,8 @@ School-side v2 lifecycle checkpoint, 2026-06-13:
 Edge Function bridge checkpoint, 2026-06-13:
 
 - Added `supabase/functions/request-cash-confirmation/index.ts`.
-- The function is the intended page-click backend bridge:
+- The function is the intended backend bridge behind an embedded School business
+  action, not a standalone School sync entry:
   1. validate POST JSON body and School bearer token
   2. call School `school_request_personal_cash_payment_confirmation(...)`
   3. call Cash `home_create_external_transaction_request(...)`
@@ -809,9 +829,52 @@ Edge Function bridge checkpoint, 2026-06-13:
   user-selected payment date. If business requires explicit pay date selection,
   add that to the School UI/RPC in a later guarded phase.
 - This checkpoint only adds code. It is not deployed, not invoked, not wired to
-  School pages, and not tested against DB in this phase.
+  School business pages, and not tested against DB in this phase.
 - Cash approve/reject -> School confirmed/rejected writeback remains a later
   phase.
+
+### Corrected School UI Direction
+
+School should not add a separate `sync` or `Cash linkage` work page for ordinary
+business users. The only user-facing entry points are:
+
+- `income.html` / income record workflow for personal-business tuition JPY
+  income
+- teacher wage payment management workflow for personal-business teacher wage
+  JPY payment
+
+Income record page target behavior:
+
+1. User selects a personal business entity.
+2. User selects `tuition`.
+3. Currency is JPY.
+4. User selects a Cash 收款账户 from active personal Cash mappings, such as
+   Alipay or a JPY account.
+5. Submitting the form creates the school income record and submits a Cash
+   pending confirmation request.
+6. School status uses business labels:
+   - `Cash待确认`
+   - `Cash已确认`
+   - `Cash已拒绝`
+7. Cash approval creates the Cash JPY income transaction. Cash rejection creates
+   no Cash transaction.
+
+Teacher wage payment page target behavior:
+
+1. User opens a pending personal-business `teacher_wage` JPY payment request.
+2. User selects a Cash 支付账户 from active personal Cash mappings, such as
+   Alipay or a JPY account.
+3. The primary action should be labelled `提交到 Cash 确认` or `请求支付确认`,
+   not a generic sync action.
+4. School does not mark the payment request `paid` at this step.
+5. School shows `Cash待确认` while Cash has a pending request.
+6. Cash approval creates the Cash JPY expense transaction and only then should
+   School mark the payment request `paid` / `Cash已确认`.
+7. Cash rejection creates no Cash transaction; School keeps the payment request
+   pending and shows `Cash已拒绝` plus rejection reason.
+
+The zsh sync executor and raw linkage states remain verification/operations
+tools. They should not be the ordinary business UI model.
 
 Cash-side objects likely needed:
 
@@ -839,7 +902,8 @@ Cash-side objects likely needed:
 2. Choose two rows only:
    - one approve test
    - one reject test
-3. School page requests sync for both rows.
+3. School teacher wage payment page submits both rows to Cash confirmation with
+   selected Cash 支付账户.
 4. Cash page approves one request and rejects the other.
 5. Verify approved row creates exactly one Cash JPY transaction and changes
    Cash balance.
@@ -858,8 +922,9 @@ Implementation phases:
 3. Edge Function: School request -> Cash pending request.
 4. School DB: extend payment linkage lifecycle and request/confirmed/rejected
    writeback.
-5. School UI: replace personal JPY teacher_wage direct `确认支付` linkage with
-   `请求同步到 Cash System`.
+5. School UI: embed Cash account selection into income and teacher wage payment
+   pages; replace personal JPY teacher_wage direct `确认支付` linkage with
+   `提交到 Cash 确认` / `请求支付确认`, not a standalone sync page.
 6. ROLLBACK whitelist tests.
 7. COMMIT whitelist E2E approve/reject tests.
 8. Decide whether to run the 2026-05 real two-row JPY teacher wage trial.
