@@ -726,6 +726,54 @@ School-side objects likely needed:
 - Add School UI action on payment list/detail for personal-business
   `teacher_wage` JPY rows: `请求同步到 Cash System`.
 
+School-side v2 lifecycle checkpoint, 2026-06-13:
+
+- Added formal SQL draft
+  `school_personal_cash_payment_confirmation_lifecycle_schema.sql`.
+- The draft extends `school_personal_cash_linkage_events` with:
+  - `cash_request_id`
+  - `cash_request_status`
+  - `requested_at`
+  - `confirmed_at`
+  - `rejected_at`
+  - `rejected_reason`
+  - `cash_request_last_checked_at`
+- The lifecycle keeps old operational states `pending`, `synced`, `failed`,
+  and `blocked`, and adds v2 request states:
+  - `pending_cash_request`
+  - `awaiting_cash_confirmation`
+  - `cash_rejected`
+- Added formal RPC draft
+  `school_request_personal_cash_payment_confirmation_rpc.sql`.
+- `school_request_personal_cash_payment_confirmation(...)` validates:
+  - payment request exists and is still `pending`
+  - `source_type = teacher_wage`
+  - `currency = JPY`
+  - amount is positive
+  - business entity is active and `entity_type = personal`
+  - mapping is active, `flow_type = teacher_wage_payment`, `JPY -> JPY`
+  - mapping business entity matches the payment request
+- The request RPC creates or reuses a `school_personal_cash_linkage_events`
+  row with `sync_status = pending_cash_request`.
+- The request RPC intentionally does not:
+  - set `school_payment_requests.status = paid`
+  - write `paid_at`
+  - create school expense records
+  - create `school_account_transactions`
+  - create Cash transactions
+- `school_mark_personal_cash_payment_request_submitted(...)` is the first
+  bridge writeback RPC. After the future Edge Function creates a Cash pending
+  request, it records `cash_request_id`, sets `cash_request_status = pending`,
+  and moves the School event to `awaiting_cash_confirmation`, while the payment
+  request remains `pending`.
+- Cash approve/reject callback RPCs are intentionally deferred to the next
+  guarded phase, because they are the phase that will first change School
+  payment status to `paid` or `cash_rejected`.
+- The existing zsh sync executor remains an operations/verification tool. It
+  only processes old payment events with `sync_status = pending` and linked
+  payment request `status = paid`, so it does not process v2
+  `pending_cash_request` or `awaiting_cash_confirmation` events.
+
 Cash-side objects likely needed:
 
 - `home_external_transaction_requests` or equivalent:
