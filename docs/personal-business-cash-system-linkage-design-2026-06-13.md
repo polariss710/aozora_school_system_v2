@@ -655,6 +655,128 @@ Still unsupported:
 - automatic scheduled sync; Phase 2 v1 still uses the manual sync script and
   documented operator runbook
 
+### Cash Linkage v2 Direction: Page-Driven Cash Confirmation
+
+The current zsh sync executor is a verification and operations tool. It is not
+the final daily business entry point.
+
+Current verified teacher-wage payment chain:
+
+1. Pending teacher wage payment request exists in School.
+2. School user clicks `确认支付`.
+3. `school_payment_requests.status` becomes `paid`.
+4. School creates `school_personal_cash_linkage_events.sync_status = pending`.
+5. `scripts/sync-personal-cash-linkage.zsh` directly calls Cash
+   `home_create_external_jpy_transaction(...)`.
+6. Cash creates a JPY transaction and the Cash balance changes.
+7. School event is updated to `synced`.
+
+Target Cash linkage v2 chain:
+
+1. Pending teacher wage payment request exists in School.
+2. School user clicks `请求同步到 Cash System`.
+3. School creates/marks a linkage request, but this does not mean paid.
+4. A Cash pending external transaction request appears in Cash System.
+5. Cash user approves or rejects in the Cash page.
+6. Approve calls existing Cash `home_create_external_jpy_transaction(...)`,
+   creates the Cash transaction, and changes Cash balance.
+7. Reject creates no Cash transaction and does not change Cash balance.
+8. School shows `synced/cash_confirmed` after approval, or `cash_rejected`
+   after rejection. For teacher wage payment, the payment request should become
+   `paid` only after Cash approval; rejection should leave it unpaid or clearly
+   rejected without paid side effects.
+
+Key principles:
+
+- Cash balance can change only after Cash-side approval.
+- School-side sync request is not payment confirmation.
+- Idempotency starts at pending request creation.
+- Cash transaction creation still uses the existing external/idempotency guard.
+- Continue excluding 青空塾, CNY, non-target linkage, reimbursement, company
+  account spending, and arbitrary school events.
+
+Recommended architecture:
+
+- Keep the zsh sync script as a verification/operations tool only.
+- Add a Cash pending request table, for example
+  `home_external_transaction_requests`.
+- Add Cash approve/reject RPCs:
+  - approve validates a pending request and calls
+    `home_create_external_jpy_transaction(...)`
+  - reject stores `rejected_at` / `rejected_reason` and creates no transaction
+- Add Cash UI for pending request list, request detail, approve, reject, and
+  approve confirmation.
+- Add a Supabase Edge Function as the School-click backend bridge:
+  - School page calls the function when the user requests sync
+  - the function writes/returns the Cash pending request
+  - service keys stay server-side
+- Do not let a School browser directly write the Cash project with a Cash anon
+  key.
+- Do not make the Cash frontend directly read the School DB.
+
+School-side objects likely needed:
+
+- Extend `school_personal_cash_linkage_events` lifecycle with request states
+  such as `pending_cash_request`, `awaiting_cash_confirmation`,
+  `cash_confirmed/synced`, and `cash_rejected`.
+- Add fields such as `cash_request_id`, `requested_at`, `confirmed_at`,
+  `rejected_at`, and `rejected_reason`.
+- Add/adjust RPCs so School can request Cash sync without marking the payment
+  request paid and without creating Cash transactions.
+- Add School UI action on payment list/detail for personal-business
+  `teacher_wage` JPY rows: `请求同步到 Cash System`.
+
+Cash-side objects likely needed:
+
+- `home_external_transaction_requests` or equivalent:
+  - `id`
+  - `external_source = aozora_school`
+  - `external_event_id`
+  - `external_reference_type`
+  - `external_reference_id`
+  - `request_type`
+  - `transaction_type`
+  - `amount`
+  - `currency`
+  - `account_id`
+  - `status = pending / approved / rejected`
+  - `requested_at`, `approved_at`, `rejected_at`, `rejected_reason`
+  - `created_transaction_id`
+  - `idempotency_key`
+  - `payload_snapshot`
+
+5月 teacher wage JPY two-row trial plan, design only:
+
+1. Run read-only verification for 2026-05 pending `teacher_wage` JPY personal
+   business payment candidates.
+2. Choose two rows only:
+   - one approve test
+   - one reject test
+3. School page requests sync for both rows.
+4. Cash page approves one request and rejects the other.
+5. Verify approved row creates exactly one Cash JPY transaction and changes
+   Cash balance.
+6. Verify rejected row creates no Cash transaction and does not change Cash
+   balance.
+7. Verify School status: approved row becomes paid/synced; rejected row remains
+   unpaid or shows `cash_rejected`.
+8. Verify idempotency for repeat request/approve/reject.
+9. If using real 2026-05 data, do not cleanup. Cleanup applies only to clearly
+   marked whitelist test data.
+
+Implementation phases:
+
+1. Cash DB: add external transaction request table and approve/reject RPCs.
+2. Cash UI: add pending request list, detail, approve, and reject.
+3. Edge Function: School request -> Cash pending request.
+4. School DB: extend payment linkage lifecycle and request/confirmed/rejected
+   writeback.
+5. School UI: replace personal JPY teacher_wage direct `确认支付` linkage with
+   `请求同步到 Cash System`.
+6. ROLLBACK whitelist tests.
+7. COMMIT whitelist E2E approve/reject tests.
+8. Decide whether to run the 2026-05 real two-row JPY teacher wage trial.
+
 ### Current-State Investigation Summary
 
 School income flow today:
