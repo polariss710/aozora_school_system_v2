@@ -21,12 +21,31 @@ Cash System facts below are based on live DB `information_schema` / `pg_indexes`
 Core split:
 
 - School system = business ledger.
-- Cash System = actual user-controlled account ledger.
-- School records business ownership and settlement/cost attribution.
-- Cash records actual account movement.
+- Cash System = the user's household/private account ledger and actual
+  user-controlled account ledger.
+- School records business facts: tuition income, teacher wages,
+  student/teacher/month, business ownership, cost attribution,
+  corporate-account clearing records, and company expense records.
+- Cash records actual account movement: Alipay, JPY cash, Mitsubishi/Rakuten
+  and other JPY accounts, RMB accounts, actual money received, actual money
+  paid, CNY/JPY allocation, transfers to corporate accounts, and corporate
+  reimbursements back to user-controlled accounts.
 - Business ownership no longer decides whether a financial event enters Cash.
 - If money actually passes through a user-controlled account, it should enter
   Cash System.
+- Cash System does not judge business ownership. School remains the source of
+  business ownership.
+
+External request policy:
+
+- School initiates external Cash requests from School business flows.
+- Cash System stores and displays pending external requests.
+- Cash user approve creates the Cash transaction and changes Cash balance.
+- Cash user reject creates no transaction and changes no balance.
+- Cash System does not proactively create School business records.
+- Cash System does not proactively initiate School business requests.
+- The Cash zsh/manual sync path is historical verification/operations only;
+  the target daily path is external request plus Cash approve/reject.
 
 Deprecated old policies:
 
@@ -47,6 +66,11 @@ Tuition income policy:
   - 青空塾 tuition
   - JPY income
   - CNY / RMB income
+  - cash receipts
+  - bank receipts
+  - Alipay receipts
+- The School income record is the business fact. The Cash request is the
+  account-movement confirmation.
 - Actual received money enters Cash according to the receiving account:
   - Alipay receives RMB -> Cash records Alipay income.
   - JPY cash receives tuition -> Cash records JPY cash income.
@@ -69,6 +93,8 @@ Teacher wage payment policy:
   - JPY bank transfers
   - RMB / Alipay payments
 - School records wage cost attribution:
+  - teacher wage settlement
+  - payment request
   - personal-business portion
   - 青空塾 portion
   - adjustments / transport fees / classroom fees
@@ -82,6 +108,37 @@ Teacher wage payment policy:
   identifiable as `青空塾工资垫付`.
 - Later corporate reimbursement should be recorded in Cash as
   `法人账户报销 / 青空塾工资垫付报销`.
+- Cash approve creates the wage expense transaction. Cash reject creates no
+  transaction.
+
+Cash/corporate-account clearing policy:
+
+- Cash -> corporate account movement is internal clearing / balancing, not new
+  business revenue.
+- For 青空塾 tuition submission or corporate funds aggregation:
+  - Cash records `支出 / 转给法人账户 / 学费提交 / 代收款清算`.
+  - School records `法人账户入金 / 学费清算 / 资金归集`.
+  - Do not record a second tuition income; tuition income was already recorded
+    when the student paid.
+- For corporate reimbursement of Cash-advanced teacher wages:
+  - Cash records `收入 / 法人账户报销 / 青空塾工资垫付报销`.
+  - School records `青空塾工资垫付款已报销 / 法人账户清算`.
+  - Do not record new tuition income or new profit income. This is advance
+    recovery / internal balancing.
+
+Profit policy:
+
+- Count real operating revenue and real operating expenses:
+  - tuition income
+  - teacher wages
+  - real business expenses
+- Do not count internal clearing or account allocation:
+  - Cash transfer to corporate account
+  - corporate reimbursement to Cash
+  - CNY/JPY exchange
+  - user-account transfer
+  - entrusted-funds clearing
+  - wage-advance recovery
 
 CNY / JPY allocation policy:
 

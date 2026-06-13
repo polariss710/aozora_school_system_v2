@@ -13,6 +13,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - Validation priority is transaction rollback or clearly marked whitelist data (`codex-test`, `v2-test`, `sandbox`, `测试学生`, `测试老师`, `测试业务归属`).
 - Student settlement, teacher wage, payment request, reimbursement, account transaction, income/expense, and lesson chains are protected. Master-data changes must not rewrite or recalculate these chains.
 - Core business writes must go through API/RPC boundaries. Page modules must not call `.rpc()` directly and must not directly insert/update/delete/upsert DB rows.
+- Cash linkage boundary: School records business facts and initiates external Cash requests; Cash System only accepts external requests and user approve/reject changes Cash transactions/balances. Cash must not proactively create School business records or initiate School business requests.
 - Field narrowing policy:新增/编辑只保留当前实际业务使用字段；历史/预留/低频/派生/系统/交易链路字段隐藏或只读，暂不物理删除。主数据 dialog 收窄任务参考 `docs/workflows/v2-master-dialog-simplification.md`。
 
 ## Snapshot
@@ -56,7 +57,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 老师工资支付
 
-- 当前状态: V1 可用。支付列表可确认支付、反转已支付请求、取消 pending、恢复 cancelled、reissue reversed；详情页只读。历史实现已验证 personal + `teacher_wage` + JPY 的 Cash linkage 和 pending-request confirmation 路径，但这是旧实现范围，不再是业务口径边界。新 Cash linkage v1 业务口径是：所有从用户控制账户实际支付的老师工资都进入 Cash System，包括个人业务、青空塾、混合归属、JPY 现金、JPY 银行转账、人民币/支付宝支付。School 负责记录工资成本归属，包括个人业务部分、青空塾部分、调整项、交通费、教室费；Cash 负责记录实际付款账户，包括支付宝、日元现金、三菱、乐天或其他用户控制账户。青空塾归属工资也先由 Cash 垫付，并应能识别为 `青空塾工资垫付`；法人账户报销时在 Cash 记录 `法人账户报销 / 青空塾工资垫付报销`。
+- 当前状态: V1 可用。支付列表可确认支付、反转已支付请求、取消 pending、恢复 cancelled、reissue reversed；详情页只读。历史实现已验证 personal + `teacher_wage` + JPY 的 Cash linkage 和 pending-request confirmation 路径，但这是旧实现范围，不再是业务口径边界。新 Cash linkage v1 业务口径是：所有从用户控制账户实际支付的老师工资都进入 Cash System，包括个人业务、青空塾、混合归属、JPY 现金、JPY 银行转账、人民币/支付宝支付。School 负责记录老师工资结算、支付请求、个人业务成本部分、青空塾成本部分、调整项、交通费、教室费；Cash 负责记录实际付款账户，包括支付宝、日元现金、三菱、乐天或其他用户控制账户。School 发起工资付款 Cash request；Cash approve 后才生成工资支出 transaction，Cash reject 后不生成 transaction。青空塾归属工资也先由 Cash 账户垫付，并应能识别为 `青空塾工资垫付`；法人账户报销时在 Cash 记录 `法人账户报销 / 青空塾工资垫付报销`，School 记录 `青空塾工资垫付款已报销 / 法人账户清算`。
 - 最近关键更新: 2026-06-14 文档修正 Cash linkage 业务口径：废弃“只有 personal + `teacher_wage` + JPY 才走 Cash linkage”和“青空塾工资不进入 Cash”的旧口径。当前代码可能仍有 personal-only / JPY-only guard，Function 当前也仍只支持 personal `teacher_wage` JPY payment request；这些是后续实现差距，不代表业务规则。真实 5 月工资试运行继续暂停，等文档和实现口径一致后再进行。
 - 当前限制 / hard stop: 本轮只改文档；未改代码、SQL、DB、RPC。支付链路仍不得删除 payment request、wage lock、expense、account transaction。最终 Cash linkage 目标不是 School 直接创建 Cash transaction，也不是普通用户进入独立同步页，而是在真实业务页面提交 Cash 确认；approve 后才生成 Cash transaction 并改变 Cash 余额，reject 后不生成 Cash transaction。跨 DB 强事务、历史 backfill、撤销同步、自动后台任务仍需单独 guarded phase。
 - 下一步: 调整代码和 RPC，使工资支付 Cash linkage 覆盖所有实际经过用户控制账户的付款，而不是 personal/JPY-only。未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard。
@@ -71,7 +72,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 收入记录
 
 - 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。
-- 最近关键更新: 2026-06-14 文档修正 Cash linkage 业务口径：所有学费收入都在 School 记录业务归属，包括个人业务、青空塾、JPY 收入、CNY/人民币收入；实际收到的钱如果进入用户控制账户，则进入 Cash System。支付宝收到人民币时 Cash 记录支付宝收入；日元现金收到学费时 Cash 记录日元现金收入；日元银行收到学费时 Cash 记录对应银行账户收入。青空塾学费不再因为属于青空塾而排除 Cash；进入 Cash 时应通过分类、标签或备注标记为 `青空塾代收学费`。后续把青空塾学费转入法人账户时，在 Cash 记录 `转给法人账户 / 学费提交 / 代收款清算`，这不是家庭普通支出。旧的 personal + `tuition` + JPY Phase 2 E2E 仍是已验证历史实现，但不再代表完整业务口径。
+- 最近关键更新: 2026-06-14 文档修正 Cash linkage 业务口径：所有学费收入都先在 School 记录业务事实和业务归属，包括个人业务、青空塾、JPY、CNY/人民币、现金、银行、支付宝；实际收到的钱如果进入用户控制账户，则通过外部 request 进入 Cash System 确认。学生付支付宝人民币时，Cash approve 后支付宝账户增加；学生付日元现金时，Cash approve 后日元现金账户增加；学生付日元银行转账时，Cash approve 后对应银行账户增加。青空塾学费进入 Cash 时应通过分类、标签或备注标记为 `青空塾代收学费`。后续把青空塾学费转入法人账户时，Cash 记录 `支出 / 转给法人账户 / 学费提交 / 代收款清算`，School 记录 `法人账户入金 / 学费清算 / 资金归集`；不要重复记为新的学费收入。旧的 personal + `tuition` + JPY Phase 2 E2E 仍是已验证历史实现，但不再代表完整业务口径。
 - 当前限制 / hard stop: 普通收入路径仍按 V1。当前代码可能仍按旧口径实现 personal-only / JPY-only guard，Phase 2 personal Cash path 也可能仍只支持 personal + tuition + JPY + active `flow_type = tuition_income` Cash mapping；这些是后续待修正实现限制，不是新业务规则。CNY/JPY 换汇、账户调拨、支付宝与日元现金/银行之间的资金调配暂时不由 School 自动处理；School 只记录业务收入/工资结算口径，Cash 手动记录换汇/账户调拨。不从 account transaction 反推收入；不删除收入；不重算 locked student settlement。普通 edit/reverse 仅允许没有 Cash income linkage event 的普通收入；已进入 Cash linkage 的 tuition income 在当前实现中仍禁止普通 edit/reverse。
 - 下一步: 调整收入 Cash linkage，使所有实际经过用户控制账户的学费收款进入 Cash，并保留 School 的业务归属。Tuition income reverse sync、CNY/RMB Cash support、青空塾代收清算、自动调度、部分收款、付款计划、旧流水修正、跨账户收入迁移、结算外费用是否进入学生账单，均需另开 guarded design。
 
@@ -119,7 +120,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 - 当前状态: 只读完成。支持月份、业务归属、币种筛选和收入/支出 drilldown。
 - 最近关键更新: 读取 effective received income 和 paid expense；reversed income/expense 排除；teacher_wage expense 通过 paid expense 计入。
-- 当前限制 / hard stop: 不写 DB，不调整源记录，不重算 payment/settlement/wage，不把 reimbursement/account adjustment/transfer 等 audit-only transaction 当经营利润。
+- 当前限制 / hard stop: 不写 DB，不调整源记录，不重算 payment/settlement/wage。利润只看真实经营收入和真实经营支出：学费收入、老师工资、真实业务支出计入利润；Cash 转给法人账户、法人账户报销 Cash、CNY/JPY 换汇、用户账户之间调拨、代收款清算、垫付款回收不计入利润，也不要记为新的学费收入或新的利润收入。
 - 下一步: 保持只读；未来改筛选/drilldown 时重测只读边界。
 
 ## Backlog / 暂不实现
