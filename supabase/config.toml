@@ -1,0 +1,2 @@
+[functions.sync-cash-request-result]
+verify_jwt = false

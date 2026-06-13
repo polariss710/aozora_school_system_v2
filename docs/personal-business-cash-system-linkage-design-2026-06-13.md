@@ -882,6 +882,57 @@ Teacher wage payment page Edge Function request checkpoint, 2026-06-13:
 - The next implementation steps are deployment/configuration and Cash
   approve/reject -> School confirmed/rejected writeback.
 
+Cash request result callback checkpoint, 2026-06-13:
+
+- Added formal SQL file
+  `school_personal_cash_payment_request_result_rpcs.sql`.
+- Added `school_mark_personal_cash_payment_request_confirmed(...)`:
+  - validates the linkage event and matching `cash_request_id`
+  - requires the School payment request to still be `pending`
+  - marks `school_payment_requests.status = paid`
+  - writes `paid_at`
+  - marks linkage `sync_status = synced`
+  - writes `cash_transaction_id`, `cash_request_status = approved`,
+    `confirmed_at`, and `synced_at`
+  - does not create school expense records
+  - does not create `school_account_transactions`
+  - does not write Cash DB
+- Added `school_mark_personal_cash_payment_request_rejected(...)`:
+  - validates the linkage event and matching `cash_request_id`
+  - keeps the School payment request `pending`
+  - keeps `paid_at` empty
+  - marks linkage `sync_status = cash_rejected`
+  - writes `cash_request_status = rejected`, `rejected_at`, and
+    `rejected_reason`
+  - does not write school ledger rows or Cash DB
+- Added `supabase/functions/sync-cash-request-result/index.ts`.
+- Added `supabase/config.toml` entry for this function with
+  `verify_jwt = false`, because the function receives a Cash-project bearer
+  token and validates it inside the function with Cash service role.
+- Function input:
+  - `cash_request_id`
+  - `action = approved | rejected`
+- Function behavior:
+  1. validate POST JSON body and Cash bearer token
+  2. read Cash `home_external_transaction_requests` using Cash service role
+  3. require `external_source = aozora_school`,
+     `external_reference_type = school_payment_requests`,
+     `request_type = teacher_wage_payment_confirm`, JPY expense
+  4. require Cash request status to match the requested action
+  5. for approved, require `created_transaction_id`
+  6. for rejected, require no Cash transaction
+  7. call the corresponding School confirmed/rejected RPC with School service
+     role
+- Required Edge Function secrets remain:
+  - `SCHOOL_SUPABASE_URL`
+  - `SCHOOL_SERVICE_ROLE_KEY`
+  - `CASH_SUPABASE_URL`
+  - `CASH_SERVICE_ROLE_KEY`
+- Cash browser callers should send only the Cash user bearer token and the
+  function URL. They should not receive School service role or School anon keys.
+- This checkpoint only adds code and SQL files. It does not apply SQL, deploy
+  functions, call RPCs, connect DB, or run E2E tests.
+
 ### Corrected School UI Direction
 
 School should not add a separate `sync` or `Cash linkage` work page for ordinary
