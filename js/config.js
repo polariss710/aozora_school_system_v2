@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v2.110.0-personal-cash-payment-outbox-20260613";
+export const APP_VERSION = "v2.111.0-supabase-auth-client-init-20260614";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,

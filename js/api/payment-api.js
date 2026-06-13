@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js";
+import { supabase } from "../supabase-client.js?v=v2.111.0-supabase-auth-client-init-20260614";
 
 const PAYMENT_REQUEST_COLUMNS = [
   "id",

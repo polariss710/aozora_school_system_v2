@@ -1,5 +1,5 @@
-import { APP_VERSION } from "./config.js";
-import { initPaymentPage } from "./pages/payment-page.js?v=v2.110.0-personal-cash-payment-outbox-20260613";
+import { APP_VERSION } from "./config.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { initPaymentPage } from "./pages/payment-page.js?v=v2.111.0-supabase-auth-client-init-20260614";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

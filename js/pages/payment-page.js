@@ -1,6 +1,6 @@
-import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js";
+import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v2.111.0-supabase-auth-client-init-20260614";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,
@@ -13,8 +13,8 @@ import {
   requestCashConfirmationViaFunction,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
-} from "../api/payment-api.js";
-import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js";
+} from "../api/payment-api.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=v2.111.0-supabase-auth-client-init-20260614";
 import {
   formatCurrency,
   formatDate,

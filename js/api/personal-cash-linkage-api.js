@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js";
+import { supabase } from "../supabase-client.js?v=v2.111.0-supabase-auth-client-init-20260614";
 
 export async function listPersonalCashAccountMappings(filters = {}) {
   const { data, error } = await supabase.rpc("school_list_personal_cash_account_mappings", {
