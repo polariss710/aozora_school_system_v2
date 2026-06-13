@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.105.0-income-edit-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v2.110.0-personal-cash-tuition-income-entry-20260613">
   </head>
   <body>
     <div class="app-shell">
@@ -173,12 +173,20 @@
       <section class="dialog-panel income-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createIncomeTitle">
         <div class="section-heading">
           <h2 id="createIncomeTitle">新增收入</h2>
-          <p class="section-note">新增后会通过 RPC 自动写入收入记录、账户余额和账户流水。账户币种由入账账户决定；只有学费收入进入学生月度结算。</p>
+          <p class="section-note">通常收入会写入 school account 余额和账户流水；个人业务学费收入可进入 Cash System 待同步队列。</p>
         </div>
 
         <div id="createIncomeError" class="dialog-error is-hidden"></div>
 
         <div class="income-create-field-grid">
+        <label class="field income-create-wide-field" data-create-income-field="createMode">
+          <span>创建方式</span>
+          <select id="createIncomeModeSelect">
+            <option value="school_account">通常收入（School account）</option>
+            <option value="personal_cash_tuition">个人业务学费收入（Cash System）</option>
+          </select>
+        </label>
+
         <label class="field" data-create-income-field="incomeDate">
           <span>收款日期</span>
           <input id="createIncomeDateInput" type="date">
@@ -202,6 +210,11 @@
         <label class="field" data-create-income-field="account">
           <span>入账账户</span>
           <select id="createIncomeAccountSelect"></select>
+        </label>
+
+        <label class="field is-hidden" data-create-income-field="cashMapping">
+          <span>Cash System 账户</span>
+          <select id="createIncomeCashMappingSelect"></select>
         </label>
 
         <label class="field" data-create-income-field="incomeCategory">
@@ -272,6 +285,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v2.105.0-income-edit-field-scope-20260612"></script>
+    <script type="module" src="./js/income-app.js?v=v2.110.0-personal-cash-tuition-income-entry-20260613"></script>
   </body>
 </html>

@@ -74,6 +74,40 @@ export async function createIncomeRecord(payload) {
   return result;
 }
 
+export async function createPersonalCashTuitionIncome(payload) {
+  const { data, error } = await supabase.rpc(
+    "school_create_personal_cash_tuition_income_record",
+    {
+      p_income_date: payload.incomeDate,
+      p_settlement_month: payload.settlementMonth,
+      p_business_entity_id: payload.businessEntityId,
+      p_student_id: payload.studentId,
+      p_cash_account_mapping_id: payload.cashAccountMappingId,
+      p_amount: payload.amount,
+      p_income_category: "tuition",
+      p_description: payload.description || null,
+      p_currency: "JPY",
+      p_payment_currency: "JPY",
+      p_payment_method: payload.paymentMethod || null,
+      p_is_taxable_income: Boolean(payload.isTaxableIncome),
+      p_tax_category: payload.taxCategory || null,
+      p_receipt_status: payload.receiptStatus || null,
+      p_note: payload.note || null,
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("个人业务 Cash 学费收入新增成功，但 RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function fetchIncomeLookups() {
   const [studentsResult, businessEntitiesResult, accountsResult] = await Promise.all([
     supabase
@@ -84,7 +118,7 @@ export async function fetchIncomeLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_business_entities")
-      .select("id,name,is_active")
+      .select("id,name,entity_type,is_active")
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")

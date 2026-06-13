@@ -809,8 +809,11 @@ School repo candidates:
   - `school_create_personal_cash_tuition_income_record_rpc.sql` prepared, not executed
   - migration/update for `school_personal_cash_account_mappings.flow_type`
 - API/frontend:
-  - `js/api/income-api.js`
-  - `js/pages/income-page.js`
+  - `js/api/income-api.js` adds `createPersonalCashTuitionIncome(...)`,
+    prepared but not run
+  - `js/pages/income-page.js` adds a create-mode switch for normal School
+    account income vs personal Cash tuition income, prepared but not run
+  - `income.html` adds the create-mode and Cash mapping controls
   - `js/api/income-detail-api.js`
   - `js/pages/income-detail-page.js`
   - `js/api/personal-cash-linkage-api.js`
@@ -897,6 +900,17 @@ Required guards before implementation:
 - Reversal linkage belongs to a later Phase 2.x design and should create an
   opposite Cash JPY `expense` event rather than deleting the original Cash
   `income`.
+
+Income create-entry UI, prepared but not yet run:
+
+- Normal School account income remains the default mode and keeps the existing
+  `school_create_income_record` path.
+- Personal Cash tuition income mode is limited in the page/API to personal
+  business, `tuition`, JPY, required student, and active
+  `school_personal_cash_account_mappings.flow_type = tuition_income`.
+- Personal Cash tuition income mode hides the school account field and calls
+  `school_create_personal_cash_tuition_income_record` through the income API
+  wrapper, not directly from the page module.
 
 ### E2E Test Plan
 

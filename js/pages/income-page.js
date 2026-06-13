@@ -1,6 +1,12 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { createIncomeRecord, fetchIncomeLookups, fetchIncomeRecords } from "../api/income-api.js";
+import {
+  createIncomeRecord,
+  createPersonalCashTuitionIncome,
+  fetchIncomeLookups,
+  fetchIncomeRecords,
+} from "../api/income-api.js";
+import { listPersonalCashAccountMappings } from "../api/personal-cash-linkage-api.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -34,6 +40,8 @@ const INCOME_CATEGORY_LABELS = {
 };
 
 const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee", "other_fee"];
+const CREATE_MODE_SCHOOL_ACCOUNT = "school_account";
+const CREATE_MODE_PERSONAL_CASH_TUITION = "personal_cash_tuition";
 
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
@@ -47,6 +55,8 @@ const dom = {};
 let students = [];
 let businessEntities = [];
 let accounts = [];
+let personalCashMappings = [];
+let hasLoadedPersonalCashMappings = false;
 let incomeRecords = [];
 let loadedMonth = "";
 let isCreateSubmitting = false;
@@ -92,11 +102,13 @@ function cacheDom() {
   dom.openCreateIncomeButton = document.querySelector("#openCreateIncomeButton");
   dom.createIncomeDialog = document.querySelector("#createIncomeDialog");
   dom.createIncomeError = document.querySelector("#createIncomeError");
+  dom.createIncomeModeSelect = document.querySelector("#createIncomeModeSelect");
   dom.createIncomeDateInput = document.querySelector("#createIncomeDateInput");
   dom.createSettlementMonthInput = document.querySelector("#createSettlementMonthInput");
   dom.createIncomeBusinessEntitySelect = document.querySelector("#createIncomeBusinessEntitySelect");
   dom.createIncomeStudentSelect = document.querySelector("#createIncomeStudentSelect");
   dom.createIncomeAccountSelect = document.querySelector("#createIncomeAccountSelect");
+  dom.createIncomeCashMappingSelect = document.querySelector("#createIncomeCashMappingSelect");
   dom.createIncomeCategorySelect = document.querySelector("#createIncomeCategorySelect");
   dom.createIncomeAmountInput = document.querySelector("#createIncomeAmountInput");
   dom.createIncomePaymentMethodSelect = document.querySelector("#createIncomePaymentMethodSelect");
@@ -124,9 +136,26 @@ function bindEvents() {
   dom.openCreateIncomeButton.addEventListener("click", openCreateIncomeDialog);
   dom.createIncomeCancelButton.addEventListener("click", closeCreateIncomeDialog);
   dom.createIncomeSubmitButton.addEventListener("click", submitCreateIncome);
+  dom.createIncomeModeSelect.addEventListener("change", async () => {
+    clearCreateFieldInvalid("createMode");
+    hideCreateErrorIfClean();
+
+    if (isPersonalCashCreateMode()) {
+      try {
+        await ensurePersonalCashMappingsLoaded();
+      } catch (error) {
+        showCreateError(`读取 Cash System 账户映射失败：${error.message || error}`, ["createMode"]);
+        updateCreateModeUi({ preserveBusinessEntity: true });
+        return;
+      }
+    }
+
+    updateCreateModeUi({ preserveBusinessEntity: true });
+  });
   dom.createIncomeBusinessEntitySelect.addEventListener("change", () => {
     renderCreateStudentOptions();
     renderCreateAccountOptions();
+    renderCreateCashMappingOptions();
     clearCreateFieldInvalid("businessEntity");
     hideCreateErrorIfClean();
   });
@@ -138,7 +167,14 @@ function bindEvents() {
     clearCreateFieldInvalid("account");
     hideCreateErrorIfClean();
   });
+  dom.createIncomeCashMappingSelect.addEventListener("change", () => {
+    clearCreateFieldInvalid("cashMapping");
+    hideCreateErrorIfClean();
+  });
   dom.createIncomeCategorySelect.addEventListener("change", () => {
+    if (isPersonalCashCreateMode()) {
+      dom.createIncomeCategorySelect.value = "tuition";
+    }
     clearCreateFieldInvalid("incomeCategory");
     hideCreateErrorIfClean();
   });
@@ -187,6 +223,8 @@ async function loadInitialData() {
     students = [];
     businessEntities = [];
     accounts = [];
+    personalCashMappings = [];
+    hasLoadedPersonalCashMappings = false;
     incomeRecords = [];
     loadedMonth = "";
     renderMasterOptions();
@@ -364,11 +402,11 @@ function openCreateIncomeDialog() {
   setCreateSubmitting(false);
 
   const filters = readFilters();
-  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
   const defaultBusinessEntityId = filters?.businessEntityId || "";
   const defaultStudentId = filters?.studentId || "";
   const defaultAccountId = filters?.accountId || "";
 
+  dom.createIncomeModeSelect.value = CREATE_MODE_SCHOOL_ACCOUNT;
   dom.createIncomeDateInput.value = currentDate();
   dom.createSettlementMonthInput.value = filters?.month || currentYearMonth();
   dom.createIncomeAmountInput.value = "";
@@ -381,8 +419,8 @@ function openCreateIncomeDialog() {
   dom.createIncomeReceiptStatusInput.value = "待确认";
   dom.createIncomeNoteInput.value = "";
 
-  renderCreateBusinessEntityOptions(activeBusinessEntities);
-  dom.createIncomeBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
+  renderCreateBusinessEntityOptions();
+  dom.createIncomeBusinessEntitySelect.value = filteredCreateBusinessEntities().some((entity) => entity.id === defaultBusinessEntityId)
     ? defaultBusinessEntityId
     : "";
 
@@ -395,6 +433,8 @@ function openCreateIncomeDialog() {
   dom.createIncomeAccountSelect.value = filteredCreateAccounts().some((account) => account.id === defaultAccountId)
     ? defaultAccountId
     : "";
+  renderCreateCashMappingOptions();
+  updateCreateModeUi();
 
   dom.createIncomeDialog.classList.remove("is-hidden");
   dom.createIncomeDialog.setAttribute("aria-hidden", "false");
@@ -424,11 +464,13 @@ async function submitCreateIncome() {
   setCreateSubmitting(true);
 
   try {
-    const result = await createIncomeRecord(payload);
+    const result = payload.createMode === CREATE_MODE_PERSONAL_CASH_TUITION
+      ? await createPersonalCashTuitionIncome(payload)
+      : await createIncomeRecord(payload);
     setCreateSubmitting(false);
     closeCreateIncomeDialog();
     await refreshCurrentIncomeList();
-    showIncomeCreateSuccess(result);
+    showIncomeCreateSuccess(result, payload.createMode);
   } catch (error) {
     console.error(error);
     showCreateError(`新增收入失败：${error.message || error}`, createFieldIdsForError(error.message || ""));
@@ -456,10 +498,76 @@ function readCreateIncomePayload() {
     return null;
   }
 
+  const createMode = dom.createIncomeModeSelect.value || CREATE_MODE_SCHOOL_ACCOUNT;
+  const businessEntity = businessEntities.find((item) => item.id === businessEntityId);
+
   const studentId = dom.createIncomeStudentSelect.value;
   if (!studentId) {
     showCreateError("请选择学生。", ["student"]);
     return null;
+  }
+
+  const amount = Number(dom.createIncomeAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showCreateError("收入金额必须大于 0。", ["amount"]);
+    return null;
+  }
+
+  const incomeCategory = dom.createIncomeCategorySelect.value;
+  if (!EDITABLE_INCOME_CATEGORIES.includes(incomeCategory)) {
+    showCreateError("请选择收入分类。", ["incomeCategory"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.createIncomeExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showCreateError("汇率必须大于 0。", ["exchangeRate"]);
+    return null;
+  }
+
+  if (createMode === CREATE_MODE_PERSONAL_CASH_TUITION) {
+    if (!businessEntity || businessEntity.entity_type !== "personal") {
+      showCreateError("个人业务 Cash 学费收入只能选择 personal business。", ["businessEntity"]);
+      return null;
+    }
+
+    if (incomeCategory !== "tuition") {
+      showCreateError("个人业务 Cash 学费收入仅支持学费。", ["incomeCategory"]);
+      return null;
+    }
+
+    const cashAccountMappingId = dom.createIncomeCashMappingSelect.value;
+    if (!cashAccountMappingId) {
+      showCreateError("请选择 Cash System 账户。", ["cashMapping"]);
+      return null;
+    }
+
+    const cashMapping = filteredCreateCashMappings().find((item) => item.id === cashAccountMappingId);
+    if (!cashMapping) {
+      showCreateError("Cash System 账户映射无效或不适用于当前业务归属。", ["cashMapping"]);
+      return null;
+    }
+
+    return {
+      createMode,
+      incomeDate,
+      settlementMonth,
+      businessEntityId,
+      studentId,
+      cashAccountMappingId,
+      amount,
+      incomeCategory: "tuition",
+      currency: "JPY",
+      paymentCurrency: "JPY",
+      exchangeRate: null,
+      paymentMethod: "",
+      description: dom.createIncomeDescriptionInput.value.trim(),
+      isTaxableIncome: dom.createIncomeTaxableSelect.value === "true",
+      taxCategory: dom.createIncomeTaxCategoryInput.value.trim(),
+      receiptStatus: dom.createIncomeReceiptStatusInput.value.trim(),
+      note: dom.createIncomeNoteInput.value.trim(),
+    };
   }
 
   const accountId = dom.createIncomeAccountSelect.value;
@@ -484,32 +592,14 @@ function readCreateIncomePayload() {
     return null;
   }
 
-  const amount = Number(dom.createIncomeAmountInput.value);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    showCreateError("收入金额必须大于 0。", ["amount"]);
-    return null;
-  }
-
-  const incomeCategory = dom.createIncomeCategorySelect.value;
-  if (!EDITABLE_INCOME_CATEGORIES.includes(incomeCategory)) {
-    showCreateError("请选择收入分类。", ["incomeCategory"]);
-    return null;
-  }
-
   const paymentMethod = dom.createIncomePaymentMethodSelect.value;
   if (!paymentMethod) {
     showCreateError("请选择收款方式。", ["paymentMethod"]);
     return null;
   }
 
-  const exchangeRateText = dom.createIncomeExchangeRateInput.value.trim();
-  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
-  if (exchangeRateText && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-    showCreateError("汇率必须大于 0。", ["exchangeRate"]);
-    return null;
-  }
-
   return {
+    createMode,
     incomeDate,
     settlementMonth,
     businessEntityId,
@@ -540,22 +630,30 @@ async function refreshCurrentIncomeList() {
   applyCurrentFilters();
 }
 
-function showIncomeCreateSuccess(result) {
+function showIncomeCreateSuccess(result, createMode) {
   const incomeId = result?.income_id;
   dom.messageArea.className = "message message-success";
+  const message = createMode === CREATE_MODE_PERSONAL_CASH_TUITION
+    ? "个人业务学费收入已新增，Cash 同步待处理。"
+    : "收入已新增并自动入账。";
   if (incomeId) {
-    dom.messageArea.innerHTML = `收入已新增并自动入账。<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看详情</a>`;
+    dom.messageArea.innerHTML = `${escapeHtml(message)}<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看详情</a>`;
   } else {
-    dom.messageArea.textContent = "收入已新增并自动入账。";
+    dom.messageArea.textContent = message;
   }
 }
 
-function renderCreateBusinessEntityOptions(rows) {
+function renderCreateBusinessEntityOptions() {
+  const selectedValue = dom.createIncomeBusinessEntitySelect.value;
+  const rows = filteredCreateBusinessEntities();
   const options = ['<option value="">请选择业务归属</option>'];
   for (const entity of rows) {
     options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessEntityName(entity))}</option>`);
   }
   dom.createIncomeBusinessEntitySelect.innerHTML = options.join("");
+  if (rows.some((entity) => entity.id === selectedValue)) {
+    dom.createIncomeBusinessEntitySelect.value = selectedValue;
+  }
 }
 
 function renderCreateStudentOptions() {
@@ -580,6 +678,36 @@ function renderCreateAccountOptions() {
   if (filteredCreateAccounts().some((account) => account.id === selectedValue)) {
     dom.createIncomeAccountSelect.value = selectedValue;
   }
+}
+
+function renderCreateCashMappingOptions() {
+  const selectedValue = dom.createIncomeCashMappingSelect.value;
+  const options = ['<option value="">请选择 Cash System 账户</option>'];
+  for (const mapping of filteredCreateCashMappings()) {
+    options.push(`<option value="${escapeAttribute(mapping.id)}">${escapeHtml(createCashMappingLabel(mapping))}</option>`);
+  }
+  dom.createIncomeCashMappingSelect.innerHTML = options.join("");
+  if (filteredCreateCashMappings().some((mapping) => mapping.id === selectedValue)) {
+    dom.createIncomeCashMappingSelect.value = selectedValue;
+  }
+}
+
+async function ensurePersonalCashMappingsLoaded() {
+  if (hasLoadedPersonalCashMappings) {
+    return;
+  }
+
+  personalCashMappings = await listPersonalCashAccountMappings();
+  hasLoadedPersonalCashMappings = true;
+}
+
+function filteredCreateBusinessEntities() {
+  const rows = businessEntities.filter((entity) => entity.is_active !== false);
+  if (!isPersonalCashCreateMode()) {
+    return rows;
+  }
+
+  return rows.filter((entity) => entity.entity_type === "personal");
 }
 
 function filteredCreateStudents() {
@@ -608,6 +736,79 @@ function filteredCreateAccounts() {
   });
 }
 
+function filteredCreateCashMappings() {
+  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
+  return personalCashMappings.filter((mapping) => {
+    if (mapping.is_active !== true) {
+      return false;
+    }
+
+    if (mapping.flow_type !== "tuition_income") {
+      return false;
+    }
+
+    if (mapping.school_currency !== "JPY" || mapping.cash_currency !== "JPY") {
+      return false;
+    }
+
+    if (businessEntityId && mapping.business_entity_id !== businessEntityId) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function createCashMappingLabel(mapping) {
+  return [
+    mapping.cash_account_name_snapshot || mapping.cash_account_id,
+    mapping.cash_currency || "JPY",
+    mapping.cash_account_type_snapshot,
+  ].filter(Boolean).join(" / ");
+}
+
+function updateCreateModeUi(options = {}) {
+  const previousBusinessEntityId = options.preserveBusinessEntity
+    ? dom.createIncomeBusinessEntitySelect.value
+    : "";
+
+  renderCreateBusinessEntityOptions();
+  if (previousBusinessEntityId && filteredCreateBusinessEntities().some((entity) => entity.id === previousBusinessEntityId)) {
+    dom.createIncomeBusinessEntitySelect.value = previousBusinessEntityId;
+  }
+
+  const personalCashMode = isPersonalCashCreateMode();
+  setCreateFieldHidden("account", personalCashMode);
+  setCreateFieldHidden("cashMapping", !personalCashMode);
+  setCreateFieldHidden("paymentMethod", personalCashMode);
+  setCreateFieldHidden("exchangeRate", personalCashMode);
+
+  dom.createIncomeAccountSelect.disabled = personalCashMode;
+  dom.createIncomeCashMappingSelect.disabled = !personalCashMode;
+  dom.createIncomePaymentMethodSelect.disabled = personalCashMode;
+  dom.createIncomeExchangeRateInput.disabled = personalCashMode;
+  dom.createIncomeCategorySelect.disabled = personalCashMode;
+
+  if (personalCashMode) {
+    dom.createIncomeCategorySelect.value = "tuition";
+    dom.createIncomePaymentMethodSelect.value = "";
+    dom.createIncomeExchangeRateInput.value = "";
+  }
+
+  renderCreateStudentOptions();
+  renderCreateAccountOptions();
+  renderCreateCashMappingOptions();
+}
+
+function isPersonalCashCreateMode() {
+  return dom.createIncomeModeSelect.value === CREATE_MODE_PERSONAL_CASH_TUITION;
+}
+
+function setCreateFieldHidden(fieldId, hidden) {
+  const field = dom.createIncomeDialog.querySelector(`[data-create-income-field="${fieldId}"]`);
+  field?.classList.toggle("is-hidden", hidden);
+}
+
 function createAccountLabel(account) {
   return [
     account.name || account.account_code || account.id,
@@ -626,7 +827,7 @@ function setCreateSubmitting(isSubmitting) {
 function clearCreateErrors() {
   dom.createIncomeError.textContent = "";
   dom.createIncomeError.classList.add("is-hidden");
-  for (const fieldId of ["incomeDate", "settlementMonth", "businessEntity", "student", "account", "incomeCategory", "amount", "paymentMethod", "exchangeRate"]) {
+  for (const fieldId of ["createMode", "incomeDate", "settlementMonth", "businessEntity", "student", "account", "cashMapping", "incomeCategory", "amount", "paymentMethod", "exchangeRate"]) {
     clearCreateFieldInvalid(fieldId);
   }
 }
@@ -648,7 +849,8 @@ function createFieldIdsForError(message) {
   if (text.includes("结算月份") || text.includes("已锁定")) fields.push("settlementMonth");
   if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("学生")) fields.push("student");
-  if (text.includes("账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("Cash")) fields.push("cashMapping");
+  if (text.includes("账户") || text.includes("币种")) fields.push(isPersonalCashCreateMode() ? "cashMapping" : "account");
   if (text.includes("分类")) fields.push("incomeCategory");
   if (text.includes("汇率")) fields.push("exchangeRate");
   return fields;
