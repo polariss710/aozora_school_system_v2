@@ -140,12 +140,10 @@ export async function confirmPaymentRequest(payload) {
   return data;
 }
 
-export async function confirmPersonalCashPaymentRequest(payload) {
-  const { data, error } = await supabase.rpc("school_confirm_personal_cash_payment_request", {
+export async function requestPersonalCashPaymentConfirmation(payload) {
+  const { data, error } = await supabase.rpc("school_request_personal_cash_payment_confirmation", {
     p_payment_request_id: payload.paymentRequestId,
     p_cash_account_mapping_id: payload.cashAccountMappingId,
-    p_pay_date: payload.payDate,
-    p_amount: payload.amount,
     p_note: payload.note || null,
   });
 
@@ -153,7 +151,12 @@ export async function confirmPersonalCashPaymentRequest(payload) {
     throw error;
   }
 
-  return data;
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("Cash 支付确认请求提交失败：RPC 没有返回结果。");
+  }
+
+  return result;
 }
 
 export async function reversePaidPaymentRequest(payload) {

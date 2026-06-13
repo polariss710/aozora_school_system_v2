@@ -3,12 +3,12 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,
-  confirmPersonalCashPaymentRequest,
   fetchAccounts,
   fetchBusinessEntities,
   fetchPaymentRequests,
   fetchPaymentSummary,
   reissueReversedPaymentRequest,
+  requestPersonalCashPaymentConfirmation,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
 } from "../api/payment-api.js";
@@ -94,11 +94,13 @@ function cacheDom() {
   dom.tableBody = document.querySelector("#paymentTableBody");
   dom.recordCount = document.querySelector("#recordCount");
   dom.confirmPaymentDialog = document.querySelector("#confirmPaymentDialog");
+  dom.confirmPaymentTitle = document.querySelector("#confirmPaymentTitle");
   dom.confirmPaymentSummary = document.querySelector("#confirmPaymentSummary");
   dom.confirmPaymentWarning = document.querySelector("#confirmPaymentWarning");
   dom.confirmPaymentError = document.querySelector("#confirmPaymentError");
   dom.confirmAccountLabel = document.querySelector("#confirmAccountLabel");
   dom.confirmAccountSelect = document.querySelector("#confirmAccountSelect");
+  dom.confirmPayDateField = document.querySelector("[data-confirm-field='payDate']");
   dom.confirmPayDateInput = document.querySelector("#confirmPayDateInput");
   dom.confirmAmountInput = document.querySelector("#confirmAmountInput");
   dom.confirmNoteInput = document.querySelector("#confirmNoteInput");
@@ -414,10 +416,23 @@ function renderPaymentActions(row) {
   const linkageEvent = findCashLinkageEvent(row.id);
 
   if (row.status === "pending") {
+    if (linkageEvent) {
+      return `
+        <div class="action-buttons">
+          <span class="status-badge status-neutral">${escapeHtml(cashLinkageStatusLabel(linkageEvent.sync_status))}</span>
+          <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
+            取消
+          </button>
+        </div>
+      `;
+    }
+
+    const confirmLabel = isPersonalBusinessPayment(row) ? "提交到 Cash 确认" : "确认支付";
+
     return `
       <div class="action-buttons">
         <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}">
-          确认支付
+          ${escapeHtml(confirmLabel)}
         </button>
         <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
           取消
@@ -501,13 +516,14 @@ function openConfirmPaymentDialog(row) {
   }
 
   if (mode === "personalCash" && findCashLinkageEvent(row.id)) {
-    showMessage("error", "该支付请求已经存在 Cash 联动事件，不能重复创建。");
+    showMessage("error", "该支付请求已经提交到 Cash 确认，不能重复提交。");
     return;
   }
 
   currentConfirmRow = row;
   currentConfirmMode = mode;
   clearConfirmErrors();
+  renderConfirmDialogChrome(mode);
   dom.confirmPaymentSummary.innerHTML = renderConfirmSummary(row);
   renderConfirmWarning(mode);
   dom.confirmPayDateInput.value = currentDate();
@@ -530,6 +546,7 @@ function closeConfirmPaymentDialog() {
 
   currentConfirmRow = null;
   currentConfirmMode = "school";
+  renderConfirmDialogChrome("school");
   dom.confirmPaymentDialog.classList.add("is-hidden");
   dom.confirmPaymentDialog.setAttribute("aria-hidden", "true");
 }
@@ -563,8 +580,8 @@ function renderAccountOptions(row) {
 }
 
 function renderCashMappingOptions(mappings) {
-  dom.confirmAccountLabel.textContent = "Cash System 账户";
-  const options = ['<option value="">请选择 Cash System 账户</option>'];
+  dom.confirmAccountLabel.textContent = "Cash 支付账户";
+  const options = ['<option value="">请选择 Cash 支付账户</option>'];
 
   for (const mapping of mappings) {
     const label = [
@@ -598,7 +615,7 @@ async function submitConfirmPayment() {
   const selectedAccountId = dom.confirmAccountSelect.value;
   if (!selectedAccountId) {
     showConfirmError(
-      currentConfirmMode === "personalCash" ? "请选择 Cash System 账户映射。" : "请选择支付账户。",
+      currentConfirmMode === "personalCash" ? "请选择 Cash 支付账户。" : "请选择支付账户。",
       ["account"]
     );
     return;
@@ -629,7 +646,7 @@ async function submitConfirmPayment() {
   }
 
   const payDate = dom.confirmPayDateInput.value;
-  if (!payDate) {
+  if (currentConfirmMode !== "personalCash" && !payDate) {
     showConfirmError("请选择支付日期。", ["payDate"]);
     return;
   }
@@ -649,11 +666,9 @@ async function submitConfirmPayment() {
     const submittedMode = currentConfirmMode;
 
     if (submittedMode === "personalCash") {
-      await confirmPersonalCashPaymentRequest({
+      await requestPersonalCashPaymentConfirmation({
         paymentRequestId: currentConfirmRow.id,
         cashAccountMappingId: selectedAccountId,
-        payDate,
-        amount: currentConfirmRow.amount,
         note: dom.confirmNoteInput.value.trim(),
       });
     } else {
@@ -672,12 +687,16 @@ async function submitConfirmPayment() {
     showMessage(
       "success",
       submittedMode === "personalCash"
-        ? "支付已确认，Cash System 联动事件已创建为 pending。"
+        ? "已提交到 Cash 确认，待账本端确认后完成支付。"
         : "支付已确认。"
     );
   } catch (error) {
     console.error(error);
-    showConfirmError(`确认支付失败：${error.message || error}`);
+    showConfirmError(
+      currentConfirmMode === "personalCash"
+        ? `提交到 Cash 确认失败：${error.message || error}`
+        : `确认支付失败：${error.message || error}`
+    );
   } finally {
     setConfirmSubmitting(false);
   }
@@ -687,7 +706,20 @@ function setConfirmSubmitting(isSubmitting) {
   isConfirmSubmitting = isSubmitting;
   dom.confirmSubmitButton.disabled = isSubmitting;
   dom.confirmCancelButton.disabled = isSubmitting;
+  if (currentConfirmMode === "personalCash") {
+    dom.confirmSubmitButton.textContent = isSubmitting ? "提交中..." : "提交到 Cash 确认";
+    return;
+  }
+
   dom.confirmSubmitButton.textContent = isSubmitting ? "确认中..." : "确认支付";
+}
+
+function renderConfirmDialogChrome(mode) {
+  const isPersonalCash = mode === "personalCash";
+  dom.confirmPaymentTitle.textContent = isPersonalCash ? "提交到 Cash 确认" : "确认支付";
+  dom.confirmSubmitButton.textContent = isPersonalCash ? "提交到 Cash 确认" : "确认支付";
+  dom.confirmPayDateField.classList.toggle("is-hidden", isPersonalCash);
+  dom.confirmPayDateInput.disabled = isPersonalCash;
 }
 
 function renderConfirmSummary(row) {
@@ -714,7 +746,7 @@ function renderConfirmSummary(row) {
 function renderConfirmWarning(mode) {
   if (mode === "personalCash") {
     dom.confirmPaymentWarning.textContent =
-      "个人业务支付确认会在 school 中标记支付请求为已支付，并创建一条 Cash System 联动待处理事件。本阶段不会直接写入 Cash DB。";
+      "这不是支付完成。提交后只会在 School 侧创建 Cash 确认请求，支付请求仍保持待支付；Cash System 确认后才会记账并完成支付。拒绝时不会改变 Cash 余额，School 侧仍保持未支付。";
     return;
   }
 
@@ -775,13 +807,16 @@ function findCashLinkageEvent(paymentRequestId) {
 
 function cashLinkageStatusLabel(status) {
   const labels = {
-    pending: "Cash 联动待处理",
-    synced: "Cash 联动完成",
-    failed: "Cash 联动失败",
-    blocked: "Cash 联动阻断",
+    pending: "Cash待确认",
+    pending_cash_request: "待提交到 Cash",
+    awaiting_cash_confirmation: "Cash待确认",
+    synced: "Cash已确认",
+    cash_rejected: "Cash已拒绝",
+    failed: "Cash请求失败",
+    blocked: "Cash请求阻断",
   };
 
-  return labels[status] || "Cash 联动已记录";
+  return labels[status] || "Cash状态已记录";
 }
 
 function showConfirmError(message, fieldIds = []) {
