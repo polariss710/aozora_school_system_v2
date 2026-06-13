@@ -152,7 +152,6 @@ function bindEvents() {
         openConfirmPaymentDialog(row, confirmButton.dataset.confirmMode || "");
       }
     }
-    }
 
     const reverseButton = event.target.closest("[data-reverse-payment-id]");
     if (reverseButton) {
