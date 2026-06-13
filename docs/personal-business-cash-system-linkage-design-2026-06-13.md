@@ -1,8 +1,8 @@
 # Personal Business / Cash System Linkage Design
 
-Status date: 2026-06-13
+Status date: 2026-06-14
 
-Task type: cross-project design plus guarded Phase 1 implementation checkpoints. Initial investigation was read-only; later phases executed guarded Cash-side and school-side schema/RPC work as recorded below.
+Task type: cross-project design plus guarded Phase 1 implementation checkpoints. Initial investigation was read-only; later phases executed guarded Cash-side and school-side schema/RPC work as recorded below. On 2026-06-14 this document was corrected to fix the Cash linkage v1 business policy. Historical Phase 1/2 implementation notes remain for audit, but the business policy below supersedes older personal-only / JPY-only scope statements.
 
 ## Investigation Scope
 
@@ -15,6 +15,91 @@ School DB read-only verification completed through `load_school_db`.
 Cash DB read-only verification completed through `load_cash_db` after switching to the Cash System Supabase Direct connection. The loaded Cash DB URL was verified as different from the school DB URL without printing or storing either URL.
 
 Cash System facts below are based on live DB `information_schema` / `pg_indexes` read-only verification plus repository SQL/API code.
+
+## Cash Linkage v1 Business Policy, Effective 2026-06-14
+
+Core split:
+
+- School system = business ledger.
+- Cash System = actual user-controlled account ledger.
+- School records business ownership and settlement/cost attribution.
+- Cash records actual account movement.
+- Business ownership no longer decides whether a financial event enters Cash.
+- If money actually passes through a user-controlled account, it should enter
+  Cash System.
+
+Deprecated old policies:
+
+- `only personal business enters Cash`
+- `青空塾 does not enter Cash`
+- `personal + teacher_wage + JPY only`
+- `personal tuition JPY only`
+
+These old rules may still appear in current code guards and historical Phase
+1/2 implementation notes. Treat them as historical implementation limitations,
+not current business policy. The code should be aligned gradually before the
+real 2026-05 wage trial resumes.
+
+Tuition income policy:
+
+- All tuition income is recorded in School with business ownership:
+  - personal business tuition
+  - 青空塾 tuition
+  - JPY income
+  - CNY / RMB income
+- Actual received money enters Cash according to the receiving account:
+  - Alipay receives RMB -> Cash records Alipay income.
+  - JPY cash receives tuition -> Cash records JPY cash income.
+  - JPY bank receives tuition -> Cash records the corresponding bank income.
+- 青空塾 tuition is not excluded from Cash. When it enters Cash, categorize,
+  tag, or note it as `青空塾代收学费`.
+- Later transfer of 青空塾 tuition to the corporate account should be recorded
+  in Cash as `转给法人账户 / 学费提交 / 代收款清算`.
+- That transfer is not ordinary household expense; it is entrusted-funds
+  clearing.
+
+Teacher wage payment policy:
+
+- All teacher wage payments go through Cash when paid from a user-controlled
+  account:
+  - personal-business wages
+  - 青空塾-attributed wages
+  - mixed-attribution wages
+  - JPY cash payments
+  - JPY bank transfers
+  - RMB / Alipay payments
+- School records wage cost attribution:
+  - personal-business portion
+  - 青空塾 portion
+  - adjustments / transport fees / classroom fees
+- Cash records the actual payment account:
+  - Alipay
+  - JPY cash
+  - Mitsubishi
+  - Rakuten
+  - other user-controlled accounts
+- 青空塾-attributed teacher wages are first advanced through Cash and should be
+  identifiable as `青空塾工资垫付`.
+- Later corporate reimbursement should be recorded in Cash as
+  `法人账户报销 / 青空塾工资垫付报销`.
+
+CNY / JPY allocation policy:
+
+- School does not automatically handle CNY/JPY exchange, account transfers, or
+  allocation between Alipay and JPY cash/bank accounts for now.
+- School records the business income and wage-settlement view only.
+- Cash manually records exchange and account transfers.
+- This is usually a monthly operation and does not need automation now.
+
+Current implementation note:
+
+- Current code may still implement parts of the older personal-only / JPY-only
+  policy, for example guards around personal `teacher_wage` JPY payments or
+  personal `tuition` JPY income.
+- Those guards must be adjusted in later implementation phases to match this
+  v1 business policy.
+- The real 2026-05 wage trial remains paused until documentation and
+  implementation policy are aligned.
 
 ## Confirmed School Facts
 
@@ -123,50 +208,62 @@ Live DB verification also confirmed there is no generic `external_source`, `idem
 
 ## Linkage Boundary
 
-Only personal-business money movement may link to Cash System.
+Current business boundary:
 
-Phase 1 completed:
+- Link Cash when money actually moves through a user-controlled account.
+- Do not link Cash merely because a School business event exists.
+- School business ownership is retained in School and does not decide Cash
+  eligibility.
+- Cash eligibility is based on the actual receiving or paying account:
+  Alipay, JPY cash, Mitsubishi, Rakuten, or any other user-controlled account.
 
-- Personal-business lesson-based teacher wage payments.
-- JPY only.
-- School payment request -> school linkage event / outbox -> manual sync executor -> Cash System JPY transaction.
-- Idempotent sync: repeated execution does not create duplicate Cash rows.
-- Successful Cash write marks the school event `synced`; Cash RPC failure marks the school event `failed`.
+Historical implementation boundary, deprecated as business policy:
 
-Phase 2 completed:
+- Phase 1 completed personal-business lesson-based teacher wage JPY payment
+  linkage.
+- Phase 2 completed personal-business tuition JPY income linkage.
+- These phases used personal-only / JPY-only / selected-event guards to keep
+  early implementation safe.
+- Those guards remain useful as implementation history and risk controls, but
+  they no longer define the v1 business policy.
 
-- Personal-business tuition income -> Cash System JPY income transaction.
-- Reuses external metadata, idempotency, school linkage event, and outbox patterns.
-- Continue to exclude 青空塾 and CNY.
+Correct v1 target:
 
-Future candidate after its source flow exists:
+- 青空塾 tuition received in a user-controlled account enters Cash as
+  `青空塾代收学费`.
+- 青空塾 teacher wage paid from a user-controlled account enters Cash as
+  `青空塾工资垫付`.
+- CNY / RMB receipts and payments enter Cash when they happen in a
+  user-controlled CNY/RMB account such as Alipay.
+- Later corporate clearing/reimbursement is recorded in Cash as clearing or
+  reimbursement, not household expense.
 
-- Personal-business part-time / temporary wage payments.
+Still out of automatic School handling for now:
 
-Must not link:
-
-- Any `青空进学塾` / `entity_type = company` school record.
-- 青空塾 reimbursements.
-- 青空塾 teacher wages.
-- 法人账户支出.
-- CNY.
-- Non-`teacher_wage` payment requests in Phase 1.
-- Personal-business tuition income in Phase 1.
-- 私塾打工 / 兼职工资收入 in Phase 1.
-- School account transfer, reimbursement, account adjustment, or profit-summary internals.
-- Sandbox/test business data unless a future test phase explicitly marks it as integration test data.
-
-The first gate should be `school_business_entities.entity_type = 'personal'` plus the known personal business entity. Do not infer from display text alone.
+- CNY/JPY exchange automation.
+- Automatic account allocation between Alipay and JPY cash/bank accounts.
+- Broad historical backfill or real-data repair.
+- Cross-DB strong transactions.
+- Sandbox/test data unless explicitly marked for an integration test phase.
 
 ## Recommended Mapping
 
-School should have a Cash account mapping table or equivalent server-side config.
+School should have a Cash account mapping table or equivalent server-side
+config. The current implemented table name
+`school_personal_cash_account_mappings` reflects the earlier personal-only
+phase. For the corrected v1 policy, the concept should become a general
+School-to-Cash mapping / allowlist that can support personal business, 青空塾,
+JPY, and CNY/RMB flows when implementation catches up.
 
 Recommended school-side table design:
 
 - `id`
-- `business_entity_id`: only personal-business entities are allowed
-- `flow_type`: `tuition_income`, `teacher_wage_payment`, future `part_time_wage_payment`
+- `business_entity_id`: School business ownership for attribution; not a Cash
+  eligibility gate by itself
+- `flow_type`: `tuition_income`, `teacher_wage_payment`,
+  `aosora_tuition_collected`, `aosora_wage_advance`,
+  `aosora_tuition_clearing`, `aosora_wage_reimbursement`, future
+  `part_time_wage_payment`
 - `school_currency`
 - `cash_currency`
 - `cash_account_id`: UUID from Cash System `home_accounts`
@@ -181,6 +278,8 @@ Rules:
 - Cash account ids must never be treated as school account ids.
 - Mapping must be maintained through backend/API code, not hardcoded in page modules.
 - If live Cash account lookup is available, use the mapping only as an allowlist and keep name/type snapshots for audit display.
+- Current code may still restrict mappings to personal + JPY. That is a
+  historical implementation guard and should be broadened in later phases.
 
 ## Cash Transaction Creation
 
@@ -188,21 +287,37 @@ Cash System should receive one idempotent write request per school financial eve
 
 Recommended target rows:
 
-- Personal tuition income:
-  - `home_jpy_transactions` or `home_cny_transactions`
+- Tuition income:
+  - `home_jpy_transactions` or `home_cny_transactions`, depending on the
+    actual receiving account
   - `transaction_type = income`
   - `account_id = selected/mapped Cash account`
   - `transacted_at = school income date`
   - `amount = school received amount`
   - `description = 学费收入 / student or settlement snapshot`
+  - For 青空塾 tuition collected through a user-controlled account, add
+    category/tag/note such as `青空塾代收学费`.
 
-- Personal teacher wage payment:
-  - `home_jpy_transactions` first, matching current school wage payment currency
+- Teacher wage payment:
+  - `home_jpy_transactions` or `home_cny_transactions`, depending on the
+    actual payment account
   - `transaction_type = expense`
   - `account_id = selected Cash account`
   - `transacted_at = pay date`
   - `amount = payment request amount`
   - `description = 老师工资 / teacher / request month`
+  - For 青空塾-attributed wages paid from a user-controlled account, add
+    category/tag/note such as `青空塾工资垫付`.
+
+- 青空塾 tuition clearing to corporate account:
+  - Cash records the actual transfer/expense-like movement from the
+    user-controlled account
+  - label as `转给法人账户 / 学费提交 / 代收款清算`
+  - do not classify as ordinary household expense
+
+- 青空塾 wage reimbursement from corporate account:
+  - Cash records the actual reimbursement into the user-controlled account
+  - label as `法人账户报销 / 青空塾工资垫付报销`
 
 - Future part-time wage payment:
   - Same pattern as teacher wage payment after `part_time_wage` has a verified payment source and confirmation flow.
@@ -211,17 +326,24 @@ Do not write `home_payment_channels` for this linkage.
 
 ## Account Selection UX
 
-For supported personal-business flows:
+For supported flows where money passes through a user-controlled account:
 
 - The confirmation dialog should show a Cash System account selector, filtered by currency and active mapping.
 - Options should display Cash account name, currency, account type, and current Cash balance if the integration API can read it.
 - The page module must call a school API wrapper; it must not call Cash DB directly or embed Cash DB credentials.
 - If no active mapping exists, the confirmation action should be blocked with a clear setup-required message.
 
-For 青空进学塾 / company flows:
+For 青空进学塾 / company-owned business events:
 
-- Keep the current school account selector and current school-only payment behavior.
-- Do not show Cash System accounts.
+- Do not exclude them from Cash solely because of business ownership.
+- If the money is received into or paid from a user-controlled account, show or
+  derive the appropriate Cash account selection.
+- Preserve School-side business ownership as 青空塾/company.
+- Use Cash labels/notes that distinguish entrusted tuition, wage advances,
+  clearing, and reimbursement from ordinary household income/expense.
+- If the money moves only inside corporate accounts outside user control, that
+  corporate movement is outside Cash System unless a later company-account
+  integration is explicitly designed.
 
 ## Correlation And Idempotency
 
@@ -595,16 +717,20 @@ Cross-DB transaction rule:
    - verify duplicate confirm/retry does not duplicate Cash transactions
    - status: completed on 2026-06-13 for manual sync executor; no automatic background retry or reversal sync
 
-### Explicitly Out Of Phase 1
+### Explicitly Out Of Historical Phase 1
 
-- 青空塾 linkage
+The following list describes the deliberately narrow 2026-06-13 Phase 1
+implementation boundary. It is not the current Cash linkage v1 business
+policy.
+
+- 青空塾 linkage in that historical implementation phase
 - reimbursement linkage
 - legal/company account linkage
 - cross-DB strong transactions
 - automatic retry background jobs
 - Cash System full ledger refactor
-- CNY linkage
-- tuition income linkage
+- CNY linkage in that historical implementation phase
+- tuition income linkage in that historical implementation phase
 - part-time wage linkage
 - historical backfill or real-data repair
 
@@ -707,8 +833,11 @@ Key principles:
   确认, Cash待确认, Cash已确认, Cash已拒绝.
 - Idempotency starts at pending request creation.
 - Cash transaction creation still uses the existing external/idempotency guard.
-- Continue excluding 青空塾, CNY, non-target linkage, reimbursement, company
-  account spending, and arbitrary school events.
+- Do not exclude 青空塾 or CNY/RMB when money actually moves through a
+  user-controlled account. Current code may still exclude them; that is a
+  known implementation gap.
+- Continue excluding arbitrary school events that do not represent real
+  user-controlled-account movement.
 
 Recommended architecture:
 
@@ -877,8 +1006,9 @@ Teacher wage payment page Edge Function request checkpoint, 2026-06-13:
   - deploy the Edge Function
   - run the Edge Function
   - test with DB writes
-- Existing company / 青空塾 / CNY / non-personal-Cash payment flows keep the
-  ordinary school-account `确认支付` behavior.
+- Existing company / 青空塾 / CNY / non-personal-Cash payment flows may still
+  keep the ordinary school-account `确认支付` behavior in current code. That is
+  a current implementation limitation to be aligned with the unified policy.
 - The next implementation steps are deployment/configuration and Cash
   approve/reject -> School confirmed/rejected writeback.
 
@@ -1070,10 +1200,13 @@ School income flow today:
 
 Business ownership:
 
-- Personal business must be identified by
-  `school_business_entities.entity_type = 'personal'`.
-- 青空塾 / company data must be rejected by DB/RPC guard; display text is not
-  enough for authorization.
+- School business ownership must be identified by
+  `school_business_entities`, not display text alone.
+- Personal-only guards were valid for the historical Phase 1/2 implementation,
+  but are no longer the business policy.
+- 青空塾/company ownership should be retained in School and should not by itself
+  reject Cash linkage when the actual money movement happens through a
+  user-controlled account.
 
 Cash System:
 
@@ -1114,7 +1247,11 @@ Phase 2 v1 intentionally uses a dedicated school RPC:
 - does not insert `school_account_transactions`
 - creates a pending income linkage event in the same school DB transaction
 
-### Out Of Scope
+### Historical Phase 2 v1 Out Of Scope
+
+The following list describes the deliberately narrow 2026-06-13 Phase 2 v1
+implementation boundary. It is not the current Cash linkage v1 business
+policy.
 
 Do not include in Phase 2 v1:
 
@@ -1524,16 +1661,15 @@ Frontend/browser tests:
   `codex-test` / `v2-test` / `sandbox` markers.
 - Clean whitelist E2E residue immediately after verification; do not keep
   temporary cleanup SQL in the repository.
-- Keep Phase 2 v1 limited to personal + tuition + JPY; do not open 青空塾, CNY,
-  reimbursement, company account, or reversal sync in the same phase.
+- Historical Phase 2 v1 remains documented as personal + tuition + JPY only.
+  Future implementation should not treat that scope as the business rule; it
+  should add 青空塾, CNY/RMB, entrusted-funds clearing, reimbursement, and
+  reversal sync through separate guarded phases.
 
 ## Not Recommended
 
-Do not implement in the first phase:
+Still not recommended as technical shortcuts:
 
-- 青空塾 reimbursement linkage.
-- 青空塾 teacher wage linkage.
-- 法人账户 / company account linkage to Cash System.
 - Cross-DB strong transactions.
 - Direct page-module calls to Cash System writes.
 - Writing Cash System rows without idempotency metadata.
@@ -1541,6 +1677,15 @@ Do not implement in the first phase:
 - Treating Cash account ids as school account ids.
 - Broad historical backfill or real-data repair.
 - Deleting Cash transactions as a normal reversal mechanism.
+
+Previously not recommended for the first narrow implementation phase, but now
+required by the corrected business policy in guarded future phases:
+
+- 青空塾 tuition received through user-controlled accounts.
+- 青空塾 teacher wage advances paid through user-controlled accounts.
+- 青空塾 entrusted-funds clearing to corporate account.
+- 青空塾 wage-advance reimbursement from corporate account.
+- CNY/RMB account movements such as Alipay receipts/payments.
 
 ## Verification Notes
 
