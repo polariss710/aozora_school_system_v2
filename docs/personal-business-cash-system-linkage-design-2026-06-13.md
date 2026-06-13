@@ -947,9 +947,56 @@ School-side objects likely needed:
   request paid and without creating Cash transactions.
 - Embed the Cash account selector and confirmation action into the existing
   School business pages:
-  - income page: Cash 收款账户 for personal `tuition` JPY income
-  - teacher wage payment page: Cash 支付账户 for personal `teacher_wage` JPY
-    payment
+  - income page: historical implementation is personal `tuition` JPY only; the
+    target policy is all tuition/income records whose money enters a
+    user-controlled Cash account
+  - teacher wage payment page: all pending `teacher_wage` payment requests whose
+    actual payment account is Cash-eligible
+
+Teacher wage all-scope Cash confirmation checkpoint, 2026-06-14:
+
+- Added formal SQL file
+  `school_teacher_wage_cash_confirmation_all_scope_rpc.sql`.
+- The SQL relaxes the historical payment linkage event constraints:
+  - `cash_account_mapping_id` is nullable for new all-scope request events
+  - `currency` accepts `JPY` / `CNY`
+  - `cash_transaction_table` accepts `home_jpy_transactions` /
+    `home_cny_transactions`
+  - request snapshots store `school_amount_jpy`, `payment_currency`,
+    `payment_exchange_rate`, `payment_amount`, and
+    `cash_account_type_snapshot`
+- Added `school_request_cash_payment_confirmation(...)`.
+- The new request RPC validates:
+  - payment request exists and is still `pending`
+  - `source_type = teacher_wage`
+  - business entity exists and is active
+  - no existing payment side effects (`paid_at`, school expense, account
+    transaction, or school account)
+  - selected Cash account snapshot is supplied by the Edge Function from the
+    Cash-owned eligible account whitelist
+  - payment currency is `JPY` or `CNY`
+  - JPY payment uses exchange rate `1` and Cash amount equals the School JPY wage
+    cost
+  - CNY payment requires `exchange_rate` and Cash amount equals
+    `school_amount_jpy * exchange_rate`
+- The request RPC intentionally does not:
+  - set `school_payment_requests.status = paid`
+  - write `paid_at`
+  - create school expense records
+  - create `school_account_transactions`
+  - create Cash transactions
+- The payment page now makes `提交到 Cash 确认` the main action for every pending
+  `teacher_wage` request. It reads Cash eligible accounts through the
+  `request-cash-confirmation` Edge Function and shows:
+  - `余额宝` for CNY payment with required exchange rate and CNY payment preview
+  - `日元现金`, `日元三菱卡`, `日元乐天卡` for JPY payment
+- `直接确认支付` remains available only as a historical/special exception and is
+  described as not entering Cash.
+- Cash approve remains the only point that creates Cash transactions and changes
+  Cash balances. Cash reject creates no Cash transaction and leaves the School
+  payment request pending.
+- Real 2026-05 wage data remains paused until SQL/Function deployment and
+  whitelist E2E verification are complete.
 
 School-side v2 lifecycle checkpoint, 2026-06-13:
 
@@ -970,6 +1017,9 @@ School-side v2 lifecycle checkpoint, 2026-06-13:
   - `cash_rejected`
 - Added formal RPC draft
   `school_request_personal_cash_payment_confirmation_rpc.sql`.
+- Historical note: this RPC is the old compatibility path for personal + JPY
+  only. It is no longer the target teacher-wage path; new implementation should
+  use `school_request_cash_payment_confirmation(...)`.
 - `school_request_personal_cash_payment_confirmation(...)` validates:
   - payment request exists and is still `pending`
   - `source_type = teacher_wage`
@@ -1004,19 +1054,25 @@ Edge Function bridge checkpoint, 2026-06-13:
 - Added `supabase/functions/request-cash-confirmation/index.ts`.
 - The function is the intended backend bridge behind an embedded School business
   action, not a standalone School sync entry.
-- The current implementation supports only personal-business `teacher_wage`
-  JPY payment requests. It does not route the income page or tuition income
-  requests yet.
+- Historical note: the initial implementation supported only personal-business
+  `teacher_wage` JPY payment requests. The current teacher-wage implementation
+  supports all pending `teacher_wage` payment requests with Cash-eligible JPY/CNY
+  accounts. It still does not route the income page or tuition income requests
+  yet.
 - The current RPC order is:
   1. validate POST JSON body and School bearer token
-  2. call School `school_request_personal_cash_payment_confirmation(...)`
-  3. call Cash `home_create_external_transaction_request(...)`
-  4. call School `school_mark_personal_cash_payment_request_submitted(...)`
-  5. return `ok`, `payment_request_id`, `linkage_event_id`,
+  2. read and validate Cash active + `allow_school_requests = true` account
+  3. call School `school_request_cash_payment_confirmation(...)`
+  4. call Cash `home_create_external_transaction_request(...)`
+  5. call School `school_mark_personal_cash_payment_request_submitted(...)`
+  6. return `ok`, `payment_request_id`, `linkage_event_id`,
      `cash_request_id`, and School/Cash status
 - Input body:
   - `payment_request_id`
-  - `cash_account_mapping_id`
+  - `cash_account_id`
+  - `payment_currency = JPY | CNY`
+  - `exchange_rate` for CNY
+  - optional `payment_amount`
   - optional `note`
 - Required Edge Function secrets:
   - `SCHOOL_SUPABASE_URL`
@@ -1027,8 +1083,9 @@ Edge Function bridge checkpoint, 2026-06-13:
   secrets. No real key, token, DB URL, or connection string is stored in the
   repository.
 - The Cash RPC call creates only `home_external_transaction_requests.status =
-  pending`. It does not create `home_jpy_transactions`, does not call Cash
-  approve, and does not change Cash balance.
+  pending`. It does not create `home_jpy_transactions` /
+  `home_cny_transactions`, does not call Cash approve, and does not change Cash
+  balance.
 - If the idempotent Cash request already exists but is no longer `pending`,
   the function returns a conflict instead of treating approved/rejected requests
   as a new submitted request.
@@ -1041,12 +1098,10 @@ Edge Function bridge checkpoint, 2026-06-13:
   `transacted_at` because the School request RPC does not yet return a
   user-selected payment date. If business requires explicit pay date selection,
   add that to the School UI/RPC in a later guarded phase.
-- The payment page now invokes this function through API wrapper
-  `requestCashConfirmationViaFunction(...)` for personal-business
-  `teacher_wage` JPY payment requests. This checkpoint still does not deploy or
-  run the function and is not tested against DB in this phase.
-- Cash approve/reject -> School confirmed/rejected writeback remains a later
-  phase.
+- The payment page invokes this function through API wrapper
+  `requestCashConfirmationViaFunction(...)` for all pending `teacher_wage`
+  payment requests. Cash approve/reject -> School confirmed/rejected writeback
+  uses `sync-cash-request-result` and accepts JPY/CNY request rows.
 
 Teacher wage payment page Edge Function request checkpoint, 2026-06-13:
 

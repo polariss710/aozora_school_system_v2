@@ -41,7 +41,7 @@ const EXTERNAL_SOURCE = "aozora_school";
 const REFERENCE_TYPE = "school_payment_requests";
 const REQUEST_TYPE = "teacher_wage_payment_confirm";
 const TRANSACTION_TYPE = "expense";
-const CURRENCY = "JPY";
+const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -220,7 +220,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       cashRequest.external_reference_type !== REFERENCE_TYPE ||
       cashRequest.request_type !== REQUEST_TYPE ||
       cashRequest.transaction_type !== TRANSACTION_TYPE ||
-      cashRequest.currency !== CURRENCY
+      !SUPPORTED_CURRENCIES.has(cashRequest.currency)
     ) {
       return jsonResponse(
         { ok: false, message: "Cash request is not a supported School teacher wage payment request" },

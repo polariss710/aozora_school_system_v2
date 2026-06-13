@@ -144,7 +144,10 @@ export async function requestCashConfirmationViaFunction(payload) {
   const { data, error } = await supabase.functions.invoke("request-cash-confirmation", {
     body: {
       payment_request_id: payload.paymentRequestId,
-      cash_account_mapping_id: payload.cashAccountMappingId,
+      cash_account_id: payload.cashAccountId,
+      payment_currency: payload.paymentCurrency,
+      exchange_rate: payload.exchangeRate ?? null,
+      payment_amount: payload.paymentAmount ?? null,
       note: payload.note || null,
     },
   });
@@ -162,6 +165,28 @@ export async function requestCashConfirmationViaFunction(payload) {
   }
 
   return data;
+}
+
+export async function fetchSchoolEligibleCashAccountsViaFunction() {
+  const { data, error } = await supabase.functions.invoke("request-cash-confirmation", {
+    body: {
+      action: "list_eligible_accounts",
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error("Cash System 可选账户读取失败：Function 没有返回结果。");
+  }
+
+  if (data.ok === false) {
+    throw new Error(data.details || data.message || "Cash System 可选账户读取失败。");
+  }
+
+  return data.accounts || [];
 }
 
 export async function reversePaidPaymentRequest(payload) {
