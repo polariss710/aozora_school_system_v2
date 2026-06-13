@@ -737,6 +737,9 @@ Do not include in Phase 2 v1:
 
 School DB candidates:
 
+- Prepared in `school_personal_cash_income_linkage_schema.sql` but not yet executed:
+  `school_personal_cash_account_mappings` flow extension and independent income
+  outbox table.
 - Extend `school_personal_cash_account_mappings`:
   - allow `flow_type = tuition_income`
   - keep `school_currency = JPY`
@@ -764,8 +767,8 @@ School DB candidates:
   - `currency = JPY`
   - `amount`
   - `idempotency_key`
-  - `sync_status`: `pending`, `synced`, `failed`, `blocked`
-  - `attempt_count`
+  - `sync_status`: `pending`, `synced`, `failed`
+  - `retry_count`
   - `last_error`
   - `note`
   - `created_at`, `updated_at`, `synced_at`
@@ -774,6 +777,8 @@ School DB candidates:
   - `school_create_personal_cash_income_linkage_event`
   - `school_get_personal_cash_income_linkage_events`
   - `school_update_personal_cash_income_linkage_event_status`
+    - prepared in `school_personal_cash_income_linkage_rpcs.sql` but not yet
+      executed
 
 Cash DB candidates:
 
@@ -793,8 +798,8 @@ Cash DB candidates:
 School repo candidates:
 
 - SQL/RPC:
-  - new `school_personal_cash_income_linkage_schema.sql`
-  - new `school_personal_cash_income_linkage_rpcs.sql`
+  - `school_personal_cash_income_linkage_schema.sql` prepared, not executed
+  - `school_personal_cash_income_linkage_rpcs.sql` prepared, not executed
   - new `school_create_personal_cash_tuition_income_record_rpc.sql`
   - migration/update for `school_personal_cash_account_mappings.flow_type`
 - API/frontend:
@@ -846,7 +851,8 @@ Phase 2 v1 keeps retry manual and explicit:
 - `synced`: terminal for Phase 2 v1; not retried.
 - `failed`: may be retried only after an operator fixes the mapping/account
   cause or explicitly resets/chooses retry behavior in a later guarded UI.
-- `blocked`: excluded from default executor runs.
+- Phase 2 DB foundation v1 does not add a `blocked` status for income events;
+  operator blocked/recreate behavior would need a later guarded update.
 
 Executor rules:
 
