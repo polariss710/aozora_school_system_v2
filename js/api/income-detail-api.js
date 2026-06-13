@@ -198,6 +198,23 @@ export async function updateIncomeRecord(payload) {
   return result;
 }
 
+export async function retryPersonalCashIncomeLinkageEvent(eventId) {
+  const { data, error } = await supabase.rpc("school_retry_personal_cash_income_linkage_event", {
+    p_event_id: eventId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("Cash 同步重试入队失败。");
+  }
+
+  return result;
+}
+
 async function fetchIncomeDetail(incomeId) {
   const { data, error } = await supabase
     .from("school_income_records")

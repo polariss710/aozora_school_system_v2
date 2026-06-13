@@ -620,6 +620,8 @@ Completion scope:
 - school income -> income linkage event -> manual sync executor -> Cash JPY
   income transaction -> school `synced` writeback
 - read-only Cash sync status display in income list/detail
+- manual failed retry from income detail; retry resets eligible failed events
+  back to `pending` and waits for the manual sync executor
 - no school account ledger write for the personal Cash path
 - no `school_accounts.current_balance` update for the personal Cash path
 
@@ -635,6 +637,9 @@ Verified:
   `synced_at`.
 - Income detail displays Cash sync status, Cash transaction id, Cash account
   snapshot, `synced_at`, `last_error`, `retry_count`, and idempotency key.
+- Income detail exposes `重新同步` only for failed linkage events. The action
+  uses a dedicated school retry RPC, does not run the sync executor directly,
+  and does not create Cash transactions.
 - Income list displays a compact Cash sync badge for linked tuition income.
 - Phase 2 E2E `codex-test-personal-cash-tuition-e2e-20260613` residue was
   cleaned: Cash target account/transaction = 0, School target
@@ -647,7 +652,6 @@ Still unsupported:
 - CNY
 - 青空塾 / company income
 - non-`tuition` income
-- failed retry operation UI
 - automatic scheduled sync; Phase 2 v1 still uses the manual sync script
 
 ### Current-State Investigation Summary
@@ -817,6 +821,10 @@ School DB:
     - does not insert `school_account_transactions`
   - `school_update_personal_cash_income_linkage_event_status`
     - implemented by `school_personal_cash_income_linkage_rpcs.sql`
+  - `school_retry_personal_cash_income_linkage_event`
+    - implemented by `school_personal_cash_income_linkage_rpcs.sql`
+    - operator retry only; resets eligible failed tuition income events to
+      `pending`
 
 Cash DB:
 
@@ -848,8 +856,10 @@ School repo:
     badge for linked income rows
   - `income.html` adds the create-mode and Cash mapping controls
   - `js/api/income-detail-api.js` reads income linkage event display fields
+    and exposes `retryPersonalCashIncomeLinkageEvent(...)`
   - `js/pages/income-detail-page.js` renders the Cash sync card and keeps
-    edit/reverse guard behavior unchanged
+    edit/reverse guard behavior unchanged; failed events expose a guarded
+    `重新同步` action
   - `js/api/personal-cash-linkage-api.js`
 - Sync:
   - `scripts/sync-personal-cash-linkage.zsh` extended to process both
@@ -894,8 +904,12 @@ Phase 2 v1 keeps retry manual and explicit:
 
 - `pending`: eligible for executor.
 - `synced`: terminal for Phase 2 v1; not retried.
-- `failed`: may be retried only after an operator fixes the mapping/account
-  cause or explicitly resets/chooses retry behavior in a later guarded UI.
+- `failed`: may be retried from income detail after an operator fixes the
+  mapping/account cause. The retry action calls
+  `school_retry_personal_cash_income_linkage_event(...)`, which resets only
+  failed `tuition_income_received` events without `cash_transaction_id` back to
+  `pending`, clears `last_error`, preserves `retry_count`, and waits for the
+  next sync executor run.
 - Phase 2 DB foundation v1 does not add a `blocked` status for income events;
   operator blocked/recreate behavior would need a later guarded update.
 
@@ -915,6 +929,8 @@ Executor rules:
 - If Cash RPC execution fails or returns `ok=false`, mark `failed` and store
   the message in `last_error`.
 - If Cash returns an existing idempotent transaction, mark `synced`.
+- The retry UI does not call Cash RPC and does not run the sync executor; it
+  only changes the school event back to `pending`.
 
 ### Edit / Reverse Guard Strategy
 
@@ -1007,6 +1023,8 @@ Frontend/browser tests:
   shows the in-linkage-flow reason.
 - income detail shows the Cash sync card for pending/synced/failed linked
   tuition income.
+- failed linked tuition income detail shows the `重新同步` action; pending and
+  synced events do not.
 - income list shows the compact Cash sync badge for linked tuition income.
 - direct calls to `school_update_income_record` and
   `school_reverse_income_record` reject linked tuition income once the SQL is
@@ -1033,8 +1051,8 @@ Frontend/browser tests:
 
 - Keep `school_income_records.account_id = null` display handling stable for
   the personal Cash path.
-- Keep Cash sync status UI read-only unless a separate failed retry or reverse
-  sync workflow is designed.
+- Keep Cash retry UI limited to failed -> pending. Do not add direct sync
+  execution or Cash transaction creation to the page.
 - Re-check student settlement and profit summary behavior before changing
   income aggregation rules.
 - Keep rollback and whitelist commit tests explicitly marked with

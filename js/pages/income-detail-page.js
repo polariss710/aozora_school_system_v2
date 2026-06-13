@@ -1,5 +1,10 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchIncomeDetailPage, reverseIncomeRecord, updateIncomeRecord } from "../api/income-detail-api.js";
+import {
+  fetchIncomeDetailPage,
+  retryPersonalCashIncomeLinkageEvent,
+  reverseIncomeRecord,
+  updateIncomeRecord,
+} from "../api/income-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const INCOME_STATUS_LABELS = {
@@ -44,6 +49,7 @@ const dom = {};
 let detailData = null;
 let isReverseSubmitting = false;
 let isEditSubmitting = false;
+let isRetrySubmitting = false;
 const REVERSE_INCOME_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const EDIT_INCOME_FIELD_IDS = [
   "incomeDate",
@@ -374,7 +380,52 @@ function renderCashSyncInfo(event) {
         <dd class="income-note-cell">${escapeHtml(displayValue(event.idempotency_key))}</dd>
       </div>
     </dl>
+    ${event.sync_status === "failed" ? `
+      <div class="income-detail-actions">
+        <button class="button button-primary" id="retryCashIncomeSyncButton" type="button">
+          重新同步
+        </button>
+      </div>
+    ` : ""}
   `;
+
+  const retryButton = document.querySelector("#retryCashIncomeSyncButton");
+  retryButton?.addEventListener("click", () => submitCashSyncRetry(event.id));
+}
+
+async function submitCashSyncRetry(eventId) {
+  if (isRetrySubmitting) {
+    return;
+  }
+
+  const incomeId = detailData?.income?.id;
+
+  if (!eventId) {
+    showMessage("error", "Cash 同步事件不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!incomeId) {
+    showMessage("error", "收入记录不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!window.confirm("确认将该 Cash 同步失败事件重新加入待同步队列？")) {
+    return;
+  }
+
+  setRetrySubmitting(true);
+
+  try {
+    await retryPersonalCashIncomeLinkageEvent(eventId);
+    await loadIncomeDetail(incomeId);
+    showMessage("success", "已重新加入 Cash 同步队列。");
+  } catch (error) {
+    console.error(error);
+    showMessage("error", `Cash 同步重试失败：${error.message || error}`);
+  } finally {
+    setRetrySubmitting(false);
+  }
 }
 
 function openEditDialog() {
@@ -835,6 +886,15 @@ function setEditSubmitting(isSubmitting) {
   dom.editSubmitButton.disabled = isSubmitting;
   dom.editCancelButton.disabled = isSubmitting;
   dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存收入";
+}
+
+function setRetrySubmitting(isSubmitting) {
+  isRetrySubmitting = isSubmitting;
+  const retryButton = document.querySelector("#retryCashIncomeSyncButton");
+  if (retryButton) {
+    retryButton.disabled = isSubmitting;
+    retryButton.textContent = isSubmitting ? "入队中..." : "重新同步";
+  }
 }
 
 function clearEditErrors() {
