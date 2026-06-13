@@ -125,11 +125,24 @@ Live DB verification also confirmed there is no generic `external_source`, `idem
 
 Only personal-business money movement may link to Cash System.
 
-Must link:
+Phase 1 completed:
 
-- Personal-business tuition income.
 - Personal-business lesson-based teacher wage payments.
-- Future personal-business part-time / temporary wage payments after that source type is implemented.
+- JPY only.
+- School payment request -> school linkage event / outbox -> manual sync executor -> Cash System JPY transaction.
+- Idempotent sync: repeated execution does not create duplicate Cash rows.
+- Successful Cash write marks the school event `synced`; Cash RPC failure marks the school event `failed`.
+
+Phase 2 candidate:
+
+- Personal-business tuition income -> Cash System JPY income transaction.
+- Design first; do not implement as a direct extension without a guarded phase.
+- Reuse external metadata, idempotency, school linkage event, and outbox patterns.
+- Continue to exclude 青空塾 and CNY.
+
+Future candidate after its source flow exists:
+
+- Personal-business part-time / temporary wage payments.
 
 Must not link:
 
@@ -137,6 +150,10 @@ Must not link:
 - 青空塾 reimbursements.
 - 青空塾 teacher wages.
 - 法人账户支出.
+- CNY.
+- Non-`teacher_wage` payment requests in Phase 1.
+- Personal-business tuition income in Phase 1.
+- 私塾打工 / 兼职工资收入 in Phase 1.
 - School account transfer, reimbursement, account adjustment, or profit-summary internals.
 - Sandbox/test business data unless a future test phase explicitly marks it as integration test data.
 
@@ -297,7 +314,7 @@ After MVP:
 
 ## Phase 1 Implementation Status
 
-Status: Phase 1 end-to-end manual sync completed on 2026-06-13. Cash System side schema/RPC, school-side mapping/outbox schema/RPC/API, payment confirmation to school pending outbox, and manual pending-outbox-to-Cash sync are implemented. Reversal sync, automatic background retry, CNY, tuition income, part-time wage, and production cleanup are not implemented.
+Status: Phase 1 end-to-end manual sync completed and test residue cleaned on 2026-06-13. Cash System side schema/RPC, school-side mapping/outbox schema/RPC/API, payment confirmation to school pending outbox, and manual pending-outbox-to-Cash sync are implemented. Reversal sync, automatic background retry, CNY, tuition income, and part-time wage are not implemented.
 
 Cash completed:
 
@@ -308,6 +325,7 @@ Cash completed:
 - Added `home_jpy_transactions_external_required_check`.
 - Added RPC `home_create_external_jpy_transaction(...)`.
 - Rollback idempotency test verified: first call inserted a temporary external JPY expense, second call with the same idempotency key returned the same transaction id with `inserted=false`, count stayed 1 inside the transaction, and rollback residue was 0.
+- End-to-end whitelist test data was later cleaned: target Cash transaction/account counts are 0.
 
 Not completed:
 
@@ -315,7 +333,7 @@ Not completed:
 - automatic background retry worker
 - retry UI / operator workflow
 - CNY, tuition income, part-time wage linkage
-- production cleanup / migration from codex-test whitelist data
+- Phase 2 personal-business tuition income design
 
 Target flow:
 
@@ -394,12 +412,13 @@ Implemented on 2026-06-13 in the school project:
   - duplicate source event returns the existing event instead of creating a second event
   - sync status update can record failed error state and later synced Cash transaction id
   - rollback residue was 0
-- Whitelist commit test left clearly marked school test data only:
+- Whitelist commit test initially left clearly marked school test data:
   - business entity: `92000000-0000-4000-8000-000000132001`
   - payment request: `92000000-0000-4000-8000-000000132101`
   - mapping: `f5c02610-1b11-4353-b5de-ae5b3b60f980`
   - linkage event: `9b95e09a-09c4-4203-bc02-07daaf1beb5b`
   - event status: `pending`
+- This Phase 1 test data was later cleaned; target school mapping/outbox/payment/business entity counts are 0.
 - No Cash DB writes were performed in the school-side phase.
 - No existing payment confirmation, teacher wage generation, reimbursement, income, student settlement, or page module was changed.
 
@@ -428,12 +447,13 @@ Payment confirmation outbox integration implemented on 2026-06-13:
   - company / 青空塾-style payment cannot use the personal Cash confirm RPC
   - repeated confirm is blocked after payment status changes from `pending`
   - rollback residue was 0
-- Whitelist commit test left clearly marked school test data only:
+- Whitelist commit test initially left clearly marked school test data:
   - business entity: `93000000-0000-4000-8000-000000141001`
   - payment request: `93000000-0000-4000-8000-000000141101`
   - mapping: `eaf3b59d-f944-441f-911f-b639ba284c78`
   - linkage event: `11f8f9ee-cbf4-4a29-8d6a-dc56a7d2e7e4`
   - event status: `pending`
+- This Phase 1 test data was later cleaned; target school mapping/outbox/payment/business entity counts are 0.
 
 End-to-end manual sync implemented on 2026-06-13:
 
@@ -471,6 +491,15 @@ End-to-end manual sync implemented on 2026-06-13:
   - `last_error` stores `Cash RPC returned ok=false: JPY account not found or inactive`
 - Old fake pending test event `9b95e09a-09c4-4203-bc02-07daaf1beb5b` was marked `blocked` so default sync runs do not process stale fake test data.
 - Rollback exclusion test verified company / 青空塾-style and non-`teacher_wage` pending events are not selected by the sync candidate query.
+- Duplicate run validation verified the same school event does not create duplicate Cash transactions.
+- Phase 1 cleanup later removed:
+  - Cash account: `94000000-0000-4000-8000-000000150501`
+  - Cash JPY transaction: `fbd3e5df-14be-4b3b-9a0b-319f4416968b`
+  - school business entities: `92000000-0000-4000-8000-000000132001`, `93000000-0000-4000-8000-000000141001`, `94000000-0000-4000-8000-000000150001`
+  - school payment requests: `92000000-0000-4000-8000-000000132101`, `93000000-0000-4000-8000-000000141101`, `94000000-0000-4000-8000-000000150101`
+  - school mappings: `f5c02610-1b11-4353-b5de-ae5b3b60f980`, `eaf3b59d-f944-441f-911f-b639ba284c78`, `44d55329-4850-4116-8f9a-0c3ba2d211a1`
+  - school events: `9b95e09a-09c4-4203-bc02-07daaf1beb5b`, `11f8f9ee-cbf4-4a29-8d6a-dc56a7d2e7e4`, `2f20e264-1e20-493d-b92a-58c244abfa09`
+- Cleanup verification confirmed all target counts are 0 and older income-edit `codex-test` data was not deleted.
 
 Add a personal Cash account mapping table:
 
@@ -558,7 +587,7 @@ Cross-DB transaction rule:
    - API wrapper chooses legacy school account path for company business entities
    - API wrapper chooses personal Cash mapping path for personal JPY teacher wage requests
    - payment page shows Cash account selector only for eligible personal JPY teacher wage requests
-   - status: completed on 2026-06-13 for school outbox creation only; Cash DB write is still not implemented
+   - status: completed on 2026-06-13 for school outbox creation; Cash DB write is performed later by the manual sync executor
 4. End-to-end verification:
    - rollback test for school confirm + event creation
    - rollback test for Cash external insert + duplicate idempotency
@@ -579,6 +608,18 @@ Cross-DB transaction rule:
 - tuition income linkage
 - part-time wage linkage
 - historical backfill or real-data repair
+
+## Phase 2 Candidate: Personal Tuition Income
+
+Potential Phase 2 scope:
+
+- `个人名义` tuition income only.
+- JPY only unless a later design explicitly opens CNY.
+- School income event -> school linkage event / outbox -> Cash System JPY `income` transaction.
+- Reuse the Phase 1 external metadata, idempotency key, linkage event, and outbox pattern.
+- Keep 青空塾, company accounts, reimbursements, CNY, and non-tuition income out of scope.
+
+Do not implement Phase 2 until the source income flow, settlement side effects, reversal behavior, and Cash account mapping rules are designed and rollback/whitelist tests are defined.
 
 ## Not Recommended
 
@@ -603,8 +644,11 @@ Completed live DB read-only verification:
 - Confirmed Phase 1 account and JPY transaction fields exist.
 - Confirmed no reusable generic external-source / idempotency / school-reference fields exist in the live Cash transaction tables.
 
-Still required before implementation design is converted to SQL:
+Phase 1 closeout verification:
 
-- Decide whether Cash System should add external-source columns to transaction tables or use a separate external-link table.
-- Confirm service/server-side write path and RLS behavior for the future integration implementation.
-- Confirm final user-facing Cash account mapping choices for accounts such as 支付宝, 日元现金, 日元三菱卡.
+- pending event -> Cash JPY transaction -> school `synced` succeeded.
+- duplicate sync execution did not duplicate the Cash transaction.
+- failed Cash RPC path correctly marked the school event `failed`.
+- 青空塾 / company, CNY, reimbursement, corporate account, and non-`teacher_wage` candidates were not processed.
+- Temporary cleanup / rollback / delete SQL files were removed from the repository and pushed.
+- Phase 1 test DB residue was cleaned from both school and Cash DBs.
