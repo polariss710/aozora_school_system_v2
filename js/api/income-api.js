@@ -25,6 +25,16 @@ const INCOME_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const CASH_INCOME_LINKAGE_COLUMNS = [
+  "id",
+  "income_record_id",
+  "sync_status",
+  "cash_transaction_id",
+  "last_error",
+  "retry_count",
+  "synced_at",
+].join(",");
+
 export async function fetchIncomeRecords(month) {
   const { data, error } = await supabase
     .from("school_income_records")
@@ -38,7 +48,7 @@ export async function fetchIncomeRecords(month) {
     throw error;
   }
 
-  return data || [];
+  return mergeCashIncomeLinkageEvents(data || []);
 }
 
 export async function createIncomeRecord(payload) {
@@ -145,4 +155,38 @@ export async function fetchIncomeLookups() {
     businessEntities: businessEntitiesResult.data || [],
     accounts: accountsResult.data || [],
   };
+}
+
+async function mergeCashIncomeLinkageEvents(incomeRows) {
+  const incomeIds = incomeRows.map((row) => row.id).filter(Boolean);
+  if (!incomeIds.length) {
+    return incomeRows;
+  }
+
+  const { data, error } = await supabase
+    .from("school_personal_cash_income_linkage_events")
+    .select(CASH_INCOME_LINKAGE_COLUMNS)
+    .in("income_record_id", incomeIds)
+    .eq("source_table", "school_income_records")
+    .eq("source_event_type", "tuition_income_received")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    if (error.code === "42P01") {
+      return incomeRows;
+    }
+    throw error;
+  }
+
+  const linkageByIncomeId = new Map();
+  for (const event of data || []) {
+    if (!linkageByIncomeId.has(event.income_record_id)) {
+      linkageByIncomeId.set(event.income_record_id, event);
+    }
+  }
+
+  return incomeRows.map((row) => ({
+    ...row,
+    cashIncomeLinkageEvent: linkageByIncomeId.get(row.id) || null,
+  }));
 }

@@ -619,6 +619,7 @@ Completion scope:
 - JPY only
 - school income -> income linkage event -> manual sync executor -> Cash JPY
   income transaction -> school `synced` writeback
+- read-only Cash sync status display in income list/detail
 - no school account ledger write for the personal Cash path
 - no `school_accounts.current_balance` update for the personal Cash path
 
@@ -632,6 +633,9 @@ Verified:
 - Re-running sync was idempotent; Cash transaction count stayed 1.
 - School event was updated to `synced` with `cash_transaction_id` and
   `synced_at`.
+- Income detail displays Cash sync status, Cash transaction id, Cash account
+  snapshot, `synced_at`, `last_error`, `retry_count`, and idempotency key.
+- Income list displays a compact Cash sync badge for linked tuition income.
 - Phase 2 E2E `codex-test-personal-cash-tuition-e2e-20260613` residue was
   cleaned: Cash target account/transaction = 0, School target
   business/student/mapping/income/event = 0, and `home_cny_transactions`
@@ -643,6 +647,7 @@ Still unsupported:
 - CNY
 - 青空塾 / company income
 - non-`tuition` income
+- failed retry operation UI
 - automatic scheduled sync; Phase 2 v1 still uses the manual sync script
 
 ### Current-State Investigation Summary
@@ -839,10 +844,12 @@ School repo:
   - `js/api/income-api.js` adds `createPersonalCashTuitionIncome(...)`,
     implemented
   - `js/pages/income-page.js` adds a create-mode switch for normal School
-    account income vs personal Cash tuition income
+    account income vs personal Cash tuition income and a read-only Cash sync
+    badge for linked income rows
   - `income.html` adds the create-mode and Cash mapping controls
-  - `js/api/income-detail-api.js`
-  - `js/pages/income-detail-page.js`
+  - `js/api/income-detail-api.js` reads income linkage event display fields
+  - `js/pages/income-detail-page.js` renders the Cash sync card and keeps
+    edit/reverse guard behavior unchanged
   - `js/api/personal-cash-linkage-api.js`
 - Sync:
   - `scripts/sync-personal-cash-linkage.zsh` extended to process both
@@ -998,6 +1005,9 @@ Frontend/browser tests:
   Cash System synced reason.
 - pending/failed Cash-linked income detail hides ordinary edit/reverse and
   shows the in-linkage-flow reason.
+- income detail shows the Cash sync card for pending/synced/failed linked
+  tuition income.
+- income list shows the compact Cash sync badge for linked tuition income.
 - direct calls to `school_update_income_record` and
   `school_reverse_income_record` reject linked tuition income once the SQL is
   executed.
@@ -1023,6 +1033,8 @@ Frontend/browser tests:
 
 - Keep `school_income_records.account_id = null` display handling stable for
   the personal Cash path.
+- Keep Cash sync status UI read-only unless a separate failed retry or reverse
+  sync workflow is designed.
 - Re-check student settlement and profit summary behavior before changing
   income aggregation rules.
 - Keep rollback and whitelist commit tests explicitly marked with

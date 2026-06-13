@@ -51,6 +51,12 @@ const PAYMENT_METHOD_LABELS = {
   wechat: "微信",
 };
 
+const CASH_LINKAGE_STATUS_LABELS = {
+  pending: "Cash待同步",
+  synced: "Cash已同步",
+  failed: "Cash失败",
+};
+
 const dom = {};
 let students = [];
 let businessEntities = [];
@@ -383,6 +389,7 @@ function renderIncomeRecords(rows) {
       <td class="number-cell income-nowrap">${escapeHtml(displayValue(row.exchange_rate))}</td>
       <td>${escapeHtml(paymentMethodLabel(row.payment_method))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(incomeStatusLabel(row.status))}</span></td>
+      <td>${renderCashSyncBadge(row.cashIncomeLinkageEvent)}</td>
       <td>${escapeHtml(displayValue(row.receipt_status))}</td>
       <td class="income-nowrap">${escapeHtml(booleanLabel(row.include_in_student_settlement))}</td>
       <td class="income-note-cell">${escapeHtml(displayValue(row.note))}</td>
@@ -1004,6 +1011,25 @@ function statusClass(status) {
     return "status-paid";
   }
 
+  return "status-neutral";
+}
+
+function renderCashSyncBadge(event) {
+  if (!event) {
+    return "-";
+  }
+
+  return `<span class="status-badge ${escapeAttribute(cashLinkageStatusClass(event.sync_status))}">${escapeHtml(cashLinkageStatusLabel(event.sync_status))}</span>`;
+}
+
+function cashLinkageStatusLabel(value) {
+  return CASH_LINKAGE_STATUS_LABELS[value] || displayValue(value);
+}
+
+function cashLinkageStatusClass(value) {
+  if (value === "pending") return "status-pending";
+  if (value === "synced") return "status-paid";
+  if (value === "failed") return "status-cancelled";
   return "status-neutral";
 }
 

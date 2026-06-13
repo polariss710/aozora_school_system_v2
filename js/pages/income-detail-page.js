@@ -95,6 +95,8 @@ function cacheDom() {
   dom.systemInfo = document.querySelector("#incomeDetailSystemInfo");
   dom.reversalCard = document.querySelector("#incomeDetailReversalCard");
   dom.reversalInfo = document.querySelector("#incomeDetailReversalInfo");
+  dom.cashSyncCard = document.querySelector("#incomeDetailCashSyncCard");
+  dom.cashSyncInfo = document.querySelector("#incomeDetailCashSyncInfo");
   dom.noteBlock = document.querySelector("#incomeDetailNoteBlock");
   dom.transactionCount = document.querySelector("#incomeDetailTransactionCount");
   dom.transactionEmpty = document.querySelector("#incomeDetailTransactionEmpty");
@@ -259,6 +261,7 @@ function renderIncomeDetail(data) {
   ]);
 
   renderReversalInfo(income);
+  renderCashSyncInfo(cashLinkageEvent);
   dom.noteBlock.textContent = displayValue(income.note);
   renderTransactions(data.transactions);
 }
@@ -329,6 +332,49 @@ function renderReversalInfo(income) {
     ["撤销原因", displayValue(income.reversal_reason)],
     ["反向流水", shortId(income.reversal_account_transaction_id)],
   ]);
+}
+
+function renderCashSyncInfo(event) {
+  dom.cashSyncCard.classList.toggle("is-hidden", !event);
+
+  if (!event) {
+    dom.cashSyncInfo.innerHTML = "";
+    return;
+  }
+
+  const statusClassName = cashLinkageStatusClass(event.sync_status);
+  dom.cashSyncInfo.innerHTML = `
+    <dl class="detail-definition-list">
+      <div>
+        <dt>同步状态</dt>
+        <dd><span class="status-badge ${escapeAttribute(statusClassName)}">${escapeHtml(cashLinkageStatusText(event.sync_status))}</span></dd>
+      </div>
+      <div>
+        <dt>Cash transaction</dt>
+        <dd>${escapeHtml(shortId(event.cash_transaction_id))}</dd>
+      </div>
+      <div>
+        <dt>Cash account</dt>
+        <dd>${escapeHtml(cashAccountSnapshotLabel(event))}</dd>
+      </div>
+      <div>
+        <dt>synced_at</dt>
+        <dd>${escapeHtml(formatDate(event.synced_at))}</dd>
+      </div>
+      <div>
+        <dt>retry_count</dt>
+        <dd>${escapeHtml(displayValue(event.retry_count))}</dd>
+      </div>
+      <div>
+        <dt>last_error</dt>
+        <dd>${escapeHtml(displayValue(event.last_error))}</dd>
+      </div>
+      <div>
+        <dt>idempotency_key</dt>
+        <dd class="income-note-cell">${escapeHtml(displayValue(event.idempotency_key))}</dd>
+      </div>
+    </dl>
+  `;
 }
 
 function openEditDialog() {
@@ -761,6 +807,27 @@ function cashIncomeLinkageNotAllowedMessage(data) {
 
 function cashIncomeLinkageSummary(event) {
   return `${cashLinkageStatusLabel(event.sync_status)} / ${shortId(event.id)}`;
+}
+
+function cashLinkageStatusText(value) {
+  if (value === "pending") return "Cash 同步待处理";
+  if (value === "synced") return "已同步到 Cash System";
+  if (value === "failed") return "Cash 同步失败";
+  return cashLinkageStatusLabel(value);
+}
+
+function cashLinkageStatusClass(value) {
+  if (value === "pending") return "status-pending";
+  if (value === "synced") return "status-paid";
+  if (value === "failed") return "status-cancelled";
+  return "status-neutral";
+}
+
+function cashAccountSnapshotLabel(event) {
+  return [
+    event.cash_account_name_snapshot,
+    shortId(event.cash_account_id),
+  ].filter((value) => safeText(value) && value !== "-").join(" / ") || "-";
 }
 
 function setEditSubmitting(isSubmitting) {
