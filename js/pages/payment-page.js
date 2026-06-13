@@ -1,4 +1,5 @@
 import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
+import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   cancelPaymentRequest,
@@ -57,6 +58,7 @@ let isReissueSubmitting = false;
 
 export function initPaymentPage() {
   cacheDom();
+  initSchoolAuth();
   populateYearOptions();
   populateMonthOptions();
   setDefaultFilters();
@@ -657,6 +659,16 @@ async function submitConfirmPayment() {
     currentConfirmRow.amount === ""
   ) {
     showConfirmError("支付金额无效，请刷新后重试。", ["amount"]);
+    return;
+  }
+
+  if (
+    currentConfirmMode === "personalCash" &&
+    !requireLoginForCashConfirmation((type, message) => {
+      showMessage(type, message);
+      showConfirmError(message);
+    })
+  ) {
     return;
   }
 

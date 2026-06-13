@@ -882,6 +882,27 @@ Teacher wage payment page Edge Function request checkpoint, 2026-06-13:
 - The next implementation steps are deployment/configuration and Cash
   approve/reject -> School confirmed/rejected writeback.
 
+Minimal School Auth checkpoint, 2026-06-13:
+
+- The School payment page now has a minimal Supabase Auth login block for the
+  Edge Function JWT requirement.
+- Supported UI:
+  - email/password login
+  - logout
+  - display current logged-in email
+- This uses the existing School Supabase anon/publishable client and browser
+  session handling. It does not save passwords in localStorage and does not
+  expose service-role keys.
+- The personal `teacher_wage` JPY Cash confirmation action checks for an active
+  School Supabase session before calling
+  `requestCashConfirmationViaFunction(...)`.
+- If no session exists, the page shows
+  `请先登录后再提交到 Cash 确认。` and does not call the Edge Function.
+- This checkpoint intentionally does not implement signup, magic links,
+  operator/admin roles, student/teacher user accounts, whole-app access
+  enforcement, Function deployment, Function execution, DB writes, or E2E
+  tests.
+
 Cash request result callback checkpoint, 2026-06-13:
 
 - Added formal SQL file

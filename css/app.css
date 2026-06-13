@@ -133,6 +133,74 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.auth-panel {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(150px, 1fr) minmax(280px, 2fr) auto;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+
+.auth-title {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.auth-status {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.auth-form {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.auth-form input {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.auth-user-panel {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.auth-message {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.auth-message-success {
+  color: var(--success);
+}
+
+.auth-message-error {
+  color: var(--danger);
+}
+
+.auth-message-info {
+  color: var(--accent);
+}
+
 .page-main {
   display: grid;
   min-width: 0;
@@ -1905,6 +1973,15 @@ h2 {
 
   .header-meta {
     width: 100%;
+    justify-content: flex-start;
+  }
+
+  .auth-panel,
+  .auth-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .auth-user-panel {
     justify-content: flex-start;
   }
 
