@@ -609,17 +609,346 @@ Cross-DB transaction rule:
 - part-time wage linkage
 - historical backfill or real-data repair
 
-## Phase 2 Candidate: Personal Tuition Income
+## Phase 2 Design: Personal Tuition Income
 
-Potential Phase 2 scope:
+Status: design-only draft finalized for review. Do not implement until a later
+guarded execution phase explicitly authorizes SQL/RPC/frontend/script changes.
 
-- `个人名义` tuition income only.
-- JPY only unless a later design explicitly opens CNY.
-- School income event -> school linkage event / outbox -> Cash System JPY `income` transaction.
-- Reuse the Phase 1 external metadata, idempotency key, linkage event, and outbox pattern.
-- Keep 青空塾, company accounts, reimbursements, CNY, and non-tuition income out of scope.
+### Current-State Investigation Summary
 
-Do not implement Phase 2 until the source income flow, settlement side effects, reversal behavior, and Cash account mapping rules are designed and rollback/whitelist tests are defined.
+School income flow today:
+
+- `school_create_income_record` creates one received `school_income_records`
+  row, updates `school_accounts.current_balance`, and inserts one
+  `school_account_transactions` row with `transaction_type = income_adjust`.
+- `school_update_income_record` edits one received income only when the
+  original `income_adjust` account transaction is unique, consistent, and still
+  the latest transaction for the account.
+- `school_reverse_income_record` preserves the original income and inserts one
+  negative `income_reversal` school account transaction, then marks the income
+  `reversed`.
+- `income.html` currently requires a school account for create; the API layer
+  calls `school_create_income_record` through `js/api/income-api.js`.
+- `tuition` is the only income category that participates in student monthly
+  settlement guards and preview calculations.
+
+Business ownership:
+
+- Personal business must be identified by
+  `school_business_entities.entity_type = 'personal'`.
+- 青空塾 / company data must be rejected by DB/RPC guard; display text is not
+  enough for authorization.
+
+Cash System:
+
+- `home_jpy_transactions` already has external metadata and idempotency columns.
+- `home_create_external_jpy_transaction(...)` already supports positive JPY
+  `income` and `expense` rows, idempotency-key reuse, and source-event
+  duplicate detection.
+- Cash-side guards currently allow `school_payment_requests` references and
+  teacher-wage event types only; Phase 2 must extend these guards before any
+  tuition sync can be used.
+
+Reusable Phase 1 pieces:
+
+- `school_personal_cash_account_mappings` as the school-side Cash account
+  allowlist.
+- Deterministic idempotency keys.
+- School-side outbox event lifecycle: `pending`, `synced`, `failed`, `blocked`.
+- Manual sync executor pattern: read eligible school outbox, call Cash RPC,
+  write school result status.
+- Cash RPC duplicate-safe behavior.
+
+### Phase 2 Target Scope
+
+Phase 2 v1 handles only:
+
+- `个人名义` / `entity_type = personal`
+- income category `tuition`
+- school currency `JPY`
+- Cash currency `JPY`
+- received tuition income created through a dedicated personal-Cash path
+- Cash System JPY transaction with `transaction_type = income`
+
+Phase 2 v1 intentionally uses a dedicated school RPC:
+
+- `school_create_personal_cash_tuition_income_record`
+- creates `school_income_records`
+- does not update `school_accounts.current_balance`
+- does not insert `school_account_transactions`
+- creates a pending income linkage event in the same school DB transaction
+
+### Out Of Scope
+
+Do not include in Phase 2 v1:
+
+- 青空塾 / company business records
+- CNY
+- non-`tuition` income categories
+- reimbursements
+- company /法人 account spending
+- non-personal-business income
+- part-time wage income
+- school account balance updates for the personal Cash path
+- school account transactions for the personal Cash path
+- reverse sync
+- automatic background retry
+- broad historical migration/backfill
+- direct page-module `.rpc()` calls or direct table writes
+
+### Recommended Data Flow
+
+1. User opens income creation for a personal business tuition JPY income.
+2. UI shows a Cash System JPY account selector backed by active
+   `school_personal_cash_account_mappings.flow_type = tuition_income`.
+3. Page calls an API wrapper, not Supabase `.rpc()` directly.
+4. API wrapper calls `school_create_personal_cash_tuition_income_record`.
+5. School RPC validates:
+   - business entity exists, is active, and `entity_type = personal`
+   - student belongs to the same business entity when set
+   - `income_category = tuition`
+   - `currency = payment_currency = JPY`
+   - amount is positive
+   - target student monthly settlement is not locked
+   - Cash mapping is active, same business entity, `flow_type = tuition_income`,
+     `school_currency = JPY`, and `cash_currency = JPY`
+6. School RPC inserts one `school_income_records` row:
+   - `status = received`
+   - `income_category = tuition`
+   - `include_in_student_settlement = true`
+   - `account_id = null` or a clearly documented nullable/sentinel pattern,
+     because no school account ledger is written in this path
+7. In the same transaction, School RPC inserts one
+   `school_personal_cash_income_linkage_events` row with `sync_status = pending`.
+8. Manual sync executor reads only eligible pending personal tuition JPY events.
+9. Executor calls `home_create_external_jpy_transaction(...)`:
+   - `transaction_type = income`
+   - `external_source = aozora_school`
+   - `external_source_id = school income linkage event id`
+   - `external_event_type = tuition_income_received`
+   - `external_reference_type = school_income_records`
+   - `external_reference_id = school_income_records.id`
+10. Cash RPC inserts or returns the idempotent existing
+    `home_jpy_transactions` row.
+11. Executor marks school event `synced` with `cash_transaction_id`, or `failed`
+    with `last_error`.
+
+### DB Object Candidates
+
+School DB candidates:
+
+- Extend `school_personal_cash_account_mappings`:
+  - allow `flow_type = tuition_income`
+  - keep `school_currency = JPY`
+  - keep `cash_currency = JPY`
+  - keep personal-business RPC guards
+- Add new outbox table instead of extending Phase 1 payment outbox:
+  - `school_personal_cash_income_linkage_events`
+  - reason: avoid breaking the existing
+    `school_personal_cash_linkage_events` constraints that are intentionally
+    payment-request / teacher-wage specific.
+- Candidate columns for `school_personal_cash_income_linkage_events`:
+  - `id`
+  - `source_table = school_income_records`
+  - `source_id`
+  - `source_event_type = tuition_income_received`
+  - `income_record_id`
+  - `business_entity_id`
+  - `student_id`
+  - `cash_account_mapping_id`
+  - `cash_user_id`
+  - `cash_account_id`
+  - `cash_account_name_snapshot`
+  - `cash_transaction_table = home_jpy_transactions`
+  - `cash_transaction_id`
+  - `currency = JPY`
+  - `amount`
+  - `idempotency_key`
+  - `sync_status`: `pending`, `synced`, `failed`, `blocked`
+  - `attempt_count`
+  - `last_error`
+  - `note`
+  - `created_at`, `updated_at`, `synced_at`
+- School RPC candidates:
+  - `school_create_personal_cash_tuition_income_record`
+  - `school_create_personal_cash_income_linkage_event`
+  - `school_get_personal_cash_income_linkage_events`
+  - `school_update_personal_cash_income_linkage_event_status`
+
+Cash DB candidates:
+
+- Extend `home_jpy_transactions_external_required_check`:
+  - allow `external_reference_type = school_income_records`
+  - allow `external_event_type = tuition_income_received`
+  - require `tuition_income_received` -> `transaction_type = income`
+- Extend `home_create_external_jpy_transaction(...)` guards:
+  - `external_reference_type` may be `school_income_records`
+  - `external_event_type` may be `tuition_income_received`
+  - `tuition_income_received` must create `transaction_type = income`
+  - amount must stay positive
+- Keep CNY untouched.
+
+### File Candidates
+
+School repo candidates:
+
+- SQL/RPC:
+  - new `school_personal_cash_income_linkage_schema.sql`
+  - new `school_personal_cash_income_linkage_rpcs.sql`
+  - new `school_create_personal_cash_tuition_income_record_rpc.sql`
+  - migration/update for `school_personal_cash_account_mappings.flow_type`
+- API/frontend:
+  - `js/api/income-api.js`
+  - `js/pages/income-page.js`
+  - `js/api/income-detail-api.js`
+  - `js/pages/income-detail-page.js`
+  - `js/api/personal-cash-linkage-api.js`
+- Sync:
+  - either extend `scripts/sync-personal-cash-linkage.zsh` with a flow selector,
+    or add a dedicated `scripts/sync-personal-cash-income-linkage.zsh`
+
+Cash repo candidates:
+
+- SQL/RPC:
+  - incremental SQL extending `home_create_external_jpy_transaction`
+  - update external check constraint / event-type guards
+- Docs only during design; no Cash UI change required for Phase 2 v1.
+
+### Idempotency Strategy
+
+School event idempotency key:
+
+- `aozora_school:school_income_records:{income_record_id}:tuition_income_received`
+
+School uniqueness:
+
+- unique `(source_table, source_id, source_event_type)`
+- unique `idempotency_key`
+
+Cash uniqueness already maps well:
+
+- unique `external_idempotency_key`
+- unique source event using
+  `external_source + external_reference_type + external_reference_id + external_event_type`
+
+Expected duplicate behavior:
+
+- same event / same payload returns the existing Cash transaction and should be
+  treated as success.
+- same idempotency/source event with different amount/account/date/type returns
+  `ok=false`; school event should become `failed`, not silently rewritten.
+
+### Failed / Retry Strategy
+
+Phase 2 v1 keeps retry manual and explicit:
+
+- `pending`: eligible for executor.
+- `synced`: terminal for Phase 2 v1; not retried.
+- `failed`: may be retried only after an operator fixes the mapping/account
+  cause or explicitly resets/chooses retry behavior in a later guarded UI.
+- `blocked`: excluded from default executor runs.
+
+Executor rules:
+
+- Read only pending income events.
+- Require personal business, tuition income, JPY, positive amount, received
+  status, not reversed, and no existing `cash_transaction_id`.
+- If Cash RPC execution fails or returns `ok=false`, mark `failed` and store
+  the message in `last_error`.
+- If Cash returns an existing idempotent transaction, mark `synced`.
+
+### Edit / Reverse Guard Strategy
+
+Phase 2 v1 does not include reverse sync.
+
+Required guards before implementation:
+
+- Cash-linked tuition income with a `synced` event must not use the ordinary
+  `school_update_income_record` path.
+- Cash-linked tuition income with a `synced` event must not use the ordinary
+  `school_reverse_income_record` path.
+- Income detail UI should hide or disable ordinary edit/reverse for synced
+  Cash-linked tuition rows and explain that reversal sync is a later phase.
+- Pending/failed rows:
+  - retry may be allowed through executor.
+  - editing amount/date/business/student/mapping before sync should be treated
+    conservatively; default recommendation is to block edits and use an
+    operator-only blocked/recreate workflow if needed.
+- Reversal linkage belongs to a later Phase 2.x design and should create an
+  opposite Cash JPY `expense` event rather than deleting the original Cash
+  `income`.
+
+### E2E Test Plan
+
+Rollback tests:
+
+- personal + tuition + JPY creates one income row and one pending income outbox.
+- no `school_accounts.current_balance` change.
+- no `school_account_transactions` row.
+- company / 青空塾 business entity is rejected.
+- CNY is rejected.
+- non-`tuition` category is rejected.
+- locked student monthly settlement is rejected.
+- inactive / wrong-business / wrong-flow mapping is rejected.
+
+Whitelist commit tests:
+
+- create one clearly marked personal tuition JPY income and one pending outbox.
+- sync pending event to Cash and verify:
+  - one `home_jpy_transactions` row
+  - `transaction_type = income`
+  - positive amount
+  - `external_reference_type = school_income_records`
+  - `external_event_type = tuition_income_received`
+  - school event becomes `synced`
+- rerun sync and verify Cash transaction count stays 1.
+- create an invalid Cash mapping/account case and verify event becomes `failed`.
+- verify 青空塾 / CNY / non-tuition / reimbursement / company account records are
+  not selected by the executor.
+- cleanup whitelist DB residue after verification.
+
+Frontend/browser tests:
+
+- personal tuition JPY create dialog shows Cash account selector.
+- 青空塾 or non-personal income uses existing school account flow or is blocked
+  from the personal Cash path according to final UX.
+- synced Cash-linked income detail hides ordinary edit/reverse.
+- page modules still do not call `.rpc()` directly.
+
+### Risks
+
+- Existing income tables and detail pages assume `account_id` and account
+  transaction references. Phase 2 needs a documented nullable account strategy
+  or a separate display path for Cash-linked income.
+- Student settlement preview reads tuition income. It must include personal
+  Cash-linked tuition income even though no school account transaction exists.
+- Profit summary currently uses effective income records; it may include
+  Cash-linked income if it reads `school_income_records`, which is likely
+  correct for school-side operating profit but should be verified.
+- Ordinary income edit/reverse paths can create school ledger inconsistency if
+  not blocked for synced Cash-linked tuition rows.
+- Cash RPC check constraints must be expanded carefully; otherwise the Cash
+  transaction insert will fail even if the executor is correct.
+- Cross-DB strong transaction is still impossible; idempotency and retry remain
+  the safety mechanism.
+
+### Pre-Implementation Checklist
+
+- Re-read current school income schema/API/page assumptions around nullable
+  `account_id`.
+- Decide whether `school_income_records.account_id` can be nullable for the
+  personal Cash path or whether a separate linkage/display field is needed.
+- Confirm student settlement preview includes tuition income by
+  `school_income_records`, not by account transaction.
+- Confirm profit summary behavior for Cash-linked tuition income.
+- Draft school schema/RPC SQL and run static review before any execution.
+- Draft Cash RPC/constraint extension and run static review before any execution.
+- Define rollback and whitelist commit-test data with explicit `codex-test` /
+  `v2-test` / `sandbox` markers.
+- Define cleanup SQL only after tests pass, and remove temporary cleanup SQL
+  from repo after use.
+- Keep Phase 2 v1 limited to personal + tuition + JPY; do not open 青空塾, CNY,
+  reimbursement, company account, or reversal sync in the same phase.
 
 ## Not Recommended
 
