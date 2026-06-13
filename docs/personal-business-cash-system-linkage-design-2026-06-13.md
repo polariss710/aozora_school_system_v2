@@ -774,6 +774,45 @@ School-side v2 lifecycle checkpoint, 2026-06-13:
   payment request `status = paid`, so it does not process v2
   `pending_cash_request` or `awaiting_cash_confirmation` events.
 
+Edge Function bridge checkpoint, 2026-06-13:
+
+- Added `supabase/functions/request-cash-confirmation/index.ts`.
+- The function is the intended page-click backend bridge:
+  1. validate POST JSON body and School bearer token
+  2. call School `school_request_personal_cash_payment_confirmation(...)`
+  3. call Cash `home_create_external_transaction_request(...)`
+  4. call School `school_mark_personal_cash_payment_request_submitted(...)`
+  5. return `ok`, `payment_request_id`, `linkage_event_id`,
+     `cash_request_id`, and School/Cash status
+- Input body:
+  - `payment_request_id`
+  - `cash_account_mapping_id`
+  - optional `note`
+- Required Edge Function secrets:
+  - `SCHOOL_SUPABASE_URL`
+  - `SCHOOL_SERVICE_ROLE_KEY`
+  - `CASH_SUPABASE_URL`
+  - `CASH_SERVICE_ROLE_KEY`
+- The function must use service-role keys only inside Supabase Edge Function
+  secrets. No real key, token, DB URL, or connection string is stored in the
+  repository.
+- The Cash RPC call creates only `home_external_transaction_requests.status =
+  pending`. It does not create `home_jpy_transactions`, does not call Cash
+  approve, and does not change Cash balance.
+- The School submitted RPC records the Cash request id and moves the School
+  event to `awaiting_cash_confirmation`; it does not set
+  `school_payment_requests.status = paid` and does not write `paid_at`.
+- The bridge is designed to be idempotent through the School linkage event
+  unique key plus the Cash request `idempotency_key`.
+- The initial function uses the execution date as Cash request
+  `transacted_at` because the School request RPC does not yet return a
+  user-selected payment date. If business requires explicit pay date selection,
+  add that to the School UI/RPC in a later guarded phase.
+- This checkpoint only adds code. It is not deployed, not invoked, not wired to
+  School pages, and not tested against DB in this phase.
+- Cash approve/reject -> School confirmed/rejected writeback remains a later
+  phase.
+
 Cash-side objects likely needed:
 
 - `home_external_transaction_requests` or equivalent:
