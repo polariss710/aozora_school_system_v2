@@ -148,6 +148,24 @@ CNY / JPY allocation policy:
 - Cash manually records exchange and account transfers.
 - This is usually a monthly operation and does not need automation now.
 
+Cash account eligibility policy:
+
+- Cash System owns the School-usable Cash account whitelist through
+  `home_accounts.allow_school_requests`.
+- School must not maintain Cash account balances. School should only read the
+  active Cash accounts where `allow_school_requests = true` when offering Cash
+  收款账户 / 支付账户 choices for future income and teacher-wage request flows.
+- Current eligible Cash accounts:
+  - `余额宝` (`CNY`, wallet)
+  - `日元现金` (`JPY`, cash)
+  - `日元三菱卡` (`JPY`, bank)
+  - `日元乐天卡` (`JPY`, cash)
+- Current excluded Cash accounts:
+  - `余利宝` (`CNY`, wallet)
+  - `医生处兑换日元先行支付` (`JPY`, cash)
+- Future “all income / all teacher wage” Cash request implementation should
+  use this whitelist before submitting any external Cash request.
+
 Current implementation note:
 
 - Current code may still implement parts of the older personal-only / JPY-only
@@ -155,6 +173,8 @@ Current implementation note:
   personal `tuition` JPY income.
 - Those guards must be adjusted in later implementation phases to match this
   v1 business policy.
+- Cash-side request infrastructure has a JPY/CNY foundation for eligible
+  accounts, but School pages/functions are not updated in this checkpoint.
 - The real 2026-05 wage trial remains paused until documentation and
   implementation policy are aligned.
 
