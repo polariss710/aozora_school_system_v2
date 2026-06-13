@@ -774,6 +774,12 @@ School DB candidates:
   - `created_at`, `updated_at`, `synced_at`
 - School RPC candidates:
   - `school_create_personal_cash_tuition_income_record`
+    - prepared in `school_create_personal_cash_tuition_income_record_rpc.sql`
+      but not yet executed
+    - creates `school_income_records` plus pending
+      `school_personal_cash_income_linkage_events`
+    - does not update `school_accounts.current_balance`
+    - does not insert `school_account_transactions`
   - `school_create_personal_cash_income_linkage_event`
   - `school_get_personal_cash_income_linkage_events`
   - `school_update_personal_cash_income_linkage_event_status`
@@ -800,7 +806,7 @@ School repo candidates:
 - SQL/RPC:
   - `school_personal_cash_income_linkage_schema.sql` prepared, not executed
   - `school_personal_cash_income_linkage_rpcs.sql` prepared, not executed
-  - new `school_create_personal_cash_tuition_income_record_rpc.sql`
+  - `school_create_personal_cash_tuition_income_record_rpc.sql` prepared, not executed
   - migration/update for `school_personal_cash_account_mappings.flow_type`
 - API/frontend:
   - `js/api/income-api.js`

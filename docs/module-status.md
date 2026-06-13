@@ -24,7 +24,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
 | 老师工资支付 | V1 可用 + personal Cash Phase 1 E2E sync ready | Retest status actions before future changes; reversal sync / retry UI / production cleanup require separate guarded phases |
 | 账户管理 | V1 可用 + first-stage family account isolation | Account scope/household owner expansion and family ledger records require separate guarded phases |
-| 收入记录 | V1 可用 + Phase 2 tuition Cash DB foundation SQL prepared | Keep edit guards narrow; guarded SQL execution, create RPC, UI/API, and sync executor remain separate steps |
+| 收入记录 | V1 可用 + Phase 2 tuition Cash DB/create RPC SQL prepared | Keep edit guards narrow; guarded SQL execution, UI/API, and sync executor remain separate steps |
 | 支出记录 | V1 可用 | Keep edit guards narrow; exchange rate is optional; real attachment storage is separate |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
@@ -71,9 +71,9 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 收入记录
 
 - 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。
-- 最近关键更新: 2026-06-13 准备但未执行 Phase 2 personal-business tuition income -> Cash System JPY income 的 school DB foundation SQL：`school_personal_cash_income_linkage_schema.sql` 扩展 `school_personal_cash_account_mappings.flow_type = tuition_income` 并新增独立 `school_personal_cash_income_linkage_events` outbox；`school_personal_cash_income_linkage_rpcs.sql` 新增 `school_update_personal_cash_income_linkage_event_status` 用于 sync executor 回写 pending/synced/failed。2026-06-12 收入新增/编辑字段统一；账户币种不再作为 dialog 输入，改由入账账户决定并由 RPC 校验。收入分类开放 `tuition` 学费、`material_fee` 教材费、`registration_fee` 报名费、`other_fee` 其他费用。
-- 当前限制 / hard stop: 本轮 Phase 2 SQL 尚未执行；不实现 `school_create_personal_cash_tuition_income_record`，不改 income 前端/API，不改 sync executor，不连接 DB、不执行 SQL、不调用 RPC。普通收入路径仍按 V1：非 Cash path 会写入收入记录、账户余额和账户流水；Phase 2 personal Cash path 未来必须保持 personal + tuition + JPY + Cash mapping guard，且不处理 青空塾、CNY、报销、法人账户、非学费收入或兼职工资。不从 account transaction 反推收入；不删除收入；不重算 locked student settlement。编辑只允许未撤销、非学生收款链路、未被锁定学生月结阻挡、原始 `income_adjust` 流水唯一且一致、且该流水仍是账户最新流水的收入；不允许直接更换入账账户，旧流水或复杂账户链路应撤销后重新新增。Reversal 必须保留原收入和原交易。
-- 下一步: 先执行/验证 Phase 2 DB foundation SQL，再单独实现 `school_create_personal_cash_tuition_income_record`、API/page selector、manual sync executor income flow，以及 synced income edit/reverse guard。更复杂的部分收款、付款计划、旧流水修正、跨账户收入迁移或结算外费用是否进入学生账单，需另开 guarded design。
+- 最近关键更新: 2026-06-13 准备但未执行 Phase 2 personal-business tuition income -> Cash System JPY income 的 school SQL：`school_personal_cash_income_linkage_schema.sql` 扩展 `school_personal_cash_account_mappings.flow_type = tuition_income` 并新增独立 `school_personal_cash_income_linkage_events` outbox；`school_personal_cash_income_linkage_rpcs.sql` 新增 `school_update_personal_cash_income_linkage_event_status` 用于 sync executor 回写 pending/synced/failed；`school_create_personal_cash_tuition_income_record_rpc.sql` 新增专用 create RPC，创建 `school_income_records` + pending income linkage event，但不写 school account balance 或 account transaction。2026-06-12 收入新增/编辑字段统一；账户币种不再作为 dialog 输入，改由入账账户决定并由 RPC 校验。收入分类开放 `tuition` 学费、`material_fee` 教材费、`registration_fee` 报名费、`other_fee` 其他费用。
+- 当前限制 / hard stop: 本轮 Phase 2 SQL 尚未执行；不改 income 前端/API，不改 sync executor，不连接 DB、不执行 SQL、不调用 RPC。普通收入路径仍按 V1：非 Cash path 会写入收入记录、账户余额和账户流水；Phase 2 personal Cash path 必须保持 personal + tuition + JPY + Cash mapping guard，且不处理 青空塾、CNY、报销、法人账户、非学费收入或兼职工资。不从 account transaction 反推收入；不删除收入；不重算 locked student settlement。编辑只允许未撤销、非学生收款链路、未被锁定学生月结阻挡、原始 `income_adjust` 流水唯一且一致、且该流水仍是账户最新流水的收入；不允许直接更换入账账户，旧流水或复杂账户链路应撤销后重新新增。Reversal 必须保留原收入和原交易。
+- 下一步: 先执行/验证 Phase 2 DB foundation + create RPC SQL，再单独实现 API/page selector、manual sync executor income flow，以及 synced income edit/reverse guard。更复杂的部分收款、付款计划、旧流水修正、跨账户收入迁移或结算外费用是否进入学生账单，需另开 guarded design。
 
 ## 支出记录
 
