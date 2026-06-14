@@ -82,6 +82,12 @@ const CASH_ELIGIBLE_ACCOUNT_NAMES = new Set([
   "日元乐天卡",
 ]);
 const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
+const INCOME_CATEGORY_LABELS: Record<string, string> = {
+  tuition: "学费收入",
+  material_fee: "教材费收入",
+  registration_fee: "报名费收入",
+  other_fee: "其他收入",
+};
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -168,6 +174,16 @@ function optionalText(value: unknown): string | null {
 
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function buildCashIncomeDescription(body: RequestBody): string {
+  const category = optionalText(body.income_category) ?? "tuition";
+  const label = optionalText(body.description) ??
+    optionalText(body.note) ??
+    INCOME_CATEGORY_LABELS[category] ??
+    category;
+
+  return `私塾收入确认：${label}`;
 }
 
 function unwrapSingleRow<T>(data: T[] | T | null, context: string): T {
@@ -356,6 +372,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
+    const cashDescription = buildCashIncomeDescription(body);
     const cashPayload = {
       external_source: CASH_EXTERNAL_SOURCE,
       external_event_id: schoolRequest.linkage_event_id,
@@ -396,7 +413,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         p_transacted_at: incomeDate,
         p_amount: cashAmount,
         p_idempotency_key: schoolRequest.idempotency_key,
-        p_description: "School income Cash confirmation request",
+        p_description: cashDescription,
         p_note: optionalText(body.note) ?? "",
         p_payload_snapshot: cashPayload,
         p_currency: schoolRequest.currency,

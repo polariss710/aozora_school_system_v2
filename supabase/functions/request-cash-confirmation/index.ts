@@ -47,6 +47,18 @@ type SchoolRequestRow = {
   message: string;
 };
 
+type PaymentRequestDisplayRow = {
+  request_month: string | null;
+  payee_name: string | null;
+  note: string | null;
+  source_id: string | null;
+};
+
+type WageLockDisplayRow = {
+  settlement_month: string | null;
+  teacher_name: string | null;
+};
+
 type CashRequestResult = {
   ok?: boolean;
   inserted?: boolean;
@@ -129,6 +141,28 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function optionalText(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function buildTeacherWageDescription(
+  payment: PaymentRequestDisplayRow | null,
+  wageLock: WageLockDisplayRow | null,
+): string {
+  const targetMonth = optionalText(wageLock?.settlement_month) ??
+    optionalText(payment?.request_month);
+  const teacherName = optionalText(wageLock?.teacher_name) ??
+    optionalText(payment?.payee_name);
+  const detail = [targetMonth, teacherName].filter(Boolean).join(" ");
+
+  return detail ? `青空塾老师工资支付：${detail}` : "青空塾老师工资支付";
+}
+
 function unwrapSingleRow<T>(data: T[] | T | null, context: string): T {
   if (Array.isArray(data)) {
     if (data.length !== 1) {
@@ -182,6 +216,44 @@ async function listEligibleAccounts(cashClient: ReturnType<typeof createClient>)
   }
 
   return (data || []) as CashAccountRow[];
+}
+
+async function fetchPaymentRequestDisplay(
+  schoolClient: ReturnType<typeof createClient>,
+  paymentRequestId: string,
+): Promise<PaymentRequestDisplayRow | null> {
+  const { data, error } = await schoolClient
+    .from("school_payment_requests")
+    .select("request_month,payee_name,note,source_id")
+    .eq("id", paymentRequestId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`School payment display lookup failed: ${error.message}`);
+  }
+
+  return data as PaymentRequestDisplayRow | null;
+}
+
+async function fetchWageLockDisplay(
+  schoolClient: ReturnType<typeof createClient>,
+  wageLockId: string | null,
+): Promise<WageLockDisplayRow | null> {
+  if (!wageLockId) {
+    return null;
+  }
+
+  const { data, error } = await schoolClient
+    .from("school_teacher_wage_locks")
+    .select("settlement_month,teacher_name")
+    .eq("id", wageLockId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`School teacher wage display lookup failed: ${error.message}`);
+  }
+
+  return data as WageLockDisplayRow | null;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -311,6 +383,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
       schoolRequestData as SchoolRequestRow[] | SchoolRequestRow | null,
       "school_request_cash_payment_confirmation",
     );
+    const paymentDisplay = await fetchPaymentRequestDisplay(
+      schoolClient,
+      schoolRequest.payment_request_id,
+    );
+    const wageLockDisplay = await fetchWageLockDisplay(
+      schoolClient,
+      paymentDisplay?.source_id ?? null,
+    );
 
     const amount = Number(schoolRequest.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -340,6 +420,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
       school_sync_status: schoolRequest.sync_status,
       school_message: schoolRequest.message,
     };
+    const cashDescription = buildTeacherWageDescription(
+      paymentDisplay,
+      wageLockDisplay,
+    );
+    const cashNote = note ?? optionalText(paymentDisplay?.note) ?? "";
 
     const { data: cashRequestData, error: cashRequestError } =
       await cashClient.rpc("home_create_external_transaction_request", {
@@ -354,8 +439,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
         p_transacted_at: todayIsoDate(),
         p_amount: amount,
         p_idempotency_key: schoolRequest.idempotency_key,
-        p_description: "School teacher wage payment confirmation request",
-        p_note: note ?? "",
+        p_description: cashDescription,
+        p_note: cashNote,
         p_payload_snapshot: cashPayload,
         p_currency: schoolRequest.currency,
       });
