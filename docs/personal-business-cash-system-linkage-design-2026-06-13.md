@@ -171,9 +171,142 @@ Current implementation note:
 - Teacher-wage Cash confirmation has been aligned to this policy for all
   pending `teacher_wage` payment requests with eligible JPY/CNY Cash accounts,
   including personal business, 青空塾, and mixed-attribution wage requests.
-- Income implementation may still follow older personal-only / JPY-only guards;
-  those guards must be adjusted in later phases to match this policy.
+- Income Cash confirmation has a prepared implementation in commit `2fe6ae8`,
+  but the School SQL has not been executed, Edge Functions have not been
+  deployed, and no real income test has been run.
+- Frontend account routing is implemented. Cash System income saves call
+  `request-cash-income-confirmation`, but production use depends on executing
+  the prepared SQL and deploying the functions.
 - Real 2026-05 teacher-wage trial execution has not been run yet.
+
+## Income Request And Cash Receipt Confirmation
+
+Income request and Cash receipt confirmation request are separate business
+objects.
+
+Income request:
+
+- Business-side confirmation that income should be received.
+- May originate from tuition, personal business income, personal external
+  teaching income, or other income.
+- Does not mean money has arrived in a real account.
+- Does not directly change Cash balance.
+- Belongs to School business state and settlement state.
+
+Cash receipt confirmation request:
+
+- Submits an income request to Cash System for approve/reject.
+- Waits as a Cash external pending request.
+- Cash approve creates the real Cash transaction.
+- Cash approve increases the selected Cash account balance.
+- Cash reject creates no transaction and changes no balance.
+- Cash reject leaves the School income request pending and retryable.
+
+Therefore the required flow is:
+
+```text
+monthly settlement / income record
+-> income request
+-> Cash receipt confirmation request
+-> Cash approve
+-> Cash transaction
+-> School income received / settled
+```
+
+Do not treat income request creation as proof of receipt. Do not mark School
+income received or settled until Cash approve confirms the real account
+movement.
+
+## Income Cash Confirmation Current Implementation, Commit 2fe6ae8
+
+Commit `2fe6ae8` added the file-level implementation for generic income Cash
+confirmation:
+
+- `school_income_cash_confirmation_workflow.sql`
+- `supabase/functions/request-cash-income-confirmation/index.ts`
+- `supabase/functions/sync-cash-request-result/index.ts` income dispatch
+- `js/api/income-api.js` Cash System save path
+- `js/pages/income-page.js` pending confirmation messaging
+
+Prepared School RPCs:
+
+- `school_create_cash_income_confirmation`
+- `school_request_cash_income_confirmation`
+- `school_mark_cash_income_request_submitted`
+- `school_mark_cash_income_confirmed`
+- `school_mark_cash_income_rejected`
+
+Cash-side reuse:
+
+- `home_create_external_transaction_request` creates the pending Cash request.
+- `home_approve_external_transaction_request` creates the JPY/CNY Cash
+  transaction after approve.
+
+Current state:
+
+- The SQL file is prepared but not executed.
+- The new Edge Function is prepared but not deployed.
+- Real income confirmation testing has not been run.
+- The frontend account selector has been split between School account and Cash
+  System account.
+- The Cash System income path calls `request-cash-income-confirmation`.
+- Before production use, execute the SQL through the guarded workflow, deploy
+  the Edge Functions, and run rollback/whitelist verification.
+
+Known execution risks before SQL execution:
+
+- Existing income linkage rows may still use old `sync_status = pending`.
+- Older personal tuition Cash linkage RPCs still use `pending/synced/failed`.
+- Ordinary income edit/reverse guards currently focus on
+  `tuition_income_received`; they need review before broad `income_received`
+  rollout.
+- The prepared School RPCs rely on the Edge Function and Cash RPC to validate
+  the Cash-side account whitelist.
+
+## Personal External Teaching Income Module
+
+Personal external teaching income is documented separately in
+`docs/personal-teaching-income-module-design.md`.
+
+Positioning:
+
+- The user teaches or works at an external cram school.
+- The external cram school is the payer.
+- The income belongs to personal business.
+- The module does not enter Aozora teacher wage settlement.
+- The module does not create `teacher_wage` payment requests.
+- The module should use income / receipt requests and Cash receipt
+  confirmation.
+
+Lesson model:
+
+- Use planned + actual.
+- Planned rows can be freely added, edited, and deleted.
+- The only action is generating actual from planned.
+- No cancel, makeup, makeup completed, or `is_billable` state is needed.
+- If the lesson did not happen, delete the planned row.
+- If planned has generated actual, deletion requires a second confirmation as
+  business protection, not as makeup logic.
+
+Settlement and Cash flow:
+
+```text
+daily planned entry
+-> generate actual after teaching
+-> month-end actual review
+-> lock monthly settlement
+-> create personal_teaching_income_request
+-> submit Cash receipt confirmation
+-> Cash approve
+-> Cash transaction
+-> income request / settlement received and settled
+```
+
+This income path can reuse attempt numbers, active-attempt uniqueness,
+rejected retry, idempotency keys, Cash external requests, approve/reject
+callbacks, and JPY/CNY transaction dispatch. It must not reuse payment naming,
+expense direction, `paid` semantics, teacher wage settlement tables, or
+teacher-wage-specific fields.
 
 ## Confirmed School Facts
 

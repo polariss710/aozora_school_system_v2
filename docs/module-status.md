@@ -1,6 +1,6 @@
 # Module Status
 
-Status date: 2026-06-14
+Status date: 2026-06-15
 
 This is the lightweight module summary for daily sessions. It keeps only each module's current state, recent key update, current limits / hard stops, and next step. Older module history, long commit/test logs, and completed detail records are archived in `docs/archive/module-status-history.md`.
 
@@ -25,7 +25,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
 | 老师工资支付 | V1 可用 + all pending `teacher_wage` Cash confirmation path implemented and whitelist-tested for Cash-eligible JPY/CNY accounts; direct confirm remains historical/special exception | Real 2026-05 wage trial remains not executed |
 | 账户管理 | V1 可用 + first-stage family account isolation | Account scope/household owner expansion and family ledger records require separate guarded phases |
-| 收入记录 | V1 可用 + historical personal tuition JPY Cash linkage verified; Cash linkage v1 policy now requires all tuition receipts through user-controlled accounts to enter Cash; Cash-side account whitelist foundation exists | Align income code with unified personal/青空塾, JPY/CNY policy and Cash eligible account reader |
+| 收入记录 | V1 可用 + income Cash confirmation file-level implementation prepared but not DB-executed/deployed; historical personal tuition JPY Cash linkage verified; Cash linkage policy now requires all actual receipts through user-controlled accounts to enter Cash | Execute guarded income Cash SQL/deploy only after resolving documented risks and running preflight checks |
 | 支出记录 | V1 可用 | Keep edit guards narrow; exchange rate is optional; real attachment storage is separate |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
@@ -71,10 +71,19 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 收入记录
 
-- 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。
-- 最近关键更新: 2026-06-14 文档修正 Cash linkage 业务口径：所有学费收入都先在 School 记录业务事实和业务归属，包括个人业务、青空塾、JPY、CNY/人民币、现金、银行、支付宝；实际收到的钱如果进入用户控制账户，则通过外部 request 进入 Cash System 确认。学生付支付宝人民币时，Cash approve 后支付宝账户增加；学生付日元现金时，Cash approve 后日元现金账户增加；学生付日元银行转账时，Cash approve 后对应银行账户增加。青空塾学费进入 Cash 时应通过分类、标签或备注标记为 `青空塾代收学费`。后续把青空塾学费转入法人账户时，Cash 记录 `支出 / 转给法人账户 / 学费提交 / 代收款清算`，School 记录 `法人账户入金 / 学费清算 / 资金归集`；不要重复记为新的学费收入。同日 Cash System 增加 School 可用账户白名单；当前收入/支付可选 Cash 账户应来自 Cash active + `allow_school_requests = true`：`余额宝`、`日元现金`、`日元三菱卡`、`日元乐天卡`。`余利宝` 和 `医生处兑换日元先行支付` 不进入 School request 账户选择。旧的 personal + `tuition` + JPY Phase 2 E2E 仍是已验证历史实现，但不再代表完整业务口径。
-- 当前限制 / hard stop: 普通收入路径仍按 V1。当前代码可能仍按旧口径实现 personal-only / JPY-only guard，Phase 2 personal Cash path 也可能仍只支持 personal + tuition + JPY + active `flow_type = tuition_income` Cash mapping；这些是后续待修正实现限制，不是新业务规则。CNY/JPY 换汇、账户调拨、支付宝与日元现金/银行之间的资金调配暂时不由 School 自动处理；School 只记录业务收入/工资结算口径，Cash 手动记录换汇/账户调拨。不从 account transaction 反推收入；不删除收入；不重算 locked student settlement。普通 edit/reverse 仅允许没有 Cash income linkage event 的普通收入；已进入 Cash linkage 的 tuition income 在当前实现中仍禁止普通 edit/reverse。
-- 下一步: 调整收入 Cash linkage，使所有实际经过用户控制账户的学费收款进入 Cash，并保留 School 的业务归属；账户选择读取 Cash 侧 School-eligible account whitelist。Tuition income reverse sync、CNY/RMB School request integration、青空塾代收清算、自动调度、部分收款、付款计划、旧流水修正、跨账户收入迁移、结算外费用是否进入学生账单，均需另开 guarded design。
+- 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。Income Cash confirmation 已完成代码/SQL 文件级准备，但 SQL 尚未执行、Edge Function 尚未部署、真实收入测试尚未做。
+- 最近关键更新: 2026-06-15 补全文档口径：收入请求 / income request 是 School 业务侧“这笔收入应该收”的事实，不代表真实到账，也不改变 Cash 余额；Cash 入账确认请求 / cash receipt confirmation request 是把 income request 提交给 Cash System 等待用户 approve/reject。Cash approve 后才生成 `home_jpy_transactions` / `home_cny_transactions`、Cash 余额增加、School income received / settled；Cash reject 后不生成 transaction、不改变余额、School income 保持 pending 且可 retry。当前 commit `2fe6ae8` 已准备 `school_income_cash_confirmation_workflow.sql`、`request-cash-income-confirmation`、`sync-cash-request-result` income 分派和相关 School RPC，但执行前必须处理已记录的兼容风险。
+- 当前限制 / hard stop: 普通收入路径仍按 V1。不得在 SQL 未执行 / Edge Function 未部署前做真实 Cash System 收入测试。执行 `school_income_cash_confirmation_workflow.sql` 前必须做 preflight：现有 income linkage `sync_status` 分布、income `status` 分布、旧 `pending` linkage 兼容、旧 personal tuition Cash RPC 是否保留、detail/update/reverse 是否扩展到 `income_received`。CNY/JPY 换汇、账户调拨、支付宝与日元现金/银行之间的资金调配暂时不由 School 自动处理；School 只记录业务收入/工资结算口径，Cash 手动记录换汇/账户调拨。不从 account transaction 反推收入；不删除收入；不重算 locked student settlement。
+- 下一步: 在 guarded workflow 下修正并执行 income Cash SQL、部署 Edge Functions、做 rollback/whitelist verification，然后再处理真实收入。Tuition income reverse sync、CNY/RMB request integration、青空塾代收清算、自动调度、部分收款、付款计划、旧流水修正、跨账户收入迁移、结算外费用是否进入学生账单，均需另开 guarded design。
+
+## 个人外部私塾打工收入
+
+- 当前状态: 设计已补全，尚未实装。详见 `docs/personal-teaching-income-module-design.md`。
+- 业务定位: 用户个人在外部私塾授课 / 打工产生的个人业务收入。外部私塾是付款方；用户是授课者 / 打工者。该模块不是青空塾老师工资支出模块，不进入青空塾老师工资结算，不创建 `teacher_wage` payment request。
+- 课时模型: 使用 planned + actual，但不复用现行青空塾 lesson 的 cancel / makeup / makeup_completed / `is_billable` 复杂状态。Planned 可自由新增、编辑、删除；唯一动作是生成 actual。如果没上课，删除 planned；如果 planned 已生成 actual，删除需要二次确认作为业务保护。
+- 月度流程: 日常录入 planned -> 上课后生成 actual -> 月末核对 actual -> 计算 `actual_hours * hourly_rate + transportation_fee + allowance - deduction` -> 锁定月度结算 -> 生成 `personal_teaching_income_request` -> 提交 Cash 入账确认 -> Cash approve 后余额增加并标记 income request / settlement received / settled；Cash reject 后 request pending / retryable。
+- 与 teacher_wage Cash 化区别: teacher_wage 是支出、payment request、Cash approve 后余额减少、School payment request paid；personal teaching income 是收入、income / receipt request、Cash approve 后余额增加、School income request received / settled。可复用 attempt、active attempt unique guard、rejected retry、idempotency、Cash external request、approve/reject callback、JPY/CNY transaction 分流；不可复用 payment 命名、支出方向、paid 语义、老师工资结算表或 teacher_wage 专用字段。
+- 下一步: 仅在 income Cash confirmation SQL/Edge Function 链路稳定后，再另开 guarded implementation phase 设计表结构、RPC、页面、结算锁定、Cash request 提交和回写。
 
 ## 支出记录
 
@@ -126,6 +135,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 2026-06-14 Cash linkage 业务口径已从 personal-only/JPY-only 修正为“实际经过用户控制账户的钱都进入 Cash；School 保存业务归属；Cash 保存资金账户变化”。旧 Phase 1/2 personal JPY 实现记录保留为历史验证结果，但不再作为业务边界。账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。first-stage whitelist commit-test family 账户 `d3734cd7-fa94-4be3-b8dc-3cdc3690f667` / `codex-test-family-app-type-commit-20260613` 已经 dry-run、rollback validation、commit delete、residue check 清理完成。打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
+- 最近关键更新: 2026-06-15 个人外部私塾打工收入模块设计已新增为 `docs/personal-teaching-income-module-design.md`，定位为个人业务收入和 Cash 入账确认链路，不是青空塾 teacher_wage 支出。2026-06-14 Cash linkage 业务口径已从 personal-only/JPY-only 修正为“实际经过用户控制账户的钱都进入 Cash；School 保存业务归属；Cash 保存资金账户变化”。旧 Phase 1/2 personal JPY 实现记录保留为历史验证结果，但不再作为业务边界。账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。first-stage whitelist commit-test family 账户 `d3734cd7-fa94-4be3-b8dc-3cdc3690f667` / `codex-test-family-app-type-commit-20260613` 已经 dry-run、rollback validation、commit delete、residue check 清理完成。打工/兼职工资记录模块设计 `docs/part-time-wage-record-module-design-2026-06-12.md` 已完成但未实装。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
 - 下一步候选: unified Cash linkage implementation alignment、School 读取 Cash eligible account whitelist、青空塾代收学费 Cash 标记与法人清算、青空塾工资垫付与法人报销、CNY/RMB School request integration、manual FX/account-transfer runbook、Cash-linked reversal sync / retry UI、payment management follow-up、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account_scope/household owner expansion、family ledger records/reporting、part-time wage records、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。

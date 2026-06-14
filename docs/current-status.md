@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-14
+Status date: 2026-06-15
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -24,6 +24,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. Income Cash confirmation and personal external teaching income design, 2026-06-15:
+   Documented the income Cash confirmation boundary before executing `school_income_cash_confirmation_workflow.sql`. School remains the business ledger and Cash System remains the real account ledger: School creates income records / income requests, then submits Cash receipt confirmation requests; Cash approve is the only point that creates `home_jpy_transactions` / `home_cny_transactions` and changes Cash balance; Cash reject creates no transaction and leaves School income pending / retryable. The docs now explicitly separate income request from Cash receipt confirmation request. Added `docs/personal-teaching-income-module-design.md` for the future personal external cram-school teaching income module: it is personal business income, not Aozora teacher wage expense, not `teacher_wage`, uses a simple planned -> actual model without cancel/makeup semantics, locks monthly settlement, creates `personal_teaching_income_request`, and then enters Cash receipt confirmation. The current implementation snapshot is recorded: commit `2fe6ae8` added `request-cash-income-confirmation`, income dispatch in `sync-cash-request-result`, and `school_income_cash_confirmation_workflow.sql`, but SQL has not been executed, Edge Functions have not been deployed, and real income testing has not been run.
 
 1. Cash rejected retry attempt support, 2026-06-14:
    Implemented rejected -> resubmit -> approved retry attempts for teacher-wage Cash confirmation. School `school_personal_cash_linkage_events` now has `attempt_no`; uniqueness is per source event + attempt, with a partial active-attempt guard allowing at most one `pending_cash_request` / `awaiting_cash_confirmation` attempt at a time while preserving old `cash_rejected` history and rejected reasons. School request idempotency keys now include `:attempt:{attempt_no}` for new attempts. Cash `home_external_transaction_requests` now keeps `idempotency_key` and `external_event_id` unique per attempt, while reference uniqueness is partial for `pending` / `approved` only, so rejected requests remain terminal history and do not block a later retry. School payment UI shows `Cash已拒绝`, displays the rejection reason, and exposes `重新提交到 Cash 确认`; detail view shows request status, attempt number, rejected time, and rejected reason. Whitelist E2E used 2026-06 codex-test teacher-wage data only: attempt 1 was rejected and left the School payment request pending, attempt 2 was approved and marked the School payment request paid, duplicate active creation returned the same pending attempt, old rejected history remained. Cleanup removed 2 School linkage events, 1 payment request, 1 wage lock, 1 teacher, 1 business entity, 2 Cash requests, and 1 Cash JPY transaction; target residue is 0 and Cash `日元现金` balance returned to `202500.00`.
@@ -106,5 +109,6 @@ Stop and report immediately for:
 - Master dialog simplification workflow: `docs/workflows/v2-master-dialog-simplification.md`
 - Account/family ledger design: `docs/account-family-account-integration-design-2026-06-12.md`
 - Personal business Cash System linkage design: `docs/personal-business-cash-system-linkage-design-2026-06-13.md`
+- Personal external teaching income design: `docs/personal-teaching-income-module-design.md`
 - Part-time wage design: `docs/part-time-wage-record-module-design-2026-06-12.md`
 - Full historical current-status archive: `docs/archive/current-status-history.md`
