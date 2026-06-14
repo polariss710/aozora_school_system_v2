@@ -23,7 +23,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 课时管理 | 已收口 | Keep planned-only V1 stable; full actual/history import stays backlog |
 | 学生月度结算 | 已收口 | No immediate V1 work; future reversal/history requires new design |
 | 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
-| 老师工资支付 | V1 可用 + all pending `teacher_wage` Cash confirmation path implemented for Cash-eligible JPY/CNY accounts; direct confirm remains historical/special exception | Finish deployment/config and whitelist E2E before real wage trial |
+| 老师工资支付 | V1 可用 + all pending `teacher_wage` Cash confirmation path implemented and whitelist-tested for Cash-eligible JPY/CNY accounts; direct confirm remains historical/special exception | Real 2026-05 wage trial remains not executed |
 | 账户管理 | V1 可用 + first-stage family account isolation | Account scope/household owner expansion and family ledger records require separate guarded phases |
 | 收入记录 | V1 可用 + historical personal tuition JPY Cash linkage verified; Cash linkage v1 policy now requires all tuition receipts through user-controlled accounts to enter Cash; Cash-side account whitelist foundation exists | Align income code with unified personal/青空塾, JPY/CNY policy and Cash eligible account reader |
 | 支出记录 | V1 可用 | Keep edit guards narrow; exchange rate is optional; real attachment storage is separate |
@@ -58,9 +58,9 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## 老师工资支付
 
 - 当前状态: V1 可用。支付列表可确认支付、反转已支付请求、取消 pending、恢复 cancelled、reissue reversed；详情页只读。老师工资 Cash confirmation 已从历史 personal + `teacher_wage` + JPY 扩展为所有 pending `teacher_wage` payment request。School 发起工资付款 Cash request；Cash approve 后才生成工资支出 transaction 并回写 School `paid`，Cash reject 后不生成 transaction 且 School payment request 保持 `pending`。JPY 支付支持 `日元现金`、`日元三菱卡`、`日元乐天卡`；CNY 支付支持 `余额宝`，需要输入汇率，School 保留 JPY 工资成本，Cash 扣 CNY 实付金额。青空塾归属工资也先由 Cash 账户垫付，并应能识别为 `青空塾工资垫付`；法人账户报销时在 Cash 记录 `法人账户报销 / 青空塾工资垫付报销`，School 记录 `青空塾工资垫付款已报销 / 法人账户清算`。
-- 最近关键更新: 2026-06-14 增加 `school_teacher_wage_cash_confirmation_all_scope_rpc.sql` 和 `school_request_cash_payment_confirmation(...)`；放宽 linkage event JPY-only / mapping-only 约束，新增 JPY cost、payment currency、exchange rate、payment amount 快照。`request-cash-confirmation` 通过 Edge Function 读取 Cash active + `allow_school_requests = true` 账户并校验币种，不靠账户名硬编码；支付页对所有 pending `teacher_wage` 显示 `提交到 Cash 确认`，选择 CNY 账户时要求汇率并预览人民币实付金额。`直接确认支付` 保留为历史/特殊例外，文案明确不会进入 Cash。真实 5 月工资试运行继续暂停，等部署/config 和白名单 E2E 完成后再进行。
+- 最近关键更新: 2026-06-14 增加 `school_teacher_wage_cash_confirmation_all_scope_rpc.sql` 和 `school_request_cash_payment_confirmation(...)`；放宽 linkage event JPY-only / mapping-only 约束，新增 JPY cost、payment currency、exchange rate、payment amount 快照。`request-cash-confirmation` 通过 Edge Function 读取 Cash active + `allow_school_requests = true` 账户并校验币种，不靠账户名硬编码；支付页对所有 pending `teacher_wage` 显示 `提交到 Cash 确认`，选择 CNY 账户时要求汇率并预览人民币实付金额。Cash rejected 为终态且不可重新 approve；School payment request 保持 pending，显示拒绝理由，并可重新提交生成新的 attempt / Cash request；同一 payment request 同时只能有一个 active attempt。School rollback、Cash JPY/CNY request rollback、rejected -> retry -> approved 后端 E2E 已通过，测试仅使用 2026-06 codex-test teacher-wage 数据，cleanup 后 School/Cash 残留 0。`直接确认支付` 保留为历史/特殊例外，文案明确不会进入 Cash。真实 2026-05 工资试运行尚未执行。
 - 当前限制 / hard stop: 支付链路仍不得删除 payment request、wage lock、expense、account transaction。Cash confirmation 提交不改 `paid`、不写 `paid_at`、不创建 School expense、不中转 Cash transaction；Cash transaction 只能由 Cash approve 产生。跨 DB 强事务、历史 backfill、撤销同步、自动后台任务、法人账户清算 UI、利润统计口径改造仍需单独 guarded phase。
-- 下一步: 完成正式 SQL apply 后的白名单 JPY/CNY E2E、Edge Function 部署/config 验证、真实试运行前 checklist。未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard。
+- 下一步: 真实 2026-05 工资试运行另行执行；浏览器自动化仍不稳定时，页面路径可人工操作并配合 DB 验证。未来改 payment status actions 时，显式重测 cancel/restore/reissue 和 confirm/reverse 链路；如需真正开放支付记录编辑，必须先设计独立 edit RPC/API guard。
 
 ## 账户管理
 

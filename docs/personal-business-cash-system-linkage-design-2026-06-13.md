@@ -168,15 +168,12 @@ Cash account eligibility policy:
 
 Current implementation note:
 
-- Current code may still implement parts of the older personal-only / JPY-only
-  policy, for example guards around personal `teacher_wage` JPY payments or
-  personal `tuition` JPY income.
-- Those guards must be adjusted in later implementation phases to match this
-  v1 business policy.
-- Cash-side request infrastructure has a JPY/CNY foundation for eligible
-  accounts, but School pages/functions are not updated in this checkpoint.
-- The real 2026-05 wage trial remains paused until documentation and
-  implementation policy are aligned.
+- Teacher-wage Cash confirmation has been aligned to this policy for all
+  pending `teacher_wage` payment requests with eligible JPY/CNY Cash accounts,
+  including personal business, 青空塾, and mixed-attribution wage requests.
+- Income implementation may still follow older personal-only / JPY-only guards;
+  those guards must be adjusted in later phases to match this policy.
+- Real 2026-05 teacher-wage trial execution has not been run yet.
 
 ## Confirmed School Facts
 
@@ -995,8 +992,22 @@ Teacher wage all-scope Cash confirmation checkpoint, 2026-06-14:
 - Cash approve remains the only point that creates Cash transactions and changes
   Cash balances. Cash reject creates no Cash transaction and leaves the School
   payment request pending.
-- Real 2026-05 wage data remains paused until SQL/Function deployment and
-  whitelist E2E verification are complete.
+- Rejected retry attempts are implemented:
+  - rejected Cash requests are terminal and cannot be approved later
+  - School payment request stays `pending`
+  - School displays the rejected reason
+  - resubmission creates a new attempt / Cash request
+  - old rejected attempts remain as history
+  - one payment request can have only one active attempt at a time
+- Verified scope:
+  - School rollback test passed
+  - Cash JPY/CNY request rollback tests passed
+  - rejected -> retry -> approved backend E2E passed
+  - cleanup completed with School/Cash target residue 0
+  - tests did not use real 2026-05 wage data
+- Real 2026-05 wage trial has not been executed yet. Browser automation remains
+  unstable, so the page path may be operated manually and verified through DB
+  checks.
 
 School-side v2 lifecycle checkpoint, 2026-06-13:
 
@@ -1278,24 +1289,22 @@ Cash-side objects likely needed:
   - `idempotency_key`
   - `payload_snapshot`
 
-5月 teacher wage JPY two-row trial plan, design only:
+Real 2026-05 teacher wage trial plan, not yet executed:
 
-1. Run read-only verification for 2026-05 pending `teacher_wage` JPY personal
-   business payment candidates.
-2. Choose two rows only:
-   - one approve test
-   - one reject test
-3. School teacher wage payment page submits both rows to Cash confirmation with
-   selected Cash 支付账户.
-4. Cash page approves one request and rejects the other.
-5. Verify approved row creates exactly one Cash JPY transaction and changes
+1. Run read-only verification for 2026-05 pending `teacher_wage` candidates.
+2. Choose a narrow real-data trial set only after explicit trial authorization.
+3. School teacher wage payment page submits selected rows to Cash confirmation
+   with an eligible Cash 支付账户.
+4. Cash page approves or rejects from `外部待确认`.
+5. Verify approved rows create exactly one JPY/CNY Cash transaction and change
    Cash balance.
-6. Verify rejected row creates no Cash transaction and does not change Cash
+6. Verify rejected rows create no Cash transaction and do not change Cash
    balance.
-7. Verify School status: approved row becomes paid/synced; rejected row remains
-   unpaid or shows `cash_rejected`.
-8. Verify idempotency for repeat request/approve/reject.
-9. If using real 2026-05 data, do not cleanup. Cleanup applies only to clearly
+7. Verify School status: approved rows become paid/synced; rejected rows remain
+   pending with `Cash已拒绝` and rejected reason.
+8. Verify retry creates a new attempt after rejection and preserves old rejected
+   history.
+9. Real 2026-05 data must not be cleaned up. Cleanup applies only to clearly
    marked whitelist test data.
 
 Implementation phases:
@@ -1308,9 +1317,10 @@ Implementation phases:
 5. School UI: embed Cash account selection into income and teacher wage payment
    pages; replace personal JPY teacher_wage direct `确认支付` linkage with
    `提交到 Cash 确认` / `请求支付确认`, not a standalone sync page.
-6. ROLLBACK whitelist tests.
-7. COMMIT whitelist E2E approve/reject tests.
-8. Decide whether to run the 2026-05 real two-row JPY teacher wage trial.
+6. ROLLBACK whitelist tests. Completed for School and Cash JPY/CNY requests.
+7. COMMIT whitelist E2E approve/reject tests. Completed for rejected -> retry ->
+   approved teacher-wage flow with cleanup residue 0.
+8. Real 2026-05 teacher wage trial remains not executed.
 
 ### Current-State Investigation Summary
 
