@@ -30,13 +30,9 @@ const CASH_INCOME_LINKAGE_COLUMNS = [
   "income_record_id",
   "source_event_type",
   "sync_status",
-  "cash_request_id",
-  "cash_request_status",
   "cash_transaction_id",
   "last_error",
   "retry_count",
-  "attempt_no",
-  "requested_at",
   "synced_at",
 ].join(",");
 
