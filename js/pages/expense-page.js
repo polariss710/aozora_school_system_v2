@@ -17,17 +17,10 @@ import {
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
+  studentId: "",
   businessEntityId: "",
   accountId: "",
-  teacherId: "",
   currency: "",
-  expenseCategory: "",
-  paymentMethod: "",
-  status: "",
-  wagePaymentStatus: "",
-  receiptStatus: "",
-  reimbursementStatus: "",
-  keyword: "",
 };
 
 const EXPENSE_STATUS_LABELS = {
@@ -66,15 +59,6 @@ const WAGE_PAYMENT_STATUS_LABELS = {
   cancelled: "工资支付：已取消",
   unlinked: "未关联",
 };
-
-const WAGE_PAYMENT_STATUS_FILTER_OPTIONS = [
-  ["paid", "已支付"],
-  ["reversed", "已撤销"],
-  ["void", "已作废"],
-  ["pending", "待支付"],
-  ["cancelled", "已取消"],
-  ["unlinked", "未关联"],
-];
 
 const CREATE_EXPENSE_CATEGORY_OPTIONS = [
   "classroom",
@@ -136,17 +120,10 @@ function cacheDom() {
   dom.filterForm = document.querySelector("#expenseFilterForm");
   dom.yearFilter = document.querySelector("#expenseYearFilter");
   dom.monthFilter = document.querySelector("#expenseMonthFilter");
+  dom.studentSelect = document.querySelector("#expenseStudentSelect");
   dom.businessEntitySelect = document.querySelector("#expenseBusinessEntitySelect");
   dom.accountSelect = document.querySelector("#expenseAccountSelect");
-  dom.teacherSelect = document.querySelector("#expenseTeacherSelect");
   dom.currencySelect = document.querySelector("#expenseCurrencySelect");
-  dom.expenseCategorySelect = document.querySelector("#expenseCategorySelect");
-  dom.paymentMethodSelect = document.querySelector("#expensePaymentMethodSelect");
-  dom.statusSelect = document.querySelector("#expenseStatusSelect");
-  dom.wagePaymentStatusSelect = document.querySelector("#expenseWagePaymentStatusSelect");
-  dom.receiptStatusSelect = document.querySelector("#expenseReceiptStatusSelect");
-  dom.reimbursementStatusSelect = document.querySelector("#expenseReimbursementStatusSelect");
-  dom.keywordInput = document.querySelector("#expenseKeywordInput");
   dom.resetButton = document.querySelector("#expenseResetButton");
   dom.tableBody = document.querySelector("#expenseTableBody");
   dom.loadingState = document.querySelector("#expenseLoadingState");
@@ -221,17 +198,10 @@ function bindEvents() {
 
 function setDefaultFilters() {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+  dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
-  dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
-  dom.expenseCategorySelect.value = DEFAULT_FILTERS.expenseCategory;
-  dom.paymentMethodSelect.value = DEFAULT_FILTERS.paymentMethod;
-  dom.statusSelect.value = DEFAULT_FILTERS.status;
-  dom.wagePaymentStatusSelect.value = DEFAULT_FILTERS.wagePaymentStatus;
-  dom.receiptStatusSelect.value = DEFAULT_FILTERS.receiptStatus;
-  dom.reimbursementStatusSelect.value = DEFAULT_FILTERS.reimbursementStatus;
-  dom.keywordInput.value = DEFAULT_FILTERS.keyword;
 }
 
 async function loadInitialData() {
@@ -333,61 +303,29 @@ function readFilters() {
 
   return {
     month,
+    studentId: dom.studentSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
     accountId: dom.accountSelect.value,
-    teacherId: dom.teacherSelect.value,
     currency: dom.currencySelect.value,
-    expenseCategory: dom.expenseCategorySelect.value,
-    paymentMethod: dom.paymentMethodSelect.value,
-    status: dom.statusSelect.value,
-    wagePaymentStatus: dom.wagePaymentStatusSelect.value,
-    receiptStatus: dom.receiptStatusSelect.value,
-    reimbursementStatus: dom.reimbursementStatusSelect.value,
-    keyword: dom.keywordInput.value.trim(),
   };
 }
 
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
+  dom.studentSelect.value = filters.studentId;
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
-  dom.teacherSelect.value = filters.teacherId;
   dom.currencySelect.value = filters.currency;
-  dom.expenseCategorySelect.value = filters.expenseCategory;
-  dom.paymentMethodSelect.value = filters.paymentMethod;
-  dom.statusSelect.value = filters.status;
-  dom.wagePaymentStatusSelect.value = filters.wagePaymentStatus;
-  dom.receiptStatusSelect.value = filters.receiptStatus;
-  dom.reimbursementStatusSelect.value = filters.reimbursementStatus;
-  dom.keywordInput.value = filters.keyword;
 }
 
 function renderMasterOptions() {
+  renderEntityOptions(dom.studentSelect, students, studentName);
   renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderEntityOptions(dom.accountSelect, accounts, accountName);
-  renderEntityOptions(dom.teacherSelect, teachers, teacherName);
-  renderWagePaymentStatusOptions();
 }
 
 function renderDataOptions(rows) {
   renderValueOptions(dom.currencySelect, distinctValues(rows, "currency"), displayValue);
-  renderValueOptions(dom.expenseCategorySelect, distinctValues(rows, "expense_category"), expenseCategoryLabel);
-  renderValueOptions(dom.paymentMethodSelect, distinctValues(rows, "payment_method"), paymentMethodLabel);
-  renderValueOptions(dom.statusSelect, distinctValues(rows, "status"), expenseStatusLabel);
-  renderValueOptions(dom.receiptStatusSelect, distinctValues(rows, "receipt_status"), displayValue);
-  renderValueOptions(
-    dom.reimbursementStatusSelect,
-    distinctValues(rows, "reimbursement_status"),
-    reimbursementStatusLabel
-  );
-}
-
-function renderWagePaymentStatusOptions() {
-  const options = ['<option value="">全部</option>'];
-  for (const [value, label] of WAGE_PAYMENT_STATUS_FILTER_OPTIONS) {
-    options.push(`<option value="${escapeAttribute(value)}">${escapeHtml(label)}</option>`);
-  }
-  dom.wagePaymentStatusSelect.innerHTML = options.join("");
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -780,7 +718,7 @@ function filterExpenseRecords(rows, filters) {
       return false;
     }
 
-    if (filters.teacherId && row.teacher_id !== filters.teacherId) {
+    if (filters.studentId && row.student_id !== filters.studentId) {
       return false;
     }
 
@@ -788,59 +726,8 @@ function filterExpenseRecords(rows, filters) {
       return false;
     }
 
-    if (filters.expenseCategory && row.expense_category !== filters.expenseCategory) {
-      return false;
-    }
-
-    if (filters.paymentMethod && row.payment_method !== filters.paymentMethod) {
-      return false;
-    }
-
-    if (filters.status && row.status !== filters.status) {
-      return false;
-    }
-
-    if (filters.wagePaymentStatus && wagePaymentStatusKey(row) !== filters.wagePaymentStatus) {
-      return false;
-    }
-
-    if (filters.receiptStatus && row.receipt_status !== filters.receiptStatus) {
-      return false;
-    }
-
-    if (filters.reimbursementStatus && row.reimbursement_status !== filters.reimbursementStatus) {
-      return false;
-    }
-
-    return matchesKeyword(row, filters.keyword);
-  });
-}
-
-function matchesKeyword(row, keyword) {
-  if (!keyword) {
     return true;
-  }
-
-  const normalizedKeyword = keyword.toLowerCase();
-  return [
-    businessNameById(row.business_entity_id),
-    accountNameById(row.account_id),
-    teacherNameById(row.teacher_id),
-    expenseCategoryLabel(row.expense_category),
-    row.expense_category,
-    paymentMethodLabel(row.payment_method),
-    row.payment_method,
-    expenseStatusLabel(row.status),
-    row.status,
-    wagePaymentStatusLabel(wagePaymentStatusKey(row)),
-    row.receipt_status,
-    reimbursementStatusLabel(row.reimbursement_status, row.expense_category),
-    row.reimbursement_status,
-    row.description,
-    row.note,
-  ]
-    .map((value) => safeText(value).toLowerCase())
-    .some((value) => value.includes(normalizedKeyword));
+  });
 }
 
 function teacherWageExpenseIds(rows) {

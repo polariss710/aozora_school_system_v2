@@ -22,11 +22,6 @@ const DEFAULT_FILTERS = {
   businessEntityId: "",
   accountId: "",
   currency: "",
-  incomeCategory: "",
-  paymentMethod: "",
-  status: "",
-  includeInSettlement: "",
-  keyword: "",
 };
 
 const INCOME_STATUS_LABELS = {
@@ -105,11 +100,6 @@ function cacheDom() {
   dom.businessEntitySelect = document.querySelector("#incomeBusinessEntitySelect");
   dom.accountSelect = document.querySelector("#incomeAccountSelect");
   dom.currencySelect = document.querySelector("#incomeCurrencySelect");
-  dom.incomeCategorySelect = document.querySelector("#incomeCategorySelect");
-  dom.paymentMethodSelect = document.querySelector("#incomePaymentMethodSelect");
-  dom.statusSelect = document.querySelector("#incomeStatusSelect");
-  dom.includeSelect = document.querySelector("#incomeIncludeSelect");
-  dom.keywordInput = document.querySelector("#incomeKeywordInput");
   dom.resetButton = document.querySelector("#incomeResetButton");
   dom.tableBody = document.querySelector("#incomeTableBody");
   dom.loadingState = document.querySelector("#incomeLoadingState");
@@ -229,11 +219,6 @@ function setDefaultFilters() {
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
-  dom.incomeCategorySelect.value = DEFAULT_FILTERS.incomeCategory;
-  dom.paymentMethodSelect.value = DEFAULT_FILTERS.paymentMethod;
-  dom.statusSelect.value = DEFAULT_FILTERS.status;
-  dom.includeSelect.value = DEFAULT_FILTERS.includeInSettlement;
-  dom.keywordInput.value = DEFAULT_FILTERS.keyword;
 }
 
 async function loadInitialData() {
@@ -329,11 +314,6 @@ function readFilters() {
     businessEntityId: dom.businessEntitySelect.value,
     accountId: dom.accountSelect.value,
     currency: dom.currencySelect.value,
-    incomeCategory: dom.incomeCategorySelect.value,
-    paymentMethod: dom.paymentMethodSelect.value,
-    status: dom.statusSelect.value,
-    includeInSettlement: dom.includeSelect.value,
-    keyword: dom.keywordInput.value.trim(),
   };
 }
 
@@ -343,11 +323,6 @@ function restoreFilterSelections(filters) {
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
   dom.currencySelect.value = filters.currency;
-  dom.incomeCategorySelect.value = filters.incomeCategory;
-  dom.paymentMethodSelect.value = filters.paymentMethod;
-  dom.statusSelect.value = filters.status;
-  dom.includeSelect.value = filters.includeInSettlement;
-  dom.keywordInput.value = filters.keyword;
 }
 
 function renderMasterOptions() {
@@ -358,9 +333,6 @@ function renderMasterOptions() {
 
 function renderDataOptions(rows) {
   renderValueOptions(dom.currencySelect, distinctValues(rows, "currency"), displayValue);
-  renderValueOptions(dom.incomeCategorySelect, distinctValues(rows, "income_category"), incomeCategoryLabel);
-  renderValueOptions(dom.paymentMethodSelect, distinctValues(rows, "payment_method"), paymentMethodLabel);
-  renderValueOptions(dom.statusSelect, distinctValues(rows, "status"), incomeStatusLabel);
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -930,47 +902,8 @@ function filterIncomeRecords(rows, filters) {
       return false;
     }
 
-    if (filters.incomeCategory && row.income_category !== filters.incomeCategory) {
-      return false;
-    }
-
-    if (filters.paymentMethod && row.payment_method !== filters.paymentMethod) {
-      return false;
-    }
-
-    if (filters.status && row.status !== filters.status) {
-      return false;
-    }
-
-    if (filters.includeInSettlement && String(row.include_in_student_settlement) !== filters.includeInSettlement) {
-      return false;
-    }
-
-    return matchesKeyword(row, filters.keyword);
-  });
-}
-
-function matchesKeyword(row, keyword) {
-  if (!keyword) {
     return true;
-  }
-
-  const normalizedKeyword = keyword.toLowerCase();
-  return [
-    studentNameById(row.student_id),
-    businessNameById(row.business_entity_id),
-    incomeAccountDisplayName(row),
-    incomeCategoryLabel(row.income_category),
-    row.income_category,
-    paymentMethodLabel(row.payment_method),
-    row.payment_method,
-    incomeStatusLabel(row.status),
-    row.status,
-    row.receipt_status,
-    row.note,
-  ]
-    .map((value) => safeText(value).toLowerCase())
-    .some((value) => value.includes(normalizedKeyword));
+  });
 }
 
 function distinctValues(rows, key) {

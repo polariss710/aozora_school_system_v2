@@ -5,7 +5,6 @@ import {
   createAccountProfile,
   createAccountTransfer,
   fetchAccountTransactions,
-  fetchAccountTransactionTypes,
   fetchAccounts,
   fetchBusinessEntitiesForAccounts,
   updateAccountProfile,
@@ -24,23 +23,7 @@ const DEFAULT_FILTERS = {
   accountId: "",
   businessEntityId: "",
   currency: "",
-  transactionType: "",
 };
-
-const COMMON_TRANSACTION_TYPES = [
-  "account_adjustment",
-  "account_adjustment_reversal",
-  "transfer_out",
-  "transfer_in",
-  "transfer_reverse_in",
-  "transfer_reverse_out",
-  "expense_adjust",
-  "payment_reversal",
-  "income",
-  "expense",
-  "transfer",
-  "adjustment",
-];
 
 const TRANSACTION_TYPE_LABELS = {
   account_adjustment: "账户调整",
@@ -143,7 +126,6 @@ function cacheDom() {
   dom.accountSelect = document.querySelector("#accountSelect");
   dom.businessEntitySelect = document.querySelector("#accountBusinessEntitySelect");
   dom.currencySelect = document.querySelector("#accountCurrencySelect");
-  dom.transactionTypeSelect = document.querySelector("#transactionTypeSelect");
   dom.resetButton = document.querySelector("#accountResetButton");
   dom.accountGrid = document.querySelector("#accountGrid");
   dom.accountLoadingState = document.querySelector("#accountLoadingState");
@@ -371,7 +353,6 @@ function setDefaultFilters() {
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
-  dom.transactionTypeSelect.value = DEFAULT_FILTERS.transactionType;
 }
 
 async function loadAccountData() {
@@ -387,16 +368,10 @@ async function loadAccountData() {
   setLoading(true);
   showMessage("info", "正在加载账户管理数据...");
 
-  let transactionTypeWarning = "";
-
   try {
-    const [accountRows, businessEntityRows, transactionTypeRows, transactionRows] = await Promise.all([
+    const [accountRows, businessEntityRows, transactionRows] = await Promise.all([
       fetchAccounts(),
       fetchBusinessEntitiesForAccounts(),
-      fetchAccountTransactionTypes(filters.appType).catch((error) => {
-        transactionTypeWarning = `流水类型读取失败，已保留固定选项：${error.message || error}`;
-        return [];
-      }),
       fetchAccountTransactions(filters),
     ]);
 
@@ -406,21 +381,16 @@ async function loadAccountData() {
 
     renderAccountOptions(filterAccountsForOptionSelect(accounts, filters));
     renderBusinessEntityOptions(businessEntities);
-    renderTransactionTypeOptions(mergeTransactionTypes(transactionTypeRows));
     restoreFilterSelections(filters);
     renderAccounts(filterAccountsForDisplay(accounts, filters));
     renderTransactions(transactions);
-    showMessage(
-      transactionTypeWarning ? "warning" : "success",
-      transactionTypeWarning || "账户管理数据已加载。"
-    );
+    showMessage("success", "账户管理数据已加载。");
   } catch (error) {
     accounts = [];
     businessEntities = [];
     transactions = [];
     renderAccountOptions([]);
     renderBusinessEntityOptions([]);
-    renderTransactionTypeOptions(COMMON_TRANSACTION_TYPES);
     renderAccounts([]);
     renderTransactions([]);
     showMessage("error", `读取账户管理数据失败：${error.message || error}`);
@@ -442,7 +412,6 @@ function readFilters() {
     accountId: dom.accountSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
     currency: dom.currencySelect.value,
-    transactionType: dom.transactionTypeSelect.value,
   };
 }
 
@@ -451,7 +420,6 @@ function restoreFilterSelections(filters) {
   dom.accountSelect.value = filters.accountId;
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.currencySelect.value = filters.currency;
-  dom.transactionTypeSelect.value = filters.transactionType;
 }
 
 function renderAccountOptions(items) {
@@ -493,30 +461,6 @@ function renderBusinessEntityOptions(items) {
   }
 
   dom.businessEntitySelect.innerHTML = options.join("");
-}
-
-function renderTransactionTypeOptions(items) {
-  const options = ['<option value="">全部</option>'];
-
-  for (const type of items) {
-    options.push(
-      `<option value="${escapeAttribute(type)}">${escapeHtml(transactionTypeLabel(type))}</option>`
-    );
-  }
-
-  dom.transactionTypeSelect.innerHTML = options.join("");
-}
-
-function mergeTransactionTypes(actualTypes) {
-  const normalizedActualTypes = (actualTypes || [])
-    .map((type) => String(type || "").trim())
-    .filter(Boolean);
-  const commonSet = new Set(COMMON_TRANSACTION_TYPES);
-  const extraTypes = Array.from(new Set(normalizedActualTypes))
-    .filter((type) => !commonSet.has(type))
-    .sort((a, b) => transactionTypeLabel(a).localeCompare(transactionTypeLabel(b), "zh-CN"));
-
-  return [...COMMON_TRANSACTION_TYPES, ...extraTypes];
 }
 
 function filterAccountsForDisplay(items, filters) {
@@ -1245,7 +1189,6 @@ async function refreshAfterAccountTransfer(result) {
   }
 
   dom.accountSelect.value = "";
-  dom.transactionTypeSelect.value = "";
 
   await loadAccountData();
 }
