@@ -211,4 +211,4 @@ $$;
 comment on function public.school_void_teacher_wage_lock(uuid, text, text, text) is
   'Voids one unpaid teacher wage snapshot with reason/operator/source audit. Rejects any payment request, expense, or account-transaction dependency and preserves wage detail rows.';
 
-grant execute on function public.school_void_teacher_wage_lock(uuid, text, text, text) to anon, authenticated;
+grant execute on function public.school_void_teacher_wage_lock(uuid, text, text, text) to authenticated;

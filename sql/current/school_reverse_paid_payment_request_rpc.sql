@@ -292,4 +292,4 @@ grant execute on function public.school_reverse_paid_payment_request(
   uuid,
   text,
   date
-) to anon, authenticated;
+) to authenticated;

@@ -286,4 +286,4 @@ grant execute on function public.school_confirm_payment_request(
   numeric,
   text,
   text
-) to anon, authenticated;
+) to authenticated;

@@ -388,7 +388,7 @@ grant execute on function public.school_create_account_profile(
   boolean,
   text,
   text
-) to anon, authenticated;
+) to authenticated;
 
 grant execute on function public.school_update_account_profile(
   uuid,
@@ -400,4 +400,4 @@ grant execute on function public.school_update_account_profile(
   boolean,
   text,
   text
-) to anon, authenticated;
+) to authenticated;

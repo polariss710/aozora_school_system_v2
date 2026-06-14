@@ -311,4 +311,4 @@ grant execute on function public.school_adjust_teacher_wage_detail(
   numeric,
   numeric,
   text
-) to anon, authenticated;
+) to authenticated;
