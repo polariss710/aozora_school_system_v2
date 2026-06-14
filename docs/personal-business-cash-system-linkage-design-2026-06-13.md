@@ -1,6 +1,6 @@
 # Personal Business / Cash System Linkage Design
 
-Status date: 2026-06-14
+Status date: 2026-06-15
 
 Task type: cross-project design plus guarded Phase 1 implementation checkpoints. Initial investigation was read-only; later phases executed guarded Cash-side and school-side schema/RPC work as recorded below. On 2026-06-14 this document was corrected to fix the Cash linkage v1 business policy. Historical Phase 1/2 implementation notes remain for audit, but the business policy below supersedes older personal-only / JPY-only scope statements.
 
@@ -171,13 +171,21 @@ Current implementation note:
 - Teacher-wage Cash confirmation has been aligned to this policy for all
   pending `teacher_wage` payment requests with eligible JPY/CNY Cash accounts,
   including personal business, 青空塾, and mixed-attribution wage requests.
-- Income Cash confirmation has a prepared implementation in commit `2fe6ae8`,
-  but the School SQL has not been executed, Edge Functions have not been
-  deployed, and no real income test has been run.
-- Frontend account routing is implemented. Cash System income saves call
-  `request-cash-income-confirmation`, but production use depends on executing
-  the prepared SQL and deploying the functions.
-- Real 2026-05 teacher-wage trial execution has not been run yet.
+- Income Cash confirmation SQL/RPC has been installed. The
+  `request-cash-income-confirmation` and `sync-cash-request-result` Edge
+  Functions have been deployed.
+- Frontend account routing is implemented. Normal income still uses the School
+  account path; Cash System income saves through
+  `request-cash-income-confirmation` and stops at Cash pending until Cash
+  approve.
+- Real whitelist CNY income tests passed for 李天伦 `21,450 CNY`, 彭宇晗
+  `6,491 CNY`, and 厦门吕同学 `7,740 CNY`.
+- Real 2026-05 teacher-wage first small-batch JPY trial passed for 吴峰
+  `36,000 JPY` through `日元乐天卡`.
+- Cash request display text is localized for future requests: income
+  `description` includes student/payee plus content, teacher-wage
+  `description` includes teacher plus wage month, and teacher-wage `note`
+  includes student details when available.
 
 ## Income Request And Cash Receipt Confirmation
 
@@ -217,10 +225,11 @@ Do not treat income request creation as proof of receipt. Do not mark School
 income received or settled until Cash approve confirms the real account
 movement.
 
-## Income Cash Confirmation Current Implementation, Commit 2fe6ae8
+## Income Cash Confirmation Current Implementation
 
 Commit `2fe6ae8` added the file-level implementation for generic income Cash
-confirmation:
+confirmation. The SQL/RPC workflow has since been installed and the Edge
+Functions have been deployed.
 
 - `school_income_cash_confirmation_workflow.sql`
 - `supabase/functions/request-cash-income-confirmation/index.ts`
@@ -242,26 +251,47 @@ Cash-side reuse:
 - `home_approve_external_transaction_request` creates the JPY/CNY Cash
   transaction after approve.
 
-Current state:
+Installed / deployed state:
 
-- The SQL file is prepared but not executed.
-- The new Edge Function is prepared but not deployed.
-- Real income confirmation testing has not been run.
+- `school_income_cash_confirmation_workflow.sql` has been executed against the
+  School DB.
+- `request-cash-income-confirmation` has been deployed.
+- `sync-cash-request-result` has been deployed with income approve/reject
+  dispatch.
 - The frontend account selector has been split between School account and Cash
   System account.
 - The Cash System income path calls `request-cash-income-confirmation`.
-- Before production use, execute the SQL through the guarded workflow, deploy
-  the Edge Functions, and run rollback/whitelist verification.
+- Cash System income creates School pending income first, then a Cash pending
+  external request.
+- Cash approve creates `home_jpy_transactions` / `home_cny_transactions`,
+  changes Cash balance, and calls back to mark School received / synced.
+- Cash reject creates no transaction, changes no balance, and leaves School
+  income pending / retryable.
 
-Known execution risks before SQL execution:
+Verified real CNY cases:
 
-- Existing income linkage rows may still use old `sync_status = pending`.
-- Older personal tuition Cash linkage RPCs still use `pending/synced/failed`.
-- Ordinary income edit/reverse guards currently focus on
-  `tuition_income_received`; they need review before broad `income_received`
-  rollout.
-- The prepared School RPCs rely on the Edge Function and Cash RPC to validate
-  the Cash-side account whitelist.
+- 李天伦 / `21,450 CNY` / `余额宝` / `6月课时费`: Cash pending request was
+  created, user approved in Cash UI, `home_cny_transactions` was generated,
+  Cash balance increased by `21,450`, School income became `received` /
+  `Cash已确认`, and active attempt count returned to 0.
+- 彭宇晗 / `6,491 CNY` / `余额宝` / `6月课时费`: recreated after historical
+  reversed income cleanup, approved, wrote `home_cny_transactions`, and
+  reconciled with School.
+- 厦门吕同学 / `7,740 CNY` / `余额宝` / `6月课时费`: recreated after historical
+  reversed income cleanup, approved, wrote `home_cny_transactions`, and
+  reconciled with School.
+
+Related cleanup and UI state:
+
+- codex test accounts / business entities / students / ledgers were cleaned.
+- `吴个人结算账户人民币` and its historical/test account transactions were
+  deleted; account orphan reference checks passed.
+- `吴个人结算账户日元` remains because it has formal historical received income,
+  teacher-wage expenses, reversed expenses, payment requests, reimbursements,
+  and account transactions. It requires a separate migration/archive plan.
+- Account management filters no longer include transaction type.
+- Income and expense filters now keep only month, student, business entity,
+  account, and currency.
 
 ## Personal External Teaching Income Module
 
@@ -1138,9 +1168,10 @@ Teacher wage all-scope Cash confirmation checkpoint, 2026-06-14:
   - rejected -> retry -> approved backend E2E passed
   - cleanup completed with School/Cash target residue 0
   - tests did not use real 2026-05 wage data
-- Real 2026-05 wage trial has not been executed yet. Browser automation remains
-  unstable, so the page path may be operated manually and verified through DB
-  checks.
+- The first real 2026-05 wage trial was later executed for 吴峰 `36,000 JPY`
+  through `日元乐天卡`: pending request creation and Cash approve both
+  reconciled. Remaining 2026-05 wages should still be processed only by
+  explicitly targeted batches.
 
 School-side v2 lifecycle checkpoint, 2026-06-13:
 
