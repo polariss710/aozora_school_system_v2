@@ -80,12 +80,6 @@ const corsHeaders = {
 const CASH_EXTERNAL_SOURCE = "aozora_school";
 const CASH_REFERENCE_TYPE = "school_income_records";
 const CASH_TRANSACTION_TYPE = "income";
-const CASH_ELIGIBLE_ACCOUNT_NAMES = new Set([
-  "余额宝",
-  "日元现金",
-  "日元三菱卡",
-  "日元乐天卡",
-]);
 const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
 const INCOME_CATEGORY_LABELS: Record<string, string> = {
   tuition: "学费收入",
@@ -328,8 +322,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const eligibleAccounts = await listEligibleAccounts(cashClient);
     const cashAccount = eligibleAccounts.find((account) => (
-      account.id === cashAccountId &&
-      CASH_ELIGIBLE_ACCOUNT_NAMES.has(account.name ?? "")
+      account.id === cashAccountId
     ));
 
     if (!cashAccount) {

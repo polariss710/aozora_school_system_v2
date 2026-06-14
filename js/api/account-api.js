@@ -162,32 +162,6 @@ export async function updateAccountProfile(payload) {
   return result;
 }
 
-export async function fetchAccountTransactionTypes(appType = "school") {
-  let query = supabase
-    .from("school_account_transactions")
-    .select("transaction_type")
-    .not("transaction_type", "is", null)
-    .order("transaction_type", { ascending: true });
-
-  if (appType) {
-    query = query.eq("app_type", appType);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.from(
-    new Set(
-      (data || [])
-        .map((row) => String(row.transaction_type || "").trim())
-        .filter(Boolean)
-    )
-  );
-}
-
 export async function fetchBusinessEntitiesForAccounts() {
   const { data, error } = await supabase
     .from("school_business_entities")

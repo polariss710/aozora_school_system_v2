@@ -1,5 +1,5 @@
 -- school_income_cash_confirmation_workflow.sql
--- Status: prepared 2026-06-15; not executed in this checkpoint.
+-- Status: executed on School DB 2026-06-15; installed as the current income Cash workflow.
 -- Purpose:
 -- - Add School-side Cash confirmation lifecycle for income records.
 -- - Cash System income creates a School income business record first, then a

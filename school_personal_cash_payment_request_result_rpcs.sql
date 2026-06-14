@@ -1,5 +1,5 @@
 -- school_personal_cash_payment_request_result_rpcs.sql
--- Status: pending apply on school DB.
+-- Status: executed on School DB 2026-06-13; active callback definitions are superseded by later all-scope workflow.
 -- Purpose:
 -- - Reflect Cash-side approval/rejection of a v2 teacher_wage JPY/CNY Cash
 --   payment confirmation request back to School.

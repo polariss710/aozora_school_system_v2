@@ -1,5 +1,5 @@
 -- school_request_personal_cash_payment_confirmation_rpc.sql
--- Status: pending apply on school DB.
+-- Status: executed on School DB 2026-06-13; superseded by all-scope teacher-wage Cash confirmation.
 -- Purpose:
 -- - Create or reuse a School-side Cash confirmation request event for one
 --   personal-business teacher_wage JPY payment request.

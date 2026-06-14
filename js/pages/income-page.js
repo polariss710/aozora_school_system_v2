@@ -41,7 +41,6 @@ const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee
 const CREATE_MODE_SCHOOL_ACCOUNT = "school_account";
 const CREATE_MODE_CASH_SYSTEM_INCOME = "cash_system_income";
 const CASH_INCOME_CURRENCIES = ["JPY", "CNY"];
-const SCHOOL_ELIGIBLE_CASH_ACCOUNT_NAMES = new Set(["余额宝", "日元现金", "日元三菱卡", "日元乐天卡"]);
 
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
@@ -703,7 +702,6 @@ async function ensureCashEligibleAccountsLoaded() {
   cashEligibleAccounts = (rows || []).filter((account) => (
     account?.is_active === true &&
     account?.allow_school_requests === true &&
-    SCHOOL_ELIGIBLE_CASH_ACCOUNT_NAMES.has(account.name || "") &&
     CASH_INCOME_CURRENCIES.includes(account.currency)
   ));
   hasLoadedCashEligibleAccounts = true;
@@ -744,10 +742,6 @@ function filteredCreateCashAccounts() {
   const currency = dom.createIncomeCurrencySelect.value;
   return cashEligibleAccounts.filter((account) => {
     if (account.is_active !== true || account.allow_school_requests !== true) {
-      return false;
-    }
-
-    if (!SCHOOL_ELIGIBLE_CASH_ACCOUNT_NAMES.has(account.name || "")) {
       return false;
     }
 

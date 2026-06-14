@@ -1,5 +1,5 @@
 -- school_create_personal_cash_tuition_income_record_rpc.sql
--- Status: prepared 2026-06-13; not executed in this checkpoint.
+-- Status: executed on School DB 2026-06-13 for historical Phase 2 personal tuition linkage.
 -- Purpose:
 -- - Create one personal-business tuition JPY income record for Cash System linkage.
 -- - Create one pending school_personal_cash_income_linkage_events outbox row

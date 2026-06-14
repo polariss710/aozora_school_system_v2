@@ -54,10 +54,10 @@ Deprecated old policies:
 - `personal + teacher_wage + JPY only`
 - `personal tuition JPY only`
 
-These old rules may still appear in current code guards and historical Phase
-1/2 implementation notes. Treat them as historical implementation limitations,
-not current business policy. The code should be aligned gradually before the
-real 2026-05 wage trial resumes.
+These old rules may still appear in historical Phase 1/2 implementation notes.
+Treat them as historical implementation limitations, not current business
+policy. Current teacher-wage and income Cash request selectors should use
+Cash-owned `allow_school_requests = true` plus currency filtering.
 
 Tuition income policy:
 
@@ -153,8 +153,9 @@ Cash account eligibility policy:
 - Cash System owns the School-usable Cash account whitelist through
   `home_accounts.allow_school_requests`.
 - School must not maintain Cash account balances. School should only read the
-  active Cash accounts where `allow_school_requests = true` when offering Cash
-  收款账户 / 支付账户 choices for future income and teacher-wage request flows.
+  active Cash accounts where `allow_school_requests = true`, then filter by
+  request currency, when offering Cash 收款账户 / 支付账户 choices for income and
+  teacher-wage request flows.
 - Current eligible Cash accounts:
   - `余额宝` (`CNY`, wallet)
   - `日元现金` (`JPY`, cash)
@@ -163,8 +164,10 @@ Cash account eligibility policy:
 - Current excluded Cash accounts:
   - `余利宝` (`CNY`, wallet)
   - `医生处兑换日元先行支付` (`JPY`, cash)
-- Future “all income / all teacher wage” Cash request implementation should
-  use this whitelist before submitting any external Cash request.
+- The current income and teacher-wage Cash request implementations use this
+  whitelist before submitting external Cash requests. If a temporary account
+  name allowlist is reintroduced for safety, document it as a temporary guard
+  and remove it after Cash-side configuration is verified.
 
 Current implementation note:
 
@@ -186,6 +189,28 @@ Current implementation note:
   `description` includes student/payee plus content, teacher-wage
   `description` includes teacher plus wage month, and teacher-wage `note`
   includes student details when available.
+
+## Cash Linkage Status Semantics
+
+Legacy `pending` is a compatibility state from the old personal tuition /
+teacher-wage manual sync outbox. It remains valid for historical RPCs,
+documents, and the zsh verification/operations path, but it is not the
+recommended state for new page-driven Cash request workflows.
+
+The current income and teacher-wage Cash request workflows use:
+
+- `pending_cash_request`: School-side event exists and is ready to submit or
+  reuse a Cash pending request.
+- `awaiting_cash_confirmation`: Cash pending external request exists and is
+  waiting for user approve/reject.
+- `synced`: Cash approve callback completed and School is reconciled.
+- `cash_rejected`: Cash reject callback completed; no Cash transaction or
+  balance change was made, and retry may create a new attempt.
+- `failed` / `blocked`: technical or operator intervention state.
+
+UI labels should keep these meanings distinct. Do not label legacy `pending`,
+`pending_cash_request`, and `awaiting_cash_confirmation` as the same business
+state in new surfaces.
 
 ## Income Request And Cash Receipt Confirmation
 
@@ -1484,7 +1509,9 @@ Implementation phases:
 6. ROLLBACK whitelist tests. Completed for School and Cash JPY/CNY requests.
 7. COMMIT whitelist E2E approve/reject tests. Completed for rejected -> retry ->
    approved teacher-wage flow with cleanup residue 0.
-8. Real 2026-05 teacher wage trial remains not executed.
+8. Real 2026-05 teacher wage first small-batch JPY trial passed; remaining
+   2026-05 wage processing should continue only by explicitly targeted
+   batches.
 
 ### Current-State Investigation Summary
 
@@ -1688,8 +1715,9 @@ School repo:
   - `school_create_personal_cash_tuition_income_record_rpc.sql` executed and verified
   - migration/update for `school_personal_cash_account_mappings.flow_type`
 - API/frontend:
-  - `js/api/income-api.js` adds `createPersonalCashTuitionIncome(...)`,
-    implemented
+  - Historical Phase 2 used `createPersonalCashTuitionIncome(...)`; current
+    income Cash request UI uses `createCashSystemIncome(...)` and
+    `request-cash-income-confirmation`.
   - `js/pages/income-page.js` adds a create-mode switch for normal School
     account income vs personal Cash tuition income and a read-only Cash sync
     badge for linked income rows

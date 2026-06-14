@@ -1,6 +1,6 @@
 -- school_teacher_wage_rules_config_constraints.sql
 -- Purpose: Add narrow safety constraints for editable teacher wage rule config fields.
--- Status: DRAFT. Execute only after static review.
+-- Status: EXECUTED ON SUPABASE. Verified during wage-rule config edit phase.
 -- Version: v2.42.0-wage-rule-config-edit-20260606
 --
 -- Scope:

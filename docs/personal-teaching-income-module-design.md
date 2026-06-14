@@ -43,6 +43,16 @@ Cash System income:
 - Cash approve marks School income received / settled.
 - Cash reject creates no transaction, leaves the income request pending, and allows retry.
 
+Status note:
+
+- Legacy Cash linkage `pending` belongs to the old personal tuition manual sync
+  compatibility path.
+- New Cash receipt confirmation should use the request lifecycle states
+  `pending_cash_request`, `awaiting_cash_confirmation`, `synced`,
+  `cash_rejected`, and `failed` / `blocked`.
+- UI copy should describe these as Cash request states, not as proof that
+  income has been received.
+
 ## Income Request vs Cash Receipt Confirmation Request
 
 Income request:

@@ -1,5 +1,5 @@
 -- school_personal_cash_payment_confirmation_lifecycle_schema.sql
--- Status: pending apply on school DB.
+-- Status: executed on School DB 2026-06-13; superseded by all-scope teacher-wage Cash confirmation.
 -- Purpose:
 -- - Prepare School-side lifecycle metadata for Cash linkage v2 page-driven
 --   teacher_wage payment confirmation.

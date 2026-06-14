@@ -1,5 +1,5 @@
 -- school_personal_cash_income_linkage_rpcs.sql
--- Status: prepared 2026-06-13; not executed in this checkpoint.
+-- Status: executed on School DB 2026-06-13 for historical Phase 2 personal tuition linkage.
 -- Purpose:
 -- - Provide the Phase 2 status-update RPC for personal-business tuition
 --   JPY income linkage events.
