@@ -38,9 +38,15 @@ const corsHeaders = {
 };
 
 const EXTERNAL_SOURCE = "aozora_school";
-const REFERENCE_TYPE = "school_payment_requests";
-const REQUEST_TYPE = "teacher_wage_payment_confirm";
-const TRANSACTION_TYPE = "expense";
+const TEACHER_WAGE_REFERENCE_TYPE = "school_payment_requests";
+const TEACHER_WAGE_REQUEST_TYPE = "teacher_wage_payment_confirm";
+const TEACHER_WAGE_TRANSACTION_TYPE = "expense";
+const INCOME_REFERENCE_TYPE = "school_income_records";
+const INCOME_REQUEST_TYPES = new Set([
+  "tuition_income_received",
+  "income_received",
+]);
+const INCOME_TRANSACTION_TYPE = "income";
 const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -99,6 +105,26 @@ function unwrapSingleRow<T>(data: T[] | T | null, context: string): T {
   }
 
   return data;
+}
+
+function isTeacherWageRequest(cashRequest: CashRequestRow): boolean {
+  return (
+    cashRequest.external_source === EXTERNAL_SOURCE &&
+    cashRequest.external_reference_type === TEACHER_WAGE_REFERENCE_TYPE &&
+    cashRequest.request_type === TEACHER_WAGE_REQUEST_TYPE &&
+    cashRequest.transaction_type === TEACHER_WAGE_TRANSACTION_TYPE &&
+    SUPPORTED_CURRENCIES.has(cashRequest.currency)
+  );
+}
+
+function isIncomeRequest(cashRequest: CashRequestRow): boolean {
+  return (
+    cashRequest.external_source === EXTERNAL_SOURCE &&
+    cashRequest.external_reference_type === INCOME_REFERENCE_TYPE &&
+    INCOME_REQUEST_TYPES.has(cashRequest.request_type) &&
+    cashRequest.transaction_type === INCOME_TRANSACTION_TYPE &&
+    SUPPORTED_CURRENCIES.has(cashRequest.currency)
+  );
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -215,15 +241,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    if (
-      cashRequest.external_source !== EXTERNAL_SOURCE ||
-      cashRequest.external_reference_type !== REFERENCE_TYPE ||
-      cashRequest.request_type !== REQUEST_TYPE ||
-      cashRequest.transaction_type !== TRANSACTION_TYPE ||
-      !SUPPORTED_CURRENCIES.has(cashRequest.currency)
-    ) {
+    const isTeacherWage = isTeacherWageRequest(cashRequest);
+    const isIncome = isIncomeRequest(cashRequest);
+
+    if (!isTeacherWage && !isIncome) {
       return jsonResponse(
-        { ok: false, message: "Cash request is not a supported School teacher wage payment request" },
+        { ok: false, message: "Cash request is not a supported School request" },
         400,
       );
     }
@@ -243,8 +266,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     if (action === "approved") {
+      const rpcName = isIncome
+        ? "school_mark_cash_income_confirmed"
+        : "school_mark_personal_cash_payment_request_confirmed";
       const { data: schoolData, error: schoolError } =
-        await schoolClient.rpc("school_mark_personal_cash_payment_request_confirmed", {
+        await schoolClient.rpc(rpcName, {
           p_event_id: cashRequest.external_event_id,
           p_cash_request_id: cashRequest.id,
           p_cash_transaction_id: cashRequest.created_transaction_id,
@@ -266,12 +292,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       const schoolResult = unwrapSingleRow<Record<string, unknown>>(
         schoolData as Record<string, unknown>[] | Record<string, unknown> | null,
-        "school_mark_personal_cash_payment_request_confirmed",
+        rpcName,
       );
 
       return jsonResponse({
         ok: true,
         action,
+        reference_type: cashRequest.external_reference_type,
         cash_request_id: cashRequest.id,
         cash_request_status: cashRequest.status,
         cash_transaction_id: cashRequest.created_transaction_id,
@@ -279,8 +306,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
       });
     }
 
+    const rpcName = isIncome
+      ? "school_mark_cash_income_rejected"
+      : "school_mark_personal_cash_payment_request_rejected";
     const { data: schoolData, error: schoolError } =
-      await schoolClient.rpc("school_mark_personal_cash_payment_request_rejected", {
+      await schoolClient.rpc(rpcName, {
         p_event_id: cashRequest.external_event_id,
         p_cash_request_id: cashRequest.id,
         p_rejected_reason: cashRequest.rejected_reason,
@@ -302,12 +332,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const schoolResult = unwrapSingleRow<Record<string, unknown>>(
       schoolData as Record<string, unknown>[] | Record<string, unknown> | null,
-      "school_mark_personal_cash_payment_request_rejected",
+      rpcName,
     );
 
     return jsonResponse({
       ok: true,
       action,
+      reference_type: cashRequest.external_reference_type,
       cash_request_id: cashRequest.id,
       cash_request_status: cashRequest.status,
       school: schoolResult,

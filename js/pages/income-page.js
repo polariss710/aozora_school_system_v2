@@ -30,7 +30,9 @@ const DEFAULT_FILTERS = {
 };
 
 const INCOME_STATUS_LABELS = {
+  pending: "待确认",
   received: "已收款",
+  reversed: "已冲销",
 };
 
 const INCOME_CATEGORY_LABELS = {
@@ -55,8 +57,12 @@ const PAYMENT_METHOD_LABELS = {
 };
 
 const CASH_LINKAGE_STATUS_LABELS = {
+  pending_cash_request: "Cash待提交",
+  awaiting_cash_confirmation: "Cash待确认",
   pending: "Cash待同步",
   synced: "Cash已同步",
+  cash_rejected: "Cash已拒绝",
+  blocked: "Cash已阻止",
   failed: "Cash失败",
 };
 
@@ -658,7 +664,7 @@ function showIncomeCreateSuccess(result, createMode) {
   const incomeId = result?.income_id;
   dom.messageArea.className = "message message-success";
   const message = isCashIncomeCreateModeValue(createMode)
-    ? "Cash System 收入已新增，等待 Cash 确认。"
+    ? "已提交 Cash System 待确认。"
     : "收入已新增并自动入账。";
   if (incomeId) {
     dom.messageArea.innerHTML = `${escapeHtml(message)}<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看详情</a>`;
@@ -1031,6 +1037,10 @@ function incomeStatusLabel(value) {
 }
 
 function statusClass(status) {
+  if (status === "pending") {
+    return "status-pending";
+  }
+
   if (status === "received") {
     return "status-paid";
   }
@@ -1051,9 +1061,9 @@ function cashLinkageStatusLabel(value) {
 }
 
 function cashLinkageStatusClass(value) {
-  if (value === "pending") return "status-pending";
+  if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "status-pending";
   if (value === "synced") return "status-paid";
-  if (value === "failed") return "status-cancelled";
+  if (value === "failed" || value === "cash_rejected" || value === "blocked") return "status-cancelled";
   return "status-neutral";
 }
 

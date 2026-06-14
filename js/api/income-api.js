@@ -28,10 +28,15 @@ const INCOME_COLUMNS = [
 const CASH_INCOME_LINKAGE_COLUMNS = [
   "id",
   "income_record_id",
+  "source_event_type",
   "sync_status",
+  "cash_request_id",
+  "cash_request_status",
   "cash_transaction_id",
   "last_error",
   "retry_count",
+  "attempt_no",
+  "requested_at",
   "synced_at",
 ].join(",");
 
@@ -118,10 +123,43 @@ export async function createPersonalCashTuitionIncome(payload) {
   return result;
 }
 
-export async function createCashSystemIncome() {
-  throw new Error(
-    "Cash System 收入保存需要后端 RPC / Edge Function 接入：创建 School income record、创建 Cash pending confirmation request，并在 Cash approve/reject 后回写 School。"
+export async function createCashSystemIncome(payload) {
+  const { data, error } = await supabase.functions.invoke(
+    "request-cash-income-confirmation",
+    {
+      body: {
+        income_date: payload.incomeDate,
+        settlement_month: payload.settlementMonth,
+        business_entity_id: payload.businessEntityId,
+        student_id: payload.studentId,
+        cash_account_id: payload.cashAccountId,
+        amount: payload.amount,
+        income_category: payload.incomeCategory,
+        description: payload.description || null,
+        currency: payload.currency,
+        exchange_rate: payload.exchangeRate || null,
+        payment_method: payload.paymentMethod || null,
+        is_taxable_income: Boolean(payload.isTaxableIncome),
+        tax_category: payload.taxCategory || null,
+        receipt_status: payload.receiptStatus || null,
+        note: payload.note || null,
+      },
+    }
   );
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.ok) {
+    throw new Error(data?.details || data?.message || "Cash System 收入提交失败。");
+  }
+
+  if (data.cash_request_status !== "pending") {
+    throw new Error("Cash System 收入未停留在待确认状态。");
+  }
+
+  return data;
 }
 
 export async function fetchIncomeLookups() {
@@ -174,7 +212,7 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
     .select(CASH_INCOME_LINKAGE_COLUMNS)
     .in("income_record_id", incomeIds)
     .eq("source_table", "school_income_records")
-    .eq("source_event_type", "tuition_income_received")
+    .in("source_event_type", ["tuition_income_received", "income_received"])
     .order("created_at", { ascending: false });
 
   if (error) {
