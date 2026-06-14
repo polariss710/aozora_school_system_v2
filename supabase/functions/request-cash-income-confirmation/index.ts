@@ -56,6 +56,11 @@ type SchoolIncomeRequestRow = {
   message: string;
 };
 
+type StudentDisplayRow = {
+  name: string | null;
+  display_name: string | null;
+};
+
 type CashRequestResult = {
   ok?: boolean;
   inserted?: boolean;
@@ -176,14 +181,18 @@ function optionalText(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function buildCashIncomeDescription(body: RequestBody): string {
+function buildCashIncomeDescription(
+  body: RequestBody,
+  studentName: string | null,
+): string {
   const category = optionalText(body.income_category) ?? "tuition";
-  const label = optionalText(body.description) ??
-    optionalText(body.note) ??
+  const label = optionalText(body.note) ??
+    optionalText(body.description) ??
     INCOME_CATEGORY_LABELS[category] ??
     category;
+  const detail = [studentName, label].filter(Boolean).join(" ");
 
-  return `私塾收入确认：${label}`;
+  return `私塾收入确认：${detail || label}`;
 }
 
 function unwrapSingleRow<T>(data: T[] | T | null, context: string): T {
@@ -245,6 +254,25 @@ async function listEligibleAccounts(
   }
 
   return (data || []) as CashAccountRow[];
+}
+
+async function fetchStudentDisplayName(
+  schoolClient: ReturnType<typeof createClient>,
+  studentId: string,
+): Promise<string | null> {
+  const { data, error } = await schoolClient
+    .from("school_students")
+    .select("name,display_name")
+    .eq("id", studentId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("School student display lookup failed", error.message);
+    return null;
+  }
+
+  const student = data as StudentDisplayRow | null;
+  return optionalText(student?.display_name) ?? optionalText(student?.name);
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -372,7 +400,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    const cashDescription = buildCashIncomeDescription(body);
+    const studentDisplayName = await fetchStudentDisplayName(
+      schoolClient,
+      studentId,
+    );
+    const cashDescription = buildCashIncomeDescription(
+      body,
+      studentDisplayName,
+    );
     const cashPayload = {
       external_source: CASH_EXTERNAL_SOURCE,
       external_event_id: schoolRequest.linkage_event_id,

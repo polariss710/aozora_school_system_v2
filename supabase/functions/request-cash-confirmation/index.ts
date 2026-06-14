@@ -59,6 +59,10 @@ type WageLockDisplayRow = {
   teacher_name: string | null;
 };
 
+type WageDetailDisplayRow = {
+  student_name: string | null;
+};
+
 type CashRequestResult = {
   ok?: boolean;
   inserted?: boolean;
@@ -158,7 +162,8 @@ function buildTeacherWageDescription(
     optionalText(payment?.request_month);
   const teacherName = optionalText(wageLock?.teacher_name) ??
     optionalText(payment?.payee_name);
-  const detail = [targetMonth, teacherName].filter(Boolean).join(" ");
+  const wageMonth = targetMonth ? `${targetMonth}工资` : null;
+  const detail = [teacherName, wageMonth].filter(Boolean).join(" ");
 
   return detail ? `青空塾老师工资支付：${detail}` : "青空塾老师工资支付";
 }
@@ -254,6 +259,46 @@ async function fetchWageLockDisplay(
   }
 
   return data as WageLockDisplayRow | null;
+}
+
+async function fetchWageStudentNote(
+  schoolClient: ReturnType<typeof createClient>,
+  wageLockId: string | null,
+  targetMonth: string | null,
+): Promise<string | null> {
+  if (!wageLockId || !targetMonth) {
+    return null;
+  }
+
+  const { data, error } = await schoolClient
+    .from("school_teacher_wage_lock_details")
+    .select("student_name")
+    .eq("lock_id", wageLockId)
+    .order("student_name", { ascending: true });
+
+  if (error) {
+    console.warn(
+      "School teacher wage detail display lookup failed",
+      error.message,
+    );
+    return null;
+  }
+
+  const rows = (data || []) as WageDetailDisplayRow[];
+  const seen = new Set<string>();
+  const parts: string[] = [];
+
+  for (const row of rows) {
+    const studentName = optionalText(row.student_name);
+    if (!studentName || seen.has(studentName)) {
+      continue;
+    }
+
+    seen.add(studentName);
+    parts.push(`${studentName} ${targetMonth}`);
+  }
+
+  return parts.length ? parts.join(" / ") : null;
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -391,6 +436,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
       schoolClient,
       paymentDisplay?.source_id ?? null,
     );
+    const wageTargetMonth = optionalText(wageLockDisplay?.settlement_month) ??
+      optionalText(paymentDisplay?.request_month);
+    const wageStudentNote = await fetchWageStudentNote(
+      schoolClient,
+      paymentDisplay?.source_id ?? null,
+      wageTargetMonth,
+    );
 
     const amount = Number(schoolRequest.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -424,7 +476,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
       paymentDisplay,
       wageLockDisplay,
     );
-    const cashNote = note ?? optionalText(paymentDisplay?.note) ?? "";
+    const cashNote = wageStudentNote ??
+      note ??
+      optionalText(paymentDisplay?.note) ??
+      "";
 
     const { data: cashRequestData, error: cashRequestError } =
       await cashClient.rpc("home_create_external_transaction_request", {
