@@ -65,6 +65,78 @@ where p.source_type = 'teacher_wage'
   and p.request_month = '2026-05'
 order by p.payee_name, p.business_name, p.created_at, p.id;
 
+with historical_void_requests as (
+  select
+    p.id as payment_request_id,
+    p.source_id as wage_lock_id,
+    p.payee_name as teacher_name,
+    p.business_name,
+    p.currency,
+    p.amount,
+    p.amount_jpy,
+    p.amount_cny,
+    p.status,
+    w.status as wage_lock_status,
+    w.voided_at,
+    w.void_reason
+  from public.school_payment_requests p
+  left join public.school_teacher_wage_locks w
+    on w.id = p.source_id
+  where p.source_type = 'teacher_wage'
+    and p.request_month = '2026-05'
+    and p.status = 'void'
+)
+select
+  'school:historical_void_requests_summary' as check_name,
+  count(*) as void_request_count,
+  count(*) filter (where currency = 'JPY') as jpy_count,
+  count(*) filter (where currency = 'CNY') as cny_count,
+  coalesce(sum(amount) filter (where currency = 'JPY'), 0) as jpy_amount_total,
+  coalesce(sum(amount) filter (where currency = 'CNY'), 0) as cny_amount_total,
+  coalesce(sum(amount_jpy), 0) as school_amount_jpy_total,
+  count(*) filter (where nullif(trim(coalesce(void_reason, '')), '') is not null) as with_void_reason_count,
+  min(voided_at) as first_voided_at,
+  max(voided_at) as last_voided_at
+from historical_void_requests;
+
+with historical_void_requests as (
+  select
+    p.id as payment_request_id,
+    p.source_id as wage_lock_id,
+    p.payee_name as teacher_name,
+    p.business_name,
+    p.currency,
+    p.amount,
+    p.amount_jpy,
+    p.amount_cny,
+    p.status,
+    w.status as wage_lock_status,
+    w.voided_at,
+    w.void_reason
+  from public.school_payment_requests p
+  left join public.school_teacher_wage_locks w
+    on w.id = p.source_id
+  where p.source_type = 'teacher_wage'
+    and p.request_month = '2026-05'
+    and p.status = 'void'
+)
+select
+  'school:historical_void_requests_detail' as check_name,
+  payment_request_id,
+  wage_lock_id,
+  teacher_name,
+  business_name,
+  amount,
+  amount_jpy,
+  amount_cny,
+  currency,
+  status,
+  wage_lock_status,
+  voided_at,
+  void_reason
+from historical_void_requests
+order by teacher_name, business_name, voided_at, payment_request_id;
+
 with duplicate_requests as (
   select
     p.source_id as wage_lock_id,
@@ -89,6 +161,11 @@ with target_requests as (
   where p.source_type = 'teacher_wage'
     and p.request_month = '2026-05'
 ),
+blocking_target_requests as (
+  select *
+  from target_requests
+  where status is distinct from 'void'
+),
 anomalies as (
   select
     'missing_or_mismatched_wage_lock' as issue,
@@ -112,7 +189,7 @@ anomalies as (
       when w.voided_at is not null then 'wage lock is voided'
       else 'unknown'
     end as detail
-  from target_requests p
+  from blocking_target_requests p
   left join public.school_teacher_wage_locks w
     on w.id = p.source_id
   where w.id is null
@@ -149,7 +226,7 @@ anomalies as (
       case when coalesce(p.amount_jpy, 0) <= 0 then 'amount_jpy <= 0' end,
       case when p.status not in ('pending', 'paid', 'cancelled', 'reversed') then 'unexpected status' end
     ) as detail
-  from target_requests p
+  from blocking_target_requests p
   where p.source_id is null
      or p.payee_id is null
      or nullif(trim(coalesce(p.payee_name, '')), '') is null
