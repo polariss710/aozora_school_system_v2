@@ -404,7 +404,7 @@ function renderIncomeRecords(rows) {
       <td class="income-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
       <td>${escapeHtml(studentNameById(row.student_id))}</td>
       <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
-      <td>${escapeHtml(accountNameById(row.account_id))}</td>
+      <td>${escapeHtml(incomeAccountDisplayName(row))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(incomeCategoryLabel(row.income_category))}</span></td>
       <td class="income-nowrap">${escapeHtml(displayValue(row.currency))}</td>
       <td class="number-cell income-nowrap">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
@@ -959,7 +959,7 @@ function matchesKeyword(row, keyword) {
   return [
     studentNameById(row.student_id),
     businessNameById(row.business_entity_id),
-    accountNameById(row.account_id),
+    incomeAccountDisplayName(row),
     incomeCategoryLabel(row.income_category),
     row.income_category,
     paymentMethodLabel(row.payment_method),
@@ -1008,6 +1008,41 @@ function accountNameById(id) {
   }
 
   return accountName(account);
+}
+
+function incomeAccountDisplayName(row) {
+  if (row?.cashIncomeLinkageEvent) {
+    return cashIncomeAccountName(row.cashIncomeLinkageEvent);
+  }
+
+  if (!row?.account_id && isCashIncomeRow(row)) {
+    return row?.status === "pending" ? "Cash待确认" : "Cash账户未取得";
+  }
+
+  return accountNameById(row?.account_id);
+}
+
+function isCashIncomeRow(row) {
+  return safeText(row?.receipt_status).includes("Cash");
+}
+
+function cashIncomeAccountName(event) {
+  const name = safeText(event.cash_account_name_snapshot);
+  const currency = safeText(event.currency);
+  const suffix = currency ? ` / ${currency}` : "";
+
+  if (name) {
+    return `${name}（Cash）${suffix}`;
+  }
+
+  if (event.cash_request_id || event.sync_status) {
+    return event.cash_request_status === "pending" ||
+      event.sync_status === "awaiting_cash_confirmation"
+      ? "Cash待确认"
+      : "Cash账户未取得";
+  }
+
+  return "Cash账户未取得";
 }
 
 function studentName(student) {
