@@ -7,17 +7,17 @@
 --
 -- Usage:
 --   School DB:
---     psql "<school-db-url>" -v ON_ERROR_STOP=1 -v run_school=1 -f school_202605_teacher_wage_cash_trial_readonly_checks.sql
+--     psql "<school-db-url>" -v ON_ERROR_STOP=1 -v run_school=true -v run_cash=false -f school_202605_teacher_wage_cash_trial_readonly_checks.sql
 --
 --   Cash DB:
---     psql "<cash-db-url>" -v ON_ERROR_STOP=1 -v run_cash=1 -f school_202605_teacher_wage_cash_trial_readonly_checks.sql
+--     psql "<cash-db-url>" -v ON_ERROR_STOP=1 -v run_school=false -v run_cash=true -f school_202605_teacher_wage_cash_trial_readonly_checks.sql
 --
 -- Safety:
 -- - Do not run both sections against one DB.
 -- - This file is intentionally SELECT-only, plus psql meta commands.
 -- - It does not approve, reject, retry, rollback, insert, update, delete, or call RPCs.
 
-\if :{?run_school}
+\if :run_school
 
 \echo '=== School DB: 2026-05 teacher_wage Cash trial read-only checks ==='
 
@@ -417,7 +417,7 @@ limit 20;
 
 \endif
 
-\if :{?run_cash}
+\if :run_cash
 
 \echo '=== Cash DB: 2026-05 teacher_wage Cash trial read-only checks ==='
 
