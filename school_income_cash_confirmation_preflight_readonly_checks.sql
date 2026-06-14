@@ -190,7 +190,7 @@ select
   count(*) filter (where sync_status = 'pending') as legacy_pending_count,
   count(*) filter (where sync_status = 'synced') as synced_count,
   count(*) filter (where sync_status = 'failed') as failed_count,
-  count(*) filter (where sync_status in ('pending_cash_request', 'awaiting_cash_confirmation')) as active_new_status_count,
+  count(*) filter (where sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation')) as active_new_status_count,
   count(*) filter (where sync_status = 'cash_rejected') as cash_rejected_count
 from public.school_personal_cash_income_linkage_events;
 
@@ -204,7 +204,7 @@ where e.source_table is distinct from 'school_income_records'
    or e.cash_transaction_table not in ('home_jpy_transactions', 'home_cny_transactions')
    or e.currency not in ('JPY', 'CNY')
    or coalesce(e.amount, 0) <= 0
-   or e.sync_status not in ('pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')
+   or e.sync_status not in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')
    or coalesce(e.retry_count, -1) < 0
    or nullif(trim(coalesce(e.idempotency_key, '')), '') is null
    or nullif(trim(coalesce(e.cash_account_name_snapshot, '')), '') is null
@@ -233,7 +233,7 @@ select
     case when e.cash_transaction_table not in ('home_jpy_transactions', 'home_cny_transactions') then 'unsupported cash_transaction_table' end,
     case when e.currency not in ('JPY', 'CNY') then 'unsupported currency' end,
     case when coalesce(e.amount, 0) <= 0 then 'non-positive amount' end,
-    case when e.sync_status not in ('pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked') then 'unsupported sync_status for target workflow' end,
+    case when e.sync_status not in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked') then 'unsupported sync_status for target workflow' end,
     case when coalesce(e.retry_count, -1) < 0 then 'negative retry_count' end,
     case when nullif(trim(coalesce(e.idempotency_key, '')), '') is null then 'blank idempotency_key' end,
     case when nullif(trim(coalesce(e.cash_account_name_snapshot, '')), '') is null then 'blank cash_account_name_snapshot' end,
@@ -246,7 +246,7 @@ where e.source_table is distinct from 'school_income_records'
    or e.cash_transaction_table not in ('home_jpy_transactions', 'home_cny_transactions')
    or e.currency not in ('JPY', 'CNY')
    or coalesce(e.amount, 0) <= 0
-   or e.sync_status not in ('pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')
+   or e.sync_status not in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')
    or coalesce(e.retry_count, -1) < 0
    or nullif(trim(coalesce(e.idempotency_key, '')), '') is null
    or nullif(trim(coalesce(e.cash_account_name_snapshot, '')), '') is null
@@ -263,7 +263,7 @@ select
   array_agg(e.id order by e.created_at, e.id) as linkage_event_ids,
   array_agg(e.sync_status order by e.created_at, e.id) as sync_statuses
 from public.school_personal_cash_income_linkage_events e
-where e.sync_status in ('pending_cash_request', 'awaiting_cash_confirmation')
+where e.sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation')
 group by e.source_table, e.source_id, e.source_event_type
 having count(*) > 1
 order by active_attempt_count desc, e.source_id;
@@ -400,7 +400,7 @@ select
   (
     select count(*)
     from public.school_personal_cash_income_linkage_events e
-    where e.sync_status not in ('pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')
+    where e.sync_status not in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')
   ) as target_sync_status_blockers,
   (
     select count(*)

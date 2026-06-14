@@ -153,7 +153,7 @@ begin
     from public.school_personal_cash_income_linkage_events e
     where e.income_record_id = v_income.id
       and e.source_table = 'school_income_records'
-      and e.source_event_type = 'tuition_income_received'
+      and e.source_event_type in ('tuition_income_received', 'income_received')
   ) then
     raise exception '该收入已进入 Cash System 联动流程，不能通过普通收入编辑。';
   end if;

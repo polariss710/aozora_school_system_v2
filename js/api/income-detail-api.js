@@ -313,7 +313,7 @@ async function fetchPersonalCashIncomeLinkageEvents(incomeId) {
     .select(CASH_INCOME_LINKAGE_COLUMNS)
     .eq("income_record_id", incomeId)
     .eq("source_table", "school_income_records")
-    .eq("source_event_type", "tuition_income_received")
+    .in("source_event_type", ["tuition_income_received", "income_received"])
     .order("created_at", { ascending: false });
 
   if (error) {

@@ -8,6 +8,8 @@
 -- - This file does not write real business data by itself. DML appears only
 --   inside guarded RPC bodies.
 
+begin;
+
 alter table public.school_income_records
   drop constraint if exists school_income_records_status_check;
 
@@ -100,7 +102,7 @@ alter table public.school_personal_cash_income_linkage_events
   add constraint school_pc_income_events_amount_check
     check (amount > 0),
   add constraint school_pc_income_events_status_check
-    check (sync_status in ('pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')),
+    check (sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation', 'synced', 'cash_rejected', 'failed', 'blocked')),
   add constraint school_pc_income_events_retry_count_check
     check (retry_count >= 0),
   add constraint school_pc_income_events_idempotency_not_blank_check
@@ -138,7 +140,7 @@ create unique index if not exists school_pc_income_events_active_attempt_uniq
     source_id,
     source_event_type
   )
-  where sync_status in ('pending_cash_request', 'awaiting_cash_confirmation');
+  where sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation');
 
 create index if not exists school_pc_income_events_income_record_idx
   on public.school_personal_cash_income_linkage_events (income_record_id);
@@ -584,7 +586,7 @@ begin
    where e.source_table = 'school_income_records'
      and e.source_id = p_income_record_id
      and e.source_event_type = v_request_type
-     and e.sync_status in ('pending_cash_request', 'awaiting_cash_confirmation')
+     and e.sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation')
    for update;
 
   if found then
@@ -1126,3 +1128,5 @@ grant execute on function public.school_mark_cash_income_confirmed(uuid, uuid, u
 
 grant execute on function public.school_mark_cash_income_rejected(uuid, uuid, text, timestamptz)
   to authenticated, service_role;
+
+commit;
