@@ -118,6 +118,12 @@ export async function createPersonalCashTuitionIncome(payload) {
   return result;
 }
 
+export async function createCashSystemIncome() {
+  throw new Error(
+    "Cash System 收入保存需要后端 RPC / Edge Function 接入：创建 School income record、创建 Cash pending confirmation request，并在 Cash approve/reject 后回写 School。"
+  );
+}
+
 export async function fetchIncomeLookups() {
   const [studentsResult, businessEntitiesResult, accountsResult] = await Promise.all([
     supabase

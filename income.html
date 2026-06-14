@@ -35,6 +35,25 @@
         </div>
       </header>
 
+      <section id="schoolAuthPanel" class="auth-panel" aria-label="School 登录">
+        <div>
+          <p class="auth-title">School 登录</p>
+          <p id="schoolAuthStatusText" class="auth-status">未登录</p>
+        </div>
+
+        <form id="schoolAuthForm" class="auth-form">
+          <input id="schoolAuthEmailInput" type="email" autocomplete="email" placeholder="email" aria-label="email">
+          <input id="schoolAuthPasswordInput" type="password" autocomplete="current-password" placeholder="password" aria-label="password">
+          <button id="schoolAuthLoginButton" class="button button-primary" type="submit">登录</button>
+        </form>
+
+        <div id="schoolAuthUserPanel" class="auth-user-panel is-hidden">
+          <button id="schoolAuthLogoutButton" class="button" type="button">登出</button>
+        </div>
+
+        <p id="schoolAuthMessage" class="auth-message" aria-live="polite"></p>
+      </section>
+
       <main class="page-main">
         <section id="incomeMessageArea" class="message is-hidden" aria-live="polite"></section>
 
@@ -174,7 +193,7 @@
       <section class="dialog-panel income-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createIncomeTitle">
         <div class="section-heading">
           <h2 id="createIncomeTitle">新增收入</h2>
-          <p class="section-note">通常收入会写入 school account 余额和账户流水；个人业务学费收入可进入 Cash System 待同步队列。</p>
+          <p class="section-note">通常收入使用 School / 法人账户直接入账；Cash System 收入提交后等待 Cash 确认。</p>
         </div>
 
         <div id="createIncomeError" class="dialog-error is-hidden"></div>
@@ -183,8 +202,8 @@
         <label class="field income-create-wide-field" data-create-income-field="createMode">
           <span>创建方式</span>
           <select id="createIncomeModeSelect">
-            <option value="school_account">通常收入（School account）</option>
-            <option value="personal_cash_tuition">个人业务学费收入（Cash System）</option>
+            <option value="school_account">通常收入（School / 法人账户）</option>
+            <option value="cash_system_income">Cash System 收入</option>
           </select>
         </label>
 
@@ -209,8 +228,16 @@
         </label>
 
         <label class="field" data-create-income-field="account">
-          <span>入账账户</span>
+          <span>School / 法人账户</span>
           <select id="createIncomeAccountSelect"></select>
+        </label>
+
+        <label class="field is-hidden" data-create-income-field="cashCurrency">
+          <span>收入币种</span>
+          <select id="createIncomeCurrencySelect">
+            <option value="JPY">JPY</option>
+            <option value="CNY">CNY</option>
+          </select>
         </label>
 
         <label class="field is-hidden" data-create-income-field="cashMapping">
