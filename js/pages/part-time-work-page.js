@@ -354,7 +354,7 @@ function buildEmptySettlementRow(workplaceName) {
 function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const isLocked = row.status === "locked" || row.status === "income_request_created";
   const isDraft = row.status === "draft";
-  const canLock = row.status === "draft" && Number(row.actual_lesson_count || 0) > 0;
+  const canLock = row.status === "draft";
   const canUnlock = row.status === "locked" && !row.income_request_id;
   const canCreateRequest = row.status === "locked" && !row.income_request_id;
   const canExport = Boolean(row.id) && isLocked;
@@ -418,10 +418,10 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
             <input class="inline-text-input" data-settlement-input="memo" type="text" value="${escapeAttribute(row.memo || "")}" ${saveDisabled}>
           </label>
           <div class="action-buttons part-time-work-settlement-actions">
-            ${isDraft ? `<button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>` : ""}
-            ${canUnlock ? `<button class="button table-action-button" type="button" data-settlement-action="unlock">撤销锁定</button>` : ""}
-            ${canCreateRequest ? `<button class="button table-action-button" type="button" data-settlement-action="request">生成收入请求</button>` : ""}
-            ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
+            <button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>
+            <button class="button table-action-button" type="button" data-settlement-action="unlock" ${canUnlock ? "" : "disabled"}>撤销锁定</button>
+            <button class="button table-action-button" type="button" data-settlement-action="request" ${canCreateRequest ? "" : "disabled"}>生成收入请求</button>
+            <button class="button table-action-button" type="button" data-settlement-action="export" ${canExport ? "" : "disabled"}>导出 Excel</button>
           </div>
         </div>
       </div>

@@ -1014,7 +1014,7 @@ h2 {
 .part-time-work-settlement-control-row {
   display: grid;
   align-items: end;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 520px;
   gap: 10px;
 }
 
@@ -1035,8 +1035,22 @@ h2 {
 
 .part-time-work-settlement-actions {
   min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   justify-content: flex-end;
-  flex-wrap: wrap;
+  width: 520px;
+}
+
+.part-time-work-settlement-actions .button {
+  width: 100%;
+}
+
+.part-time-work-settlement-actions .button:disabled {
+  border-color: #d1d5db;
+  background: #f3f4f6;
+  color: #9ca3af;
+  cursor: not-allowed;
+  opacity: 1;
 }
 
 .part-time-work-status-badge {
@@ -2452,7 +2466,9 @@ h2 {
   }
 
   .part-time-work-settlement-actions {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
     justify-content: flex-start;
+    width: 100%;
   }
 
   .part-time-work-wage-title-row {
