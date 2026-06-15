@@ -256,6 +256,7 @@ function renderLessonCard(row, options = {}) {
   const hasActual = row.record_kind === "planned" && Boolean(options.pairedActual || row.generated_actual_id);
   const canEdit = !isActual || !isLocked;
   const canDelete = row.record_kind === "planned" && !isLocked;
+  const canCopy = row.record_kind === "planned";
   const editConfirm = hasActual || isActual ? "true" : "false";
   const deleteConfirm = hasActual ? "true" : "false";
 
@@ -263,6 +264,7 @@ function renderLessonCard(row, options = {}) {
     <article class="lesson-pair-card part-time-work-pair-card">
       <div class="lesson-pair-card-header">
         <div class="action-buttons">
+          ${canCopy ? `<button class="button table-action-button" type="button" data-part-time-work-copy-id="${escapeAttribute(row.id)}">复制</button>` : ""}
           ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${editConfirm}">编辑</button>` : ""}
           ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${deleteConfirm}">删除</button>` : ""}
         </div>
@@ -297,6 +299,7 @@ function renderListRow(row) {
   const canGenerate = row.record_kind === "planned" && !row.generated_actual_id;
   const canEdit = !isActual || !isLocked;
   const canDelete = row.record_kind === "planned" && !isLocked;
+  const canCopy = row.record_kind === "planned";
   const confirmEdit = row.record_kind === "actual" || row.generated_actual_id ? "true" : "false";
   const confirmDelete = row.record_kind === "planned" && row.generated_actual_id ? "true" : "false";
 
@@ -318,6 +321,7 @@ function renderListRow(row) {
       <td class="action-cell">
         <div class="action-buttons">
           ${canGenerate ? `<button class="button table-action-button" type="button" data-part-time-work-generate-id="${escapeAttribute(row.id)}">生成实际</button>` : ""}
+          ${canCopy ? `<button class="button table-action-button" type="button" data-part-time-work-copy-id="${escapeAttribute(row.id)}">复制</button>` : ""}
           ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${confirmEdit}">编辑</button>` : ""}
           ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${confirmDelete}">删除</button>` : ""}
         </div>
@@ -477,6 +481,15 @@ async function submitDialog() {
 }
 
 async function handleLessonActionClick(event) {
+  const copyButton = event.target.closest("[data-part-time-work-copy-id]");
+  if (copyButton) {
+    const lesson = lessons.find((item) => item.id === copyButton.dataset.partTimeWorkCopyId);
+    if (lesson) {
+      await copyPlannedLesson(lesson);
+    }
+    return;
+  }
+
   const generateButton = event.target.closest("[data-part-time-work-generate-id]");
   if (generateButton) {
     const lesson = lessons.find((item) => item.id === generateButton.dataset.partTimeWorkGenerateId);
@@ -527,6 +540,31 @@ async function handleLessonActionClick(event) {
     await loadPageData();
   } catch (error) {
     showMessage("error", `打工课时删除失败：${error.message || error}`);
+  }
+}
+
+async function copyPlannedLesson(lesson) {
+  if (lesson.record_kind !== "planned") {
+    return;
+  }
+
+  try {
+    await createPartTimeWorkPlannedLesson({
+      workDate: lesson.work_date,
+      startTime: formatTimeInput(lesson.start_time),
+      endTime: formatTimeInput(lesson.end_time),
+      workplaceName: lesson.workplace_name,
+      teacherName: DEFAULT_TEACHER_NAME,
+      subjectName: lesson.subject_name,
+      classDescription: lesson.class_description || "",
+      hourlyRateJpy: lesson.hourly_rate_jpy ?? 0,
+      transportationFeeJpy: lesson.transportation_fee_jpy ?? 0,
+      memo: lesson.memo || "",
+    });
+    showMessage("success", "预定课时已复制。");
+    await loadPageData();
+  } catch (error) {
+    showMessage("error", `预定课时复制失败：${error.message || error}`);
   }
 }
 
