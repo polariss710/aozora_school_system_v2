@@ -1138,7 +1138,18 @@ h2 {
   width: min(680px, 100%);
 }
 
+.part-time-work-cash-dialog-panel {
+  width: min(720px, 100%);
+}
+
 .part-time-work-dialog-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.part-time-work-cash-dialog-grid {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2454,6 +2465,10 @@ h2 {
   .reimbursement-create-field-grid,
   .lesson-create-field-grid,
   .part-time-work-dialog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-cash-dialog-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

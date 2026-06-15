@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.119.0-part-time-work-workplace-settlement-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.120.0-part-time-work-cash-request-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -196,7 +196,69 @@
       </section>
     </div>
 
+    <div id="partTimeWorkCashDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--md part-time-work-cash-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="partTimeWorkCashDialogTitle">
+        <div class="section-heading">
+          <h2 id="partTimeWorkCashDialogTitle">提交 Cash 确认请求</h2>
+        </div>
+
+        <div id="partTimeWorkCashDialogError" class="dialog-error is-hidden"></div>
+
+        <div class="dialog-summary">
+          <div class="dialog-summary-row">
+            <span class="dialog-summary-label">打工先</span>
+            <strong id="partTimeWorkCashWorkplaceText">-</strong>
+          </div>
+          <div class="dialog-summary-row">
+            <span class="dialog-summary-label">年月</span>
+            <strong id="partTimeWorkCashYearMonthText">-</strong>
+          </div>
+          <div class="dialog-summary-row">
+            <span class="dialog-summary-label">原始工资</span>
+            <strong id="partTimeWorkCashOriginalAmountText">-</strong>
+          </div>
+        </div>
+
+        <div class="part-time-work-cash-dialog-grid">
+          <label class="field" data-part-time-work-cash-field="actualAmount">
+            <span>实际到账金额</span>
+            <input id="partTimeWorkCashActualAmountInput" type="number" step="0.01" min="0" inputmode="decimal">
+          </label>
+
+          <label class="field" data-part-time-work-cash-field="actualCurrency">
+            <span>实际到账币种</span>
+            <select id="partTimeWorkCashActualCurrencySelect">
+              <option value="CNY">CNY</option>
+              <option value="JPY">JPY</option>
+            </select>
+          </label>
+
+          <label class="field" data-part-time-work-cash-field="exchangeRate">
+            <span>汇率</span>
+            <input id="partTimeWorkCashExchangeRateInput" type="number" step="0.0000001" min="0" inputmode="decimal">
+          </label>
+
+          <label class="field" data-part-time-work-cash-field="cashAccount">
+            <span>收款账户</span>
+            <select id="partTimeWorkCashAccountSelect"></select>
+          </label>
+
+          <label class="field part-time-work-wide-field" data-part-time-work-cash-field="note">
+            <span>备注</span>
+            <textarea id="partTimeWorkCashNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <p id="partTimeWorkCashPreview" class="state-text">Cash 请求预览：-</p>
+
+        <div class="dialog-actions">
+          <button class="button" id="partTimeWorkCashCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="partTimeWorkCashSubmitButton" type="button">提交 Cash 请求</button>
+        </div>
+      </section>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v2.119.0-part-time-work-workplace-settlement-20260615"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.120.0-part-time-work-cash-request-20260615"></script>
   </body>
 </html>

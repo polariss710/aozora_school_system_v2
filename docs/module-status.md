@@ -32,7 +32,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
 | 导入导出 | 已收口 | Planned-only import stable; full actual/history import deferred |
 | 利润分析 | 只读完成 | Keep read-only |
-| 私塾打工 | Workflow V1 已安装 / 预计工资与锁定后 Excel 导出已接入 | Browser-smoke copy/generate/settlement/export later with whitelist data only |
+| 私塾打工 | Workflow V1 已安装 / 预计工资、锁定后 Excel 导出、专用 Cash pending request 链路已接入 | Cash UI 确认 2026-05 诺应教育 pending request 后验证回写 |
 | Backlog / 暂不实现 | Backlog | Separate guarded phases only; account/family ledger and broader personal teaching income designs remain |
 
 ## 课时管理
@@ -88,12 +88,12 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 私塾打工
 
-- 当前状态: Workflow V1 已替换旧模型 / SQL 已安装。旧 `school_part_time_work_records` 一条记录同时保存课时和工资的错误模型已废弃并从 DB 删除。当前正式模型使用 `school_part_time_work_lessons`、`school_part_time_work_monthly_settlements`、`school_part_time_work_monthly_settlement_details`、`school_part_time_work_income_requests`，SQL 来源为 `sql/current/school_part_time_work_workflow.sql`。
+- 当前状态: Workflow V1 已替换旧模型 / SQL 已安装 / 专用 Cash pending request 链路已安装。旧 `school_part_time_work_records` 一条记录同时保存课时和工资的错误模型已废弃并从 DB 删除。当前正式模型使用 `school_part_time_work_lessons`、`school_part_time_work_monthly_settlements`、`school_part_time_work_monthly_settlement_details`、`school_part_time_work_income_requests`，课时/结算 SQL 来源为 `sql/current/school_part_time_work_workflow.sql`，Cash request 扩展来源为 `sql/current/school_part_time_work_cash_request_workflow.sql`。
 - 业务定位: 外部私塾 / 外部机构兼职授课流程，独立记录 planned 预定打工课时和 actual 实际打工课时；实际课时由预定课时生成；月底按 `year_month + 打工先` 结算工资；锁定后冻结明细快照；锁定后可生成 School 侧收入请求。
-- 边界: 不混入现有学生记录，不复用 lesson management，不进入 teacher_wage 结算，不创建 teacher_wage payment request，不写 School expense/account transaction，不连接 Cash DB，也不自动写 `home_account_book`。本轮收入请求仅为 School 侧记录，后续 Cash receipt confirmation 另开 guarded phase。
+- 边界: 不混入现有学生记录，不复用 lesson management，不进入 teacher_wage 结算，不创建 teacher_wage payment request，不写 School expense/account transaction。Cash linkage 只创建 Cash `home_external_transaction_requests.status = pending` 请求；Cash approve/reject 仍由 Cash UI 用户操作，approve 才生成 Cash transaction 并回写 School，reject 不生成 Cash transaction。
 - 计算/权限: 课时工资和结算总额由 RPC 统一计算。开始时间、结束时间、回数、累计课时为必填；RPC 根据时间差计算单次 planned / actual 课时。旧课程组字段已从 lesson rows 和 locked detail snapshots 物理删除。回数和累计课时只用于明细展示，不进入预计工资、工资结算、monthly settlement 或锁定快照金额计算。预计工资只取 planned hours * 各 planned 行时给并加 planned 交通费。月度结算课时合计只取 actual 课时合计，实际课时工资汇总各 actual 行已保存课时工资。交通费保存在 planned / actual 课时上且允许为 0；月度结算行不再有单独保存动作，锁定时读取当前调整额和备注、保存总额并写入 settlement detail snapshots。locked 且未生成收入请求时可撤销锁定，撤销会删除 snapshot 并回到 draft；生成收入请求后不能撤销。锁定后 Excel 导出只读取 detail snapshot，不用当前可变课时重算。所有 page-facing list/create/update/delete/generate/lock/unlock/request/export RPC 只 grant execute to `authenticated`，不 grant anon。
-- 当前限制 / hard stop: 不做 Cash 写入、月度锁定以外的审批、复杂导出模板、历史导入、真实业务数据迁移或与 teacher_wage/payment request 的复用。旧 V1 active 行经用户确认是新建状态后已随表删除。
-- 下一步: 使用 whitelist `TEST_外部塾_EXPORT` 做端到端 smoke，并在后续单独阶段设计 School income request -> Cash receipt confirmation。
+- 当前限制 / hard stop: 不自动 approve/reject Cash request，不从 School 直接创建 Cash transaction，不改 locked settlement 金额，不做月度锁定以外的审批、复杂导出模板、历史导入、真实业务数据迁移或与 teacher_wage/payment request 的复用。旧 V1 active 行经用户确认是新建状态后已随表删除。
+- 下一步: Cash UI 确认 2026-05 诺应教育 pending request `19ba6cbd-9588-486b-8b2a-b4b7c573f252` 后验证 `sync-cash-request-result` 回写 School；如需异常分支，使用 whitelist 测试数据单独验证 reject/retry。
 
 ## 支出记录
 

@@ -5,11 +5,13 @@ import {
   createPartTimeWorkIncomeRequest,
   createPartTimeWorkPlannedLesson,
   deletePartTimeWorkLesson,
+  fetchPartTimeWorkCashEligibleAccounts,
   fetchPartTimeWorkLessons,
   fetchPartTimeWorkMonthlySettlements,
   fetchPartTimeWorkSettlementExport,
   generatePartTimeWorkActualFromPlanned,
   lockPartTimeWorkMonthlySettlement,
+  requestPartTimeWorkCashConfirmation,
   unlockPartTimeWorkMonthlySettlement,
   updatePartTimeWorkLesson,
 } from "../api/part-time-work-api.js";
@@ -49,7 +51,7 @@ const SETTLEMENT_STATUS_LABELS = {
 };
 
 const INCOME_REQUEST_STATUS_LABELS = {
-  pending_cash_request: "待生成 Cash 请求",
+  pending_cash_request: "待提交 Cash 请求",
   awaiting_cash_confirmation: "Cash 待确认",
   synced: "已同步",
   cash_rejected: "Cash 已拒绝",
@@ -61,9 +63,13 @@ const dom = {};
 let lessons = [];
 let wageLessons = [];
 let settlements = [];
+let cashEligibleAccounts = [];
+let hasLoadedCashEligibleAccounts = false;
 let editingLesson = null;
+let cashDialogSettlement = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
 let isSubmitting = false;
+let isCashSubmitting = false;
 const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
 
@@ -125,6 +131,19 @@ function cacheDom() {
   dom.preview = document.querySelector("#partTimeWorkPreview");
   dom.cancelButton = document.querySelector("#partTimeWorkCancelButton");
   dom.submitButton = document.querySelector("#partTimeWorkSubmitButton");
+  dom.cashDialog = document.querySelector("#partTimeWorkCashDialog");
+  dom.cashDialogError = document.querySelector("#partTimeWorkCashDialogError");
+  dom.cashWorkplaceText = document.querySelector("#partTimeWorkCashWorkplaceText");
+  dom.cashYearMonthText = document.querySelector("#partTimeWorkCashYearMonthText");
+  dom.cashOriginalAmountText = document.querySelector("#partTimeWorkCashOriginalAmountText");
+  dom.cashActualAmountInput = document.querySelector("#partTimeWorkCashActualAmountInput");
+  dom.cashActualCurrencySelect = document.querySelector("#partTimeWorkCashActualCurrencySelect");
+  dom.cashExchangeRateInput = document.querySelector("#partTimeWorkCashExchangeRateInput");
+  dom.cashAccountSelect = document.querySelector("#partTimeWorkCashAccountSelect");
+  dom.cashNoteInput = document.querySelector("#partTimeWorkCashNoteInput");
+  dom.cashPreview = document.querySelector("#partTimeWorkCashPreview");
+  dom.cashCancelButton = document.querySelector("#partTimeWorkCashCancelButton");
+  dom.cashSubmitButton = document.querySelector("#partTimeWorkCashSubmitButton");
 }
 
 function bindEvents() {
@@ -142,6 +161,8 @@ function bindEvents() {
   dom.openCreateButton.addEventListener("click", openCreatePlannedDialog);
   dom.cancelButton.addEventListener("click", closeDialog);
   dom.submitButton.addEventListener("click", submitDialog);
+  dom.cashCancelButton.addEventListener("click", closeCashDialog);
+  dom.cashSubmitButton.addEventListener("click", submitCashDialog);
   dom.lessonColumns.addEventListener("click", handleWorkplaceToggleClick);
   dom.lessonColumns.addEventListener("click", handleLessonActionClick);
   dom.wageCalculationContainer.addEventListener("click", handleWageToggleClick);
@@ -166,6 +187,23 @@ function bindEvents() {
       clearFieldInvalid(input);
       hideDialogErrorIfClean();
       updatePreview();
+    });
+  }
+
+  for (const input of [
+    dom.cashActualAmountInput,
+    dom.cashActualCurrencySelect,
+    dom.cashExchangeRateInput,
+    dom.cashAccountSelect,
+    dom.cashNoteInput,
+  ]) {
+    input.addEventListener("input", () => {
+      clearCashFieldInvalid(input);
+      hideCashDialogErrorIfClean();
+      if (input === dom.cashActualCurrencySelect) {
+        renderCashAccountOptions();
+      }
+      updateCashPreview({ inferExchangeRate: input !== dom.cashExchangeRateInput });
     });
   }
 }
@@ -356,7 +394,13 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const canLock = row.status === "draft";
   const canUnlock = row.status === "locked" && !row.income_request_id;
   const canCreateRequest = row.status === "locked" && !row.income_request_id;
+  const canSubmitCashRequest = row.status === "income_request_created" &&
+    Boolean(row.income_request_id) &&
+    row.income_request_status === "pending_cash_request";
   const canExport = Boolean(row.id) && isLocked;
+  const requestButtonAction = row.income_request_id ? "cash" : "request";
+  const requestButtonEnabled = row.income_request_id ? canSubmitCashRequest : canCreateRequest;
+  const requestButtonLabel = row.income_request_id ? "提交Cash请求" : "生成收入请求";
   const saveDisabled = isLocked ? "disabled" : "";
   const isCollapsed = collapsedWageWorkplaces.has(workplaceName);
 
@@ -419,7 +463,7 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
           <div class="action-buttons part-time-work-settlement-actions">
             <button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>
             <button class="button table-action-button" type="button" data-settlement-action="unlock" ${canUnlock ? "" : "disabled"}>撤销锁定</button>
-            <button class="button table-action-button" type="button" data-settlement-action="request" ${canCreateRequest ? "" : "disabled"}>生成收入请求</button>
+            <button class="button table-action-button" type="button" data-settlement-action="${requestButtonAction}" ${requestButtonEnabled ? "" : "disabled"}>${requestButtonLabel}</button>
             <button class="button table-action-button" type="button" data-settlement-action="export" ${canExport ? "" : "disabled"}>导出 Excel</button>
           </div>
         </div>
@@ -532,6 +576,216 @@ function closeDialog() {
   }
   dom.dialog.classList.add("is-hidden");
   dom.dialog.setAttribute("aria-hidden", "true");
+}
+
+async function openCashDialog(workplaceName) {
+  if (!isLoggedIn()) {
+    showMessage("error", "请先登录后提交 Cash 确认请求。");
+    return;
+  }
+
+  const settlement = settlements.find((item) => item.workplace_name === workplaceName);
+  if (!settlement?.income_request_id) {
+    showMessage("error", "请先生成 School 侧收入请求。");
+    return;
+  }
+
+  if (settlement.income_request_status !== "pending_cash_request") {
+    showMessage("error", `当前收入请求状态不可提交 Cash：${incomeRequestStatusLabel(settlement.income_request_status)}。`);
+    return;
+  }
+
+  try {
+    await ensureCashAccountsLoaded();
+  } catch (error) {
+    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
+    return;
+  }
+
+  cashDialogSettlement = settlement;
+  hideCashDialogError();
+  clearCashInvalidFields();
+  dom.cashWorkplaceText.textContent = settlement.workplace_name || "-";
+  dom.cashYearMonthText.textContent = settlement.year_month || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  dom.cashOriginalAmountText.textContent = formatCurrency(settlement.total_wage_jpy, "JPY");
+  dom.cashActualAmountInput.value = "";
+  dom.cashActualCurrencySelect.value = "CNY";
+  dom.cashExchangeRateInput.value = "";
+  dom.cashNoteInput.value = `${settlement.workplace_name} ${settlement.year_month} 外部塾打工收入，JPY工资总额${formatCurrency(settlement.total_wage_jpy, "JPY")}。`;
+  renderCashAccountOptions();
+  updateCashPreview();
+  dom.cashDialog.classList.remove("is-hidden");
+  dom.cashDialog.setAttribute("aria-hidden", "false");
+  dom.cashActualAmountInput.focus();
+}
+
+function closeCashDialog() {
+  if (isCashSubmitting) {
+    return;
+  }
+  dom.cashDialog.classList.add("is-hidden");
+  dom.cashDialog.setAttribute("aria-hidden", "true");
+  cashDialogSettlement = null;
+}
+
+async function ensureCashAccountsLoaded() {
+  if (hasLoadedCashEligibleAccounts) {
+    return;
+  }
+
+  cashEligibleAccounts = await fetchPartTimeWorkCashEligibleAccounts();
+  hasLoadedCashEligibleAccounts = true;
+}
+
+function renderCashAccountOptions() {
+  const selectedValue = dom.cashAccountSelect.value;
+  const currency = dom.cashActualCurrencySelect.value;
+  const accounts = cashEligibleAccounts.filter((account) => (
+    account?.is_active === true &&
+    account?.allow_school_requests === true &&
+    account.currency === currency
+  ));
+  dom.cashAccountSelect.innerHTML = [
+    '<option value="">请选择 Cash 收款账户</option>',
+    ...accounts.map((account) => (
+      `<option value="${escapeAttribute(account.id)}">${escapeHtml(cashAccountLabel(account))}</option>`
+    )),
+  ].join("");
+
+  if (accounts.some((account) => account.id === selectedValue)) {
+    dom.cashAccountSelect.value = selectedValue;
+  }
+}
+
+async function submitCashDialog() {
+  if (isCashSubmitting || !cashDialogSettlement) {
+    return;
+  }
+
+  const payload = readCashPayload();
+  if (!payload) {
+    return;
+  }
+
+  if (!window.confirm("确认提交 Cash 待确认请求？这不会直接写入 Cash 流水，Cash 确认后才会入账。")) {
+    return;
+  }
+
+  isCashSubmitting = true;
+  dom.cashSubmitButton.disabled = true;
+
+  try {
+    await requestPartTimeWorkCashConfirmation(payload);
+    showMessage("success", `${cashDialogSettlement.workplace_name} Cash 确认请求已提交，等待 Cash 侧确认。`);
+    isCashSubmitting = false;
+    dom.cashSubmitButton.disabled = false;
+    closeCashDialog();
+    await loadPageData();
+  } catch (error) {
+    isCashSubmitting = false;
+    dom.cashSubmitButton.disabled = false;
+    showCashDialogError(`Cash 确认请求提交失败：${error.message || error}`);
+  }
+}
+
+function readCashPayload() {
+  clearCashInvalidFields();
+  hideCashDialogError();
+
+  const settlement = cashDialogSettlement;
+  if (!settlement?.income_request_id) {
+    showCashDialogError("收入请求无效，请刷新后重试。");
+    return null;
+  }
+
+  const actualReceivedAmount = Number(dom.cashActualAmountInput.value);
+  if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
+    showCashDialogError("请输入大于 0 的实际到账金额。", ["actualAmount"]);
+    return null;
+  }
+
+  const actualReceivedCurrency = dom.cashActualCurrencySelect.value;
+  if (!["JPY", "CNY"].includes(actualReceivedCurrency)) {
+    showCashDialogError("请选择实际到账币种。", ["actualCurrency"]);
+    return null;
+  }
+
+  const cashAccountId = dom.cashAccountSelect.value;
+  if (!cashAccountId) {
+    showCashDialogError("请选择 Cash 收款账户。", ["cashAccount"]);
+    return null;
+  }
+
+  const cashAccount = cashEligibleAccounts.find((account) => account.id === cashAccountId);
+  if (!cashAccount || cashAccount.currency !== actualReceivedCurrency) {
+    showCashDialogError("Cash 收款账户币种与实际到账币种不一致。", ["cashAccount"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.cashExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (actualReceivedCurrency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showCashDialogError("CNY 实际到账必须填写本次汇率。", ["exchangeRate"]);
+    return null;
+  }
+
+  if (actualReceivedCurrency === "JPY" && exchangeRate !== null && exchangeRate !== 1) {
+    showCashDialogError("JPY 实际到账汇率应为空或 1。", ["exchangeRate"]);
+    return null;
+  }
+
+  return {
+    incomeRequestId: settlement.income_request_id,
+    cashAccountId,
+    actualReceivedAmount,
+    actualReceivedCurrency,
+    exchangeRate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
+    note: buildCashNote(settlement, actualReceivedAmount, actualReceivedCurrency, exchangeRate),
+  };
+}
+
+function updateCashPreview(options = {}) {
+  if (!cashDialogSettlement) {
+    dom.cashPreview.textContent = "Cash 请求预览：-";
+    return;
+  }
+
+  const amount = Number(dom.cashActualAmountInput.value);
+  const currency = dom.cashActualCurrencySelect.value;
+  const originalJpy = Number(cashDialogSettlement.total_wage_jpy || 0);
+  if (currency === "JPY") {
+    dom.cashExchangeRateInput.value = "1";
+    dom.cashExchangeRateInput.disabled = true;
+  } else {
+    dom.cashExchangeRateInput.disabled = false;
+    if (options.inferExchangeRate && Number.isFinite(amount) && amount > 0 && originalJpy > 0 && !dom.cashExchangeRateInput.value.trim()) {
+      dom.cashExchangeRateInput.value = String(roundDecimal(amount / originalJpy, 7));
+    }
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    dom.cashPreview.textContent = `Cash 请求预览：原始工资 ${formatCurrency(originalJpy, "JPY")} / 实际到账 -`;
+    return;
+  }
+
+  const rateText = dom.cashExchangeRateInput.value.trim();
+  const rate = rateText ? Number(rateText) : null;
+  dom.cashPreview.textContent = [
+    "Cash 请求预览：",
+    `${cashDialogSettlement.workplace_name} / ${cashDialogSettlement.year_month}`,
+    `原始工资 ${formatCurrency(originalJpy, "JPY")}`,
+    `实际到账 ${formatCurrency(amount, currency)}`,
+    rate ? `汇率 ${rate}` : "",
+  ].filter(Boolean).join(" / ");
+}
+
+function buildCashNote(settlement, amount, currency, exchangeRate) {
+  const base = dom.cashNoteInput.value.trim();
+  const requiredText = `${settlement.workplace_name} ${settlement.year_month} 外部塾打工收入，JPY工资总额${formatCurrency(settlement.total_wage_jpy, "JPY")}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，汇率${exchangeRate}` : ""}`;
+  if (!base) {
+    return requiredText;
+  }
+  return base.includes("实际到账") ? base : `${base}；${requiredText}`;
 }
 
 function showDialog() {
@@ -719,6 +973,9 @@ async function handleSettlementActionClick(event) {
       }
       await createPartTimeWorkIncomeRequest(settlementId);
       showMessage("success", `${workplaceName} 收入请求已生成。`);
+    } else if (action === "cash") {
+      await openCashDialog(workplaceName);
+      return;
     } else if (action === "export") {
       await handleSettlementExport(settlementId, workplaceName);
       return;
@@ -1029,12 +1286,35 @@ function hideDialogErrorIfClean() {
   }
 }
 
+function showCashDialogError(text, fieldIds = []) {
+  dom.cashDialogError.textContent = text;
+  dom.cashDialogError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    dom.cashDialog.querySelector(`[data-part-time-work-cash-field="${fieldId}"]`)?.classList.add("is-invalid");
+  }
+}
+
+function hideCashDialogError() {
+  dom.cashDialogError.textContent = "";
+  dom.cashDialogError.classList.add("is-hidden");
+}
+
+function hideCashDialogErrorIfClean() {
+  if (!dom.cashDialogError.textContent) {
+    dom.cashDialogError.classList.add("is-hidden");
+  }
+}
+
 function markFieldInvalid(input) {
   input?.closest(".field")?.classList.add("is-invalid");
 }
 
 function clearFieldInvalid(input) {
   input?.closest(".field")?.classList.remove("is-invalid");
+}
+
+function clearCashFieldInvalid(input) {
+  input?.closest("[data-part-time-work-cash-field]")?.classList.remove("is-invalid");
 }
 
 function clearInvalidFields() {
@@ -1052,6 +1332,12 @@ function clearInvalidFields() {
   ]) {
     clearFieldInvalid(input);
   }
+}
+
+function clearCashInvalidFields() {
+  dom.cashDialog.querySelectorAll("[data-part-time-work-cash-field]").forEach((field) => {
+    field.classList.remove("is-invalid");
+  });
 }
 
 function renderOptionSelect(select, options, config = {}) {
@@ -1166,6 +1452,18 @@ function incomeRequestStatusClass(status) {
   if (status === "pending_cash_request" || status === "awaiting_cash_confirmation") return "status-reversed";
   if (status === "cash_rejected" || status === "failed" || status === "blocked") return "status-cancelled";
   return "status-neutral";
+}
+
+function cashAccountLabel(account) {
+  const name = safeText(account?.name) || account?.id || "未命名账户";
+  const currency = safeText(account?.currency);
+  const type = safeText(account?.account_type);
+  return [name, currency, type].filter(Boolean).join(" / ");
+}
+
+function roundDecimal(value, digits) {
+  const factor = 10 ** digits;
+  return Math.round(Number(value) * factor) / factor;
 }
 
 function formatHours(value) {

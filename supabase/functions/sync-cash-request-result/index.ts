@@ -47,6 +47,8 @@ const INCOME_REQUEST_TYPES = new Set([
   "income_received",
 ]);
 const INCOME_TRANSACTION_TYPE = "income";
+const PART_TIME_WORK_INCOME_REFERENCE_TYPE = "school_part_time_work_income_requests";
+const PART_TIME_WORK_INCOME_REQUEST_TYPE = "part_time_work_income_received";
 const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -122,6 +124,16 @@ function isIncomeRequest(cashRequest: CashRequestRow): boolean {
     cashRequest.external_source === EXTERNAL_SOURCE &&
     cashRequest.external_reference_type === INCOME_REFERENCE_TYPE &&
     INCOME_REQUEST_TYPES.has(cashRequest.request_type) &&
+    cashRequest.transaction_type === INCOME_TRANSACTION_TYPE &&
+    SUPPORTED_CURRENCIES.has(cashRequest.currency)
+  );
+}
+
+function isPartTimeWorkIncomeRequest(cashRequest: CashRequestRow): boolean {
+  return (
+    cashRequest.external_source === EXTERNAL_SOURCE &&
+    cashRequest.external_reference_type === PART_TIME_WORK_INCOME_REFERENCE_TYPE &&
+    cashRequest.request_type === PART_TIME_WORK_INCOME_REQUEST_TYPE &&
     cashRequest.transaction_type === INCOME_TRANSACTION_TYPE &&
     SUPPORTED_CURRENCIES.has(cashRequest.currency)
   );
@@ -243,8 +255,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const isTeacherWage = isTeacherWageRequest(cashRequest);
     const isIncome = isIncomeRequest(cashRequest);
+    const isPartTimeWorkIncome = isPartTimeWorkIncomeRequest(cashRequest);
 
-    if (!isTeacherWage && !isIncome) {
+    if (!isTeacherWage && !isIncome && !isPartTimeWorkIncome) {
       return jsonResponse(
         { ok: false, message: "Cash request is not a supported School request" },
         400,
@@ -266,16 +279,26 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     if (action === "approved") {
-      const rpcName = isIncome
+      const rpcName = isPartTimeWorkIncome
+        ? "school_mark_part_time_work_cash_income_confirmed"
+        : isIncome
         ? "school_mark_cash_income_confirmed"
         : "school_mark_personal_cash_payment_request_confirmed";
-      const { data: schoolData, error: schoolError } =
-        await schoolClient.rpc(rpcName, {
+      const rpcPayload = isPartTimeWorkIncome
+        ? {
+          p_income_request_id: cashRequest.external_reference_id,
+          p_cash_request_id: cashRequest.id,
+          p_cash_transaction_id: cashRequest.created_transaction_id,
+          p_confirmed_at: cashRequest.approved_at,
+        }
+        : {
           p_event_id: cashRequest.external_event_id,
           p_cash_request_id: cashRequest.id,
           p_cash_transaction_id: cashRequest.created_transaction_id,
           p_confirmed_at: cashRequest.approved_at,
-        });
+        };
+      const { data: schoolData, error: schoolError } =
+        await schoolClient.rpc(rpcName, rpcPayload);
 
       if (schoolError) {
         return jsonResponse(
@@ -306,16 +329,26 @@ Deno.serve(async (request: Request): Promise<Response> => {
       });
     }
 
-    const rpcName = isIncome
+    const rpcName = isPartTimeWorkIncome
+      ? "school_mark_part_time_work_cash_income_rejected"
+      : isIncome
       ? "school_mark_cash_income_rejected"
       : "school_mark_personal_cash_payment_request_rejected";
-    const { data: schoolData, error: schoolError } =
-      await schoolClient.rpc(rpcName, {
+    const rpcPayload = isPartTimeWorkIncome
+      ? {
+        p_income_request_id: cashRequest.external_reference_id,
+        p_cash_request_id: cashRequest.id,
+        p_rejected_reason: cashRequest.rejected_reason,
+        p_rejected_at: cashRequest.rejected_at,
+      }
+      : {
         p_event_id: cashRequest.external_event_id,
         p_cash_request_id: cashRequest.id,
         p_rejected_reason: cashRequest.rejected_reason,
         p_rejected_at: cashRequest.rejected_at,
-      });
+      };
+    const { data: schoolData, error: schoolError } =
+      await schoolClient.rpc(rpcName, rpcPayload);
 
     if (schoolError) {
       return jsonResponse(
