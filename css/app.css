@@ -886,6 +886,10 @@ h2 {
 }
 
 .part-time-work-workplace-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
   color: var(--text);
   font-size: 15px;

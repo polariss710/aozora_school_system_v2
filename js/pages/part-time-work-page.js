@@ -62,6 +62,7 @@ let settlements = [];
 let editingLesson = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
 let isSubmitting = false;
+const expandedWorkplaces = new Set();
 
 export async function initPartTimeWorkPage() {
   cacheDom();
@@ -138,6 +139,7 @@ function bindEvents() {
   dom.openCreateButton.addEventListener("click", openCreatePlannedDialog);
   dom.cancelButton.addEventListener("click", closeDialog);
   dom.submitButton.addEventListener("click", submitDialog);
+  dom.lessonColumns.addEventListener("click", handleWorkplaceToggleClick);
   dom.lessonColumns.addEventListener("click", handleLessonActionClick);
   dom.tableBody.addEventListener("click", handleLessonActionClick);
   dom.settlementTableBody.addEventListener("click", handleSettlementActionClick);
@@ -214,13 +216,17 @@ function renderWorkflowColumns(rows) {
 
   return WORKPLACE_OPTIONS.map((workplace) => {
     const workplacePlannedRows = plannedRows.filter((row) => row.workplace_name === workplace);
+    const isExpanded = expandedWorkplaces.has(workplace);
     const body = workplacePlannedRows.length
       ? workplacePlannedRows.map((planned) => renderLessonPair(planned, actualRows.find((actual) => actual.planned_lesson_id === planned.id))).join("")
       : `<div class="lesson-pair-placeholder">暂无预定课时</div>`;
     return `
       <section class="part-time-work-workplace-section">
-        <div class="part-time-work-workplace-title">${escapeHtml(workplace)}</div>
-        <div class="part-time-work-workplace-body">${body}</div>
+        <div class="part-time-work-workplace-title">
+          <span>${escapeHtml(workplace)}</span>
+          <button class="button table-action-button" type="button" data-part-time-work-toggle-workplace="${escapeAttribute(workplace)}" aria-expanded="${String(isExpanded)}">${isExpanded ? "折叠" : "展开"}</button>
+        </div>
+        <div class="part-time-work-workplace-body ${isExpanded ? "" : "is-hidden"}">${body}</div>
       </section>
     `;
   }).join("");
@@ -481,6 +487,10 @@ async function submitDialog() {
 }
 
 async function handleLessonActionClick(event) {
+  if (event.target.closest("[data-part-time-work-toggle-workplace]")) {
+    return;
+  }
+
   const copyButton = event.target.closest("[data-part-time-work-copy-id]");
   if (copyButton) {
     const lesson = lessons.find((item) => item.id === copyButton.dataset.partTimeWorkCopyId);
@@ -541,6 +551,26 @@ async function handleLessonActionClick(event) {
   } catch (error) {
     showMessage("error", `打工课时删除失败：${error.message || error}`);
   }
+}
+
+function handleWorkplaceToggleClick(event) {
+  const button = event.target.closest("[data-part-time-work-toggle-workplace]");
+  if (!button) {
+    return;
+  }
+
+  const workplace = button.dataset.partTimeWorkToggleWorkplace;
+  if (!workplace) {
+    return;
+  }
+
+  if (expandedWorkplaces.has(workplace)) {
+    expandedWorkplaces.delete(workplace);
+  } else {
+    expandedWorkplaces.add(workplace);
+  }
+
+  renderLessons(lessons);
 }
 
 async function copyPlannedLesson(lesson) {
