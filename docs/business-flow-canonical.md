@@ -152,6 +152,13 @@ Cash 侧手动支出 -> School 侧新增“法人账户调拨”收入记录 -> 
 - Cash 只确认支出记录，不理解 `teacher_wage` 业务。
 - 老师工资明细、学生归属、工资快照、交通费/教室费/调整项等业务信息属于 School。
 
+2026-06-15 第二阶段准备状态：
+
+- `school_expense_records` 是老师工资新链路的承接表。
+- `school_expense_records.source_type = teacher_wage`，`source_id` 指向老师工资快照来源。
+- 老师工资支出记录通过专用 RPC 从 locked wage snapshot 生成；普通支出新增仍不得手动创建 `teacher_wage`。
+- 本阶段只补齐支出记录模型和生成入口，不提交 Cash 请求，不迁移历史 payment request，不禁用旧页面入口。
+
 ## 7. 当前已知违规链路
 
 以下内容仅记录为待修复项，本轮不修复、不清理、不确认、不驳回。
@@ -212,6 +219,7 @@ part_time_work -> School 收入记录 -> Cash request
 - 老师工资改为生成 School 支出记录。
 - 支出记录页面统一负责向 Cash 发付款请求。
 - 禁用 `teacher_wage` 直连 Cash。
+- 迁移或清理旧 `school_payment_requests` pending 老师工资请求前，必须单独制定策略；已 paid / reversed 历史记录先作为 legacy 保留只读。
 
 第四阶段：Cash 侧收敛
 
