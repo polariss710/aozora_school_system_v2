@@ -353,7 +353,6 @@ function buildEmptySettlementRow(workplaceName) {
 
 function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const isLocked = row.status === "locked" || row.status === "income_request_created";
-  const isDraft = row.status === "draft";
   const canLock = row.status === "draft";
   const canUnlock = row.status === "locked" && !row.income_request_id;
   const canCreateRequest = row.status === "locked" && !row.income_request_id;
