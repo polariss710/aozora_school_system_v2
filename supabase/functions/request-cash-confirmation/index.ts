@@ -52,6 +52,7 @@ type PaymentRequestDisplayRow = {
   payee_name: string | null;
   note: string | null;
   source_id: string | null;
+  source_type: string | null;
 };
 
 type WageLockDisplayRow = {
@@ -223,6 +224,27 @@ async function listEligibleAccounts(cashClient: ReturnType<typeof createClient>)
   return (data || []) as CashAccountRow[];
 }
 
+async function fetchPaymentRequestSourceType(
+  schoolClient: ReturnType<typeof createClient>,
+  paymentRequestId: string,
+): Promise<string | null> {
+  const { data, error } = await schoolClient
+    .from("school_payment_requests")
+    .select("source_type")
+    .eq("id", paymentRequestId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`School payment request lookup failed: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error(`payment request not found: ${paymentRequestId}`);
+  }
+
+  return typeof data.source_type === "string" ? data.source_type : null;
+}
+
 async function fetchPaymentRequestDisplay(
   schoolClient: ReturnType<typeof createClient>,
   paymentRequestId: string,
@@ -334,9 +356,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const action = typeof body.action === "string" ? body.action.trim() : "";
-    const eligibleAccounts = await listEligibleAccounts(cashClient);
 
     if (action === "list_eligible_accounts") {
+      const eligibleAccounts = await listEligibleAccounts(cashClient);
       return jsonResponse({
         ok: true,
         accounts: eligibleAccounts.map((account) => ({
@@ -354,6 +376,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
       body.payment_request_id,
       "payment_request_id",
     );
+    const sourceType = await fetchPaymentRequestSourceType(
+      schoolClient,
+      paymentRequestId,
+    );
+    if (sourceType === "teacher_wage") {
+      return jsonResponse(
+        {
+          ok: false,
+          message: "teacher_wage payments must be handled through school_expense_records",
+          details: "Legacy school_payment_requests Cash confirmation is disabled for teacher_wage.",
+        },
+        410,
+      );
+    }
+
     const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
     const paymentCurrency = requireCurrency(body.payment_currency);
     const exchangeRate = optionalPositiveNumber(body.exchange_rate, "exchange_rate");
@@ -366,6 +403,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         ? body.note.trim()
         : null;
 
+    const eligibleAccounts = await listEligibleAccounts(cashClient);
     const cashAccount = eligibleAccounts.find((account) => account.id === cashAccountId);
     if (!cashAccount) {
       return jsonResponse(

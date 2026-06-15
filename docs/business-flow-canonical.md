@@ -1,6 +1,6 @@
 # School / Cash 统一业务链路原则
 
-Status date: 2026-06-15
+Status date: 2026-06-16
 
 本文档定义 School 与 Cash 的唯一正确业务链路。后续新增模块、修复旧链路、设计 RPC / Edge Function / UI 时，必须优先遵守本文档，避免业务模块绕过 School 收入记录 / 支出记录直接向 Cash 发请求。
 
@@ -152,18 +152,21 @@ Cash 侧手动支出 -> School 侧新增“法人账户调拨”收入记录 -> 
 - Cash 只确认支出记录，不理解 `teacher_wage` 业务。
 - 老师工资明细、学生归属、工资快照、交通费/教室费/调整项等业务信息属于 School。
 
-2026-06-15 第二阶段准备状态：
+2026-06-16 第四阶段状态：
 
 - `school_expense_records` 是老师工资新链路的承接表。
 - `school_expense_records.source_type = teacher_wage`，`source_id` 指向老师工资快照来源。
 - 老师工资支出记录通过专用 RPC 从 locked wage snapshot 生成；普通支出新增仍不得手动创建 `teacher_wage`。
-- 本阶段只补齐支出记录模型和生成入口，不提交 Cash 请求，不迁移历史 payment request，不禁用旧页面入口。
+- 新老师工资支付入口已改为生成 `school_expense_records`，再由支出记录详情页提交 Cash 支付确认。
+- 7 条旧 pending `teacher_wage` payment request 已迁移为 7 条 pending `school_expense_records`，旧请求保留为 `cancelled` legacy audit。
+- `school_payment_requests` 中的 `teacher_wage` 请求只保留历史只读，不再作为新 Cash 请求入口。
+- Legacy RPC `school_request_cash_payment_confirmation(...)` 和 Edge Function `request-cash-confirmation` 对 `teacher_wage` 旧 payment request 提交返回拒绝：`teacher_wage payments must be handled through school_expense_records`。
 
 ## 7. 当前已知违规链路
 
 以下内容仅记录为待修复项，本轮不修复、不清理、不确认、不驳回。
 
-### A. 老师工资
+### A. 老师工资（已收敛为 legacy 只读）
 
 当前可能存在：
 
@@ -176,6 +179,13 @@ teacher_wage -> 直接 Cash request
 ```text
 teacher_wage -> School 支出记录 -> Cash request
 ```
+
+2026-06-16 状态：
+
+- 新老师工资支付入口已改为 `teacher_wage -> school_expense_records`。
+- 旧 `school_payment_requests` 老师工资页面只作为 legacy / historical view。
+- 旧 pending 老师工资 payment request 已迁移为支出记录，旧请求不再保留 active pending。
+- 旧 direct Cash request 入口已禁用，不得再产生 `teacher_wage_payment_confirm` 新请求。
 
 ### B. 外部塾打工收入
 
@@ -216,10 +226,10 @@ part_time_work -> School 收入记录 -> Cash request
 
 第三阶段：支出侧统一化
 
-- 老师工资改为生成 School 支出记录。
-- 支出记录页面统一负责向 Cash 发付款请求。
-- 禁用 `teacher_wage` 直连 Cash。
-- 迁移或清理旧 `school_payment_requests` pending 老师工资请求前，必须单独制定策略；已 paid / reversed 历史记录先作为 legacy 保留只读。
+- 老师工资改为生成 School 支出记录。（2026-06-16 已完成新入口改造）
+- 支出记录页面统一负责向 Cash 发付款请求。（2026-06-15 已完成最小链路）
+- 禁用 `teacher_wage` 直连 Cash。（2026-06-16 已完成）
+- 旧 `school_payment_requests` pending 老师工资请求已迁移为支出记录；已 paid / reversed / void 历史记录作为 legacy 保留只读。
 
 第四阶段：Cash 侧收敛
 

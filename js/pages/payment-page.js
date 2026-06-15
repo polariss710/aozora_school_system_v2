@@ -420,43 +420,23 @@ function renderRows(rows) {
 function renderPaymentActions(row) {
   const linkageEvent = findCashLinkageEvent(row.id);
 
+  if (isTeacherWagePayment(row)) {
+    const linkageLabel = linkageEvent
+      ? ` / ${cashLinkageStatusLabel(linkageEvent.sync_status)}`
+      : "";
+    return `
+      <div class="action-buttons action-buttons-stacked">
+        <span class="status-badge status-neutral">Legacy 只读${escapeHtml(linkageLabel)}</span>
+        <span class="action-note">新老师工资支付请从支出记录处理。</span>
+      </div>
+    `;
+  }
+
   if (row.status === "pending") {
     if (linkageEvent) {
-      if (isTeacherWagePayment(row) && linkageEvent.sync_status === "cash_rejected") {
-        const reason = safeText(linkageEvent.rejected_reason);
-        return `
-          <div class="action-buttons action-buttons-stacked">
-            <span class="status-badge status-neutral">${escapeHtml(cashLinkageStatusLabel(linkageEvent.sync_status))}</span>
-            ${reason ? `<span class="action-note">拒绝理由：${escapeHtml(reason)}</span>` : ""}
-            <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}" data-confirm-mode="cash">
-              重新提交到 Cash 确认
-            </button>
-            <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
-              取消
-            </button>
-          </div>
-        `;
-      }
-
       return `
         <div class="action-buttons">
           <span class="status-badge status-neutral">${escapeHtml(cashLinkageStatusLabel(linkageEvent.sync_status))}</span>
-          <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
-            取消
-          </button>
-        </div>
-      `;
-    }
-
-    if (isTeacherWagePayment(row)) {
-      return `
-        <div class="action-buttons">
-          <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}" data-confirm-mode="cash">
-            提交到 Cash 确认
-          </button>
-          <button class="button table-action-button" type="button" data-confirm-payment-id="${escapeAttribute(row.id)}" data-confirm-mode="direct">
-            直接确认支付
-          </button>
           <button class="button table-action-button" type="button" data-status-action="cancel" data-payment-id="${escapeAttribute(row.id)}">
             取消
           </button>
@@ -522,6 +502,11 @@ function renderPaymentActions(row) {
 }
 
 async function openConfirmPaymentDialog(row, requestedMode = "") {
+  if (isTeacherWagePayment(row)) {
+    showMessage("error", "旧老师工资支付请求已降级为 Legacy 只读。新老师工资支付请从支出记录处理。");
+    return;
+  }
+
   if (row.status !== "pending") {
     showMessage("error", "只有待支付的请求可以确认支付。");
     return;
@@ -659,6 +644,11 @@ async function submitConfirmPayment() {
 
   if (!currentConfirmRow || currentConfirmRow.status !== "pending") {
     showConfirmError("当前支付请求不是待支付状态，无法确认。");
+    return;
+  }
+
+  if (isTeacherWagePayment(currentConfirmRow)) {
+    showConfirmError("旧老师工资支付请求已降级为 Legacy 只读。新老师工资支付请从支出记录处理。");
     return;
   }
 
@@ -987,6 +977,11 @@ function hideConfirmErrorIfClean() {
 }
 
 function openReversePaymentDialog(row) {
+  if (isTeacherWagePayment(row)) {
+    showMessage("error", "旧老师工资支付请求已降级为 Legacy 只读，不能在本页撤销。");
+    return;
+  }
+
   if (row.status !== "paid") {
     showMessage("error", "只有已支付的支付要求可以撤销。");
     return;
@@ -1130,6 +1125,11 @@ function hideReverseErrorIfClean() {
 }
 
 function openStatusActionDialog(row, actionType) {
+  if (isTeacherWagePayment(row)) {
+    showMessage("error", "旧老师工资支付请求已降级为 Legacy 只读，不能在本页修改状态。");
+    return;
+  }
+
   if (actionType === "cancel" && row.status !== "pending") {
     showMessage("error", "只有待支付的支付要求可以取消。");
     return;
@@ -1294,6 +1294,11 @@ function getStatusActionSubmitText() {
 }
 
 function openReissuePaymentDialog(row) {
+  if (isTeacherWagePayment(row)) {
+    showMessage("error", "旧老师工资支付请求已降级为 Legacy 只读，不能在本页重新生成。");
+    return;
+  }
+
   if (row.status !== "reversed") {
     showMessage("error", "只有已撤销的支付请求可以重新生成待支付。");
     return;
