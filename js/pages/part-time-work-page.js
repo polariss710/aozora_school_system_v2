@@ -1,5 +1,5 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { initSchoolAuth } from "../auth.js";
+import { initSchoolAuth, isLoggedIn } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createPartTimeWorkRecord,
@@ -38,8 +38,7 @@ let records = [];
 let editingRecord = null;
 let isSubmitting = false;
 
-export function initPartTimeWorkPage() {
-  initSchoolAuth();
+export async function initPartTimeWorkPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
@@ -50,6 +49,12 @@ export function initPartTimeWorkPage() {
 
   if (!hasSupabaseConfig()) {
     showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。当前页面不会发起数据请求。");
+    return;
+  }
+
+  await initSchoolAuth();
+  if (!isLoggedIn()) {
+    showMessage("error", "请先登录后查看或编辑私塾打工记录。");
     return;
   }
 
@@ -132,6 +137,13 @@ function bindEvents() {
 }
 
 async function loadPageData() {
+  if (!isLoggedIn()) {
+    renderSummary({});
+    renderRows([]);
+    showMessage("error", "请先登录后查看或编辑私塾打工记录。");
+    return;
+  }
+
   const filters = readFilters();
   setLoading(true);
   showMessage("", "");
@@ -211,6 +223,11 @@ function renderRow(row) {
 }
 
 function openCreateDialog() {
+  if (!isLoggedIn()) {
+    showMessage("error", "请先登录后新增私塾打工记录。");
+    return;
+  }
+
   editingRecord = null;
   dom.dialogTitle.textContent = "新增私塾打工记录";
   clearDialog();
@@ -255,6 +272,11 @@ function showDialog() {
 }
 
 async function submitDialog() {
+  if (!isLoggedIn()) {
+    showDialogError("请先登录后保存私塾打工记录。");
+    return;
+  }
+
   const payload = readDialogPayload();
   const validationError = validatePayload(payload);
 
@@ -308,6 +330,10 @@ async function handleTableClick(event) {
   }
 
   try {
+    if (!isLoggedIn()) {
+      showMessage("error", "请先登录后删除私塾打工记录。");
+      return;
+    }
     await deletePartTimeWorkRecord(record.id);
     showMessage("success", "私塾打工记录已删除。");
     await loadPageData();
