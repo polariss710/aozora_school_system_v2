@@ -145,6 +145,7 @@
                   <tr>
                     <th>类型</th>
                     <th>日期</th>
+                    <th>时间</th>
                     <th>打工先</th>
                     <th>科目</th>
                     <th>工作内容</th>
@@ -199,9 +200,19 @@
 
           <h3 class="dialog-subsection-heading part-time-work-dialog-section-title">课时信息</h3>
 
+          <label class="field" data-part-time-work-field="startTime">
+            <span>开始时间</span>
+            <input id="partTimeWorkStartTimeInput" type="time">
+          </label>
+
+          <label class="field" data-part-time-work-field="endTime">
+            <span>结束时间</span>
+            <input id="partTimeWorkEndTimeInput" type="time">
+          </label>
+
           <label class="field" data-part-time-work-field="hours">
             <span id="partTimeWorkHoursLabel">课时</span>
-            <input id="partTimeWorkHoursInput" type="number" step="0.5" min="0" inputmode="decimal">
+            <input id="partTimeWorkHoursInput" type="number" step="0.01" min="0" inputmode="decimal" readonly>
           </label>
 
           <label class="field" data-part-time-work-field="hourlyRateJpy">

@@ -111,6 +111,8 @@ function cacheDom() {
   dom.workplaceNameInput = document.querySelector("#partTimeWorkWorkplaceInput");
   dom.subjectNameInput = document.querySelector("#partTimeWorkSubjectInput");
   dom.classDescriptionInput = document.querySelector("#partTimeWorkClassDescriptionInput");
+  dom.startTimeInput = document.querySelector("#partTimeWorkStartTimeInput");
+  dom.endTimeInput = document.querySelector("#partTimeWorkEndTimeInput");
   dom.hoursLabel = document.querySelector("#partTimeWorkHoursLabel");
   dom.hoursInput = document.querySelector("#partTimeWorkHoursInput");
   dom.hourlyRateInput = document.querySelector("#partTimeWorkHourlyRateInput");
@@ -145,6 +147,8 @@ function bindEvents() {
     dom.workplaceNameInput,
     dom.subjectNameInput,
     dom.classDescriptionInput,
+    dom.startTimeInput,
+    dom.endTimeInput,
     dom.hoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
@@ -266,6 +270,7 @@ function renderLessonCard(row, options = {}) {
       </div>
       <div class="lesson-pair-main">
         <strong>${escapeHtml(formatDateOnly(row.work_date))}</strong>
+        <span>${escapeHtml(timeRange(row.start_time, row.end_time))}</span>
         <span>${escapeHtml(row.subject_name || "-")}</span>
         <span>${escapeHtml(row.class_description || "-")}</span>
       </div>
@@ -299,6 +304,7 @@ function renderListRow(row) {
     <tr>
       <td><span class="status-badge ${escapeAttribute(lessonStatusClass(row))}">${escapeHtml(lessonKindLabel(row.record_kind))}</span></td>
       <td>${escapeHtml(formatDateOnly(row.work_date))}</td>
+      <td>${escapeHtml(timeRange(row.start_time, row.end_time))}</td>
       <td>${escapeHtml(row.workplace_name || "-")}</td>
       <td>${escapeHtml(row.subject_name || "-")}</td>
       <td class="description-cell">${escapeHtml(row.class_description || "-")}</td>
@@ -409,6 +415,8 @@ function fillDialogFromLesson(lesson, hours) {
   setSelectValueWithFallback(dom.workplaceNameInput, lesson.workplace_name || "");
   setSelectValueWithFallback(dom.subjectNameInput, lesson.subject_name || "");
   dom.classDescriptionInput.value = lesson.class_description || "";
+  dom.startTimeInput.value = formatTimeInput(lesson.start_time);
+  dom.endTimeInput.value = formatTimeInput(lesson.end_time);
   dom.hoursInput.value = hours ?? 0;
   dom.hourlyRateInput.value = lesson.hourly_rate_jpy ?? 0;
   dom.transportationFeeInput.value = lesson.transportation_fee_jpy ?? 0;
@@ -573,7 +581,9 @@ function readDialogPayload() {
     teacherName: DEFAULT_TEACHER_NAME,
     subjectName: dom.subjectNameInput.value,
     classDescription: dom.classDescriptionInput.value.trim(),
-    hours: parseDecimal(dom.hoursInput.value),
+    startTime: dom.startTimeInput.value,
+    endTime: dom.endTimeInput.value,
+    hours: calculateHoursFromTimes(dom.startTimeInput.value, dom.endTimeInput.value),
     hourlyRateJpy: parseInteger(dom.hourlyRateInput.value),
     transportationFeeJpy: parseInteger(dom.transportationFeeInput.value),
     memo: dom.memoInput.value.trim(),
@@ -598,9 +608,19 @@ function validatePayload(payload) {
     return "请选择科目。";
   }
 
+  if (!payload.startTime) {
+    markFieldInvalid(dom.startTimeInput);
+    return "请选择开始时间。";
+  }
+
+  if (!payload.endTime) {
+    markFieldInvalid(dom.endTimeInput);
+    return "请选择结束时间。";
+  }
+
   if (!Number.isFinite(payload.hours) || payload.hours < 0) {
-    markFieldInvalid(dom.hoursInput);
-    return "课时必须是大于等于 0 的数字。";
+    markFieldInvalid(dom.endTimeInput);
+    return "结束时间必须晚于开始时间。";
   }
 
   if (!Number.isInteger(payload.hourlyRateJpy) || payload.hourlyRateJpy < 0) {
@@ -622,7 +642,8 @@ function updatePreview() {
   const hourlyRate = Number.isFinite(payload.hourlyRateJpy) ? payload.hourlyRateJpy : 0;
   const transportationFee = Number.isFinite(payload.transportationFeeJpy) ? payload.transportationFeeJpy : 0;
   const lessonWageJpy = Math.round(hours * hourlyRate);
-  dom.preview.textContent = `预览：课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
+  dom.hoursInput.value = Number.isFinite(payload.hours) ? formatHours(payload.hours) : "0";
+  dom.preview.textContent = `预览：课时 ${formatHours(hours)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
 }
 
 function clearDialog() {
@@ -631,6 +652,8 @@ function clearDialog() {
     dom.workplaceNameInput,
     dom.subjectNameInput,
     dom.classDescriptionInput,
+    dom.startTimeInput,
+    dom.endTimeInput,
     dom.hoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
@@ -639,6 +662,8 @@ function clearDialog() {
     input.value = "";
   }
   dom.hoursInput.value = "0";
+  dom.startTimeInput.value = "";
+  dom.endTimeInput.value = "";
   dom.hourlyRateInput.value = "0";
   dom.transportationFeeInput.value = "0";
   dom.workplaceNameInput.value = WORKPLACE_OPTIONS[0];
@@ -709,6 +734,8 @@ function clearInvalidFields() {
     dom.workDateInput,
     dom.workplaceNameInput,
     dom.subjectNameInput,
+    dom.startTimeInput,
+    dom.endTimeInput,
     dom.hoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
@@ -739,19 +766,36 @@ function setSelectValueWithFallback(select, value) {
   select.value = normalized || select.options[0]?.value || "";
 }
 
-function parseDecimal(value) {
-  if (value === "") {
-    return 0;
-  }
-  return Number(value);
-}
-
 function parseInteger(value) {
   if (value === "") {
     return 0;
   }
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? Math.round(numberValue) : Number.NaN;
+}
+
+function calculateHoursFromTimes(startTime, endTime) {
+  if (!startTime || !endTime) {
+    return Number.NaN;
+  }
+
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(endTime);
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+    return Number.NaN;
+  }
+
+  return Math.round(((endMinutes - startMinutes) / 60) * 100) / 100;
+}
+
+function timeToMinutes(value) {
+  const match = String(value || "").match(/^(\d{2}):(\d{2})/);
+  if (!match) {
+    return Number.NaN;
+  }
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours * 60 + minutes;
 }
 
 function lessonKindLabel(kind) {
@@ -804,6 +848,19 @@ function formatDateOnly(value) {
     return "-";
   }
   return String(value).slice(0, 10);
+}
+
+function formatTimeInput(value) {
+  return value ? String(value).slice(0, 5) : "";
+}
+
+function timeRange(startTime, endTime) {
+  const start = formatTimeInput(startTime);
+  const end = formatTimeInput(endTime);
+  if (!start && !end) {
+    return "-";
+  }
+  return `${start || "-"}-${end || "-"}`;
 }
 
 function todayDate() {

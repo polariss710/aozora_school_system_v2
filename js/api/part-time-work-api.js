@@ -37,10 +37,11 @@ export async function fetchPartTimeWorkMonthlySettlements(filters = {}) {
 export async function createPartTimeWorkPlannedLesson(payload) {
   const { data, error } = await supabase.rpc("school_create_part_time_work_planned_lesson", {
     p_work_date: payload.workDate,
+    p_start_time: payload.startTime,
+    p_end_time: payload.endTime,
     p_workplace_name: payload.workplaceName,
     p_subject_name: payload.subjectName,
     p_class_description: payload.classDescription || null,
-    p_planned_hours: payload.hours,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
     p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_memo: payload.memo || null,
@@ -58,10 +59,11 @@ export async function updatePartTimeWorkLesson(payload) {
   const { data, error } = await supabase.rpc("school_update_part_time_work_lesson", {
     p_id: payload.id,
     p_work_date: payload.workDate,
+    p_start_time: payload.startTime,
+    p_end_time: payload.endTime,
     p_workplace_name: payload.workplaceName,
     p_subject_name: payload.subjectName,
     p_class_description: payload.classDescription || null,
-    p_hours: payload.hours,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
     p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_memo: payload.memo || null,
@@ -78,7 +80,8 @@ export async function generatePartTimeWorkActualFromPlanned(payload) {
   const { data, error } = await supabase.rpc("school_generate_part_time_work_actual_from_planned", {
     p_planned_lesson_id: payload.plannedLessonId,
     p_actual_work_date: payload.workDate || null,
-    p_actual_hours: payload.hours,
+    p_start_time: payload.startTime || null,
+    p_end_time: payload.endTime || null,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
     p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_memo: payload.memo || null,
