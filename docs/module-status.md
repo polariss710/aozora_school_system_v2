@@ -22,11 +22,11 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | --- | --- | --- |
 | 课时管理 | 已收口 | Keep planned-only V1 stable; full actual/history import stays backlog |
 | 学生月度结算 | 已收口 | No immediate V1 work; future reversal/history requires new design |
-| 老师工资结算 | V1 可用 | Payment flow is separate; wage lifecycle expansion remains backlog |
+| 老师工资结算 | V1 可用；新支付入口生成 `school_expense_records` | Payment confirmation belongs to expense records; wage lifecycle expansion remains backlog |
 | 老师工资支付 | Legacy 只读；旧 `school_payment_requests` 直连 Cash 已禁用 | 历史 paid/reversed/void 保留只读；新支付从支出记录处理 |
 | 账户管理 | V1 可用 + first-stage family account isolation + account filter simplified; `吴个人结算账户人民币` cleaned, `吴个人结算账户日元` deferred | Account scope/household owner expansion and family ledger records require separate guarded phases |
-| 收入记录 | V1 可用 + income Cash confirmation SQL/RPC installed, Edge Functions deployed, first real CNY whitelist tests passed; filters simplified | Future work: reversal sync, scheduling, broader income module integrations, and personal external teaching income implementation |
-| 支出记录 | V1 可用 + expense -> Cash + teacher_wage canonical route 已接入 | 新老师工资支出从支出记录详情页提交 Cash 支付确认 |
+| 收入记录 | V1 可用 + canonical income -> Cash flow 已通过真实 part_time_work 和 rollback smoke | Future work: reversal sync, scheduling, broader income module integrations, and personal external teaching income implementation |
+| 支出记录 | V1 可用 + expense -> Cash + teacher_wage canonical route 已接入并通过 rollback smoke | 7 条 2026-05 teacher_wage pending 支出后续从支出记录详情页提交 Cash 支付确认 |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
@@ -51,8 +51,8 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 老师工资结算
 
-- 当前状态: V1 可用。工资快照列表/详情、工资明细调整、勤务申报表 Excel、工资生成 MVP、从工资快照生成支付请求已可用。
-- 最近关键更新: UI/docs 口径已统一为“生成工资快照”，不是额外的用户锁定步骤；payment request generation 从快照创建 pending teacher_wage payment request。
+- 当前状态: V1 可用。工资快照列表/详情、工资明细调整、勤务申报表 Excel、工资生成 MVP、从工资快照生成 `school_expense_records` 已可用。
+- 最近关键更新: UI/docs 口径已统一为“生成工资快照”，不是额外的用户锁定步骤；新支付入口从快照创建 pending `teacher_wage` expense record，不再创建新的 `school_payment_requests`。
 - 当前限制 / hard stop: 不做实时工资预览、广义重算、CNY/FX、generation-time transport/classroom fees、历史 backfill。当前/未结真实月份不得用于真实工资生成或快照验证。
 - 下一步: payment confirmation 属于支付模块；wage void/relock、business-entity-scoped generation、preview UI 和历史工作另开阶段。
 
@@ -61,7 +61,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - 当前状态: Legacy 只读。`school_payment_requests` 中的 `teacher_wage` 历史 paid/reversed/void/cancelled 记录保留审计查看；列表和详情不再提供提交 Cash、直接确认支付、撤销、取消、恢复或重新生成等旧操作。新老师工资支付必须从工资快照生成 `school_expense_records`，再到支出记录详情页提交 Cash 支付确认。
 - 最近关键更新: 2026-06-16 已迁移 7 条旧 pending `teacher_wage` payment request 为 7 条 canonical `school_expense_records`，合计 `492,012 JPY`；旧 payment requests 标记为 `cancelled` 并写入 `migrated_to_expense_record_canonical_flow` 审计备注，未创建 Cash request / transaction。随后旧页面降级为 legacy historical view，`request-cash-confirmation` 和 `school_request_cash_payment_confirmation(...)` 对 `teacher_wage` 旧 payment request 提交返回 `teacher_wage payments must be handled through school_expense_records`，防止再产生 `teacher_wage_payment_confirm` 新请求。
 - 当前限制 / hard stop: 不删除旧 payment requests、wage locks、expenses、account transactions；不迁移 paid/reversed/void 历史；不从旧页面提交 Cash 或直接确认支付。旧 `school_request_cash_payment_confirmation(...)` 仅保留拒绝入口以防绕过；历史 Cash linkage events 保留只读。
-- 下一步: Cash 侧最终白名单/分支收敛可另开阶段；旧 paid/reversed 历史只读保留，除非后续单独设计归档。
+- 下一步: 旧 paid/reversed 历史只读保留，除非后续单独设计归档；新老师工资支付从支出记录详情页处理。
 
 ## 账户管理
 

@@ -4,6 +4,14 @@ Status date: 2026-06-16
 
 本文档定义 School 与 Cash 的唯一正确业务链路。后续新增模块、修复旧链路、设计 RPC / Edge Function / UI 时，必须优先遵守本文档，避免业务模块绕过 School 收入记录 / 支出记录直接向 Cash 发请求。
 
+2026-06-16 final checkpoint:
+
+- 收入侧 canonical flow 已完成 smoke：`part_time_work -> school_income_records -> Cash request -> Cash approve -> income record writeback`。
+- 支出侧 canonical flow 已完成 smoke：`teacher_wage -> school_expense_records -> Cash request -> Cash approve/reject -> expense record writeback`。
+- Cash 新请求创建只允许 `school_income_records` 和 `school_expense_records`；旧业务模块直连类型禁止新建。
+- `sync-cash-request-result` 主路径只回写 `school_income_records` / `school_expense_records`；旧直连类型只返回 legacy deprecated。
+- 旧 `school_payment_requests` / `school_part_time_work_income_requests` direct Cash request 仅为历史审计，不得作为正常流程入口。
+
 ## 1. Cash 不承担业务判断
 
 Cash 只处理账户收支确认，不判断收入或支出的业务来源。
