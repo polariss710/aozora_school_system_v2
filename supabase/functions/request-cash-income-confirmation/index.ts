@@ -8,12 +8,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 type RequestBody = {
+  income_record_id?: string;
   income_date?: string;
   settlement_month?: string;
   business_entity_id?: string;
   student_id?: string;
   cash_account_id?: string;
   amount?: number | string;
+  actual_received_amount?: number | string;
+  actual_received_currency?: string;
   income_category?: string;
   description?: string | null;
   currency?: string;
@@ -120,6 +123,14 @@ function requireUuid(value: unknown, fieldName: string): string {
   }
 
   return trimmed;
+}
+
+function optionalUuid(value: unknown, fieldName: string): string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  return requireUuid(value, fieldName);
 }
 
 function requireDate(value: unknown, fieldName: string): string {
@@ -299,6 +310,295 @@ Deno.serve(async (request: Request): Promise<Response> => {
         { ok: false, message: "Invalid School authorization token" },
         401,
       );
+    }
+
+    const existingIncomeRecordId = optionalUuid(
+      body.income_record_id,
+      "income_record_id",
+    );
+
+    if (existingIncomeRecordId) {
+      const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
+      const actualReceivedAmount = requirePositiveNumber(
+        body.actual_received_amount,
+        "actual_received_amount",
+      );
+      const actualReceivedCurrency = requireCurrency(
+        body.actual_received_currency,
+      );
+      const exchangeRate = optionalPositiveNumber(body.exchange_rate, "exchange_rate");
+
+      if (actualReceivedCurrency === "CNY" && exchangeRate === null) {
+        return jsonResponse(
+          { ok: false, message: "CNY actual received amount requires exchange_rate" },
+          400,
+        );
+      }
+
+      if (
+        actualReceivedCurrency === "JPY" && exchangeRate !== null &&
+        exchangeRate !== 1
+      ) {
+        return jsonResponse(
+          { ok: false, message: "JPY actual received exchange_rate must be empty or 1" },
+          400,
+        );
+      }
+
+      const { data: incomeData, error: incomeError } = await schoolClient
+        .from("school_income_records")
+        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_label,currency,amount,amount_jpy")
+        .eq("id", existingIncomeRecordId)
+        .maybeSingle();
+
+      if (incomeError || !incomeData) {
+        return jsonResponse(
+          {
+            ok: false,
+            message: "School income record lookup failed",
+            details: incomeError?.message ?? null,
+          },
+          404,
+        );
+      }
+
+      const eligibleAccounts = await listEligibleAccounts(cashClient);
+      const cashAccount = eligibleAccounts.find((account) => (
+        account.id === cashAccountId
+      ));
+
+      if (!cashAccount) {
+        return jsonResponse(
+          { ok: false, message: "Selected Cash account is not School-eligible" },
+          400,
+        );
+      }
+
+      if (cashAccount.currency !== actualReceivedCurrency) {
+        return jsonResponse(
+          {
+            ok: false,
+            message: "Selected Cash account currency does not match actual received currency",
+            account_currency: cashAccount.currency,
+            actual_received_currency: actualReceivedCurrency,
+          },
+          400,
+        );
+      }
+
+      const { data: schoolRequestData, error: schoolRequestError } =
+        await schoolClient.rpc("school_request_cash_income_confirmation_for_record", {
+          p_income_record_id: existingIncomeRecordId,
+          p_cash_user_id: cashAccount.user_id,
+          p_cash_account_id: cashAccount.id,
+          p_cash_account_name_snapshot: cashAccount.name ?? cashAccount.id,
+          p_cash_account_type_snapshot: cashAccount.account_type ?? null,
+          p_payment_amount: actualReceivedAmount,
+          p_payment_currency: actualReceivedCurrency,
+          p_exchange_rate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
+          p_note: optionalText(body.note),
+        });
+
+      if (schoolRequestError) {
+        return jsonResponse(
+          {
+            ok: false,
+            message: "School Cash income confirmation request failed",
+            details: schoolRequestError.message,
+          },
+          400,
+        );
+      }
+
+      const schoolRequest = unwrapSingleRow<SchoolIncomeRequestRow>(
+        schoolRequestData as
+          | SchoolIncomeRequestRow[]
+          | SchoolIncomeRequestRow
+          | null,
+        "school_request_cash_income_confirmation_for_record",
+      );
+
+      const cashAmount = Number(schoolRequest.payment_amount);
+      if (!Number.isFinite(cashAmount) || cashAmount <= 0) {
+        return jsonResponse(
+          { ok: false, message: "Actual received amount must be greater than 0" },
+          400,
+        );
+      }
+
+      const studentId = optionalText((incomeData as { student_id?: string | null }).student_id);
+      const studentDisplayName = studentId
+        ? await fetchStudentDisplayName(schoolClient, studentId)
+        : null;
+      const incomeDate = String((incomeData as { income_date: string }).income_date);
+      const settlementMonth = String((incomeData as { settlement_month: string }).settlement_month);
+      const businessEntityId = String((incomeData as { business_entity_id: string }).business_entity_id);
+      const incomeCategory = optionalText((incomeData as { income_category?: string }).income_category) ?? "other_fee";
+      const cashDescription = buildCashIncomeDescription(
+        {
+          ...body,
+          income_category: incomeCategory,
+          description: optionalText((incomeData as { source_label?: string | null }).source_label) ??
+            optionalText((incomeData as { description?: string | null }).description),
+        },
+        studentDisplayName,
+      );
+      const cashPayload = {
+        external_source: CASH_EXTERNAL_SOURCE,
+        external_event_id: schoolRequest.linkage_event_id,
+        external_reference_type: CASH_REFERENCE_TYPE,
+        external_reference_id: schoolRequest.income_id,
+        request_type: schoolRequest.request_type,
+        transaction_type: CASH_TRANSACTION_TYPE,
+        income_date: incomeDate,
+        settlement_month: settlementMonth,
+        business_entity_id: businessEntityId,
+        student_id: studentId,
+        income_category: incomeCategory,
+        original_currency: schoolRequest.currency,
+        original_amount: Number(schoolRequest.amount),
+        original_amount_jpy: Number((incomeData as { amount_jpy?: number | string | null }).amount_jpy ?? 0),
+        currency: schoolRequest.payment_currency,
+        amount: cashAmount,
+        account_id: schoolRequest.cash_account_id,
+        cash_account_name_snapshot: schoolRequest.cash_account_name_snapshot,
+        cash_account_type_snapshot: schoolRequest.cash_account_type_snapshot,
+        payment_currency: schoolRequest.payment_currency,
+        payment_exchange_rate: schoolRequest.payment_exchange_rate === null
+          ? null
+          : Number(schoolRequest.payment_exchange_rate),
+        payment_amount: Number(schoolRequest.payment_amount),
+        attempt_no: schoolRequest.attempt_no,
+        school_sync_status: schoolRequest.sync_status,
+        school_message: schoolRequest.message,
+        note: optionalText(body.note),
+      };
+
+      const { data: cashRequestData, error: cashRequestError } =
+        await cashClient.rpc("home_create_external_transaction_request", {
+          p_user_id: schoolRequest.cash_user_id,
+          p_account_id: schoolRequest.cash_account_id,
+          p_external_source: CASH_EXTERNAL_SOURCE,
+          p_external_event_id: schoolRequest.linkage_event_id,
+          p_external_reference_type: CASH_REFERENCE_TYPE,
+          p_external_reference_id: schoolRequest.income_id,
+          p_request_type: schoolRequest.request_type,
+          p_transaction_type: CASH_TRANSACTION_TYPE,
+          p_transacted_at: incomeDate,
+          p_amount: cashAmount,
+          p_idempotency_key: schoolRequest.idempotency_key,
+          p_description: cashDescription,
+          p_note: optionalText(body.note) ?? "",
+          p_payload_snapshot: cashPayload,
+          p_currency: schoolRequest.payment_currency,
+        });
+
+      if (cashRequestError) {
+        return jsonResponse(
+          {
+            ok: false,
+            income_id: schoolRequest.income_id,
+            linkage_event_id: schoolRequest.linkage_event_id,
+            message: "Cash pending request creation failed",
+            details: cashRequestError.message,
+          },
+          502,
+        );
+      }
+
+      const cashRequest = cashRequestData as CashRequestResult;
+      if (!cashRequest?.ok || !cashRequest.request_id) {
+        return jsonResponse(
+          {
+            ok: false,
+            income_id: schoolRequest.income_id,
+            linkage_event_id: schoolRequest.linkage_event_id,
+            message: cashRequest?.message ??
+              "Cash pending request was not created",
+            cash_status: cashRequest?.status ?? null,
+          },
+          409,
+        );
+      }
+
+      if (cashRequest.status !== "pending") {
+        return jsonResponse(
+          {
+            ok: false,
+            income_id: schoolRequest.income_id,
+            linkage_event_id: schoolRequest.linkage_event_id,
+            cash_request_id: cashRequest.request_id,
+            cash_request_status: cashRequest.status ?? null,
+            message: "Cash request already exists but is not pending",
+          },
+          409,
+        );
+      }
+
+      const { data: submittedData, error: submittedError } =
+        await schoolClient.rpc("school_mark_cash_income_request_submitted", {
+          p_event_id: schoolRequest.linkage_event_id,
+          p_cash_request_id: cashRequest.request_id,
+          p_cash_request_status: cashRequest.status ?? "pending",
+        });
+
+      if (submittedError) {
+        return jsonResponse(
+          {
+            ok: false,
+            income_id: schoolRequest.income_id,
+            linkage_event_id: schoolRequest.linkage_event_id,
+            cash_request_id: cashRequest.request_id,
+            cash_request_status: cashRequest.status ?? null,
+            message: "Cash request was created but School submitted writeback failed",
+            details: submittedError.message,
+          },
+          502,
+        );
+      }
+
+      const submitted = unwrapSingleRow<{
+        income_id: string;
+        linkage_event_id: string;
+        sync_status: string;
+        cash_request_id: string;
+        cash_request_status: string;
+        message: string;
+      }>(
+        submittedData as
+          | {
+            income_id: string;
+            linkage_event_id: string;
+            sync_status: string;
+            cash_request_id: string;
+            cash_request_status: string;
+            message: string;
+          }[]
+          | {
+            income_id: string;
+            linkage_event_id: string;
+            sync_status: string;
+            cash_request_id: string;
+            cash_request_status: string;
+            message: string;
+          }
+          | null,
+        "school_mark_cash_income_request_submitted",
+      );
+
+      return jsonResponse({
+        ok: true,
+        income_id: submitted.income_id,
+        linkage_event_id: submitted.linkage_event_id,
+        cash_request_id: submitted.cash_request_id,
+        status: submitted.sync_status,
+        cash_request_status: submitted.cash_request_status,
+        currency: schoolRequest.payment_currency,
+        amount: cashAmount,
+        attempt_no: schoolRequest.attempt_no,
+        cash_inserted: cashRequest.inserted ?? null,
+        message: submitted.message,
+      });
     }
 
     const incomeDate = requireDate(body.income_date, "income_date");

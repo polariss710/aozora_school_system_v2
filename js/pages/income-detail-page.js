@@ -1,13 +1,16 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchIncomeDetailPage,
+  requestCashIncomeConfirmationForRecord,
   retryPersonalCashIncomeLinkageEvent,
   reverseIncomeRecord,
   updateIncomeRecord,
 } from "../api/income-detail-api.js";
+import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const INCOME_STATUS_LABELS = {
+  pending: "待确认",
   received: "已收款",
   reversed: "已撤销",
 };
@@ -17,6 +20,7 @@ const INCOME_CATEGORY_LABELS = {
   material_fee: "教材费",
   registration_fee: "报名费",
   other_fee: "其他费用",
+  part_time_work: "外部塾打工收入",
 };
 
 const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee", "other_fee"];
@@ -36,7 +40,10 @@ const SETTLEMENT_STATUS_LABELS = {
 
 const CASH_LINKAGE_STATUS_LABELS = {
   pending: "待同步",
+  pending_cash_request: "Cash待提交",
+  awaiting_cash_confirmation: "Cash待确认",
   synced: "已同步",
+  cash_rejected: "Cash已拒绝",
   failed: "同步失败",
 };
 
@@ -50,6 +57,9 @@ let detailData = null;
 let isReverseSubmitting = false;
 let isEditSubmitting = false;
 let isRetrySubmitting = false;
+let isCashRequestSubmitting = false;
+let cashEligibleAccounts = [];
+let hasLoadedCashEligibleAccounts = false;
 const REVERSE_INCOME_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const EDIT_INCOME_FIELD_IDS = [
   "incomeDate",
@@ -92,6 +102,7 @@ function cacheDom() {
   dom.actionReason = document.querySelector("#incomeDetailActionReason");
   dom.openEditIncomeButton = document.querySelector("#openEditIncomeButton");
   dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
+  dom.openCashIncomeRequestButton = document.querySelector("#openCashIncomeRequestButton");
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
   dom.content = document.querySelector("#incomeDetailContent");
   dom.titleText = document.querySelector("#incomeDetailTitleText");
@@ -107,6 +118,17 @@ function cacheDom() {
   dom.transactionCount = document.querySelector("#incomeDetailTransactionCount");
   dom.transactionEmpty = document.querySelector("#incomeDetailTransactionEmpty");
   dom.transactionRows = document.querySelector("#incomeDetailTransactionRows");
+  dom.cashIncomeRequestDialog = document.querySelector("#cashIncomeRequestDialog");
+  dom.cashIncomeRequestError = document.querySelector("#cashIncomeRequestError");
+  dom.cashIncomeRequestSummary = document.querySelector("#cashIncomeRequestSummary");
+  dom.cashIncomeActualAmountInput = document.querySelector("#cashIncomeActualAmountInput");
+  dom.cashIncomeActualCurrencySelect = document.querySelector("#cashIncomeActualCurrencySelect");
+  dom.cashIncomeExchangeRateInput = document.querySelector("#cashIncomeExchangeRateInput");
+  dom.cashIncomeAccountSelect = document.querySelector("#cashIncomeAccountSelect");
+  dom.cashIncomeNoteInput = document.querySelector("#cashIncomeNoteInput");
+  dom.cashIncomeRequestPreview = document.querySelector("#cashIncomeRequestPreview");
+  dom.cashIncomeRequestSubmitButton = document.querySelector("#cashIncomeRequestSubmitButton");
+  dom.cashIncomeRequestCancelButton = document.querySelector("#cashIncomeRequestCancelButton");
   dom.reverseDialog = document.querySelector("#reverseIncomeDialog");
   dom.reverseSummary = document.querySelector("#reverseIncomeSummary");
   dom.reverseError = document.querySelector("#reverseIncomeError");
@@ -138,6 +160,25 @@ function cacheDom() {
 function bindEvents() {
   dom.openEditIncomeButton.addEventListener("click", openEditDialog);
   dom.openReverseIncomeButton.addEventListener("click", openReverseDialog);
+  dom.openCashIncomeRequestButton.addEventListener("click", openCashIncomeRequestDialog);
+  dom.cashIncomeRequestCancelButton.addEventListener("click", closeCashIncomeRequestDialog);
+  dom.cashIncomeRequestSubmitButton.addEventListener("click", submitCashIncomeRequest);
+  for (const input of [
+    dom.cashIncomeActualAmountInput,
+    dom.cashIncomeActualCurrencySelect,
+    dom.cashIncomeExchangeRateInput,
+    dom.cashIncomeAccountSelect,
+    dom.cashIncomeNoteInput,
+  ]) {
+    input.addEventListener("input", () => {
+      clearCashIncomeFieldInvalid(input);
+      hideCashIncomeRequestErrorIfClean();
+      if (input === dom.cashIncomeActualCurrencySelect) {
+        renderCashIncomeAccountOptions();
+      }
+      updateCashIncomeRequestPreview({ inferExchangeRate: input !== dom.cashIncomeExchangeRateInput });
+    });
+  }
   dom.editCancelButton.addEventListener("click", closeEditDialog);
   dom.editSubmitButton.addEventListener("click", submitEditIncome);
   dom.editBusinessEntitySelect.addEventListener("change", () => {
@@ -223,6 +264,7 @@ function renderIncomeDetail(data) {
     ["结算月份", formatMonth(income.settlement_month)],
     ["收入分类", incomeCategoryLabel(income.income_category)],
     ["描述", displayValue(income.description)],
+    ["来源", displayValue(income.source_label || income.source_type)],
     ["状态", incomeStatusLabel(income.status)],
     ["业务归属", businessNameById(income.business_entity_id)],
     ["创建时间", formatDate(income.created_at)],
@@ -260,6 +302,8 @@ function renderIncomeDetail(data) {
     ["student_payment_id", shortId(income.student_payment_id)],
     ["account_id", shortId(income.account_id)],
     ["business_entity_id", shortId(income.business_entity_id)],
+    ["source_type", displayValue(income.source_type)],
+    ["source_id", shortId(income.source_id)],
     ["Cash linkage", cashLinkageEvent ? cashIncomeLinkageSummary(cashLinkageEvent) : "-"],
     ["app_type", displayValue(income.app_type)],
     ["created_at", formatDate(income.created_at)],
@@ -277,15 +321,32 @@ function renderActionArea(data) {
   const status = income?.status || "";
   const canReverse = canReverseIncome(data);
   const canEdit = canEditIncome(data);
+  const canRequestCash = canRequestCashIncome(data);
   const actionReason = cashIncomeLinkageNotAllowedMessage(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = incomeStatusLabel(status);
   dom.actionReason.textContent = actionReason;
   dom.actionReason.classList.toggle("is-hidden", !actionReason);
+  dom.openCashIncomeRequestButton.classList.toggle("is-hidden", !canRequestCash);
+  dom.openCashIncomeRequestButton.disabled = !canRequestCash;
   dom.openEditIncomeButton.classList.toggle("is-hidden", !canEdit);
   dom.openEditIncomeButton.disabled = !canEdit;
   dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseIncomeButton.disabled = !canReverse;
+}
+
+function canRequestCashIncome(data) {
+  const income = data?.income;
+  if (!income || income.status !== "pending" || income.account_id) {
+    return false;
+  }
+
+  const event = cashIncomeLinkageEvent(data);
+  if (!event) {
+    return true;
+  }
+
+  return event.sync_status === "cash_rejected";
 }
 
 function canEditIncome(data) {
@@ -360,8 +421,24 @@ function renderCashSyncInfo(event) {
         <dd>${escapeHtml(shortId(event.cash_transaction_id))}</dd>
       </div>
       <div>
+        <dt>Cash request</dt>
+        <dd>${escapeHtml(shortId(event.cash_request_id))} / ${escapeHtml(displayValue(event.cash_request_status))}</dd>
+      </div>
+      <div>
         <dt>Cash account</dt>
         <dd>${escapeHtml(cashAccountSnapshotLabel(event))}</dd>
+      </div>
+      <div>
+        <dt>School 原始金额</dt>
+        <dd>${escapeHtml(formatCurrency(event.amount, event.currency))}</dd>
+      </div>
+      <div>
+        <dt>实际到账</dt>
+        <dd>${escapeHtml(formatCurrency(event.payment_amount, event.payment_currency))}</dd>
+      </div>
+      <div>
+        <dt>本次汇率</dt>
+        <dd>${escapeHtml(displayValue(event.payment_exchange_rate))}</dd>
       </div>
       <div>
         <dt>synced_at</dt>
@@ -426,6 +503,213 @@ async function submitCashSyncRetry(eventId) {
   } finally {
     setRetrySubmitting(false);
   }
+}
+
+async function openCashIncomeRequestDialog() {
+  if (!canRequestCashIncome(detailData)) {
+    showMessage("error", "当前收入记录不能提交 Cash 确认请求。");
+    return;
+  }
+
+  try {
+    await ensureCashIncomeAccountsLoaded();
+  } catch (error) {
+    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
+    return;
+  }
+
+  const income = detailData.income;
+  clearCashIncomeRequestErrors();
+  setCashRequestSubmitting(false);
+  dom.cashIncomeRequestSummary.innerHTML = renderDefinitionList([
+    ["收入记录", shortId(income.id)],
+    ["来源", displayValue(income.source_label || income.description)],
+    ["School 原始金额", formatCurrency(income.amount, income.currency)],
+    ["JPY 金额", formatCurrency(income.amount_jpy, "JPY")],
+  ]);
+  dom.cashIncomeActualAmountInput.value = "";
+  dom.cashIncomeActualCurrencySelect.value = income.source_type === "part_time_work" ? "CNY" : income.currency || "JPY";
+  dom.cashIncomeExchangeRateInput.value = "";
+  dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
+  renderCashIncomeAccountOptions();
+  updateCashIncomeRequestPreview();
+  dom.cashIncomeRequestDialog.classList.remove("is-hidden");
+  dom.cashIncomeRequestDialog.setAttribute("aria-hidden", "false");
+  dom.cashIncomeActualAmountInput.focus();
+}
+
+function closeCashIncomeRequestDialog() {
+  if (isCashRequestSubmitting) {
+    return;
+  }
+  dom.cashIncomeRequestDialog.classList.add("is-hidden");
+  dom.cashIncomeRequestDialog.setAttribute("aria-hidden", "true");
+}
+
+async function ensureCashIncomeAccountsLoaded() {
+  if (hasLoadedCashEligibleAccounts) {
+    return;
+  }
+
+  const rows = await fetchSchoolEligibleCashAccountsViaFunction();
+  cashEligibleAccounts = (rows || []).filter((account) => (
+    account?.is_active === true &&
+    account?.allow_school_requests === true &&
+    ["JPY", "CNY"].includes(account.currency)
+  ));
+  hasLoadedCashEligibleAccounts = true;
+}
+
+function renderCashIncomeAccountOptions() {
+  const selectedValue = dom.cashIncomeAccountSelect.value;
+  const currency = dom.cashIncomeActualCurrencySelect.value;
+  const accounts = cashEligibleAccounts.filter((account) => (
+    account?.is_active === true &&
+    account?.allow_school_requests === true &&
+    account.currency === currency
+  ));
+  dom.cashIncomeAccountSelect.innerHTML = [
+    '<option value="">请选择 Cash 收款账户</option>',
+    ...accounts.map((account) => (
+      `<option value="${escapeAttribute(account.id)}">${escapeHtml(cashAccountLabel(account))}</option>`
+    )),
+  ].join("");
+
+  if (accounts.some((account) => account.id === selectedValue)) {
+    dom.cashIncomeAccountSelect.value = selectedValue;
+  }
+}
+
+async function submitCashIncomeRequest() {
+  if (isCashRequestSubmitting || !detailData?.income) {
+    return;
+  }
+
+  const payload = readCashIncomeRequestPayload();
+  if (!payload) {
+    return;
+  }
+
+  if (!window.confirm("确认提交 Cash 待确认请求？Cash 确认后才会生成 Cash 交易。")) {
+    return;
+  }
+
+  setCashRequestSubmitting(true);
+  try {
+    await requestCashIncomeConfirmationForRecord(payload);
+    closeCashIncomeRequestDialog();
+    await loadIncomeDetail(payload.incomeRecordId);
+    showMessage("success", "Cash 收入确认请求已提交，等待 Cash 侧确认。");
+  } catch (error) {
+    showCashIncomeRequestError(`Cash 收入确认请求提交失败：${error.message || error}`);
+  } finally {
+    setCashRequestSubmitting(false);
+  }
+}
+
+function readCashIncomeRequestPayload() {
+  clearCashIncomeRequestErrors();
+  const income = detailData?.income;
+  if (!income?.id) {
+    showCashIncomeRequestError("收入记录不存在，请刷新后重试。");
+    return null;
+  }
+
+  const actualReceivedAmount = Number(dom.cashIncomeActualAmountInput.value);
+  if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
+    showCashIncomeRequestError("请输入大于 0 的实际到账金额。", ["actualAmount"]);
+    return null;
+  }
+
+  const actualReceivedCurrency = dom.cashIncomeActualCurrencySelect.value;
+  if (!["JPY", "CNY"].includes(actualReceivedCurrency)) {
+    showCashIncomeRequestError("请选择实际到账币种。", ["actualCurrency"]);
+    return null;
+  }
+
+  const cashAccountId = dom.cashIncomeAccountSelect.value;
+  if (!cashAccountId) {
+    showCashIncomeRequestError("请选择 Cash 收款账户。", ["cashAccount"]);
+    return null;
+  }
+
+  const cashAccount = cashEligibleAccounts.find((account) => account.id === cashAccountId);
+  if (!cashAccount || cashAccount.currency !== actualReceivedCurrency) {
+    showCashIncomeRequestError("Cash 收款账户币种与实际到账币种不一致。", ["cashAccount"]);
+    return null;
+  }
+
+  const exchangeRateText = dom.cashIncomeExchangeRateInput.value.trim();
+  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  if (actualReceivedCurrency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+    showCashIncomeRequestError("CNY 实际到账必须填写本次汇率。", ["exchangeRate"]);
+    return null;
+  }
+  if (actualReceivedCurrency === "JPY" && exchangeRate !== null && exchangeRate !== 1) {
+    showCashIncomeRequestError("JPY 实际到账汇率应为空或 1。", ["exchangeRate"]);
+    return null;
+  }
+
+  return {
+    incomeRecordId: income.id,
+    cashAccountId,
+    actualReceivedAmount,
+    actualReceivedCurrency,
+    exchangeRate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
+    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate),
+  };
+}
+
+function updateCashIncomeRequestPreview(options = {}) {
+  const income = detailData?.income;
+  if (!income) {
+    dom.cashIncomeRequestPreview.textContent = "Cash 请求预览：-";
+    return;
+  }
+
+  const amount = Number(dom.cashIncomeActualAmountInput.value);
+  const currency = dom.cashIncomeActualCurrencySelect.value;
+  const originalJpy = Number(income.amount_jpy || (income.currency === "JPY" ? income.amount : 0));
+
+  if (currency === "JPY") {
+    dom.cashIncomeExchangeRateInput.value = "1";
+    dom.cashIncomeExchangeRateInput.disabled = true;
+  } else {
+    dom.cashIncomeExchangeRateInput.disabled = false;
+    if (options.inferExchangeRate && Number.isFinite(amount) && amount > 0 && originalJpy > 0 && !dom.cashIncomeExchangeRateInput.value.trim()) {
+      dom.cashIncomeExchangeRateInput.value = String(roundDecimal(amount / originalJpy, 7));
+    }
+  }
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    dom.cashIncomeRequestPreview.textContent = `Cash 请求预览：School 原始金额 ${formatCurrency(income.amount, income.currency)} / 实际到账 -`;
+    return;
+  }
+
+  const rate = dom.cashIncomeExchangeRateInput.value.trim();
+  dom.cashIncomeRequestPreview.textContent = [
+    "Cash 请求预览：",
+    income.source_label || income.description || incomeCategoryLabel(income.income_category),
+    `School 原始金额 ${formatCurrency(income.amount, income.currency)}`,
+    `实际到账 ${formatCurrency(amount, currency)}`,
+    rate ? `汇率 ${rate}` : "",
+  ].filter(Boolean).join(" / ");
+}
+
+function defaultCashIncomeNote(income) {
+  if (income.source_type === "part_time_work") {
+    return `${income.source_label || "外部塾打工收入"}，JPY工资总额${formatCurrency(income.amount_jpy || income.amount, "JPY")}。`;
+  }
+  return income.note || income.description || incomeCategoryLabel(income.income_category);
+}
+
+function buildCashIncomeRequestNote(income, amount, currency, exchangeRate) {
+  const base = dom.cashIncomeNoteInput.value.trim();
+  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，汇率${exchangeRate}` : ""}`;
+  if (!base) {
+    return requiredText;
+  }
+  return base.includes("实际到账") ? base : `${base}；${requiredText}`;
 }
 
 function openEditDialog() {
@@ -862,15 +1146,18 @@ function cashIncomeLinkageSummary(event) {
 
 function cashLinkageStatusText(value) {
   if (value === "pending") return "Cash 同步待处理";
+  if (value === "pending_cash_request") return "Cash 待提交";
+  if (value === "awaiting_cash_confirmation") return "Cash 待确认";
   if (value === "synced") return "已同步到 Cash System";
+  if (value === "cash_rejected") return "Cash 已拒绝";
   if (value === "failed") return "Cash 同步失败";
   return cashLinkageStatusLabel(value);
 }
 
 function cashLinkageStatusClass(value) {
-  if (value === "pending") return "status-pending";
+  if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "status-pending";
   if (value === "synced") return "status-paid";
-  if (value === "failed") return "status-cancelled";
+  if (value === "failed" || value === "cash_rejected") return "status-cancelled";
   return "status-neutral";
 }
 
@@ -895,6 +1182,39 @@ function setRetrySubmitting(isSubmitting) {
     retryButton.disabled = isSubmitting;
     retryButton.textContent = isSubmitting ? "入队中..." : "重新同步";
   }
+}
+
+function setCashRequestSubmitting(isSubmitting) {
+  isCashRequestSubmitting = isSubmitting;
+  dom.cashIncomeRequestSubmitButton.disabled = isSubmitting;
+  dom.cashIncomeRequestCancelButton.disabled = isSubmitting;
+  dom.cashIncomeRequestSubmitButton.textContent = isSubmitting ? "提交中..." : "提交 Cash 确认";
+}
+
+function clearCashIncomeRequestErrors() {
+  dom.cashIncomeRequestError.textContent = "";
+  dom.cashIncomeRequestError.classList.add("is-hidden");
+  dom.cashIncomeRequestDialog.querySelectorAll("[data-cash-income-field]").forEach((field) => {
+    field.classList.remove("is-invalid");
+  });
+}
+
+function showCashIncomeRequestError(text, fieldIds = []) {
+  dom.cashIncomeRequestError.textContent = text;
+  dom.cashIncomeRequestError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    dom.cashIncomeRequestDialog.querySelector(`[data-cash-income-field="${fieldId}"]`)?.classList.add("is-invalid");
+  }
+}
+
+function hideCashIncomeRequestErrorIfClean() {
+  if (!dom.cashIncomeRequestError.textContent) {
+    dom.cashIncomeRequestError.classList.add("is-hidden");
+  }
+}
+
+function clearCashIncomeFieldInvalid(input) {
+  input?.closest("[data-cash-income-field]")?.classList.remove("is-invalid");
 }
 
 function clearEditErrors() {
@@ -1050,6 +1370,14 @@ function accountNameById(id) {
   return currency ? `${name} / ${currency}` : name;
 }
 
+function cashAccountLabel(account) {
+  return [
+    safeText(account?.name) || account?.id || "未命名账户",
+    safeText(account?.currency),
+    safeText(account?.account_type),
+  ].filter(Boolean).join(" / ");
+}
+
 function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
 }
@@ -1126,6 +1454,11 @@ function currentDate() {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function roundDecimal(value, digits) {
+  const factor = 10 ** digits;
+  return Math.round(Number(value) * factor) / factor;
 }
 
 function displayValue(value) {

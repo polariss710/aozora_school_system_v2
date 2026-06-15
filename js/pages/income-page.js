@@ -35,6 +35,7 @@ const INCOME_CATEGORY_LABELS = {
   material_fee: "教材费",
   registration_fee: "报名费",
   other_fee: "其他费用",
+  part_time_work: "外部塾打工收入",
 };
 
 const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee", "other_fee"];

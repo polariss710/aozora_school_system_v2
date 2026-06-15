@@ -184,14 +184,14 @@ part_time_work_income_request -> 直接 Cash request
 part_time_work -> School 收入记录 -> Cash request
 ```
 
-现有旁路 pending request：
+现有旁路 request：
 
-- Cash pending request: `19ba6cbd-9588-486b-8b2a-b4b7c573f252`
+- Cash request: `19ba6cbd-9588-486b-8b2a-b4b7c573f252`（已在 Cash UI 拒绝）
 - School income request: `123180f8-012a-4334-95dd-3adc3e7f5b11`
 - 业务：`2026-05 诺应教育`
 - 金额：`86,760 JPY / 3,670 CNY`
 
-该请求暂不确认。后续应作为错误旁路请求定向清理或取消。
+该请求不得确认或复用。2026-06-15 已定向回写 School 为 `cash_rejected`，并已按正确链路生成 School 收入记录 `fc676042-663b-45c2-9e1f-51e7306d9d63`。后续 Cash 请求应从该收入记录发起。
 
 ## 8. 后续修复顺序建议
 
@@ -203,9 +203,9 @@ part_time_work -> School 收入记录 -> Cash request
 
 第二阶段：收入侧统一化
 
-- 外部塾打工收入改为生成 School 收入记录。
-- 收入记录页面统一负责向 Cash 发收款请求。
-- 清理错误旁路 Cash pending request。
+- 外部塾打工收入改为生成 School 收入记录。（2026-06-15 已开始实装）
+- 收入记录页面统一负责向 Cash 发收款请求。（2026-06-15 已开始支持 existing income record）
+- 清理或保留归档错误旁路 Cash rejected request，不再生成新的旁路 request。
 
 第三阶段：支出侧统一化
 

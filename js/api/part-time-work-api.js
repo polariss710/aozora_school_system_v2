@@ -141,7 +141,7 @@ export async function unlockPartTimeWorkMonthlySettlement(id) {
 }
 
 export async function createPartTimeWorkIncomeRequest(settlementId) {
-  const { data, error } = await supabase.rpc("school_create_part_time_work_income_request", {
+  const { data, error } = await supabase.rpc("school_create_part_time_work_income_record", {
     p_settlement_id: settlementId,
   });
 
@@ -149,7 +149,7 @@ export async function createPartTimeWorkIncomeRequest(settlementId) {
     throw error;
   }
 
-  return firstResult(data, "收入请求生成失败：RPC 没有返回结果。");
+  return firstResult(data, "收入记录生成失败：RPC 没有返回结果。");
 }
 
 export async function fetchPartTimeWorkSettlementExport(settlementId) {
@@ -162,53 +162,4 @@ export async function fetchPartTimeWorkSettlementExport(settlementId) {
   }
 
   return data || [];
-}
-
-export async function fetchPartTimeWorkCashEligibleAccounts() {
-  const { data, error } = await supabase.functions.invoke(
-    "request-cash-part-time-income-confirmation",
-    {
-      body: { action: "list_eligible_accounts" },
-    }
-  );
-
-  if (error) {
-    throw error;
-  }
-
-  if (!data?.ok) {
-    throw new Error(data?.details || data?.message || "Cash System 可选账户读取失败。");
-  }
-
-  return data.accounts || [];
-}
-
-export async function requestPartTimeWorkCashConfirmation(payload) {
-  const { data, error } = await supabase.functions.invoke(
-    "request-cash-part-time-income-confirmation",
-    {
-      body: {
-        income_request_id: payload.incomeRequestId,
-        cash_account_id: payload.cashAccountId,
-        actual_received_amount: payload.actualReceivedAmount,
-        actual_received_currency: payload.actualReceivedCurrency,
-        exchange_rate: payload.exchangeRate ?? null,
-        note: payload.note || null,
-      },
-    }
-  );
-
-  if (error) {
-    throw error;
-  }
-
-  if (!data?.ok) {
-    throw new Error(data?.details || data?.message || "Cash System 确认请求提交失败。");
-  }
-
-  if (data.cash_request_status !== "pending") {
-    throw new Error("Cash System 请求未停留在待确认状态。");
-  }
-
-  return data;
 }

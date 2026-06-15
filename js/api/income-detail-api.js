@@ -27,6 +27,10 @@ const INCOME_DETAIL_COLUMNS = [
   "receipt_status",
   "include_in_student_settlement",
   "note",
+  "source_type",
+  "source_id",
+  "source_label",
+  "source_snapshot",
   "app_type",
   "created_at",
   "updated_at",
@@ -118,6 +122,13 @@ const CASH_INCOME_LINKAGE_COLUMNS = [
   "cash_account_name_snapshot",
   "cash_transaction_table",
   "cash_transaction_id",
+  "currency",
+  "amount",
+  "payment_currency",
+  "payment_exchange_rate",
+  "payment_amount",
+  "cash_request_id",
+  "cash_request_status",
   "idempotency_key",
   "retry_count",
   "last_error",
@@ -213,6 +224,36 @@ export async function retryPersonalCashIncomeLinkageEvent(eventId) {
   }
 
   return result;
+}
+
+export async function requestCashIncomeConfirmationForRecord(payload) {
+  const { data, error } = await supabase.functions.invoke(
+    "request-cash-income-confirmation",
+    {
+      body: {
+        income_record_id: payload.incomeRecordId,
+        cash_account_id: payload.cashAccountId,
+        actual_received_amount: payload.actualReceivedAmount,
+        actual_received_currency: payload.actualReceivedCurrency,
+        exchange_rate: payload.exchangeRate ?? null,
+        note: payload.note || null,
+      },
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data?.ok) {
+    throw new Error(data?.details || data?.message || "Cash System 收入确认请求提交失败。");
+  }
+
+  if (data.cash_request_status !== "pending") {
+    throw new Error("Cash System 收入确认请求未停留在待确认状态。");
+  }
+
+  return data;
 }
 
 async function fetchIncomeDetail(incomeId) {
