@@ -919,7 +919,7 @@ h2 {
 }
 
 .part-time-work-table {
-  min-width: 1360px;
+  min-width: 1480px;
 }
 
 .part-time-work-list-details {
@@ -954,6 +954,13 @@ h2 {
   min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 14px;
+}
+
+.part-time-work-hour-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 0.9fr) minmax(72px, 0.65fr) minmax(0, 0.9fr);
+  gap: 8px;
 }
 
 .part-time-work-wide-field {
@@ -2258,6 +2265,10 @@ h2 {
   .reimbursement-create-field-grid,
   .lesson-create-field-grid,
   .part-time-work-dialog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-hour-row {
     grid-template-columns: minmax(0, 1fr);
   }
 

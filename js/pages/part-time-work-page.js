@@ -116,6 +116,8 @@ function cacheDom() {
   dom.endTimeInput = document.querySelector("#partTimeWorkEndTimeInput");
   dom.hoursLabel = document.querySelector("#partTimeWorkHoursLabel");
   dom.hoursInput = document.querySelector("#partTimeWorkHoursInput");
+  dom.lessonCountInput = document.querySelector("#partTimeWorkLessonCountInput");
+  dom.subtotalHoursInput = document.querySelector("#partTimeWorkSubtotalHoursInput");
   dom.hourlyRateInput = document.querySelector("#partTimeWorkHourlyRateInput");
   dom.transportationFeeInput = document.querySelector("#partTimeWorkTransportationFeeInput");
   dom.memoInput = document.querySelector("#partTimeWorkMemoInput");
@@ -152,6 +154,8 @@ function bindEvents() {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
+    dom.lessonCountInput,
+    dom.subtotalHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -258,6 +262,9 @@ function renderActualPlaceholder(planned) {
 
 function renderLessonCard(row, options = {}) {
   const isActual = row.record_kind === "actual";
+  const hours = isActual ? row.actual_hours : row.planned_hours;
+  const count = lessonCount(row);
+  const subtotalHours = calculateSubtotalHours(hours, count);
   const isLocked = row.settlement_status === "locked" || row.settlement_status === "income_request_created";
   const hasActual = row.record_kind === "planned" && Boolean(options.pairedActual || row.generated_actual_id);
   const canEdit = !isActual || !isLocked;
@@ -283,7 +290,9 @@ function renderLessonCard(row, options = {}) {
         <span>${escapeHtml(row.class_description || "-")}</span>
       </div>
       <dl class="lesson-pair-meta">
-        <div><dt>${isActual ? "实际课时" : "预定课时"}</dt><dd>${escapeHtml(formatHours(isActual ? row.actual_hours : row.planned_hours))} h</dd></div>
+        <div><dt>${isActual ? "实际课时" : "预定课时"}</dt><dd>${escapeHtml(formatHours(hours))} h</dd></div>
+        <div><dt>回数</dt><dd>${escapeHtml(formatLessonCount(count))}</dd></div>
+        <div><dt>课时小计</dt><dd>${escapeHtml(formatHours(subtotalHours))} h</dd></div>
         <div><dt>时给</dt><dd>${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</dd></div>
         <div><dt>交通费</dt><dd>${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</dd></div>
         <div><dt>课时工资</dt><dd>${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</dd></div>
@@ -319,6 +328,8 @@ function renderListRow(row) {
       <td class="description-cell">${escapeHtml(row.class_description || "-")}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.planned_hours))}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.actual_hours))}</td>
+      <td class="number-cell">${escapeHtml(formatLessonCount(lessonCount(row)))}</td>
+      <td class="number-cell">${escapeHtml(formatHours(calculateLessonSubtotal(row)))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
@@ -446,6 +457,8 @@ function fillDialogFromLesson(lesson, hours) {
   dom.startTimeInput.value = formatTimeInput(lesson.start_time);
   dom.endTimeInput.value = formatTimeInput(lesson.end_time);
   dom.hoursInput.value = hours ?? 0;
+  dom.lessonCountInput.value = String(lessonCount(lesson));
+  dom.subtotalHoursInput.value = formatHours(calculateSubtotalHours(hours, lessonCount(lesson)));
   dom.hourlyRateInput.value = lesson.hourly_rate_jpy ?? 0;
   dom.transportationFeeInput.value = lesson.transportation_fee_jpy ?? 0;
   dom.memoInput.value = lesson.memo || "";
@@ -645,6 +658,7 @@ function readDialogPayload() {
     startTime: dom.startTimeInput.value,
     endTime: dom.endTimeInput.value,
     hours: calculateHoursFromTimes(dom.startTimeInput.value, dom.endTimeInput.value),
+    lessonCount: parseInteger(dom.lessonCountInput.value),
     hourlyRateJpy: parseInteger(dom.hourlyRateInput.value),
     transportationFeeJpy: parseInteger(dom.transportationFeeInput.value),
     memo: dom.memoInput.value.trim(),
@@ -684,6 +698,11 @@ function validatePayload(payload) {
     return "结束时间必须晚于开始时间。";
   }
 
+  if (!Number.isInteger(payload.lessonCount) || payload.lessonCount < 1) {
+    markFieldInvalid(dom.lessonCountInput);
+    return "请选择回数。";
+  }
+
   if (!Number.isInteger(payload.hourlyRateJpy) || payload.hourlyRateJpy < 0) {
     markFieldInvalid(dom.hourlyRateInput);
     return "时给必须是大于等于 0 的整数。";
@@ -700,11 +719,14 @@ function validatePayload(payload) {
 function updatePreview() {
   const payload = readDialogPayload();
   const hours = Number.isFinite(payload.hours) ? payload.hours : 0;
+  const count = Number.isInteger(payload.lessonCount) && payload.lessonCount > 0 ? payload.lessonCount : 1;
+  const subtotalHours = calculateSubtotalHours(hours, count);
   const hourlyRate = Number.isFinite(payload.hourlyRateJpy) ? payload.hourlyRateJpy : 0;
   const transportationFee = Number.isFinite(payload.transportationFeeJpy) ? payload.transportationFeeJpy : 0;
-  const lessonWageJpy = Math.round(hours * hourlyRate);
+  const lessonWageJpy = Math.round(subtotalHours * hourlyRate);
   dom.hoursInput.value = Number.isFinite(payload.hours) ? formatHours(payload.hours) : "0";
-  dom.preview.textContent = `预览：课时 ${formatHours(hours)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
+  dom.subtotalHoursInput.value = formatHours(subtotalHours);
+  dom.preview.textContent = `预览：课时 ${formatHours(hours)} h × ${formatLessonCount(count)} = ${formatHours(subtotalHours)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
 }
 
 function clearDialog() {
@@ -716,6 +738,8 @@ function clearDialog() {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
+    dom.lessonCountInput,
+    dom.subtotalHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -723,6 +747,8 @@ function clearDialog() {
     input.value = "";
   }
   dom.hoursInput.value = "0";
+  dom.lessonCountInput.value = "1";
+  dom.subtotalHoursInput.value = "0";
   dom.startTimeInput.value = "";
   dom.endTimeInput.value = "";
   dom.hourlyRateInput.value = "0";
@@ -798,6 +824,8 @@ function clearInvalidFields() {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
+    dom.lessonCountInput,
+    dom.subtotalHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
   ]) {
@@ -847,6 +875,25 @@ function calculateHoursFromTimes(startTime, endTime) {
   }
 
   return Math.round(((endMinutes - startMinutes) / 60) * 100) / 100;
+}
+
+function lessonCount(row) {
+  const count = Number(row?.lesson_count ?? 1);
+  return Number.isInteger(count) && count >= 1 ? count : 1;
+}
+
+function calculateLessonSubtotal(row) {
+  const hours = row?.record_kind === "actual" ? row.actual_hours : row?.planned_hours;
+  return calculateSubtotalHours(hours, lessonCount(row));
+}
+
+function calculateSubtotalHours(hours, count) {
+  const hourValue = Number(hours || 0);
+  const countValue = Number(count || 1);
+  if (!Number.isFinite(hourValue) || !Number.isFinite(countValue)) {
+    return 0;
+  }
+  return Math.round(hourValue * countValue * 100) / 100;
 }
 
 function timeToMinutes(value) {
@@ -902,6 +949,13 @@ function formatHours(value) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   });
+}
+
+function formatLessonCount(value) {
+  return `${Number(value || 1).toLocaleString("zh-CN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })} 回`;
 }
 
 function formatDateOnly(value) {

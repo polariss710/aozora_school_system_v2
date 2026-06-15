@@ -202,7 +202,7 @@ Design notes:
 2. After teaching, generate actual from planned.
 3. At month end, review all actual rows.
 4. Calculate approximate income:
-   - `actual_hours * hourly_rate`
+   - `actual_hours * lesson_count * hourly_rate`
    - plus `transportation_fee`
    - plus allowance
    - minus deductions
@@ -226,7 +226,7 @@ Monthly settlement header:
 - `currency`
 - `target_cash_account_id`
 - `actual_lesson_count`
-- `actual_hours_total`
+- `actual_hours_total` (`sum(actual_hours * lesson_count)`)
 - `lesson_wage_total`
 - `transportation_fee_total`
 - `allowance_total`
@@ -250,7 +250,7 @@ Settlement detail:
 Calculation:
 
 ```text
-lesson_wage_amount = actual_hours * hourly_rate
+lesson_wage_amount = actual_hours * lesson_count * hourly_rate
 total_expected_income =
   lesson_wage_total
   + transportation_fee_total

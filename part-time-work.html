@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.113.0-part-time-work-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.114.0-part-time-work-count-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -110,7 +110,7 @@
               <thead>
                 <tr>
                   <th>打工先</th>
-                  <th class="number-cell">实际课时</th>
+                  <th class="number-cell">实际课时小计</th>
                   <th class="number-cell">时给</th>
                   <th class="number-cell">课时工资</th>
                   <th class="number-cell">交通费合计</th>
@@ -151,6 +151,8 @@
                     <th>工作内容</th>
                     <th class="number-cell">预定课时</th>
                     <th class="number-cell">实际课时</th>
+                    <th class="number-cell">回数</th>
+                    <th class="number-cell">课时小计</th>
                     <th class="number-cell">时给</th>
                     <th class="number-cell">交通费</th>
                     <th class="number-cell">课时工资</th>
@@ -210,10 +212,29 @@
             <input id="partTimeWorkEndTimeInput" type="time">
           </label>
 
-          <label class="field" data-part-time-work-field="hours">
-            <span id="partTimeWorkHoursLabel">课时</span>
-            <input id="partTimeWorkHoursInput" type="number" step="0.01" min="0" inputmode="decimal" readonly>
-          </label>
+          <div class="part-time-work-hour-row">
+            <label class="field" data-part-time-work-field="hours">
+              <span id="partTimeWorkHoursLabel">课时</span>
+              <input id="partTimeWorkHoursInput" type="number" step="0.01" min="0" inputmode="decimal" readonly>
+            </label>
+
+            <label class="field" data-part-time-work-field="lessonCount">
+              <span>回数</span>
+              <select id="partTimeWorkLessonCountInput">
+                <option value="1">1 回</option>
+                <option value="2">2 回</option>
+                <option value="3">3 回</option>
+                <option value="4">4 回</option>
+                <option value="5">5 回</option>
+                <option value="6">6 回</option>
+              </select>
+            </label>
+
+            <label class="field" data-part-time-work-field="subtotalHours">
+              <span>课时小计</span>
+              <input id="partTimeWorkSubtotalHoursInput" type="number" step="0.01" min="0" inputmode="decimal" readonly>
+            </label>
+          </div>
 
           <label class="field" data-part-time-work-field="hourlyRateJpy">
             <span>时给 JPY</span>
@@ -240,6 +261,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/part-time-work-app.js?v=v2.113.0-part-time-work-20260615"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.114.0-part-time-work-count-20260615"></script>
   </body>
 </html>

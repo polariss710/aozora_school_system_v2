@@ -32,7 +32,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
 | 导入导出 | 已收口 | Planned-only import stable; full actual/history import deferred |
 | 利润分析 | 只读完成 | Keep read-only |
-| 私塾打工 | V1 新增 / SQL 已安装 | Browser-smoke list/create/edit/soft-delete later with whitelist data only |
+| 私塾打工 | Workflow V1 已安装 / 回数与课时小计已接入 | Browser-smoke copy/generate/settlement later with whitelist data only |
 | Backlog / 暂不实现 | Backlog | Separate guarded phases only; account/family ledger and broader personal teaching income designs remain |
 
 ## 课时管理
@@ -82,7 +82,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - 当前状态: 设计已补全并在 2026-06-15 刷新，尚未实装。详见 `docs/personal-teaching-income-module-design.md`。
 - 业务定位: 用户个人在外部私塾授课 / 打工产生的个人业务收入。外部私塾是付款方；用户是授课者 / 打工者。该模块不是青空塾老师工资支出模块，不进入青空塾老师工资结算，不创建 `teacher_wage` payment request。
 - 课时模型: 使用 planned + actual，但不复用现行青空塾 lesson 的 cancel / makeup / makeup_completed / `is_billable` 复杂状态。Planned 可自由新增、编辑、删除；唯一动作是生成 actual。如果没上课，删除 planned；如果 planned 已生成 actual，删除需要二次确认作为业务保护。
-- 月度流程: 日常录入 planned -> 上课后生成 actual -> 月末核对 actual -> 计算 `actual_hours * hourly_rate + transportation_fee + allowance - deduction` -> 锁定月度结算 -> 生成 `personal_teaching_income_request` -> 提交 Cash 入账确认 -> Cash approve 后余额增加并标记 income request / settlement received / settled；Cash reject 后 request pending / retryable。
+- 月度流程: 日常录入 planned -> 上课后生成 actual -> 月末核对 actual -> 计算 `actual_hours * lesson_count * hourly_rate + transportation_fee + allowance - deduction` -> 锁定月度结算 -> 生成 `personal_teaching_income_request` -> 提交 Cash 入账确认 -> Cash approve 后余额增加并标记 income request / settlement received / settled；Cash reject 后 request pending / retryable。
 - 与 teacher_wage Cash 化区别: teacher_wage 是支出、payment request、Cash approve 后余额减少、School payment request paid；personal teaching income 是收入、income / receipt request、Cash approve 后余额增加、School income request received / settled。可复用 attempt、active attempt unique guard、rejected retry、idempotency、Cash external request、approve/reject callback、JPY/CNY transaction 分流；不可复用 payment 命名、支出方向、paid 语义、老师工资结算表或 teacher_wage 专用字段。
 - 下一步: income Cash confirmation 链路已稳定通过首批真实 CNY 测试；下一步可另开 guarded implementation phase 设计/实装表结构、RPC、页面、结算锁定、Cash request 提交和回写。
 
@@ -91,7 +91,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - 当前状态: Workflow V1 已替换旧模型 / SQL 已安装。旧 `school_part_time_work_records` 一条记录同时保存课时和工资的错误模型已废弃并从 DB 删除。当前正式模型使用 `school_part_time_work_lessons`、`school_part_time_work_monthly_settlements`、`school_part_time_work_monthly_settlement_details`、`school_part_time_work_income_requests`，SQL 来源为 `sql/current/school_part_time_work_workflow.sql`。
 - 业务定位: 外部私塾 / 外部机构兼职授课流程，独立记录 planned 预定打工课时和 actual 实际打工课时；实际课时由预定课时生成；月底按 `year_month + 打工先` 结算工资；锁定后冻结明细快照；锁定后可生成 School 侧收入请求。
 - 边界: 不混入现有学生记录，不复用 lesson management，不进入 teacher_wage 结算，不创建 teacher_wage payment request，不写 School expense/account transaction，不连接 Cash DB，也不自动写 `home_account_book`。本轮收入请求仅为 School 侧记录，后续 Cash receipt confirmation 另开 guarded phase。
-- 计算/权限: 课时工资和结算总额由 RPC 统一计算。开始时间和结束时间为必填，RPC 根据时间差计算 planned / actual 课时；交通费保存在 planned / actual 课时上且允许为 0；月度结算行保存时记录时给、调整额和总额，交通费从本月 actual 课时汇总；锁定时写入 settlement detail snapshots。所有 page-facing list/create/update/delete/generate/save/lock/request RPC 只 grant execute to `authenticated`，不 grant anon。
+- 计算/权限: 课时工资和结算总额由 RPC 统一计算。开始时间、结束时间、回数为必填；RPC 根据时间差计算单次 planned / actual 课时，并以 `课时小计 = 单次课时 * 回数` 计算 actual 课时工资和月度结算课时合计；交通费保存在 planned / actual 课时上且允许为 0；月度结算行保存时记录时给、调整额和总额，交通费从本月 actual 课时汇总；锁定时写入 settlement detail snapshots。所有 page-facing list/create/update/delete/generate/save/lock/request RPC 只 grant execute to `authenticated`，不 grant anon。
 - 当前限制 / hard stop: 不做 Cash 写入、月度锁定以外的审批、导出、历史导入、真实业务数据迁移或与 teacher_wage/payment request 的复用。旧 V1 active 行经用户确认是新建状态后已随表删除。
 - 下一步: 使用 whitelist `TEST_外部塾_WORKFLOW` 做端到端 smoke，并在后续单独阶段设计 School income request -> Cash receipt confirmation。
 
