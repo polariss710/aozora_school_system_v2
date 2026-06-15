@@ -113,7 +113,7 @@
                   <th class="number-cell">实际课时</th>
                   <th class="number-cell">时给</th>
                   <th class="number-cell">课时工资</th>
-                  <th class="number-cell">交通费</th>
+                  <th class="number-cell">交通费合计</th>
                   <th class="number-cell">调整额</th>
                   <th class="number-cell">工资总额</th>
                   <th>结算状态</th>
@@ -139,25 +139,28 @@
 
           <details class="part-time-work-list-details">
             <summary>显示普通列表</summary>
-            <table class="payment-table part-time-work-table">
-              <thead>
-                <tr>
-                  <th>类型</th>
-                  <th>日期</th>
-                  <th>打工先</th>
-                  <th>科目</th>
-                  <th>工作内容</th>
-                  <th class="number-cell">预定课时</th>
-                  <th class="number-cell">实际课时</th>
-                  <th class="number-cell">时给</th>
-                  <th class="number-cell">课时工资</th>
-                  <th>结算状态</th>
-                  <th>备注</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="partTimeWorkTableBody"></tbody>
-            </table>
+            <div class="table-scroll">
+              <table class="payment-table part-time-work-table">
+                <thead>
+                  <tr>
+                    <th>类型</th>
+                    <th>日期</th>
+                    <th>打工先</th>
+                    <th>科目</th>
+                    <th>工作内容</th>
+                    <th class="number-cell">预定课时</th>
+                    <th class="number-cell">实际课时</th>
+                    <th class="number-cell">时给</th>
+                    <th class="number-cell">交通费</th>
+                    <th class="number-cell">课时工资</th>
+                    <th>结算状态</th>
+                    <th>备注</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="partTimeWorkTableBody"></tbody>
+              </table>
+            </div>
           </details>
         </section>
       </main>
@@ -204,6 +207,11 @@
           <label class="field" data-part-time-work-field="hourlyRateJpy">
             <span>时给 JPY</span>
             <input id="partTimeWorkHourlyRateInput" type="number" step="1" min="0" inputmode="numeric">
+          </label>
+
+          <label class="field" data-part-time-work-field="transportationFeeJpy">
+            <span>交通费 JPY</span>
+            <input id="partTimeWorkTransportationFeeInput" type="number" step="1" min="0" inputmode="numeric">
           </label>
 
           <label class="field part-time-work-wide-field">

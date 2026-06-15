@@ -114,6 +114,7 @@ function cacheDom() {
   dom.hoursLabel = document.querySelector("#partTimeWorkHoursLabel");
   dom.hoursInput = document.querySelector("#partTimeWorkHoursInput");
   dom.hourlyRateInput = document.querySelector("#partTimeWorkHourlyRateInput");
+  dom.transportationFeeInput = document.querySelector("#partTimeWorkTransportationFeeInput");
   dom.memoInput = document.querySelector("#partTimeWorkMemoInput");
   dom.preview = document.querySelector("#partTimeWorkPreview");
   dom.cancelButton = document.querySelector("#partTimeWorkCancelButton");
@@ -146,6 +147,7 @@ function bindEvents() {
     dom.classDescriptionInput,
     dom.hoursInput,
     dom.hourlyRateInput,
+    dom.transportationFeeInput,
     dom.memoInput,
   ]) {
     input.addEventListener("input", () => {
@@ -206,47 +208,59 @@ function renderWorkflowColumns(rows) {
   const plannedRows = rows.filter((row) => row.record_kind === "planned");
   const actualRows = rows.filter((row) => row.record_kind === "actual");
 
-  return `
-    <div class="part-time-work-workflow-column">
-      <div class="lesson-pair-column-title">预定打工课时</div>
-      ${renderWorkplaceGroups(plannedRows, "planned")}
-    </div>
-    <div class="part-time-work-workflow-column">
-      <div class="lesson-pair-column-title">实际打工课时</div>
-      ${renderWorkplaceGroups(actualRows, "actual")}
-    </div>
-  `;
-}
-
-function renderWorkplaceGroups(rows, kind) {
   return WORKPLACE_OPTIONS.map((workplace) => {
-    const groupRows = rows.filter((row) => row.workplace_name === workplace);
-    const body = groupRows.length
-      ? groupRows.map((row) => renderLessonCard(row)).join("")
-      : `<div class="lesson-pair-placeholder">暂无${kind === "planned" ? "预定" : "实际"}课时</div>`;
-
+    const workplacePlannedRows = plannedRows.filter((row) => row.workplace_name === workplace);
+    const body = workplacePlannedRows.length
+      ? workplacePlannedRows.map((planned) => renderLessonPair(planned, actualRows.find((actual) => actual.planned_lesson_id === planned.id))).join("")
+      : `<div class="lesson-pair-placeholder">暂无预定课时</div>`;
     return `
       <section class="part-time-work-workplace-section">
         <div class="part-time-work-workplace-title">${escapeHtml(workplace)}</div>
-        <div class="lesson-pair-actual-stack">${body}</div>
+        <div class="part-time-work-workplace-body">${body}</div>
       </section>
     `;
   }).join("");
 }
 
-function renderLessonCard(row) {
+function renderLessonPair(planned, actual) {
+  return `
+    <article class="lesson-pair-row part-time-work-pair-row">
+      <div class="lesson-pair-column">
+        <div class="lesson-pair-column-title">预定课时</div>
+        ${renderLessonCard(planned, { side: "planned", pairedActual: actual })}
+      </div>
+      <div class="lesson-pair-column">
+        <div class="lesson-pair-column-title">实际课时</div>
+        ${actual ? renderLessonCard(actual, { side: "actual", pairedPlanned: planned }) : renderActualPlaceholder(planned)}
+      </div>
+    </article>
+  `;
+}
+
+function renderActualPlaceholder(planned) {
+  return `
+    <div class="lesson-pair-placeholder part-time-work-actual-placeholder">
+      <span>暂无实际课时</span>
+      <button class="button table-action-button" type="button" data-part-time-work-generate-id="${escapeAttribute(planned.id)}">生成实际</button>
+    </div>
+  `;
+}
+
+function renderLessonCard(row, options = {}) {
   const isActual = row.record_kind === "actual";
   const isLocked = row.settlement_status === "locked" || row.settlement_status === "income_request_created";
-  const canGenerate = row.record_kind === "planned" && !row.generated_actual_id;
-  const canEditDelete = !isActual || !isLocked;
+  const hasActual = row.record_kind === "planned" && Boolean(options.pairedActual || row.generated_actual_id);
+  const canEdit = !isActual || !isLocked;
+  const canDelete = row.record_kind === "planned" && !isLocked;
+  const editConfirm = hasActual || isActual ? "true" : "false";
+  const deleteConfirm = hasActual ? "true" : "false";
 
   return `
     <article class="lesson-pair-card part-time-work-pair-card">
       <div class="lesson-pair-card-header">
         <div class="action-buttons">
-          ${canGenerate ? `<button class="button table-action-button" type="button" data-part-time-work-generate-id="${escapeAttribute(row.id)}">生成实际</button>` : ""}
-          ${canEditDelete ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}">编辑</button>` : ""}
-          ${canEditDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}">删除</button>` : ""}
+          ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${editConfirm}">编辑</button>` : ""}
+          ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${deleteConfirm}">删除</button>` : ""}
         </div>
         <span class="status-badge ${escapeAttribute(lessonStatusClass(row))}">${escapeHtml(lessonStatusLabel(row))}</span>
       </div>
@@ -258,6 +272,7 @@ function renderLessonCard(row) {
       <dl class="lesson-pair-meta">
         <div><dt>${isActual ? "实际课时" : "预定课时"}</dt><dd>${escapeHtml(formatHours(isActual ? row.actual_hours : row.planned_hours))} h</dd></div>
         <div><dt>时给</dt><dd>${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</dd></div>
+        <div><dt>交通费</dt><dd>${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</dd></div>
         <div><dt>课时工资</dt><dd>${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</dd></div>
         <div><dt>结算</dt><dd>${escapeHtml(settlementStatusLabel(row.settlement_status))}</dd></div>
       </dl>
@@ -275,7 +290,10 @@ function renderListRow(row) {
   const isActual = row.record_kind === "actual";
   const isLocked = row.settlement_status === "locked" || row.settlement_status === "income_request_created";
   const canGenerate = row.record_kind === "planned" && !row.generated_actual_id;
-  const canEditDelete = !isActual || !isLocked;
+  const canEdit = !isActual || !isLocked;
+  const canDelete = row.record_kind === "planned" && !isLocked;
+  const confirmEdit = row.record_kind === "actual" || row.generated_actual_id ? "true" : "false";
+  const confirmDelete = row.record_kind === "planned" && row.generated_actual_id ? "true" : "false";
 
   return `
     <tr>
@@ -287,14 +305,15 @@ function renderListRow(row) {
       <td class="number-cell">${escapeHtml(formatHours(row.planned_hours))}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.actual_hours))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
       <td>${escapeHtml(settlementStatusLabel(row.settlement_status))}</td>
       <td class="description-cell">${escapeHtml(row.memo || "-")}</td>
       <td class="action-cell">
         <div class="action-buttons">
           ${canGenerate ? `<button class="button table-action-button" type="button" data-part-time-work-generate-id="${escapeAttribute(row.id)}">生成实际</button>` : ""}
-          ${canEditDelete ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}">编辑</button>` : ""}
-          ${canEditDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}">删除</button>` : ""}
+          ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${confirmEdit}">编辑</button>` : ""}
+          ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${confirmDelete}">删除</button>` : ""}
         </div>
       </td>
     </tr>
@@ -319,9 +338,7 @@ function renderSettlementRow(row) {
         <input class="inline-number-input" data-settlement-input="hourlyRateJpy" type="number" min="0" step="1" value="${escapeAttribute(row.hourly_rate_jpy ?? 0)}" ${saveDisabled}>
       </td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
-      <td class="number-cell">
-        <input class="inline-number-input" data-settlement-input="transportationFeeJpy" type="number" min="0" step="1" value="${escapeAttribute(row.transportation_fee_jpy ?? 0)}" ${saveDisabled}>
-      </td>
+      <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
       <td class="number-cell">
         <input class="inline-number-input" data-settlement-input="adjustmentJpy" type="number" step="1" value="${escapeAttribute(row.adjustment_jpy ?? 0)}" ${saveDisabled}>
       </td>
@@ -394,6 +411,7 @@ function fillDialogFromLesson(lesson, hours) {
   dom.classDescriptionInput.value = lesson.class_description || "";
   dom.hoursInput.value = hours ?? 0;
   dom.hourlyRateInput.value = lesson.hourly_rate_jpy ?? 0;
+  dom.transportationFeeInput.value = lesson.transportation_fee_jpy ?? 0;
   dom.memoInput.value = lesson.memo || "";
 }
 
@@ -464,6 +482,10 @@ async function handleLessonActionClick(event) {
   if (editButton) {
     const lesson = lessons.find((item) => item.id === editButton.dataset.partTimeWorkEditId);
     if (lesson) {
+      if (editButton.dataset.partTimeWorkConfirmEdit === "true"
+        && !window.confirm("该预定课时已生成实际课时，或当前正在编辑实际课时。确认继续编辑？")) {
+        return;
+      }
       openEditDialog(lesson);
     }
     return;
@@ -480,13 +502,14 @@ async function handleLessonActionClick(event) {
   }
 
   const hasGeneratedActual = lesson.record_kind === "planned" && lesson.generated_actual_id;
+  const needsSecondConfirm = deleteButton.dataset.partTimeWorkConfirmDelete === "true";
   const firstConfirmText = hasGeneratedActual
     ? `预定课时 ${formatDateOnly(lesson.work_date)} 已生成实际课时，删除会同时删除未锁定的实际课时。确认继续？`
     : `确认删除 ${lesson.workplace_name || "该"} 的 ${formatDateOnly(lesson.work_date)} ${lessonKindLabel(lesson.record_kind)}课时？`;
   if (!window.confirm(firstConfirmText)) {
     return;
   }
-  if (hasGeneratedActual && !window.confirm("再次确认删除这组预定 / 实际打工课时？")) {
+  if (needsSecondConfirm && !window.confirm("再次确认删除这组预定 / 实际打工课时？")) {
     return;
   }
 
@@ -538,7 +561,6 @@ function readSettlementPayload(row, workplaceName) {
     yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
     workplaceName,
     hourlyRateJpy: parseInteger(row.querySelector('[data-settlement-input="hourlyRateJpy"]')?.value),
-    transportationFeeJpy: parseInteger(row.querySelector('[data-settlement-input="transportationFeeJpy"]')?.value),
     adjustmentJpy: parseInteger(row.querySelector('[data-settlement-input="adjustmentJpy"]')?.value),
     memo: row.querySelector('[data-settlement-input="memo"]')?.value.trim() || "",
   };
@@ -553,6 +575,7 @@ function readDialogPayload() {
     classDescription: dom.classDescriptionInput.value.trim(),
     hours: parseDecimal(dom.hoursInput.value),
     hourlyRateJpy: parseInteger(dom.hourlyRateInput.value),
+    transportationFeeJpy: parseInteger(dom.transportationFeeInput.value),
     memo: dom.memoInput.value.trim(),
   };
 }
@@ -585,6 +608,11 @@ function validatePayload(payload) {
     return "时给必须是大于等于 0 的整数。";
   }
 
+  if (!Number.isInteger(payload.transportationFeeJpy) || payload.transportationFeeJpy < 0) {
+    markFieldInvalid(dom.transportationFeeInput);
+    return "交通费必须是大于等于 0 的整数。";
+  }
+
   return "";
 }
 
@@ -592,8 +620,9 @@ function updatePreview() {
   const payload = readDialogPayload();
   const hours = Number.isFinite(payload.hours) ? payload.hours : 0;
   const hourlyRate = Number.isFinite(payload.hourlyRateJpy) ? payload.hourlyRateJpy : 0;
+  const transportationFee = Number.isFinite(payload.transportationFeeJpy) ? payload.transportationFeeJpy : 0;
   const lessonWageJpy = Math.round(hours * hourlyRate);
-  dom.preview.textContent = `预览：课时工资 ${formatCurrency(lessonWageJpy, "JPY")}`;
+  dom.preview.textContent = `预览：课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
 }
 
 function clearDialog() {
@@ -604,12 +633,14 @@ function clearDialog() {
     dom.classDescriptionInput,
     dom.hoursInput,
     dom.hourlyRateInput,
+    dom.transportationFeeInput,
     dom.memoInput,
   ]) {
     input.value = "";
   }
   dom.hoursInput.value = "0";
   dom.hourlyRateInput.value = "0";
+  dom.transportationFeeInput.value = "0";
   dom.workplaceNameInput.value = WORKPLACE_OPTIONS[0];
   dom.subjectNameInput.value = SUBJECT_OPTIONS[0];
   hideDialogError();
@@ -680,6 +711,7 @@ function clearInvalidFields() {
     dom.subjectNameInput,
     dom.hoursInput,
     dom.hourlyRateInput,
+    dom.transportationFeeInput,
   ]) {
     clearFieldInvalid(input);
   }

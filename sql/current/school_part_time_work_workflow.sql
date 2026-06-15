@@ -13,6 +13,20 @@
 
 begin;
 
+drop function if exists public.school_create_part_time_work_income_request(uuid);
+drop function if exists public.school_lock_part_time_work_monthly_settlement(uuid);
+drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text);
+drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, integer, text);
+drop function if exists public.school_list_part_time_work_monthly_settlements(text);
+drop function if exists public.school_delete_part_time_work_lesson(uuid, boolean);
+drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, integer, text);
+drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, text);
+drop function if exists public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, integer, text);
+drop function if exists public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, text);
+drop function if exists public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, integer, text, text);
+drop function if exists public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, text, text);
+drop function if exists public.school_list_part_time_work_lessons(text, text, text);
+
 drop function if exists public.school_get_part_time_work_monthly_stats(text);
 drop function if exists public.school_delete_part_time_work_record(uuid);
 drop function if exists public.school_update_part_time_work_record(uuid, date, text, text, text, text, numeric, integer, integer, integer, text, date, text);
@@ -35,11 +49,15 @@ create table if not exists public.school_part_time_work_lessons (
   actual_hours numeric(8,2) not null default 0,
   hourly_rate_jpy integer not null default 0,
   lesson_wage_jpy integer not null default 0,
+  transportation_fee_jpy integer not null default 0,
   memo text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   deleted_at timestamptz
 );
+
+alter table public.school_part_time_work_lessons
+  add column if not exists transportation_fee_jpy integer not null default 0;
 
 alter table public.school_part_time_work_lessons
   drop constraint if exists school_part_time_work_lessons_record_kind_check,
@@ -49,6 +67,7 @@ alter table public.school_part_time_work_lessons
   drop constraint if exists school_part_time_work_lessons_hours_check,
   drop constraint if exists school_part_time_work_lessons_rate_check,
   drop constraint if exists school_part_time_work_lessons_wage_check,
+  drop constraint if exists school_part_time_work_lessons_transportation_check,
   drop constraint if exists school_part_time_work_lessons_kind_pair_check,
   add constraint school_part_time_work_lessons_record_kind_check
     check (record_kind in ('planned', 'actual')),
@@ -64,6 +83,8 @@ alter table public.school_part_time_work_lessons
     check (hourly_rate_jpy >= 0),
   add constraint school_part_time_work_lessons_wage_check
     check (lesson_wage_jpy >= 0),
+  add constraint school_part_time_work_lessons_transportation_check
+    check (transportation_fee_jpy >= 0),
   add constraint school_part_time_work_lessons_kind_pair_check
     check (
       (record_kind = 'planned' and planned_lesson_id is null and actual_hours = 0 and lesson_wage_jpy = 0)
@@ -143,9 +164,13 @@ create table if not exists public.school_part_time_work_monthly_settlement_detai
   actual_hours numeric(8,2) not null default 0,
   hourly_rate_jpy integer not null default 0,
   lesson_wage_jpy integer not null default 0,
+  transportation_fee_jpy integer not null default 0,
   memo text,
   created_at timestamptz not null default now()
 );
+
+alter table public.school_part_time_work_monthly_settlement_details
+  add column if not exists transportation_fee_jpy integer not null default 0;
 
 create unique index if not exists school_part_time_work_settlement_details_lesson_idx
   on public.school_part_time_work_monthly_settlement_details (actual_lesson_id);
@@ -262,6 +287,7 @@ returns table (
   actual_hours numeric,
   hourly_rate_jpy integer,
   lesson_wage_jpy integer,
+  transportation_fee_jpy integer,
   memo text,
   settlement_id uuid,
   settlement_status text,
@@ -289,6 +315,7 @@ as $$
     l.actual_hours,
     l.hourly_rate_jpy,
     l.lesson_wage_jpy,
+    l.transportation_fee_jpy,
     l.memo,
     s.id as settlement_id,
     s.status as settlement_status,
@@ -324,6 +351,7 @@ create or replace function public.school_create_part_time_work_planned_lesson(
   p_class_description text default null,
   p_planned_hours numeric default 0,
   p_hourly_rate_jpy integer default 0,
+  p_transportation_fee_jpy integer default 0,
   p_memo text default null,
   p_teacher_name text default '吴峰'
 )
@@ -342,6 +370,7 @@ returns table (
   actual_hours numeric,
   hourly_rate_jpy integer,
   lesson_wage_jpy integer,
+  transportation_fee_jpy integer,
   memo text,
   settlement_id uuid,
   settlement_status text,
@@ -360,6 +389,7 @@ declare
   v_subject_name text := public.school_part_time_work_validate_subject(p_subject_name);
   v_planned_hours numeric(8,2) := round(coalesce(p_planned_hours, 0)::numeric, 2);
   v_hourly_rate_jpy integer := coalesce(p_hourly_rate_jpy, 0);
+  v_transportation_fee_jpy integer := coalesce(p_transportation_fee_jpy, 0);
 begin
   if p_work_date is null then
     raise exception '请选择预定日期。';
@@ -369,6 +399,9 @@ begin
   end if;
   if v_hourly_rate_jpy < 0 then
     raise exception '时给不能小于 0。';
+  end if;
+  if v_transportation_fee_jpy < 0 then
+    raise exception '交通费不能小于 0。';
   end if;
 
   insert into public.school_part_time_work_lessons (
@@ -383,6 +416,7 @@ begin
     actual_hours,
     hourly_rate_jpy,
     lesson_wage_jpy,
+    transportation_fee_jpy,
     memo
   )
   values (
@@ -397,6 +431,7 @@ begin
     0,
     v_hourly_rate_jpy,
     0,
+    v_transportation_fee_jpy,
     nullif(trim(coalesce(p_memo, '')), '')
   )
   returning school_part_time_work_lessons.id into v_id;
@@ -416,6 +451,7 @@ create or replace function public.school_update_part_time_work_lesson(
   p_class_description text default null,
   p_hours numeric default 0,
   p_hourly_rate_jpy integer default 0,
+  p_transportation_fee_jpy integer default 0,
   p_memo text default null
 )
 returns table (
@@ -433,6 +469,7 @@ returns table (
   actual_hours numeric,
   hourly_rate_jpy integer,
   lesson_wage_jpy integer,
+  transportation_fee_jpy integer,
   memo text,
   settlement_id uuid,
   settlement_status text,
@@ -451,6 +488,7 @@ declare
   v_subject_name text := public.school_part_time_work_validate_subject(p_subject_name);
   v_hours numeric(8,2) := round(coalesce(p_hours, 0)::numeric, 2);
   v_hourly_rate_jpy integer := coalesce(p_hourly_rate_jpy, 0);
+  v_transportation_fee_jpy integer := coalesce(p_transportation_fee_jpy, 0);
 begin
   if p_id is null then
     raise exception '记录 ID 不能为空。';
@@ -463,6 +501,9 @@ begin
   end if;
   if v_hourly_rate_jpy < 0 then
     raise exception '时给不能小于 0。';
+  end if;
+  if v_transportation_fee_jpy < 0 then
+    raise exception '交通费不能小于 0。';
   end if;
 
   select *
@@ -499,6 +540,7 @@ begin
     actual_hours = case when v_lesson.record_kind = 'actual' then v_hours else 0 end,
     hourly_rate_jpy = v_hourly_rate_jpy,
     lesson_wage_jpy = case when v_lesson.record_kind = 'actual' then round(v_hours * v_hourly_rate_jpy) else 0 end,
+    transportation_fee_jpy = v_transportation_fee_jpy,
     memo = nullif(trim(coalesce(p_memo, '')), ''),
     updated_at = now()
   where l.id = p_id;
@@ -515,6 +557,7 @@ create or replace function public.school_generate_part_time_work_actual_from_pla
   p_actual_work_date date default null,
   p_actual_hours numeric default null,
   p_hourly_rate_jpy integer default null,
+  p_transportation_fee_jpy integer default null,
   p_memo text default null
 )
 returns table (
@@ -532,6 +575,7 @@ returns table (
   actual_hours numeric,
   hourly_rate_jpy integer,
   lesson_wage_jpy integer,
+  transportation_fee_jpy integer,
   memo text,
   settlement_id uuid,
   settlement_status text,
@@ -550,6 +594,7 @@ declare
   v_work_date date;
   v_actual_hours numeric(8,2);
   v_hourly_rate_jpy integer;
+  v_transportation_fee_jpy integer;
 begin
   select *
   into v_planned
@@ -576,12 +621,16 @@ begin
   v_work_date := coalesce(p_actual_work_date, v_planned.work_date);
   v_actual_hours := round(coalesce(p_actual_hours, v_planned.planned_hours)::numeric, 2);
   v_hourly_rate_jpy := coalesce(p_hourly_rate_jpy, v_planned.hourly_rate_jpy);
+  v_transportation_fee_jpy := coalesce(p_transportation_fee_jpy, v_planned.transportation_fee_jpy);
 
   if v_actual_hours < 0 then
     raise exception '实际课时不能小于 0。';
   end if;
   if v_hourly_rate_jpy < 0 then
     raise exception '时给不能小于 0。';
+  end if;
+  if v_transportation_fee_jpy < 0 then
+    raise exception '交通费不能小于 0。';
   end if;
 
   insert into public.school_part_time_work_lessons (
@@ -597,6 +646,7 @@ begin
     actual_hours,
     hourly_rate_jpy,
     lesson_wage_jpy,
+    transportation_fee_jpy,
     memo
   )
   values (
@@ -612,6 +662,7 @@ begin
     v_actual_hours,
     v_hourly_rate_jpy,
     round(v_actual_hours * v_hourly_rate_jpy),
+    v_transportation_fee_jpy,
     coalesce(nullif(trim(coalesce(p_memo, '')), ''), v_planned.memo)
   )
   returning school_part_time_work_lessons.id into v_actual_id;
@@ -752,7 +803,8 @@ as $$
       count(*)::integer as actual_lesson_count,
       coalesce(sum(l.actual_hours), 0)::numeric as actual_hours_total,
       coalesce(max(l.hourly_rate_jpy), 0)::integer as default_hourly_rate_jpy,
-      coalesce(sum(l.lesson_wage_jpy), 0)::integer as default_lesson_wage_jpy
+      coalesce(sum(l.lesson_wage_jpy), 0)::integer as default_lesson_wage_jpy,
+      coalesce(sum(l.transportation_fee_jpy), 0)::integer as transportation_fee_jpy
     from public.school_part_time_work_lessons l
     where l.deleted_at is null
       and l.record_kind = 'actual'
@@ -771,13 +823,13 @@ as $$
       when s.status in ('locked', 'income_request_created') then s.lesson_wage_jpy
       else round(coalesce(a.actual_hours_total, 0) * coalesce(s.hourly_rate_jpy, a.default_hourly_rate_jpy, 0))::integer
     end as lesson_wage_jpy,
-    coalesce(s.transportation_fee_jpy, 0) as transportation_fee_jpy,
+    case when s.status in ('locked', 'income_request_created') then s.transportation_fee_jpy else coalesce(a.transportation_fee_jpy, 0) end as transportation_fee_jpy,
     coalesce(s.adjustment_jpy, 0) as adjustment_jpy,
     case
       when s.status in ('locked', 'income_request_created') then s.total_wage_jpy
       else (
         round(coalesce(a.actual_hours_total, 0) * coalesce(s.hourly_rate_jpy, a.default_hourly_rate_jpy, 0))::integer
-        + coalesce(s.transportation_fee_jpy, 0)
+        + coalesce(a.transportation_fee_jpy, 0)
         + coalesce(s.adjustment_jpy, 0)
       )
     end as total_wage_jpy,
@@ -804,7 +856,6 @@ create or replace function public.school_save_part_time_work_monthly_settlement(
   p_year_month text,
   p_workplace_name text,
   p_hourly_rate_jpy integer default 0,
-  p_transportation_fee_jpy integer default 0,
   p_adjustment_jpy integer default 0,
   p_memo text default null
 )
@@ -838,16 +889,13 @@ declare
   v_actual_lesson_count integer;
   v_actual_hours_total numeric(10,2);
   v_hourly_rate_jpy integer := coalesce(p_hourly_rate_jpy, 0);
-  v_transportation_fee_jpy integer := coalesce(p_transportation_fee_jpy, 0);
+  v_transportation_fee_jpy integer;
   v_adjustment_jpy integer := coalesce(p_adjustment_jpy, 0);
   v_lesson_wage_jpy integer;
   v_total_wage_jpy integer;
 begin
   if v_hourly_rate_jpy < 0 then
     raise exception '时给不能小于 0。';
-  end if;
-  if v_transportation_fee_jpy < 0 then
-    raise exception '交通费不能小于 0。';
   end if;
 
   select *
@@ -864,8 +912,9 @@ begin
 
   select
     count(*)::integer,
-    coalesce(sum(l.actual_hours), 0)::numeric(10,2)
-  into v_actual_lesson_count, v_actual_hours_total
+    coalesce(sum(l.actual_hours), 0)::numeric(10,2),
+    coalesce(sum(l.transportation_fee_jpy), 0)::integer
+  into v_actual_lesson_count, v_actual_hours_total, v_transportation_fee_jpy
   from public.school_part_time_work_lessons l
   where l.year_month = v_year_month
     and l.workplace_name = v_workplace_name
@@ -989,6 +1038,7 @@ begin
     actual_hours,
     hourly_rate_jpy,
     lesson_wage_jpy,
+    transportation_fee_jpy,
     memo
   )
   select
@@ -1001,6 +1051,7 @@ begin
     l.actual_hours,
     v_settlement.hourly_rate_jpy,
     round(l.actual_hours * v_settlement.hourly_rate_jpy)::integer,
+    l.transportation_fee_jpy,
     l.memo
   from public.school_part_time_work_lessons l
   where l.year_month = v_settlement.year_month
@@ -1113,22 +1164,22 @@ revoke all on function public.school_part_time_work_validate_workplace(text) fro
 revoke all on function public.school_part_time_work_validate_subject(text) from public, anon, authenticated;
 revoke all on function public.school_part_time_work_validate_year_month(text) from public, anon, authenticated;
 revoke all on function public.school_list_part_time_work_lessons(text, text, text) from public, anon, authenticated;
-revoke all on function public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, text, text) from public, anon, authenticated;
-revoke all on function public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, text) from public, anon, authenticated;
-revoke all on function public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, text) from public, anon, authenticated;
+revoke all on function public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, integer, text, text) from public, anon, authenticated;
+revoke all on function public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, integer, text) from public, anon, authenticated;
+revoke all on function public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, integer, text) from public, anon, authenticated;
 revoke all on function public.school_delete_part_time_work_lesson(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.school_list_part_time_work_monthly_settlements(text) from public, anon, authenticated;
-revoke all on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, integer, text) from public, anon, authenticated;
+revoke all on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text) from public, anon, authenticated;
 revoke all on function public.school_lock_part_time_work_monthly_settlement(uuid) from public, anon, authenticated;
 revoke all on function public.school_create_part_time_work_income_request(uuid) from public, anon, authenticated;
 
 grant execute on function public.school_list_part_time_work_lessons(text, text, text) to authenticated;
-grant execute on function public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, text, text) to authenticated;
-grant execute on function public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, text) to authenticated;
-grant execute on function public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, text) to authenticated;
+grant execute on function public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, integer, text, text) to authenticated;
+grant execute on function public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, integer, text) to authenticated;
+grant execute on function public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, integer, text) to authenticated;
 grant execute on function public.school_delete_part_time_work_lesson(uuid, boolean) to authenticated;
 grant execute on function public.school_list_part_time_work_monthly_settlements(text) to authenticated;
-grant execute on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, integer, text) to authenticated;
+grant execute on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text) to authenticated;
 grant execute on function public.school_lock_part_time_work_monthly_settlement(uuid) to authenticated;
 grant execute on function public.school_create_part_time_work_income_request(uuid) to authenticated;
 

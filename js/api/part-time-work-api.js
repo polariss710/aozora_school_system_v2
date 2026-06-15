@@ -42,6 +42,7 @@ export async function createPartTimeWorkPlannedLesson(payload) {
     p_class_description: payload.classDescription || null,
     p_planned_hours: payload.hours,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
+    p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_memo: payload.memo || null,
     p_teacher_name: payload.teacherName || "吴峰",
   });
@@ -62,6 +63,7 @@ export async function updatePartTimeWorkLesson(payload) {
     p_class_description: payload.classDescription || null,
     p_hours: payload.hours,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
+    p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_memo: payload.memo || null,
   });
 
@@ -78,6 +80,7 @@ export async function generatePartTimeWorkActualFromPlanned(payload) {
     p_actual_work_date: payload.workDate || null,
     p_actual_hours: payload.hours,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
+    p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_memo: payload.memo || null,
   });
 
@@ -106,7 +109,6 @@ export async function savePartTimeWorkMonthlySettlement(payload) {
     p_year_month: payload.yearMonth,
     p_workplace_name: payload.workplaceName,
     p_hourly_rate_jpy: payload.hourlyRateJpy,
-    p_transportation_fee_jpy: payload.transportationFeeJpy,
     p_adjustment_jpy: payload.adjustmentJpy,
     p_memo: payload.memo || null,
   });
