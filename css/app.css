@@ -859,6 +859,35 @@ h2 {
   min-width: 1880px;
 }
 
+.part-time-work-list-count {
+  margin-bottom: 8px;
+  text-align: right;
+}
+
+.part-time-work-pair-card .action-buttons {
+  gap: 6px;
+}
+
+.part-time-work-dialog-panel {
+  width: min(680px, 100%);
+}
+
+.part-time-work-dialog-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.part-time-work-wide-field {
+  grid-column: 1 / -1;
+}
+
+.part-time-work-dialog-section-title {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
 .lesson-table {
   min-width: 1660px;
 }
@@ -2150,7 +2179,8 @@ h2 {
   .income-create-field-grid,
   .expense-create-field-grid,
   .reimbursement-create-field-grid,
-  .lesson-create-field-grid {
+  .lesson-create-field-grid,
+  .part-time-work-dialog-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

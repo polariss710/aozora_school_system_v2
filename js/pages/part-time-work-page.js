@@ -23,6 +23,17 @@ const PAYMENT_STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];
+const SUBJECT_OPTIONS = [
+  "EJU文数班课",
+  "EJU理数班课",
+  "EJU文数一对一",
+  "EJU理数一对一",
+  "大学院一对一",
+];
+const DEFAULT_TEACHER_NAME = "吴峰";
+const DEFAULT_VIEW_MODE = "pair";
+
 const SUMMARY_FIELDS = [
   { key: "total_hours", label: "总课时", type: "hours" },
   { key: "lesson_wage_jpy", label: "课时工资", type: "currency" },
@@ -37,12 +48,16 @@ const dom = {};
 let records = [];
 let editingRecord = null;
 let isSubmitting = false;
+let activeView = DEFAULT_VIEW_MODE;
 
 export async function initPartTimeWorkPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+  renderOptionSelect(dom.workplaceFilter, WORKPLACE_OPTIONS, { includeAll: true });
+  renderOptionSelect(dom.workplaceNameInput, WORKPLACE_OPTIONS);
+  renderOptionSelect(dom.subjectNameInput, SUBJECT_OPTIONS);
   bindEvents();
   renderSummary({});
   renderRows([]);
@@ -72,6 +87,11 @@ function cacheDom() {
   dom.summaryGrid = document.querySelector("#partTimeWorkSummaryGrid");
   dom.openCreateButton = document.querySelector("#openPartTimeWorkCreateButton");
   dom.recordCount = document.querySelector("#partTimeWorkRecordCount");
+  dom.pairViewButton = document.querySelector("#partTimeWorkPairViewButton");
+  dom.listViewButton = document.querySelector("#partTimeWorkListViewButton");
+  dom.pairView = document.querySelector("#partTimeWorkPairView");
+  dom.pairRows = document.querySelector("#partTimeWorkPairRows");
+  dom.listView = document.querySelector("#partTimeWorkListView");
   dom.loadingState = document.querySelector("#partTimeWorkLoadingState");
   dom.emptyState = document.querySelector("#partTimeWorkEmptyState");
   dom.tableBody = document.querySelector("#partTimeWorkTableBody");
@@ -80,15 +100,12 @@ function cacheDom() {
   dom.dialogError = document.querySelector("#partTimeWorkDialogError");
   dom.workDateInput = document.querySelector("#partTimeWorkDateInput");
   dom.workplaceNameInput = document.querySelector("#partTimeWorkWorkplaceInput");
-  dom.teacherNameInput = document.querySelector("#partTimeWorkTeacherInput");
   dom.subjectNameInput = document.querySelector("#partTimeWorkSubjectInput");
   dom.classDescriptionInput = document.querySelector("#partTimeWorkClassDescriptionInput");
   dom.hoursInput = document.querySelector("#partTimeWorkHoursInput");
   dom.hourlyRateInput = document.querySelector("#partTimeWorkHourlyRateInput");
   dom.transportationFeeInput = document.querySelector("#partTimeWorkTransportationFeeInput");
   dom.adjustmentInput = document.querySelector("#partTimeWorkAdjustmentInput");
-  dom.paymentStatusInput = document.querySelector("#partTimeWorkPaymentStatusInput");
-  dom.paidDateInput = document.querySelector("#partTimeWorkPaidDateInput");
   dom.memoInput = document.querySelector("#partTimeWorkMemoInput");
   dom.preview = document.querySelector("#partTimeWorkPreview");
   dom.cancelButton = document.querySelector("#partTimeWorkCancelButton");
@@ -111,7 +128,14 @@ function bindEvents() {
   dom.openCreateButton.addEventListener("click", openCreateDialog);
   dom.cancelButton.addEventListener("click", closeDialog);
   dom.submitButton.addEventListener("click", submitDialog);
-  dom.tableBody.addEventListener("click", handleTableClick);
+  dom.pairRows.addEventListener("click", handleRecordActionClick);
+  dom.tableBody.addEventListener("click", handleRecordActionClick);
+
+  for (const button of [dom.pairViewButton, dom.listViewButton]) {
+    button.addEventListener("click", () => {
+      setActiveView(button.dataset.partTimeWorkView || DEFAULT_VIEW_MODE);
+    });
+  }
 
   for (const input of [
     dom.workDateInput,
@@ -128,12 +152,7 @@ function bindEvents() {
     });
   }
 
-  for (const input of [dom.paymentStatusInput, dom.paidDateInput]) {
-    input.addEventListener("change", () => {
-      hideDialogErrorIfClean();
-      updatePreview();
-    });
-  }
+  setActiveView(DEFAULT_VIEW_MODE);
 }
 
 async function loadPageData() {
@@ -168,7 +187,7 @@ async function loadPageData() {
 function readFilters() {
   return {
     yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
-    workplaceName: dom.workplaceFilter.value.trim(),
+    workplaceName: dom.workplaceFilter.value,
     paymentStatus: dom.paymentStatusFilter.value,
   };
 }
@@ -193,6 +212,8 @@ function renderRows(rows) {
   dom.recordCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
   dom.tableBody.innerHTML = rows.map(renderRow).join("");
+  renderPairRows(rows);
+  syncViewVisibility();
 }
 
 function renderRow(row) {
@@ -214,12 +235,96 @@ function renderRow(row) {
       <td class="description-cell">${escapeHtml(row.memo || "-")}</td>
       <td class="action-cell">
         <div class="action-buttons">
-          <button class="button table-action-button" type="button" data-edit-id="${escapeAttribute(row.id)}">编辑</button>
-          <button class="button button-danger table-action-button" type="button" data-delete-id="${escapeAttribute(row.id)}">删除</button>
+          <button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}">编辑</button>
+          <button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}">删除</button>
         </div>
       </td>
     </tr>
   `;
+}
+
+function renderPairRows(rows) {
+  const unpaidRows = rows.filter((row) => row.payment_status === "unpaid");
+  const completedRows = rows.filter((row) => row.payment_status === "paid" || row.payment_status === "cancelled");
+  const leftHtml = unpaidRows.length
+    ? unpaidRows.map((row) => renderPairCard(row, "left")).join("")
+    : renderPairPlaceholder("暂无未支付 / 待确认记录");
+  const rightHtml = completedRows.length
+    ? completedRows.map((row) => renderPairCard(row, "right")).join("")
+    : renderPairPlaceholder("暂无已支付 / 已完成记录");
+
+  dom.pairRows.innerHTML = `
+    <article class="lesson-pair-row part-time-work-pair-row">
+      <div class="lesson-pair-column">
+        <div class="lesson-pair-column-title">未支付 / 待确认</div>
+        <div class="lesson-pair-actual-stack">${leftHtml}</div>
+      </div>
+      <div class="lesson-pair-column">
+        <div class="lesson-pair-column-title">已支付 / 已完成</div>
+        <div class="lesson-pair-actual-stack">${rightHtml}</div>
+      </div>
+    </article>
+  `;
+}
+
+function renderPairCard(row, side) {
+  const modifierClass = row.payment_status === "cancelled"
+    ? "lesson-pair-card-cancelled"
+    : side === "right"
+      ? "lesson-pair-card-makeup"
+      : "";
+
+  return `
+    <article class="lesson-pair-card part-time-work-pair-card ${escapeAttribute(modifierClass)}">
+      <div class="lesson-pair-card-header">
+        <div class="action-buttons">
+          <button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}">编辑</button>
+          <button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}">删除</button>
+        </div>
+        <span class="status-badge ${escapeAttribute(statusClass(row.payment_status))}">${escapeHtml(paymentStatusLabel(row.payment_status))}</span>
+      </div>
+      <div class="lesson-pair-main">
+        <strong>${escapeHtml(formatDateOnly(row.work_date))}</strong>
+        <span>${escapeHtml(row.workplace_name || "-")}</span>
+        <span>${escapeHtml(row.subject_name || "-")}</span>
+      </div>
+      <dl class="lesson-pair-meta">
+        <div><dt>课时</dt><dd>${escapeHtml(formatHours(row.hours))} h</dd></div>
+        <div><dt>时给</dt><dd>${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</dd></div>
+        <div><dt>课时工资</dt><dd>${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</dd></div>
+        <div><dt>总工资</dt><dd>${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</dd></div>
+      </dl>
+      <div class="lesson-pair-text">
+        <div class="lesson-pair-text-row">
+          <span class="lesson-pair-text-label">内容</span>
+          <span class="lesson-pair-text-value">${escapeHtml(row.class_description || "-")}</span>
+        </div>
+        <div class="lesson-pair-text-row">
+          <span class="lesson-pair-text-label">备注</span>
+          <span class="lesson-pair-text-value">${escapeHtml(row.memo || "-")}</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function renderPairPlaceholder(text) {
+  return `<div class="lesson-pair-placeholder">${escapeHtml(text)}</div>`;
+}
+
+function setActiveView(view) {
+  activeView = view === "list" ? "list" : DEFAULT_VIEW_MODE;
+  syncViewVisibility();
+}
+
+function syncViewVisibility() {
+  const isPairView = activeView === "pair";
+  dom.pairView.classList.toggle("is-hidden", !isPairView);
+  dom.listView.classList.toggle("is-hidden", isPairView);
+  dom.pairViewButton.classList.toggle("is-active", isPairView);
+  dom.listViewButton.classList.toggle("is-active", !isPairView);
+  dom.pairViewButton.setAttribute("aria-pressed", String(isPairView));
+  dom.listViewButton.setAttribute("aria-pressed", String(!isPairView));
 }
 
 function openCreateDialog() {
@@ -232,7 +337,6 @@ function openCreateDialog() {
   dom.dialogTitle.textContent = "新增私塾打工记录";
   clearDialog();
   dom.workDateInput.value = todayDate();
-  dom.paymentStatusInput.value = "unpaid";
   updatePreview();
   showDialog();
 }
@@ -242,16 +346,13 @@ function openEditDialog(record) {
   dom.dialogTitle.textContent = "编辑私塾打工记录";
   clearDialog();
   dom.workDateInput.value = record.work_date || "";
-  dom.workplaceNameInput.value = record.workplace_name || "";
-  dom.teacherNameInput.value = record.teacher_name || "";
-  dom.subjectNameInput.value = record.subject_name || "";
+  setSelectValueWithFallback(dom.workplaceNameInput, record.workplace_name || "");
+  setSelectValueWithFallback(dom.subjectNameInput, record.subject_name || "");
   dom.classDescriptionInput.value = record.class_description || "";
   dom.hoursInput.value = record.hours ?? 0;
   dom.hourlyRateInput.value = record.hourly_rate_jpy ?? 0;
   dom.transportationFeeInput.value = record.transportation_fee_jpy ?? 0;
   dom.adjustmentInput.value = record.adjustment_jpy ?? 0;
-  dom.paymentStatusInput.value = record.payment_status || "unpaid";
-  dom.paidDateInput.value = record.paid_date || "";
   dom.memoInput.value = record.memo || "";
   updatePreview();
   showDialog();
@@ -304,22 +405,22 @@ async function submitDialog() {
   }
 }
 
-async function handleTableClick(event) {
-  const editButton = event.target.closest("[data-edit-id]");
+async function handleRecordActionClick(event) {
+  const editButton = event.target.closest("[data-part-time-work-edit-id]");
   if (editButton) {
-    const record = records.find((item) => item.id === editButton.dataset.editId);
+    const record = records.find((item) => item.id === editButton.dataset.partTimeWorkEditId);
     if (record) {
       openEditDialog(record);
     }
     return;
   }
 
-  const deleteButton = event.target.closest("[data-delete-id]");
+  const deleteButton = event.target.closest("[data-part-time-work-delete-id]");
   if (!deleteButton) {
     return;
   }
 
-  const record = records.find((item) => item.id === deleteButton.dataset.deleteId);
+  const record = records.find((item) => item.id === deleteButton.dataset.partTimeWorkDeleteId);
   if (!record) {
     return;
   }
@@ -345,16 +446,16 @@ async function handleTableClick(event) {
 function readDialogPayload() {
   return {
     workDate: dom.workDateInput.value,
-    workplaceName: dom.workplaceNameInput.value.trim(),
-    teacherName: dom.teacherNameInput.value.trim(),
-    subjectName: dom.subjectNameInput.value.trim(),
+    workplaceName: dom.workplaceNameInput.value,
+    teacherName: editingRecord?.teacher_name || DEFAULT_TEACHER_NAME,
+    subjectName: dom.subjectNameInput.value,
     classDescription: dom.classDescriptionInput.value.trim(),
     hours: parseDecimal(dom.hoursInput.value),
     hourlyRateJpy: parseInteger(dom.hourlyRateInput.value),
     transportationFeeJpy: parseInteger(dom.transportationFeeInput.value),
     adjustmentJpy: parseInteger(dom.adjustmentInput.value),
-    paymentStatus: dom.paymentStatusInput.value,
-    paidDate: dom.paidDateInput.value || null,
+    paymentStatus: editingRecord?.payment_status || "unpaid",
+    paidDate: editingRecord?.paid_date || null,
     memo: dom.memoInput.value.trim(),
   };
 }
@@ -421,14 +522,12 @@ function clearDialog() {
   for (const input of [
     dom.workDateInput,
     dom.workplaceNameInput,
-    dom.teacherNameInput,
     dom.subjectNameInput,
     dom.classDescriptionInput,
     dom.hoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.adjustmentInput,
-    dom.paidDateInput,
     dom.memoInput,
   ]) {
     input.value = "";
@@ -437,7 +536,8 @@ function clearDialog() {
   dom.hourlyRateInput.value = "0";
   dom.transportationFeeInput.value = "0";
   dom.adjustmentInput.value = "0";
-  dom.paymentStatusInput.value = "unpaid";
+  dom.workplaceNameInput.value = WORKPLACE_OPTIONS[0];
+  dom.subjectNameInput.value = SUBJECT_OPTIONS[0];
   hideDialogError();
   clearInvalidFields();
 }
@@ -486,11 +586,11 @@ function hideDialogErrorIfClean() {
 }
 
 function markFieldInvalid(input) {
-  input?.closest(".field")?.classList.add("field-invalid");
+  input?.closest(".field")?.classList.add("is-invalid");
 }
 
 function clearFieldInvalid(input) {
-  input?.closest(".field")?.classList.remove("field-invalid");
+  input?.closest(".field")?.classList.remove("is-invalid");
 }
 
 function clearInvalidFields() {
@@ -504,6 +604,28 @@ function clearInvalidFields() {
   ]) {
     clearFieldInvalid(input);
   }
+}
+
+function renderOptionSelect(select, options, config = {}) {
+  const optionHtml = [];
+  if (config.includeAll) {
+    optionHtml.push('<option value="">全部</option>');
+  }
+  optionHtml.push(...options.map((option) => (
+    `<option value="${escapeAttribute(option)}">${escapeHtml(option)}</option>`
+  )));
+  select.innerHTML = optionHtml.join("");
+}
+
+function setSelectValueWithFallback(select, value) {
+  const normalized = safeText(value);
+  if (normalized && !Array.from(select.options).some((option) => option.value === normalized)) {
+    select.insertAdjacentHTML(
+      "beforeend",
+      `<option value="${escapeAttribute(normalized)}">${escapeHtml(normalized)}</option>`
+    );
+  }
+  select.value = normalized || select.options[0]?.value || "";
 }
 
 function parseDecimal(value) {

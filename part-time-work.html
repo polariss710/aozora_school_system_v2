@@ -75,7 +75,7 @@
 
             <label class="field">
               <span>打工先</span>
-              <input id="partTimeWorkWorkplaceFilter" name="workplaceName" type="text" autocomplete="off">
+              <select id="partTimeWorkWorkplaceFilter" name="workplaceName"></select>
             </label>
 
             <label class="field">
@@ -103,10 +103,16 @@
         </section>
 
         <section class="panel table-panel" aria-labelledby="partTimeWorkTableTitle">
-          <div class="section-heading section-heading-row">
-            <h2 id="partTimeWorkTableTitle">私塾打工记录</h2>
+          <div class="section-heading section-heading-row lesson-list-heading">
+            <div>
+              <h2 id="partTimeWorkTableTitle">私塾打工记录</h2>
+              <p class="section-note">默认按未支付 / 已支付左右模式查看；普通列表作为辅助视图，可横向滚动查看更多列。</p>
+            </div>
             <div class="table-actions">
-              <span id="partTimeWorkRecordCount" class="record-count">0 条</span>
+              <div class="view-toggle" role="group" aria-label="私塾打工视图">
+                <button class="button view-toggle-button is-active" id="partTimeWorkPairViewButton" type="button" data-part-time-work-view="pair" aria-pressed="true">左右模式</button>
+                <button class="button view-toggle-button" id="partTimeWorkListViewButton" type="button" data-part-time-work-view="list" aria-pressed="false">普通列表</button>
+              </div>
               <button class="button button-primary" id="openPartTimeWorkCreateButton" type="button">新增记录</button>
             </div>
           </div>
@@ -114,7 +120,16 @@
           <div id="partTimeWorkLoadingState" class="state-text is-hidden">正在加载...</div>
           <div id="partTimeWorkEmptyState" class="state-text is-hidden">暂无符合条件的私塾打工记录。</div>
 
-          <div class="table-scroll">
+          <div id="partTimeWorkPairView" class="lesson-pair-view" aria-live="polite">
+            <div class="lesson-pair-legend">
+              <span><strong>未支付 / 待确认</strong>：尚未完成支付的打工记录</span>
+              <span><strong>已支付 / 已完成</strong>：已支付或已取消的打工记录</span>
+            </div>
+            <div id="partTimeWorkPairRows" class="lesson-pair-list"></div>
+          </div>
+
+          <div id="partTimeWorkListView" class="table-scroll is-hidden">
+            <div class="record-count part-time-work-list-count" id="partTimeWorkRecordCount">0 条</div>
             <table class="payment-table part-time-work-table">
               <thead>
                 <tr>
@@ -143,76 +158,63 @@
     </div>
 
     <div id="partTimeWorkDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="partTimeWorkDialogTitle">
+      <section class="dialog-panel app-dialog--md part-time-work-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="partTimeWorkDialogTitle">
         <div class="section-heading">
           <h2 id="partTimeWorkDialogTitle">新增私塾打工记录</h2>
         </div>
 
         <div id="partTimeWorkDialogError" class="dialog-error is-hidden"></div>
 
-        <label class="field" data-part-time-work-field="workDate">
-          <span>工作日期</span>
-          <input id="partTimeWorkDateInput" type="date">
-        </label>
+        <div class="part-time-work-dialog-grid">
+          <h3 class="dialog-subsection-heading part-time-work-dialog-section-title">基本信息</h3>
 
-        <label class="field" data-part-time-work-field="workplaceName">
-          <span>打工先</span>
-          <input id="partTimeWorkWorkplaceInput" type="text" autocomplete="off">
-        </label>
+          <label class="field" data-part-time-work-field="workDate">
+            <span>工作日期</span>
+            <input id="partTimeWorkDateInput" type="date">
+          </label>
 
-        <label class="field">
-          <span>授课者/老师</span>
-          <input id="partTimeWorkTeacherInput" type="text" autocomplete="off">
-        </label>
+          <label class="field" data-part-time-work-field="workplaceName">
+            <span>打工先</span>
+            <select id="partTimeWorkWorkplaceInput"></select>
+          </label>
 
-        <label class="field">
-          <span>科目</span>
-          <input id="partTimeWorkSubjectInput" type="text" autocomplete="off">
-        </label>
+          <label class="field">
+            <span>科目</span>
+            <select id="partTimeWorkSubjectInput"></select>
+          </label>
 
-        <label class="field">
-          <span>工作内容</span>
-          <input id="partTimeWorkClassDescriptionInput" type="text" autocomplete="off">
-        </label>
+          <label class="field">
+            <span>工作内容</span>
+            <input id="partTimeWorkClassDescriptionInput" type="text" autocomplete="off">
+          </label>
 
-        <label class="field" data-part-time-work-field="hours">
-          <span>课时</span>
-          <input id="partTimeWorkHoursInput" type="number" step="0.5" min="0" inputmode="decimal">
-        </label>
+          <h3 class="dialog-subsection-heading part-time-work-dialog-section-title">工资信息</h3>
 
-        <label class="field" data-part-time-work-field="hourlyRateJpy">
-          <span>时给 JPY</span>
-          <input id="partTimeWorkHourlyRateInput" type="number" step="1" min="0" inputmode="numeric">
-        </label>
+          <label class="field" data-part-time-work-field="hours">
+            <span>课时</span>
+            <input id="partTimeWorkHoursInput" type="number" step="0.5" min="0" inputmode="decimal">
+          </label>
 
-        <label class="field" data-part-time-work-field="transportationFeeJpy">
-          <span>交通费 JPY</span>
-          <input id="partTimeWorkTransportationFeeInput" type="number" step="1" min="0" inputmode="numeric">
-        </label>
+          <label class="field" data-part-time-work-field="hourlyRateJpy">
+            <span>时给 JPY</span>
+            <input id="partTimeWorkHourlyRateInput" type="number" step="1" min="0" inputmode="numeric">
+          </label>
 
-        <label class="field" data-part-time-work-field="adjustmentJpy">
-          <span>调整额 JPY</span>
-          <input id="partTimeWorkAdjustmentInput" type="number" step="1" inputmode="numeric">
-        </label>
+          <label class="field" data-part-time-work-field="transportationFeeJpy">
+            <span>交通费 JPY</span>
+            <input id="partTimeWorkTransportationFeeInput" type="number" step="1" min="0" inputmode="numeric">
+          </label>
 
-        <label class="field">
-          <span>支付状态</span>
-          <select id="partTimeWorkPaymentStatusInput">
-            <option value="unpaid">未支付</option>
-            <option value="paid">已支付</option>
-            <option value="cancelled">已取消</option>
-          </select>
-        </label>
+          <label class="field" data-part-time-work-field="adjustmentJpy">
+            <span>调整额 JPY</span>
+            <input id="partTimeWorkAdjustmentInput" type="number" step="1" inputmode="numeric">
+          </label>
 
-        <label class="field">
-          <span>支付日</span>
-          <input id="partTimeWorkPaidDateInput" type="date">
-        </label>
-
-        <label class="field">
-          <span>备注</span>
-          <textarea id="partTimeWorkMemoInput" rows="3"></textarea>
-        </label>
+          <label class="field part-time-work-wide-field">
+            <span>备注</span>
+            <textarea id="partTimeWorkMemoInput" rows="3"></textarea>
+          </label>
+        </div>
 
         <p id="partTimeWorkPreview" class="state-text">预览：课时工资 JPY 0 / 总工资 JPY 0</p>
 
