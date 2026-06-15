@@ -19,14 +19,17 @@ drop function if exists public.school_save_part_time_work_monthly_settlement(tex
 drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, integer, text);
 drop function if exists public.school_list_part_time_work_monthly_settlements(text);
 drop function if exists public.school_delete_part_time_work_lesson(uuid, boolean);
+drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, text, integer, integer, integer, text);
 drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, integer, integer, text);
 drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, integer, text);
 drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, integer, text);
 drop function if exists public.school_generate_part_time_work_actual_from_planned(uuid, date, numeric, integer, text);
+drop function if exists public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, text, integer, integer, integer, text);
 drop function if exists public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, integer, integer, integer, text);
 drop function if exists public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, integer, integer, text);
 drop function if exists public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, integer, text);
 drop function if exists public.school_update_part_time_work_lesson(uuid, date, text, text, text, numeric, integer, text);
+drop function if exists public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, text, integer, integer, integer, text, text);
 drop function if exists public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, integer, integer, integer, text, text);
 drop function if exists public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, integer, integer, text, text);
 drop function if exists public.school_create_part_time_work_planned_lesson(date, text, text, text, numeric, integer, integer, text, text);
@@ -54,6 +57,7 @@ create table if not exists public.school_part_time_work_lessons (
   teacher_name text not null default '吴峰',
   subject_name text not null,
   class_description text,
+  course_group_name text,
   planned_hours numeric(8,2) not null default 0,
   actual_hours numeric(8,2) not null default 0,
   lesson_count integer not null default 1,
@@ -69,6 +73,7 @@ create table if not exists public.school_part_time_work_lessons (
 alter table public.school_part_time_work_lessons
   add column if not exists start_time time,
   add column if not exists end_time time,
+  add column if not exists course_group_name text,
   add column if not exists lesson_count integer not null default 1,
   add column if not exists transportation_fee_jpy integer not null default 0;
 
@@ -185,6 +190,7 @@ create table if not exists public.school_part_time_work_monthly_settlement_detai
   workplace_name text not null,
   subject_name text not null,
   class_description text,
+  course_group_name text,
   actual_hours numeric(8,2) not null default 0,
   lesson_count integer not null default 1,
   hourly_rate_jpy integer not null default 0,
@@ -197,6 +203,7 @@ create table if not exists public.school_part_time_work_monthly_settlement_detai
 alter table public.school_part_time_work_monthly_settlement_details
   add column if not exists start_time time,
   add column if not exists end_time time,
+  add column if not exists course_group_name text,
   add column if not exists lesson_count integer not null default 1,
   add column if not exists transportation_fee_jpy integer not null default 0;
 
@@ -348,6 +355,7 @@ returns table (
   teacher_name text,
   subject_name text,
   class_description text,
+  course_group_name text,
   planned_hours numeric,
   actual_hours numeric,
   lesson_count integer,
@@ -379,6 +387,7 @@ as $$
     l.teacher_name,
     l.subject_name,
     l.class_description,
+    l.course_group_name,
     l.planned_hours,
     l.actual_hours,
     l.lesson_count,
@@ -420,6 +429,7 @@ create or replace function public.school_create_part_time_work_planned_lesson(
   p_workplace_name text,
   p_subject_name text,
   p_class_description text default null,
+  p_course_group_name text default null,
   p_lesson_count integer default 1,
   p_hourly_rate_jpy integer default 0,
   p_transportation_fee_jpy integer default 0,
@@ -439,6 +449,7 @@ returns table (
   teacher_name text,
   subject_name text,
   class_description text,
+  course_group_name text,
   planned_hours numeric,
   actual_hours numeric,
   lesson_count integer,
@@ -489,6 +500,7 @@ begin
     teacher_name,
     subject_name,
     class_description,
+    course_group_name,
     planned_hours,
     actual_hours,
     lesson_count,
@@ -507,6 +519,7 @@ begin
     coalesce(nullif(trim(p_teacher_name), ''), '吴峰'),
     v_subject_name,
     nullif(trim(coalesce(p_class_description, '')), ''),
+    nullif(trim(coalesce(p_course_group_name, '')), ''),
     v_planned_hours,
     0,
     v_lesson_count,
@@ -532,6 +545,7 @@ create or replace function public.school_update_part_time_work_lesson(
   p_workplace_name text,
   p_subject_name text,
   p_class_description text default null,
+  p_course_group_name text default null,
   p_lesson_count integer default 1,
   p_hourly_rate_jpy integer default 0,
   p_transportation_fee_jpy integer default 0,
@@ -550,6 +564,7 @@ returns table (
   teacher_name text,
   subject_name text,
   class_description text,
+  course_group_name text,
   planned_hours numeric,
   actual_hours numeric,
   lesson_count integer,
@@ -625,6 +640,7 @@ begin
     workplace_name = v_workplace_name,
     subject_name = v_subject_name,
     class_description = nullif(trim(coalesce(p_class_description, '')), ''),
+    course_group_name = nullif(trim(coalesce(p_course_group_name, '')), ''),
     planned_hours = case when v_lesson.record_kind = 'planned' then v_hours else 0 end,
     actual_hours = case when v_lesson.record_kind = 'actual' then v_hours else 0 end,
     lesson_count = v_lesson_count,
@@ -647,6 +663,7 @@ create or replace function public.school_generate_part_time_work_actual_from_pla
   p_actual_work_date date default null,
   p_start_time time default null,
   p_end_time time default null,
+  p_course_group_name text default null,
   p_lesson_count integer default null,
   p_hourly_rate_jpy integer default null,
   p_transportation_fee_jpy integer default null,
@@ -665,6 +682,7 @@ returns table (
   teacher_name text,
   subject_name text,
   class_description text,
+  course_group_name text,
   planned_hours numeric,
   actual_hours numeric,
   lesson_count integer,
@@ -689,6 +707,7 @@ declare
   v_work_date date;
   v_start_time time;
   v_end_time time;
+  v_course_group_name text;
   v_actual_hours numeric(8,2);
   v_lesson_count integer;
   v_hourly_rate_jpy integer;
@@ -719,6 +738,7 @@ begin
   v_work_date := coalesce(p_actual_work_date, v_planned.work_date);
   v_start_time := coalesce(p_start_time, v_planned.start_time);
   v_end_time := coalesce(p_end_time, v_planned.end_time);
+  v_course_group_name := coalesce(nullif(trim(coalesce(p_course_group_name, '')), ''), v_planned.course_group_name);
   v_actual_hours := public.school_part_time_work_calculate_hours(v_start_time, v_end_time);
   v_lesson_count := coalesce(p_lesson_count, v_planned.lesson_count, 1);
   v_hourly_rate_jpy := coalesce(p_hourly_rate_jpy, v_planned.hourly_rate_jpy);
@@ -745,6 +765,7 @@ begin
     teacher_name,
     subject_name,
     class_description,
+    course_group_name,
     planned_hours,
     actual_hours,
     lesson_count,
@@ -764,6 +785,7 @@ begin
     v_planned.teacher_name,
     v_planned.subject_name,
     v_planned.class_description,
+    v_course_group_name,
     0,
     v_actual_hours,
     v_lesson_count,
@@ -1144,6 +1166,7 @@ begin
     workplace_name,
     subject_name,
     class_description,
+    course_group_name,
     actual_hours,
     lesson_count,
     hourly_rate_jpy,
@@ -1160,6 +1183,7 @@ begin
     l.workplace_name,
     l.subject_name,
     l.class_description,
+    l.course_group_name,
     l.actual_hours,
     l.lesson_count,
     v_settlement.hourly_rate_jpy,
@@ -1278,9 +1302,9 @@ revoke all on function public.school_part_time_work_validate_subject(text) from 
 revoke all on function public.school_part_time_work_validate_year_month(text) from public, anon, authenticated;
 revoke all on function public.school_part_time_work_calculate_hours(time, time) from public, anon, authenticated;
 revoke all on function public.school_list_part_time_work_lessons(text, text, text) from public, anon, authenticated;
-revoke all on function public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, integer, integer, integer, text, text) from public, anon, authenticated;
-revoke all on function public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, integer, integer, integer, text) from public, anon, authenticated;
-revoke all on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, integer, integer, text) from public, anon, authenticated;
+revoke all on function public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, text, integer, integer, integer, text, text) from public, anon, authenticated;
+revoke all on function public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, text, integer, integer, integer, text) from public, anon, authenticated;
+revoke all on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, text, integer, integer, integer, text) from public, anon, authenticated;
 revoke all on function public.school_delete_part_time_work_lesson(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.school_list_part_time_work_monthly_settlements(text) from public, anon, authenticated;
 revoke all on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text) from public, anon, authenticated;
@@ -1288,9 +1312,9 @@ revoke all on function public.school_lock_part_time_work_monthly_settlement(uuid
 revoke all on function public.school_create_part_time_work_income_request(uuid) from public, anon, authenticated;
 
 grant execute on function public.school_list_part_time_work_lessons(text, text, text) to authenticated;
-grant execute on function public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, integer, integer, integer, text, text) to authenticated;
-grant execute on function public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, integer, integer, integer, text) to authenticated;
-grant execute on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, integer, integer, text) to authenticated;
+grant execute on function public.school_create_part_time_work_planned_lesson(date, time, time, text, text, text, text, integer, integer, integer, text, text) to authenticated;
+grant execute on function public.school_update_part_time_work_lesson(uuid, date, time, time, text, text, text, text, integer, integer, integer, text) to authenticated;
+grant execute on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, text, integer, integer, integer, text) to authenticated;
 grant execute on function public.school_delete_part_time_work_lesson(uuid, boolean) to authenticated;
 grant execute on function public.school_list_part_time_work_monthly_settlements(text) to authenticated;
 grant execute on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text) to authenticated;

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.115.0-part-time-work-settlement-hours-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.116.0-part-time-work-course-group-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -148,6 +148,7 @@
                     <th>时间</th>
                     <th>打工先</th>
                     <th>科目</th>
+                    <th>课程组</th>
                     <th>工作内容</th>
                     <th class="number-cell">预定课时</th>
                     <th class="number-cell">实际课时</th>
@@ -193,6 +194,11 @@
           <label class="field">
             <span>科目</span>
             <select id="partTimeWorkSubjectInput"></select>
+          </label>
+
+          <label class="field">
+            <span>课程组</span>
+            <input id="partTimeWorkCourseGroupInput" type="text" autocomplete="off" placeholder="可选">
           </label>
 
           <label class="field">
@@ -254,6 +260,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/part-time-work-app.js?v=v2.115.0-part-time-work-settlement-hours-20260615"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.116.0-part-time-work-course-group-20260615"></script>
   </body>
 </html>

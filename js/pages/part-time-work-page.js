@@ -58,6 +58,7 @@ const INCOME_REQUEST_STATUS_LABELS = {
 
 const dom = {};
 let lessons = [];
+let progressLessons = [];
 let settlements = [];
 let editingLesson = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
@@ -111,6 +112,7 @@ function cacheDom() {
   dom.workDateInput = document.querySelector("#partTimeWorkDateInput");
   dom.workplaceNameInput = document.querySelector("#partTimeWorkWorkplaceInput");
   dom.subjectNameInput = document.querySelector("#partTimeWorkSubjectInput");
+  dom.courseGroupInput = document.querySelector("#partTimeWorkCourseGroupInput");
   dom.classDescriptionInput = document.querySelector("#partTimeWorkClassDescriptionInput");
   dom.startTimeInput = document.querySelector("#partTimeWorkStartTimeInput");
   dom.endTimeInput = document.querySelector("#partTimeWorkEndTimeInput");
@@ -150,6 +152,7 @@ function bindEvents() {
     dom.workDateInput,
     dom.workplaceNameInput,
     dom.subjectNameInput,
+    dom.courseGroupInput,
     dom.classDescriptionInput,
     dom.startTimeInput,
     dom.endTimeInput,
@@ -181,16 +184,19 @@ async function loadPageData() {
   showMessage("", "");
 
   try {
-    const [lessonRows, settlementRows] = await Promise.all([
+    const [lessonRows, progressRows, settlementRows] = await Promise.all([
       fetchPartTimeWorkLessons(filters),
+      fetchPartTimeWorkLessons({ workplaceName: filters.workplaceName }),
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
     ]);
     lessons = lessonRows || [];
+    progressLessons = progressRows || [];
     settlements = settlementRows || [];
     renderLessons(lessons);
     renderSettlements(settlements);
   } catch (error) {
     lessons = [];
+    progressLessons = [];
     settlements = [];
     renderLessons([]);
     renderSettlements([]);
@@ -208,13 +214,14 @@ function readFilters() {
 }
 
 function renderLessons(rows) {
+  const courseGroupProgress = buildCourseGroupProgress(progressLessons);
   dom.recordCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
-  dom.lessonColumns.innerHTML = renderWorkflowColumns(rows);
+  dom.lessonColumns.innerHTML = renderWorkflowColumns(rows, courseGroupProgress);
   dom.tableBody.innerHTML = rows.map(renderListRow).join("");
 }
 
-function renderWorkflowColumns(rows) {
+function renderWorkflowColumns(rows, courseGroupProgress) {
   const plannedRows = rows.filter((row) => row.record_kind === "planned");
   const actualRows = rows.filter((row) => row.record_kind === "actual");
 
@@ -222,7 +229,7 @@ function renderWorkflowColumns(rows) {
     const workplacePlannedRows = plannedRows.filter((row) => row.workplace_name === workplace);
     const isExpanded = expandedWorkplaces.has(workplace);
     const body = workplacePlannedRows.length
-      ? workplacePlannedRows.map((planned) => renderLessonPair(planned, actualRows.find((actual) => actual.planned_lesson_id === planned.id))).join("")
+      ? workplacePlannedRows.map((planned) => renderLessonPair(planned, actualRows.find((actual) => actual.planned_lesson_id === planned.id), courseGroupProgress)).join("")
       : `<div class="lesson-pair-placeholder">暂无预定课时</div>`;
     return `
       <section class="part-time-work-workplace-section">
@@ -236,16 +243,16 @@ function renderWorkflowColumns(rows) {
   }).join("");
 }
 
-function renderLessonPair(planned, actual) {
+function renderLessonPair(planned, actual, courseGroupProgress) {
   return `
     <article class="lesson-pair-row part-time-work-pair-row">
       <div class="lesson-pair-column">
         <div class="lesson-pair-column-title">预定课时</div>
-        ${renderLessonCard(planned, { side: "planned", pairedActual: actual })}
+        ${renderLessonCard(planned, { side: "planned", pairedActual: actual, courseGroupProgress })}
       </div>
       <div class="lesson-pair-column">
         <div class="lesson-pair-column-title">实际课时</div>
-        ${actual ? renderLessonCard(actual, { side: "actual", pairedPlanned: planned }) : renderActualPlaceholder(planned)}
+        ${actual ? renderLessonCard(actual, { side: "actual", pairedPlanned: planned, courseGroupProgress }) : renderActualPlaceholder(planned)}
       </div>
     </article>
   `;
@@ -287,8 +294,10 @@ function renderLessonCard(row, options = {}) {
         <strong>${escapeHtml(formatDateOnly(row.work_date))}</strong>
         <span>${escapeHtml(timeRange(row.start_time, row.end_time))}</span>
         <span>${escapeHtml(row.subject_name || "-")}</span>
+        <span>${escapeHtml(courseGroupName(row) || "-")}</span>
         <span>${escapeHtml(row.class_description || "-")}</span>
       </div>
+      ${renderCourseGroupProgress(row, options.courseGroupProgress)}
       <dl class="lesson-pair-meta">
         <div><dt>${isActual ? "实际课时" : "预定课时"}</dt><dd>${escapeHtml(formatHours(hours))} h</dd></div>
         <div><dt>回数</dt><dd>${escapeHtml(formatLessonCount(count))}</dd></div>
@@ -305,6 +314,29 @@ function renderLessonCard(row, options = {}) {
         </div>
       </div>
     </article>
+  `;
+}
+
+function renderCourseGroupProgress(row, progressMap) {
+  const groupName = courseGroupName(row);
+  if (!groupName) {
+    return "";
+  }
+
+  const progress = progressMap?.get(groupName);
+  if (!progress) {
+    return "";
+  }
+
+  return `
+    <dl class="part-time-work-course-progress">
+      <div><dt>课程组</dt><dd>${escapeHtml(groupName)}</dd></div>
+      <div><dt>计划回数</dt><dd>${escapeHtml(formatLessonCount(progress.plannedCount))}</dd></div>
+      <div><dt>已上回数</dt><dd>${escapeHtml(formatLessonCount(progress.completedCount))}</dd></div>
+      <div><dt>计划总课时</dt><dd>${escapeHtml(formatHours(progress.plannedTotalHours))} h</dd></div>
+      <div><dt>实际累计课时</dt><dd>${escapeHtml(formatHours(progress.actualTotalHours))} h</dd></div>
+      <div><dt>剩余参考课时</dt><dd>${escapeHtml(formatHours(progress.remainingHours))} h</dd></div>
+    </dl>
   `;
 }
 
@@ -325,6 +357,7 @@ function renderListRow(row) {
       <td>${escapeHtml(timeRange(row.start_time, row.end_time))}</td>
       <td>${escapeHtml(row.workplace_name || "-")}</td>
       <td>${escapeHtml(row.subject_name || "-")}</td>
+      <td>${escapeHtml(courseGroupName(row) || "-")}</td>
       <td class="description-cell">${escapeHtml(row.class_description || "-")}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.planned_hours))}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.actual_hours))}</td>
@@ -453,6 +486,7 @@ function fillDialogFromLesson(lesson, hours) {
   dom.workDateInput.value = lesson.work_date || "";
   setSelectValueWithFallback(dom.workplaceNameInput, lesson.workplace_name || "");
   setSelectValueWithFallback(dom.subjectNameInput, lesson.subject_name || "");
+  dom.courseGroupInput.value = lesson.course_group_name || "";
   dom.classDescriptionInput.value = lesson.class_description || "";
   dom.startTimeInput.value = formatTimeInput(lesson.start_time);
   dom.endTimeInput.value = formatTimeInput(lesson.end_time);
@@ -654,6 +688,7 @@ function readDialogPayload() {
     workplaceName: dom.workplaceNameInput.value,
     teacherName: DEFAULT_TEACHER_NAME,
     subjectName: dom.subjectNameInput.value,
+    courseGroupName: dom.courseGroupInput.value.trim(),
     classDescription: dom.classDescriptionInput.value.trim(),
     startTime: dom.startTimeInput.value,
     endTime: dom.endTimeInput.value,
@@ -734,6 +769,7 @@ function clearDialog() {
     dom.workDateInput,
     dom.workplaceNameInput,
     dom.subjectNameInput,
+    dom.courseGroupInput,
     dom.classDescriptionInput,
     dom.startTimeInput,
     dom.endTimeInput,
@@ -765,7 +801,7 @@ function closeDialogAfterSubmit() {
 }
 
 function setLessonFieldsReadonly(readonly) {
-  for (const input of [dom.workplaceNameInput, dom.subjectNameInput, dom.classDescriptionInput]) {
+  for (const input of [dom.workplaceNameInput, dom.subjectNameInput, dom.courseGroupInput, dom.classDescriptionInput]) {
     input.disabled = readonly;
   }
 }
@@ -894,6 +930,58 @@ function calculateSubtotalHours(hours, count) {
     return 0;
   }
   return Math.round(hourValue * countValue * 100) / 100;
+}
+
+function buildCourseGroupProgress(rows) {
+  const grouped = new Map();
+
+  for (const row of rows || []) {
+    const groupName = courseGroupName(row);
+    if (!groupName) {
+      continue;
+    }
+
+    const current = grouped.get(groupName) || {
+      plannedRow: null,
+      completedCount: 0,
+      actualTotalHours: 0,
+    };
+
+    if (row.record_kind === "planned" && !current.plannedRow) {
+      current.plannedRow = row;
+    }
+
+    if (row.record_kind === "actual") {
+      current.completedCount += 1;
+      current.actualTotalHours += Number(row.actual_hours || 0);
+      if (!current.plannedRow) {
+        current.plannedRow = row;
+      }
+    }
+
+    grouped.set(groupName, current);
+  }
+
+  for (const [groupName, value] of grouped.entries()) {
+    const plannedRow = value.plannedRow || {};
+    const plannedHours = Number(plannedRow.planned_hours || plannedRow.actual_hours || 0);
+    const plannedCount = lessonCount(plannedRow);
+    const plannedTotalHours = calculateSubtotalHours(plannedHours, plannedCount);
+    const actualTotalHours = Math.round(value.actualTotalHours * 100) / 100;
+    grouped.set(groupName, {
+      plannedCount,
+      completedCount: value.completedCount,
+      plannedTotalHours,
+      actualTotalHours,
+      remainingHours: Math.round((plannedTotalHours - actualTotalHours) * 100) / 100,
+    });
+  }
+
+  return grouped;
+}
+
+function courseGroupName(row) {
+  return safeText(row?.course_group_name).trim();
 }
 
 function timeToMinutes(value) {
