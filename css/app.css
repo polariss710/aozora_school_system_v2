@@ -1014,9 +1014,9 @@ h2 {
 .part-time-work-settlement-control-row {
   display: grid;
   align-items: end;
-  justify-content: start;
-  grid-template-columns: minmax(280px, 380px) minmax(480px, 520px);
-  gap: 10px;
+  grid-template-columns: minmax(320px, 1fr) max-content;
+  gap: 8px;
+  width: 100%;
 }
 
 .part-time-work-settlement-note-card {
@@ -1024,7 +1024,7 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfe;
-  padding: 9px 10px;
+  padding: 6px 8px;
 }
 
 .part-time-work-settlement-note-card span {
@@ -1037,18 +1037,19 @@ h2 {
 .action-buttons.part-time-work-settlement-actions {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(4, 88px);
   justify-content: flex-end;
-  gap: 6px;
-  width: min(520px, 100%);
+  gap: 4px;
+  width: max-content;
 }
 
 .part-time-work-settlement-actions .button {
   min-width: 0;
-  min-height: 36px;
+  min-height: 30px;
   width: 100%;
   border-radius: 6px;
-  padding: 5px 8px;
+  padding: 4px 6px;
+  font-size: 12px;
   text-align: center;
 }
 
