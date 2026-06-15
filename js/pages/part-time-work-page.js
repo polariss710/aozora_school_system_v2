@@ -393,6 +393,24 @@ function openCreatePlannedDialog() {
   showDialog();
 }
 
+function openCopyPlannedDialog(lesson) {
+  if (!isLoggedIn()) {
+    showMessage("error", "请先登录后复制预定打工课时。");
+    return;
+  }
+
+  dialogMode = DIALOG_MODES.CREATE_PLANNED;
+  editingLesson = null;
+  dom.dialogTitle.textContent = "复制预定打工课时";
+  dom.dialogKindText.textContent = "预定课时";
+  dom.hoursLabel.textContent = "预定课时";
+  clearDialog();
+  fillDialogFromLesson(lesson, lesson.planned_hours);
+  setLessonFieldsReadonly(false);
+  updatePreview();
+  showDialog();
+}
+
 function openEditDialog(lesson) {
   dialogMode = DIALOG_MODES.EDIT_LESSON;
   editingLesson = lesson;
@@ -495,7 +513,7 @@ async function handleLessonActionClick(event) {
   if (copyButton) {
     const lesson = lessons.find((item) => item.id === copyButton.dataset.partTimeWorkCopyId);
     if (lesson) {
-      await copyPlannedLesson(lesson);
+      openCopyPlannedDialog(lesson);
     }
     return;
   }
@@ -571,31 +589,6 @@ function handleWorkplaceToggleClick(event) {
   }
 
   renderLessons(lessons);
-}
-
-async function copyPlannedLesson(lesson) {
-  if (lesson.record_kind !== "planned") {
-    return;
-  }
-
-  try {
-    await createPartTimeWorkPlannedLesson({
-      workDate: lesson.work_date,
-      startTime: formatTimeInput(lesson.start_time),
-      endTime: formatTimeInput(lesson.end_time),
-      workplaceName: lesson.workplace_name,
-      teacherName: DEFAULT_TEACHER_NAME,
-      subjectName: lesson.subject_name,
-      classDescription: lesson.class_description || "",
-      hourlyRateJpy: lesson.hourly_rate_jpy ?? 0,
-      transportationFeeJpy: lesson.transportation_fee_jpy ?? 0,
-      memo: lesson.memo || "",
-    });
-    showMessage("success", "预定课时已复制。");
-    await loadPageData();
-  } catch (error) {
-    showMessage("error", `预定课时复制失败：${error.message || error}`);
-  }
 }
 
 async function handleSettlementActionClick(event) {
