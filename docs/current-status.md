@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. Income/expense list Cash submission and part-time export polish, 2026-06-16:
+   私塾打工 locked settlement Excel 导出现在从 locked snapshot 明细导出开始时间和结束时间，仍不从当前可变课时重新计算金额。收入记录和支出记录一览页新增行内 Cash 提交入口、可提交记录 checkbox、全选和批量提交 modal；批量提交逐条复用现有 `request-cash-income-confirmation` / `request-cash-expense-confirmation`，只创建 Cash pending request，不直接创建 Cash transaction，不修改 Cash approve/reject 或 `sync-cash-request-result`。支出列表补充 Cash linkage 状态字段读取和显示，已 pending / approved / synced 或已有 Cash transaction 的记录不可再次提交。
+
 1. Synced School record guard and Cash transaction display cleanup, 2026-06-16:
    已确认真实 2026-05 诺应教育 canonical income request `475b2b7f-2e86-415f-87a0-580759fb50a4` 为 approved，生成 Cash CNY transaction `f8bec66d-e03c-45aa-9eef-329ac604ca54`，金额 `3,670 CNY`，账户 `余额宝`，Cash transaction 日期为 `2026-05-31`。因此该流水应在 Cash 人民币流水的 `2026-05` 月份视图中显示；3 条学费 CNY 收入日期为 `2026-06-15`，显示在 `2026-06` 月份视图。School 收入/支出详情和 RPC guard 已补齐：已同步到 Cash 的收入/支出不能直接普通编辑或撤销，Cash pending 状态也禁止核心字段普通编辑。测试使用 rollback 数据，residue 为 0。
 

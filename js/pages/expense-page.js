@@ -6,7 +6,9 @@ import {
   fetchExpenseLookups,
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
+  requestCashExpenseConfirmation,
 } from "../api/expense-api.js";
+import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -84,6 +86,17 @@ const CREATE_EXPENSE_FIELD_IDS = [
   "taxCategory",
   "exchangeRate",
 ];
+const CASH_EXPENSE_CURRENCIES = ["JPY", "CNY"];
+const CASH_REQUEST_STATUS_LABELS = {
+  pending_cash_request: "Cash待提交",
+  awaiting_cash_confirmation: "Cash待确认",
+  pending: "Cash待确认",
+  approved: "Cash已确认",
+  synced: "Cash已同步",
+  rejected: "Cash已拒绝",
+  cash_rejected: "Cash已拒绝",
+  failed: "Cash失败",
+};
 
 const dom = {};
 let businessEntities = [];
@@ -91,10 +104,16 @@ let accounts = [];
 let teachers = [];
 let students = [];
 let expenseRecords = [];
+let renderedExpenseRows = [];
+let selectedExpenseIds = new Set();
 let paymentRequestsByExpenseId = new Map();
 let attachmentCountsByExpenseId = new Map();
+let cashEligibleAccounts = [];
+let hasLoadedCashEligibleAccounts = false;
 let loadedMonth = "";
 let isCreateSubmitting = false;
+let batchCashExpenseRows = [];
+let isBatchCashSubmitting = false;
 
 export function initExpensePage() {
   cacheDom();
@@ -130,6 +149,13 @@ function cacheDom() {
   dom.emptyState = document.querySelector("#expenseEmptyState");
   dom.expenseCount = document.querySelector("#expenseCount");
   dom.openCreateExpenseButton = document.querySelector("#openCreateExpenseButton");
+  dom.openBatchCashExpenseButton = document.querySelector("#openBatchCashExpenseButton");
+  dom.selectAllCashRequests = document.querySelector("#expenseSelectAllCashRequests");
+  dom.batchCashExpenseDialog = document.querySelector("#batchCashExpenseDialog");
+  dom.batchCashExpenseError = document.querySelector("#batchCashExpenseError");
+  dom.batchCashExpenseTableBody = document.querySelector("#batchCashExpenseTableBody");
+  dom.batchCashExpenseSubmitButton = document.querySelector("#batchCashExpenseSubmitButton");
+  dom.batchCashExpenseCancelButton = document.querySelector("#batchCashExpenseCancelButton");
   dom.createExpenseDialog = document.querySelector("#createExpenseDialog");
   dom.createExpenseError = document.querySelector("#createExpenseError");
   dom.createExpenseDateInput = document.querySelector("#createExpenseDateInput");
@@ -160,6 +186,16 @@ function bindEvents() {
   });
 
   dom.openCreateExpenseButton.addEventListener("click", openCreateExpenseDialog);
+  dom.openBatchCashExpenseButton.addEventListener("click", () => {
+    openBatchCashExpenseDialog(selectedExpenseRows());
+  });
+  dom.selectAllCashRequests.addEventListener("change", handleExpenseSelectAllChange);
+  dom.tableBody.addEventListener("click", handleExpenseTableClick);
+  dom.tableBody.addEventListener("change", handleExpenseTableChange);
+  dom.batchCashExpenseCancelButton.addEventListener("click", closeBatchCashExpenseDialog);
+  dom.batchCashExpenseSubmitButton.addEventListener("click", submitBatchCashExpenseRequests);
+  dom.batchCashExpenseTableBody.addEventListener("input", handleBatchCashExpenseInput);
+  dom.batchCashExpenseTableBody.addEventListener("change", handleBatchCashExpenseInput);
   dom.createExpenseCancelButton.addEventListener("click", closeCreateExpenseDialog);
   dom.createExpenseSubmitButton.addEventListener("click", submitCreateExpense);
   dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
@@ -353,17 +389,21 @@ function renderValueOptions(selectEl, values, labelGetter) {
 }
 
 function renderExpenseRecords(rows) {
+  renderedExpenseRows = rows;
+  pruneSelectedExpenseIds();
   dom.expenseCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
 
   if (!rows.length) {
     dom.tableBody.innerHTML = "";
+    updateExpenseBatchControls();
     return;
   }
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td class="action-cell"><a class="button table-action-button" href="${escapeAttribute(expenseDetailUrl(row.id))}">详情</a></td>
+      <td>${renderExpenseSelectionCell(row)}</td>
+      <td class="action-cell">${renderExpenseRowActions(row)}</td>
       <td class="expense-nowrap">${escapeHtml(formatDateOnly(row.expense_date))}</td>
       <td class="expense-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(expenseCategoryLabel(row.expense_category))}</span></td>
@@ -378,6 +418,7 @@ function renderExpenseRecords(rows) {
       <td class="number-cell expense-nowrap">${escapeHtml(displayValue(row.exchange_rate))}</td>
       <td>${escapeHtml(paymentMethodLabel(row.payment_method))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(expenseStatusLabel(row.status))}</span></td>
+      <td>${renderCashRequestStatus(row)}</td>
       <td>${renderWagePaymentStatus(row)}</td>
       <td>${escapeHtml(displayValue(row.receipt_status))}</td>
       <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status, row.expense_category))}</td>
@@ -387,6 +428,83 @@ function renderExpenseRecords(rows) {
       <td class="expense-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
     </tr>
   `).join("");
+  updateExpenseBatchControls();
+}
+
+function renderExpenseSelectionCell(row) {
+  const selectable = canRequestCashExpense(row);
+  return `
+    <input
+      type="checkbox"
+      data-expense-select-id="${escapeAttribute(row.id)}"
+      aria-label="选择支出记录 ${escapeAttribute(expenseObjectName(row))}"
+      ${selectable ? "" : "disabled"}
+      ${selectedExpenseIds.has(row.id) ? "checked" : ""}
+    >
+  `;
+}
+
+function renderExpenseRowActions(row) {
+  const cashButton = canRequestCashExpense(row)
+    ? `<button class="table-action-button" type="button" data-expense-cash-request-id="${escapeAttribute(row.id)}">提交 Cash 支付确认</button>`
+    : "";
+  return `
+    <div class="income-row-actions">
+      <a class="button table-action-button" href="${escapeAttribute(expenseDetailUrl(row.id))}">详情</a>
+      ${cashButton}
+    </div>
+  `;
+}
+
+function handleExpenseTableClick(event) {
+  const button = event.target.closest("[data-expense-cash-request-id]");
+  if (!button) {
+    return;
+  }
+
+  const expenseId = button.getAttribute("data-expense-cash-request-id");
+  const expense = expenseRecords.find((row) => row.id === expenseId);
+  if (!expense) {
+    showMessage("error", "支出记录不存在，请刷新后重试。");
+    return;
+  }
+
+  openBatchCashExpenseDialog([expense]);
+}
+
+function handleExpenseTableChange(event) {
+  const checkbox = event.target.closest("[data-expense-select-id]");
+  if (!checkbox) {
+    return;
+  }
+
+  const expenseId = checkbox.getAttribute("data-expense-select-id");
+  const expense = renderedExpenseRows.find((row) => row.id === expenseId);
+  if (!expense || !canRequestCashExpense(expense)) {
+    checkbox.checked = false;
+    selectedExpenseIds.delete(expenseId);
+    updateExpenseBatchControls();
+    return;
+  }
+
+  if (checkbox.checked) {
+    selectedExpenseIds.add(expenseId);
+  } else {
+    selectedExpenseIds.delete(expenseId);
+  }
+  updateExpenseBatchControls();
+}
+
+function handleExpenseSelectAllChange() {
+  const selectableIds = renderedExpenseRows.filter(canRequestCashExpense).map((row) => row.id);
+  if (dom.selectAllCashRequests.checked) {
+    selectedExpenseIds = new Set(selectableIds);
+  } else {
+    for (const id of selectableIds) {
+      selectedExpenseIds.delete(id);
+    }
+  }
+  renderExpenseRecords(renderedExpenseRows);
 }
 
 function openCreateExpenseDialog() {
@@ -591,6 +709,250 @@ function showExpenseCreateSuccess(result) {
   }
 }
 
+function selectedExpenseRows() {
+  return renderedExpenseRows.filter((row) => selectedExpenseIds.has(row.id) && canRequestCashExpense(row));
+}
+
+function pruneSelectedExpenseIds() {
+  const selectableIds = new Set(renderedExpenseRows.filter(canRequestCashExpense).map((row) => row.id));
+  for (const id of Array.from(selectedExpenseIds)) {
+    if (!selectableIds.has(id)) {
+      selectedExpenseIds.delete(id);
+    }
+  }
+}
+
+function updateExpenseBatchControls() {
+  const selectableRows = renderedExpenseRows.filter(canRequestCashExpense);
+  const selectedRows = selectedExpenseRows();
+  dom.openBatchCashExpenseButton.disabled = selectedRows.length === 0;
+  dom.selectAllCashRequests.disabled = selectableRows.length === 0;
+  dom.selectAllCashRequests.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+  dom.selectAllCashRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
+}
+
+async function openBatchCashExpenseDialog(rows) {
+  const targets = (rows || []).filter(canRequestCashExpense);
+  if (!targets.length) {
+    showMessage("error", "请选择可提交 Cash 支付确认的支出记录。");
+    return;
+  }
+
+  try {
+    await ensureCashEligibleAccountsLoaded();
+  } catch (error) {
+    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
+    return;
+  }
+
+  batchCashExpenseRows = targets.map((expense) => ({
+    expense,
+    amount: expense.amount ?? "",
+    currency: expense.currency || "JPY",
+    accountId: "",
+    note: defaultCashExpenseNote(expense),
+    result: "",
+  }));
+  clearBatchCashExpenseError();
+  setBatchCashExpenseSubmitting(false);
+  renderBatchCashExpenseRows();
+  dom.batchCashExpenseDialog.classList.remove("is-hidden");
+  dom.batchCashExpenseDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeBatchCashExpenseDialog() {
+  if (isBatchCashSubmitting) {
+    return;
+  }
+
+  batchCashExpenseRows = [];
+  dom.batchCashExpenseDialog.classList.add("is-hidden");
+  dom.batchCashExpenseDialog.setAttribute("aria-hidden", "true");
+}
+
+async function ensureCashEligibleAccountsLoaded() {
+  if (hasLoadedCashEligibleAccounts) {
+    return;
+  }
+
+  const rows = await fetchSchoolEligibleCashAccountsViaFunction();
+  cashEligibleAccounts = (rows || []).filter((account) => (
+    account?.is_active === true &&
+    account?.allow_school_requests === true &&
+    CASH_EXPENSE_CURRENCIES.includes(account.currency)
+  ));
+  hasLoadedCashEligibleAccounts = true;
+}
+
+function renderBatchCashExpenseRows() {
+  dom.batchCashExpenseTableBody.innerHTML = batchCashExpenseRows.map((state) => {
+    const expense = state.expense;
+    return `
+      <tr data-batch-expense-row-id="${escapeAttribute(expense.id)}">
+        <td>${escapeHtml(expenseObjectName(expense))}</td>
+        <td class="expense-nowrap">${escapeHtml(formatMonth(expense.year_month))}</td>
+        <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
+        <td><input data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td>
+          <select data-batch-expense-currency="${escapeAttribute(expense.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+            ${CASH_EXPENSE_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
+          </select>
+        </td>
+        <td>
+          <select data-batch-expense-account="${escapeAttribute(expense.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+            ${renderBatchCashExpenseAccountOptions(state)}
+          </select>
+        </td>
+        <td><input data-batch-expense-note="${escapeAttribute(expense.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td>${escapeHtml(state.result || "-")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderBatchCashExpenseAccountOptions(state) {
+  const rows = cashEligibleAccounts.filter((account) => (
+    account?.is_active === true &&
+    account?.allow_school_requests === true &&
+    account.currency === state.currency
+  ));
+  return [
+    '<option value="">请选择</option>',
+    ...rows.map((account) => (
+      `<option value="${escapeAttribute(account.id)}" ${account.id === state.accountId ? "selected" : ""}>${escapeHtml(cashAccountLabel(account))}</option>`
+    )),
+  ].join("");
+}
+
+function handleBatchCashExpenseInput(event) {
+  if (!event.target.closest("[data-batch-expense-row-id]")) {
+    return;
+  }
+
+  const shouldRerender = Boolean(event.target.closest("[data-batch-expense-currency]"));
+  syncBatchCashExpenseRowsFromDom();
+  if (shouldRerender) {
+    for (const state of batchCashExpenseRows) {
+      const account = cashEligibleAccounts.find((row) => row.id === state.accountId);
+      if (account?.currency !== state.currency) {
+        state.accountId = "";
+      }
+    }
+    renderBatchCashExpenseRows();
+  }
+  clearBatchCashExpenseError();
+}
+
+function syncBatchCashExpenseRowsFromDom() {
+  for (const state of batchCashExpenseRows) {
+    const id = state.expense.id;
+    state.amount = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-amount="${cssEscape(id)}"]`)?.value ?? state.amount;
+    state.currency = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
+    state.accountId = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
+    state.note = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-note="${cssEscape(id)}"]`)?.value ?? state.note;
+  }
+}
+
+async function submitBatchCashExpenseRequests() {
+  if (isBatchCashSubmitting) {
+    return;
+  }
+
+  const payloads = readBatchCashExpensePayloads();
+  if (!payloads) {
+    return;
+  }
+
+  if (!window.confirm(`确认提交 ${payloads.length} 条 Cash 支付确认请求？Cash 确认后才会生成支出交易。`)) {
+    return;
+  }
+
+  setBatchCashExpenseSubmitting(true);
+  let successCount = 0;
+  for (const item of payloads) {
+    try {
+      await requestCashExpenseConfirmation(item.payload);
+      item.state.result = "已提交";
+      selectedExpenseIds.delete(item.state.expense.id);
+      successCount += 1;
+    } catch (error) {
+      item.state.result = `失败：${error.message || error}`;
+    }
+    renderBatchCashExpenseRows();
+  }
+  setBatchCashExpenseSubmitting(false);
+  await refreshCurrentExpenseList();
+
+  const failedCount = payloads.length - successCount;
+  if (failedCount > 0) {
+    showBatchCashExpenseError(`已提交 ${successCount} 条，失败 ${failedCount} 条。请查看每行结果。`);
+  } else {
+    closeBatchCashExpenseDialog();
+    showMessage("success", `已提交 ${successCount} 条 Cash 支付确认请求，等待 Cash 侧确认。`);
+  }
+}
+
+function readBatchCashExpensePayloads() {
+  syncBatchCashExpenseRowsFromDom();
+  clearBatchCashExpenseError();
+  let hasError = false;
+  const payloads = [];
+
+  for (const state of batchCashExpenseRows) {
+    const expense = state.expense;
+    state.result = "";
+    if (!canRequestCashExpense(expense)) {
+      state.result = cashRequestNotAllowedMessage(expense) || "当前状态不可提交";
+      hasError = true;
+      continue;
+    }
+
+    const actualPaymentAmount = parseNumberInput(state.amount);
+    if (!Number.isFinite(actualPaymentAmount) || actualPaymentAmount <= 0) {
+      state.result = "请输入大于 0 的金额";
+      hasError = true;
+      continue;
+    }
+
+    if (!CASH_EXPENSE_CURRENCIES.includes(state.currency)) {
+      state.result = "币种无效";
+      hasError = true;
+      continue;
+    }
+
+    const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
+    if (!cashAccount || cashAccount.currency !== state.currency) {
+      state.result = "请选择同币种 Cash 账户";
+      hasError = true;
+      continue;
+    }
+
+    payloads.push({
+      state,
+      payload: {
+        expenseId: expense.id,
+        cashAccountId: state.accountId,
+        actualPaymentAmount,
+        actualPaymentCurrency: state.currency,
+        note: state.note,
+      },
+    });
+  }
+
+  renderBatchCashExpenseRows();
+  if (hasError) {
+    showBatchCashExpenseError("部分记录缺少必要信息，未提交任何请求。");
+    return null;
+  }
+
+  if (!payloads.length) {
+    showBatchCashExpenseError("没有可提交的支出记录。");
+    return null;
+  }
+
+  return payloads;
+}
+
 function renderCreateBusinessEntityOptions(rows) {
   const options = ['<option value="">请选择业务归属</option>'];
   for (const entity of rows) {
@@ -730,6 +1092,48 @@ function filterExpenseRecords(rows, filters) {
   });
 }
 
+function canRequestCashExpense(row) {
+  if (!row?.id) return false;
+  if (row.app_type !== "school") return false;
+  if (row.status !== "pending") return false;
+  if (row.reversed_at || row.reversal_account_transaction_id) return false;
+  if (row.cash_transaction_id) return false;
+  return !["pending", "approved", "synced"].includes(row.cash_request_status || "");
+}
+
+function cashRequestNotAllowedMessage(row) {
+  if (!row) return "支出记录不存在，请刷新后重试。";
+  if (row.app_type !== "school") return "只能提交 School 支出记录。";
+  if (row.status !== "pending") return "只有待支付支出记录可以提交 Cash 支付确认。";
+  if (row.reversed_at || row.reversal_account_transaction_id) return "已撤销支出不能提交 Cash 支付确认。";
+  if (row.cash_transaction_id) return "该支出记录已经有 Cash transaction。";
+  if (row.cash_request_status === "pending") return "该支出记录已有待确认 Cash request。";
+  if (row.cash_request_status === "approved" || row.cash_request_status === "synced") return "该支出记录已同步到 Cash。";
+  return "";
+}
+
+function renderCashRequestStatus(row) {
+  if (!row?.cash_request_status && !row?.cash_transaction_id) {
+    return "-";
+  }
+
+  const status = row.cash_transaction_id && !row.cash_request_status
+    ? "synced"
+    : row.cash_request_status;
+  return `<span class="status-badge ${escapeAttribute(cashRequestStatusClass(status))}">${escapeHtml(cashRequestStatusLabel(status))}</span>`;
+}
+
+function cashRequestStatusLabel(value) {
+  return CASH_REQUEST_STATUS_LABELS[value] || displayValue(value);
+}
+
+function cashRequestStatusClass(value) {
+  if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "status-pending";
+  if (value === "approved" || value === "synced") return "status-paid";
+  if (value === "rejected" || value === "cash_rejected" || value === "failed") return "status-cancelled";
+  return "status-neutral";
+}
+
 function teacherWageExpenseIds(rows) {
   return rows
     .filter((row) => row.expense_category === "teacher_wage")
@@ -823,6 +1227,32 @@ function teacherNameById(id) {
   return teacherName(teacher);
 }
 
+function expenseObjectName(row) {
+  const payeeName = safeText(row?.payee_name_snapshot);
+  if (payeeName) {
+    return payeeName;
+  }
+
+  if (row?.teacher_id) {
+    return teacherNameById(row.teacher_id);
+  }
+
+  if (row?.student_id) {
+    return studentNameById(row.student_id);
+  }
+
+  return displayValue(row?.description);
+}
+
+function studentNameById(id) {
+  const student = students.find((item) => item.id === id);
+  if (!student) {
+    return id ? "未知" : "-";
+  }
+
+  return studentName(student);
+}
+
 function businessEntityName(entity) {
   return safeText(entity.name) || "未设置";
 }
@@ -831,6 +1261,14 @@ function accountName(account) {
   const name = safeText(account.name) || "未设置";
   const currency = safeText(account.currency);
   return currency ? `${name} / ${currency}` : name;
+}
+
+function cashAccountLabel(account) {
+  return [
+    account.name || account.id,
+    account.currency || "-",
+    account.account_type,
+  ].filter(Boolean).join(" / ");
 }
 
 function teacherName(teacher) {
@@ -898,6 +1336,23 @@ function formatDateOnly(value) {
   return safeText(value) || "-";
 }
 
+function defaultCashExpenseNote(expense) {
+  return [
+    expenseCategoryLabel(expense.expense_category),
+    expenseObjectName(expense),
+    expense.year_month,
+    expense.description,
+  ].filter(Boolean).join(" / ");
+}
+
+function parseNumberInput(value) {
+  const normalized = String(value ?? "").replace(/,/g, "").trim();
+  if (!normalized) {
+    return NaN;
+  }
+  return Number(normalized);
+}
+
 function currentDate() {
   const date = new Date();
   const year = date.getFullYear();
@@ -921,6 +1376,33 @@ function setLoading(isLoading) {
 function showMessage(type, text) {
   dom.messageArea.className = `message message-${type}`;
   dom.messageArea.textContent = text;
+}
+
+function setBatchCashExpenseSubmitting(isSubmitting) {
+  isBatchCashSubmitting = isSubmitting;
+  dom.batchCashExpenseSubmitButton.disabled = isSubmitting;
+  dom.batchCashExpenseCancelButton.disabled = isSubmitting;
+  dom.batchCashExpenseSubmitButton.textContent = isSubmitting ? "提交中..." : "提交所选 Cash 支付确认";
+  renderBatchCashExpenseRows();
+}
+
+function clearBatchCashExpenseError() {
+  dom.batchCashExpenseError.textContent = "";
+  dom.batchCashExpenseError.classList.add("is-hidden");
+}
+
+function showBatchCashExpenseError(message) {
+  dom.batchCashExpenseError.textContent = message;
+  dom.batchCashExpenseError.classList.remove("is-hidden");
+  dom.batchCashExpenseDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) {
+    return window.CSS.escape(String(value));
+  }
+
+  return String(value).replaceAll('"', '\\"');
 }
 
 function escapeHtml(value) {

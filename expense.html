@@ -96,6 +96,7 @@
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="openCreateExpenseButton" type="button">新增支出</button>
+              <button class="button" id="openBatchCashExpenseButton" type="button" disabled>批量提交 Cash</button>
               <span id="expenseCount" class="record-count">0 条</span>
             </div>
           </div>
@@ -106,6 +107,7 @@
             <table class="payment-table expense-table">
               <thead>
                 <tr>
+                  <th><input id="expenseSelectAllCashRequests" type="checkbox" aria-label="全选可提交 Cash 支付确认支出"></th>
                   <th>操作</th>
                   <th>支出日期</th>
                   <th>月份</th>
@@ -121,6 +123,7 @@
                   <th>汇率</th>
                   <th>支付方式</th>
                   <th>支出状态</th>
+                  <th>Cash 同步</th>
                   <th>工资支付状态</th>
                   <th>收据状态</th>
                   <th>报销状态</th>
@@ -135,6 +138,40 @@
           </div>
         </section>
       </main>
+    </div>
+
+    <div id="batchCashExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="batchCashExpenseTitle">
+        <div class="section-heading">
+          <h2 id="batchCashExpenseTitle">批量提交 Cash 支付确认</h2>
+          <p class="section-note">只会创建 Cash 待确认请求；Cash 确认后才会生成支出交易。请逐条确认实际支付金额、币种、账户和备注。</p>
+        </div>
+
+        <div id="batchCashExpenseError" class="dialog-error is-hidden"></div>
+
+        <div class="table-scroll">
+          <table class="payment-table">
+            <thead>
+              <tr>
+                <th>支付对象 / 来源</th>
+                <th>业务归属月</th>
+                <th>原始金额</th>
+                <th>实际支付金额</th>
+                <th>币种</th>
+                <th>Cash 账户</th>
+                <th>备注</th>
+                <th>结果</th>
+              </tr>
+            </thead>
+            <tbody id="batchCashExpenseTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="batchCashExpenseSubmitButton" type="button">提交所选 Cash 支付确认</button>
+          <button class="button" id="batchCashExpenseCancelButton" type="button">取消</button>
+        </div>
+      </section>
     </div>
 
     <div id="createExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">

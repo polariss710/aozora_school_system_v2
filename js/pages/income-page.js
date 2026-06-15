@@ -69,10 +69,14 @@ let accounts = [];
 let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
 let incomeRecords = [];
+let renderedIncomeRows = [];
+let selectedIncomeIds = new Set();
 let loadedMonth = "";
 let isCreateSubmitting = false;
 let cashRequestIncomeRecord = null;
 let isCashRequestSubmitting = false;
+let batchCashIncomeRows = [];
+let isBatchCashSubmitting = false;
 
 export function initIncomePage() {
   cacheDom();
@@ -109,6 +113,13 @@ function cacheDom() {
   dom.emptyState = document.querySelector("#incomeEmptyState");
   dom.incomeCount = document.querySelector("#incomeCount");
   dom.openCreateIncomeButton = document.querySelector("#openCreateIncomeButton");
+  dom.openBatchCashIncomeButton = document.querySelector("#openBatchCashIncomeButton");
+  dom.selectAllCashRequests = document.querySelector("#incomeSelectAllCashRequests");
+  dom.batchCashIncomeDialog = document.querySelector("#batchCashIncomeDialog");
+  dom.batchCashIncomeError = document.querySelector("#batchCashIncomeError");
+  dom.batchCashIncomeTableBody = document.querySelector("#batchCashIncomeTableBody");
+  dom.batchCashIncomeSubmitButton = document.querySelector("#batchCashIncomeSubmitButton");
+  dom.batchCashIncomeCancelButton = document.querySelector("#batchCashIncomeCancelButton");
   dom.createIncomeDialog = document.querySelector("#createIncomeDialog");
   dom.createIncomeError = document.querySelector("#createIncomeError");
   dom.createIncomeModeSelect = document.querySelector("#createIncomeModeSelect");
@@ -155,7 +166,16 @@ function bindEvents() {
   });
 
   dom.openCreateIncomeButton.addEventListener("click", openCreateIncomeDialog);
+  dom.openBatchCashIncomeButton.addEventListener("click", () => {
+    openBatchCashIncomeDialog(selectedIncomeRows());
+  });
+  dom.selectAllCashRequests.addEventListener("change", handleIncomeSelectAllChange);
   dom.tableBody.addEventListener("click", handleIncomeTableClick);
+  dom.tableBody.addEventListener("change", handleIncomeTableChange);
+  dom.batchCashIncomeCancelButton.addEventListener("click", closeBatchCashIncomeDialog);
+  dom.batchCashIncomeSubmitButton.addEventListener("click", submitBatchCashIncomeRequests);
+  dom.batchCashIncomeTableBody.addEventListener("input", handleBatchCashIncomeInput);
+  dom.batchCashIncomeTableBody.addEventListener("change", handleBatchCashIncomeInput);
   dom.createIncomeCancelButton.addEventListener("click", closeCreateIncomeDialog);
   dom.createIncomeSubmitButton.addEventListener("click", submitCreateIncome);
   dom.cashIncomeRequestCancelButton.addEventListener("click", closeCashIncomeRequestDialog);
@@ -392,16 +412,20 @@ function renderValueOptions(selectEl, values, labelGetter) {
 }
 
 function renderIncomeRecords(rows) {
+  renderedIncomeRows = rows;
+  pruneSelectedIncomeIds();
   dom.incomeCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
 
   if (!rows.length) {
     dom.tableBody.innerHTML = "";
+    updateIncomeBatchControls();
     return;
   }
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
+      <td>${renderIncomeSelectionCell(row)}</td>
       <td>${renderIncomeRowActions(row)}</td>
       <td class="income-nowrap">${escapeHtml(formatDateOnly(row.income_date))}</td>
       <td class="income-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
@@ -426,6 +450,20 @@ function renderIncomeRecords(rows) {
       <td class="income-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
     </tr>
   `).join("");
+  updateIncomeBatchControls();
+}
+
+function renderIncomeSelectionCell(row) {
+  const selectable = canRequestCashIncome(row);
+  return `
+    <input
+      type="checkbox"
+      data-income-select-id="${escapeAttribute(row.id)}"
+      aria-label="选择收入记录 ${escapeAttribute(incomeObjectName(row))}"
+      ${selectable ? "" : "disabled"}
+      ${selectedIncomeIds.has(row.id) ? "checked" : ""}
+    >
+  `;
 }
 
 function renderIncomeRowActions(row) {
@@ -454,6 +492,41 @@ function handleIncomeTableClick(event) {
   }
 
   openCashIncomeRequestDialog(income);
+}
+
+function handleIncomeTableChange(event) {
+  const checkbox = event.target.closest("[data-income-select-id]");
+  if (!checkbox) {
+    return;
+  }
+
+  const incomeId = checkbox.getAttribute("data-income-select-id");
+  const income = renderedIncomeRows.find((row) => row.id === incomeId);
+  if (!income || !canRequestCashIncome(income)) {
+    checkbox.checked = false;
+    selectedIncomeIds.delete(incomeId);
+    updateIncomeBatchControls();
+    return;
+  }
+
+  if (checkbox.checked) {
+    selectedIncomeIds.add(incomeId);
+  } else {
+    selectedIncomeIds.delete(incomeId);
+  }
+  updateIncomeBatchControls();
+}
+
+function handleIncomeSelectAllChange() {
+  const selectableIds = renderedIncomeRows.filter(canRequestCashIncome).map((row) => row.id);
+  if (dom.selectAllCashRequests.checked) {
+    selectedIncomeIds = new Set(selectableIds);
+  } else {
+    for (const id of selectableIds) {
+      selectedIncomeIds.delete(id);
+    }
+  }
+  renderIncomeRecords(renderedIncomeRows);
 }
 
 async function openCashIncomeRequestDialog(income) {
@@ -527,6 +600,252 @@ async function submitCashIncomeRequest() {
   } finally {
     setCashRequestSubmitting(false);
   }
+}
+
+function selectedIncomeRows() {
+  return renderedIncomeRows.filter((row) => selectedIncomeIds.has(row.id) && canRequestCashIncome(row));
+}
+
+function pruneSelectedIncomeIds() {
+  const selectableIds = new Set(renderedIncomeRows.filter(canRequestCashIncome).map((row) => row.id));
+  for (const id of Array.from(selectedIncomeIds)) {
+    if (!selectableIds.has(id)) {
+      selectedIncomeIds.delete(id);
+    }
+  }
+}
+
+function updateIncomeBatchControls() {
+  const selectableRows = renderedIncomeRows.filter(canRequestCashIncome);
+  const selectedRows = selectedIncomeRows();
+  dom.openBatchCashIncomeButton.disabled = selectedRows.length === 0;
+  dom.selectAllCashRequests.disabled = selectableRows.length === 0;
+  dom.selectAllCashRequests.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+  dom.selectAllCashRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
+}
+
+async function openBatchCashIncomeDialog(rows) {
+  const targets = (rows || []).filter(canRequestCashIncome);
+  if (!targets.length) {
+    showMessage("error", "请选择可提交 Cash 确认的收入记录。");
+    return;
+  }
+
+  if (
+    !requireLoginForCashConfirmation((_type, message) => {
+      showMessage("error", message);
+    })
+  ) {
+    return;
+  }
+
+  try {
+    await ensureCashEligibleAccountsLoaded();
+  } catch (error) {
+    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
+    return;
+  }
+
+  batchCashIncomeRows = targets.map((income) => ({
+    income,
+    amount: income.amount ?? "",
+    currency: income.currency || "JPY",
+    accountId: "",
+    note: defaultCashIncomeNote(income),
+    result: "",
+  }));
+  clearBatchCashIncomeError();
+  setBatchCashIncomeSubmitting(false);
+  renderBatchCashIncomeRows();
+  dom.batchCashIncomeDialog.classList.remove("is-hidden");
+  dom.batchCashIncomeDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeBatchCashIncomeDialog() {
+  if (isBatchCashSubmitting) {
+    return;
+  }
+
+  batchCashIncomeRows = [];
+  dom.batchCashIncomeDialog.classList.add("is-hidden");
+  dom.batchCashIncomeDialog.setAttribute("aria-hidden", "true");
+}
+
+function renderBatchCashIncomeRows() {
+  dom.batchCashIncomeTableBody.innerHTML = batchCashIncomeRows.map((state) => {
+    const income = state.income;
+    return `
+      <tr data-batch-income-row-id="${escapeAttribute(income.id)}">
+        <td>${escapeHtml(incomeObjectName(income))}</td>
+        <td class="income-nowrap">${escapeHtml(formatMonth(income.year_month))}</td>
+        <td class="number-cell income-nowrap">${escapeHtml(formatCurrency(income.amount, income.currency))}</td>
+        <td><input data-batch-income-amount="${escapeAttribute(income.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td>
+          <select data-batch-income-currency="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+            ${CASH_INCOME_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
+          </select>
+        </td>
+        <td>
+          <select data-batch-income-account="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+            ${renderBatchCashIncomeAccountOptions(state)}
+          </select>
+        </td>
+        <td><input data-batch-income-note="${escapeAttribute(income.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td>${escapeHtml(state.result || "-")}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderBatchCashIncomeAccountOptions(state) {
+  const rows = cashEligibleAccounts.filter((account) => (
+    account?.is_active === true &&
+    account?.allow_school_requests === true &&
+    account.currency === state.currency
+  ));
+  return [
+    '<option value="">请选择</option>',
+    ...rows.map((account) => (
+      `<option value="${escapeAttribute(account.id)}" ${account.id === state.accountId ? "selected" : ""}>${escapeHtml(createCashAccountLabel(account))}</option>`
+    )),
+  ].join("");
+}
+
+function handleBatchCashIncomeInput(event) {
+  if (!event.target.closest("[data-batch-income-row-id]")) {
+    return;
+  }
+
+  const shouldRerender = Boolean(event.target.closest("[data-batch-income-currency]"));
+  syncBatchCashIncomeRowsFromDom();
+  if (shouldRerender) {
+    for (const state of batchCashIncomeRows) {
+      const account = cashEligibleAccounts.find((row) => row.id === state.accountId);
+      if (account?.currency !== state.currency) {
+        state.accountId = "";
+      }
+    }
+    renderBatchCashIncomeRows();
+  }
+  clearBatchCashIncomeError();
+}
+
+function syncBatchCashIncomeRowsFromDom() {
+  for (const state of batchCashIncomeRows) {
+    const id = state.income.id;
+    state.amount = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-amount="${cssEscape(id)}"]`)?.value ?? state.amount;
+    state.currency = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
+    state.accountId = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
+    state.note = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-note="${cssEscape(id)}"]`)?.value ?? state.note;
+  }
+}
+
+async function submitBatchCashIncomeRequests() {
+  if (isBatchCashSubmitting) {
+    return;
+  }
+
+  const payloads = readBatchCashIncomePayloads();
+  if (!payloads) {
+    return;
+  }
+
+  if (!window.confirm(`确认提交 ${payloads.length} 条 Cash 收入确认请求？Cash 确认后才会生成交易。`)) {
+    return;
+  }
+
+  setBatchCashIncomeSubmitting(true);
+  let successCount = 0;
+  for (const item of payloads) {
+    try {
+      await requestCashIncomeConfirmationForRecord(item.payload);
+      item.state.result = "已提交";
+      selectedIncomeIds.delete(item.state.income.id);
+      successCount += 1;
+    } catch (error) {
+      item.state.result = `失败：${error.message || error}`;
+    }
+    renderBatchCashIncomeRows();
+  }
+  setBatchCashIncomeSubmitting(false);
+  await refreshCurrentIncomeList();
+
+  const failedCount = payloads.length - successCount;
+  if (failedCount > 0) {
+    showBatchCashIncomeError(`已提交 ${successCount} 条，失败 ${failedCount} 条。请查看每行结果。`);
+  } else {
+    closeBatchCashIncomeDialog();
+    showMessage("success", `已提交 ${successCount} 条 Cash 收入确认请求，等待 Cash 侧确认。`);
+  }
+}
+
+function readBatchCashIncomePayloads() {
+  syncBatchCashIncomeRowsFromDom();
+  clearBatchCashIncomeError();
+  let hasError = false;
+  const payloads = [];
+
+  for (const state of batchCashIncomeRows) {
+    const income = state.income;
+    state.result = "";
+    if (!canRequestCashIncome(income)) {
+      state.result = "当前状态不可提交";
+      hasError = true;
+      continue;
+    }
+
+    const actualReceivedAmount = parseNumberInput(state.amount);
+    if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
+      state.result = "请输入大于 0 的金额";
+      hasError = true;
+      continue;
+    }
+
+    if (!CASH_INCOME_CURRENCIES.includes(state.currency)) {
+      state.result = "币种无效";
+      hasError = true;
+      continue;
+    }
+
+    const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
+    if (!cashAccount || cashAccount.currency !== state.currency) {
+      state.result = "请选择同币种 Cash 账户";
+      hasError = true;
+      continue;
+    }
+
+    const exchangeRate = calculatedCashIncomeExchangeRate(income, actualReceivedAmount, state.currency);
+    if (state.currency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      state.result = "CNY 请求缺少有效参考汇率";
+      hasError = true;
+      continue;
+    }
+
+    payloads.push({
+      state,
+      payload: {
+        incomeRecordId: income.id,
+        cashAccountId: state.accountId,
+        actualReceivedAmount,
+        actualReceivedCurrency: state.currency,
+        exchangeRate: state.currency === "JPY" ? 1 : exchangeRate,
+        note: buildCashIncomeRequestNoteFromBase(income, actualReceivedAmount, state.currency, exchangeRate, state.note),
+      },
+    });
+  }
+
+  renderBatchCashIncomeRows();
+  if (hasError) {
+    showBatchCashIncomeError("部分记录缺少必要信息，未提交任何请求。");
+    return null;
+  }
+
+  if (!payloads.length) {
+    showBatchCashIncomeError("没有可提交的收入记录。");
+    return null;
+  }
+
+  return payloads;
 }
 
 function readCashIncomeRequestPayload() {
@@ -670,6 +989,11 @@ function defaultCashIncomeNote(income) {
 
 function buildCashIncomeRequestNote(income, amount, currency, exchangeRate) {
   const base = dom.cashIncomeNoteInput.value.trim();
+  return buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, base);
+}
+
+function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, baseNote) {
+  const base = safeText(baseNote).trim();
   const requiredText = `${income.source_label || incomeObjectName(income)}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
   if (!base) {
     return requiredText;
@@ -1469,6 +1793,33 @@ function setCashRequestSubmitting(isSubmitting) {
   dom.cashIncomeRequestSubmitButton.disabled = isSubmitting;
   dom.cashIncomeRequestCancelButton.disabled = isSubmitting;
   dom.cashIncomeRequestSubmitButton.textContent = isSubmitting ? "提交中..." : "提交 Cash 确认";
+}
+
+function setBatchCashIncomeSubmitting(isSubmitting) {
+  isBatchCashSubmitting = isSubmitting;
+  dom.batchCashIncomeSubmitButton.disabled = isSubmitting;
+  dom.batchCashIncomeCancelButton.disabled = isSubmitting;
+  dom.batchCashIncomeSubmitButton.textContent = isSubmitting ? "提交中..." : "提交所选 Cash 确认";
+  renderBatchCashIncomeRows();
+}
+
+function clearBatchCashIncomeError() {
+  dom.batchCashIncomeError.textContent = "";
+  dom.batchCashIncomeError.classList.add("is-hidden");
+}
+
+function showBatchCashIncomeError(message) {
+  dom.batchCashIncomeError.textContent = message;
+  dom.batchCashIncomeError.classList.remove("is-hidden");
+  dom.batchCashIncomeDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cssEscape(value) {
+  if (window.CSS?.escape) {
+    return window.CSS.escape(String(value));
+  }
+
+  return String(value).replaceAll('"', '\\"');
 }
 
 function escapeHtml(value) {

@@ -770,8 +770,10 @@ function exportSettlementWorkbook(rows) {
 
   sheet["!cols"] = [
     { wch: 12 },
-    { wch: 16 },
     { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 16 },
     { wch: 14 },
     { wch: 28 },
     { wch: 12 },
@@ -797,8 +799,10 @@ function buildSettlementExportRows(rows) {
   return [
     [
       "年月",
-      "打工先",
       "日期",
+      "开始时间",
+      "结束时间",
+      "打工先",
       "科目",
       "工作内容",
       "实际课时",
@@ -813,8 +817,10 @@ function buildSettlementExportRows(rows) {
     ],
     ...rows.map((row) => [
       row.year_month || "",
-      row.workplace_name || "",
       formatDateOnly(row.work_date),
+      formatTimeInput(row.start_time),
+      formatTimeInput(row.end_time),
+      row.workplace_name || "",
       row.subject_name || "",
       row.class_description || "",
       Number(row.actual_hours || 0),
