@@ -38,17 +38,12 @@ const corsHeaders = {
 };
 
 const EXTERNAL_SOURCE = "aozora_school";
-const TEACHER_WAGE_REFERENCE_TYPE = "school_payment_requests";
-const TEACHER_WAGE_REQUEST_TYPE = "teacher_wage_payment_confirm";
-const TEACHER_WAGE_TRANSACTION_TYPE = "expense";
 const INCOME_REFERENCE_TYPE = "school_income_records";
 const INCOME_REQUEST_TYPES = new Set([
   "tuition_income_received",
   "income_received",
 ]);
 const INCOME_TRANSACTION_TYPE = "income";
-const PART_TIME_WORK_INCOME_REFERENCE_TYPE = "school_part_time_work_income_requests";
-const PART_TIME_WORK_INCOME_REQUEST_TYPE = "part_time_work_income_received";
 const EXPENSE_REFERENCE_TYPE = "school_expense_records";
 const EXPENSE_REQUEST_TYPE = "expense_paid";
 const EXPENSE_TRANSACTION_TYPE = "expense";
@@ -112,31 +107,11 @@ function unwrapSingleRow<T>(data: T[] | T | null, context: string): T {
   return data;
 }
 
-function isTeacherWageRequest(cashRequest: CashRequestRow): boolean {
-  return (
-    cashRequest.external_source === EXTERNAL_SOURCE &&
-    cashRequest.external_reference_type === TEACHER_WAGE_REFERENCE_TYPE &&
-    cashRequest.request_type === TEACHER_WAGE_REQUEST_TYPE &&
-    cashRequest.transaction_type === TEACHER_WAGE_TRANSACTION_TYPE &&
-    SUPPORTED_CURRENCIES.has(cashRequest.currency)
-  );
-}
-
 function isIncomeRequest(cashRequest: CashRequestRow): boolean {
   return (
     cashRequest.external_source === EXTERNAL_SOURCE &&
     cashRequest.external_reference_type === INCOME_REFERENCE_TYPE &&
     INCOME_REQUEST_TYPES.has(cashRequest.request_type) &&
-    cashRequest.transaction_type === INCOME_TRANSACTION_TYPE &&
-    SUPPORTED_CURRENCIES.has(cashRequest.currency)
-  );
-}
-
-function isPartTimeWorkIncomeRequest(cashRequest: CashRequestRow): boolean {
-  return (
-    cashRequest.external_source === EXTERNAL_SOURCE &&
-    cashRequest.external_reference_type === PART_TIME_WORK_INCOME_REFERENCE_TYPE &&
-    cashRequest.request_type === PART_TIME_WORK_INCOME_REQUEST_TYPE &&
     cashRequest.transaction_type === INCOME_TRANSACTION_TYPE &&
     SUPPORTED_CURRENCIES.has(cashRequest.currency)
   );
@@ -149,6 +124,21 @@ function isExpenseRequest(cashRequest: CashRequestRow): boolean {
     cashRequest.request_type === EXPENSE_REQUEST_TYPE &&
     cashRequest.transaction_type === EXPENSE_TRANSACTION_TYPE &&
     SUPPORTED_CURRENCIES.has(cashRequest.currency)
+  );
+}
+
+function isLegacyDirectRequest(cashRequest: CashRequestRow): boolean {
+  return (
+    cashRequest.external_source === EXTERNAL_SOURCE &&
+    (
+      cashRequest.external_reference_type === "school_payment_requests" ||
+      cashRequest.external_reference_type === "school_part_time_work_income_requests" ||
+      [
+        "teacher_wage_payment_confirm",
+        "teacher_wage_payment_reverse",
+        "part_time_work_income_received",
+      ].includes(cashRequest.request_type)
+    )
   );
 }
 
@@ -266,14 +256,30 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    const isTeacherWage = isTeacherWageRequest(cashRequest);
     const isIncome = isIncomeRequest(cashRequest);
-    const isPartTimeWorkIncome = isPartTimeWorkIncomeRequest(cashRequest);
     const isExpense = isExpenseRequest(cashRequest);
+    const isLegacyDirect = isLegacyDirectRequest(cashRequest);
 
-    if (!isTeacherWage && !isIncome && !isPartTimeWorkIncome && !isExpense) {
+    if (isLegacyDirect) {
       return jsonResponse(
-        { ok: false, message: "Cash request is not a supported School request" },
+        {
+          ok: false,
+          legacy: true,
+          action,
+          reference_type: cashRequest.external_reference_type,
+          request_type: cashRequest.request_type,
+          cash_request_id: cashRequest.id,
+          cash_request_status: cashRequest.status,
+          message:
+            "Legacy direct Cash request type is deprecated; use school_income_records or school_expense_records.",
+        },
+        410,
+      );
+    }
+
+    if (!isIncome && !isExpense) {
+      return jsonResponse(
+        { ok: false, message: "Cash request is not a supported canonical School request" },
         400,
       );
     }
@@ -295,21 +301,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
     if (action === "approved") {
       const rpcName = isExpense
         ? "school_mark_cash_expense_confirmed"
-        : isPartTimeWorkIncome
-        ? "school_mark_part_time_work_cash_income_confirmed"
-        : isIncome
-        ? "school_mark_cash_income_confirmed"
-        : "school_mark_personal_cash_payment_request_confirmed";
+        : "school_mark_cash_income_confirmed";
       const rpcPayload = isExpense
         ? {
           p_expense_record_id: cashRequest.external_reference_id,
-          p_cash_request_id: cashRequest.id,
-          p_cash_transaction_id: cashRequest.created_transaction_id,
-          p_confirmed_at: cashRequest.approved_at,
-        }
-        : isPartTimeWorkIncome
-        ? {
-          p_income_request_id: cashRequest.external_reference_id,
           p_cash_request_id: cashRequest.id,
           p_cash_transaction_id: cashRequest.created_transaction_id,
           p_confirmed_at: cashRequest.approved_at,
@@ -354,21 +349,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const rpcName = isExpense
       ? "school_mark_cash_expense_rejected"
-      : isPartTimeWorkIncome
-      ? "school_mark_part_time_work_cash_income_rejected"
-      : isIncome
-      ? "school_mark_cash_income_rejected"
-      : "school_mark_personal_cash_payment_request_rejected";
+      : "school_mark_cash_income_rejected";
     const rpcPayload = isExpense
       ? {
         p_expense_record_id: cashRequest.external_reference_id,
-        p_cash_request_id: cashRequest.id,
-        p_rejected_reason: cashRequest.rejected_reason,
-        p_rejected_at: cashRequest.rejected_at,
-      }
-      : isPartTimeWorkIncome
-      ? {
-        p_income_request_id: cashRequest.external_reference_id,
         p_cash_request_id: cashRequest.id,
         p_rejected_reason: cashRequest.rejected_reason,
         p_rejected_at: cashRequest.rejected_at,

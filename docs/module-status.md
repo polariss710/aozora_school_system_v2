@@ -32,7 +32,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
 | 导入导出 | 已收口 | Planned-only import stable; full actual/history import deferred |
 | 利润分析 | 只读完成 | Keep read-only |
-| 私塾打工 | Workflow V1 已安装 / 预计工资、锁定后 Excel 导出、专用 Cash pending request 链路已接入 | Cash UI 确认 2026-05 诺应教育 pending request 后验证回写 |
+| 私塾打工 | Workflow V1 已安装 / 预计工资、锁定后 Excel 导出、收入记录 canonical Cash 链路已接入；旧 direct Cash request 仅保留历史 | 后续从收入记录页面提交/验证 Cash 确认，不再使用旧 `school_part_time_work_income_requests` 直连路径 |
 | Backlog / 暂不实现 | Backlog | Separate guarded phases only; account/family ledger and broader personal teaching income designs remain |
 
 ## 课时管理
@@ -93,14 +93,14 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 - 边界: 不混入现有学生记录，不复用 lesson management，不进入 teacher_wage 结算，不创建 teacher_wage payment request，不写 School expense/account transaction。打工模块不得直接向 Cash 发请求；Cash linkage 必须从 `school_income_records` 发起。Cash approve/reject 仍由 Cash UI 用户操作，approve 才生成 Cash transaction 并回写 School income record，reject 不生成 Cash transaction。
 - 计算/权限: 课时工资和结算总额由 RPC 统一计算。开始时间、结束时间、回数、累计课时为必填；RPC 根据时间差计算单次 planned / actual 课时。旧课程组字段已从 lesson rows 和 locked detail snapshots 物理删除。回数和累计课时只用于明细展示，不进入预计工资、工资结算、monthly settlement 或锁定快照金额计算。预计工资只取 planned hours * 各 planned 行时给并加 planned 交通费。月度结算课时合计只取 actual 课时合计，实际课时工资汇总各 actual 行已保存课时工资。交通费保存在 planned / actual 课时上且允许为 0；月度结算行不再有单独保存动作，锁定时读取当前调整额和备注、保存总额并写入 settlement detail snapshots。locked 且未生成收入请求时可撤销锁定，撤销会删除 snapshot 并回到 draft；生成收入请求后不能撤销。锁定后 Excel 导出只读取 detail snapshot，不用当前可变课时重算。所有 page-facing list/create/update/delete/generate/lock/unlock/request/export RPC 只 grant execute to `authenticated`，不 grant anon。
 - 当前限制 / hard stop: 不自动 approve/reject Cash request，不从 School 直接创建 Cash transaction，不改 locked settlement 金额，不做月度锁定以外的审批、复杂导出模板、历史导入、真实业务数据迁移或与 teacher_wage/payment request 的复用。旧 V1 active 行经用户确认是新建状态后已随表删除。
-- 下一步: Cash UI 确认 2026-05 诺应教育 pending request `19ba6cbd-9588-486b-8b2a-b4b7c573f252` 后验证 `sync-cash-request-result` 回写 School；如需异常分支，使用 whitelist 测试数据单独验证 reject/retry。
+- 下一步: 后续从 `school_income_records` 页面提交/验证 Cash 确认；旧 direct request `19ba6cbd-9588-486b-8b2a-b4b7c573f252` 已是 rejected 历史错误旁路，不再用于正常回写验证。如需异常分支，使用 whitelist 测试数据单独验证 reject/retry。
 
 ## 支出记录
 
 - 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。Canonical 老师工资支出链路已接入：`school_expense_records` 承接 `source_type = teacher_wage`、工资来源 id、收款人快照和 Cash linkage 状态字段；支出详情页可提交统一 Cash 支付确认。
 - 最近关键更新: 2026-06-16 7 条旧 pending `teacher_wage` payment request 已迁移为 7 条 pending `teacher_wage` expense records，合计 `492,012 JPY`，未创建 Cash request / transaction。2026-06-15 新增支出记录老师工资承接阶段：专用 RPC 从 locked teacher wage snapshot 生成一条 pending `teacher_wage` expense record，普通支出新增仍拒绝手动创建 `teacher_wage`。同日已实现 `school_expense_records` -> Cash payment request 最小链路：`request-cash-expense-confirmation` 只创建 Cash pending request，Cash approve/reject 后由 `sync-cash-request-result` 回写支出记录。
 - 当前限制 / hard stop: ordinary reversal/edit 不得用于 teacher_wage expenses、来源支付请求生成的支出、已撤销支出、已报销支出或已进入报销链路的支出。编辑必须有且只有一条匹配原始 `expense_adjust` 账户流水，且该流水仍是账户最新流水；已出账支出暂不允许更换付款账户，需撤销后重新新增。Teacher_wage expense 不得加 ordinary attachment metadata；已报销 expense 必须先反转报销才能反转支出。不得删除 expense records、attachments、payment requests 或 original transactions。
-- 下一步: Supabase Storage 文件上传/下载/预览/替换/删除和 OCR 另开 storage/security phase；Cash 侧最终仅接受 income/expense records 的白名单收敛另开阶段。
+- 下一步: Supabase Storage 文件上传/下载/预览/替换/删除和 OCR 另开 storage/security phase；继续验证 canonical expense -> Cash approve/reject 的真实业务流程时必须使用 `school_expense_records`。
 
 ## 报销管理
 
