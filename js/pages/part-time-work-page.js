@@ -370,7 +370,7 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
             <span>预计总额 ${escapeHtml(formatCurrency(estimated.totalJpy, "JPY"))}</span>
             <span>实际总额 <span data-settlement-total-summary>${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</span></span>
             <span>${renderStatusBadge(settlementStatusLabel(row.status), settlementStatusClass(row.status))}</span>
-            <span>${renderStatusBadge(incomeRequestStatusLabel(row.income_request_status), incomeRequestStatusClass(row.income_request_status))}</span>
+            <span>${renderOptionalStatusBadge(row.income_request_status, incomeRequestStatusLabel(row.income_request_status), incomeRequestStatusClass(row.income_request_status))}</span>
           </div>
         </div>
         <button class="button table-action-button" type="button" data-wage-workplace-toggle="${escapeAttribute(workplaceName)}" aria-expanded="${String(!isCollapsed)}">${isCollapsed ? "展开" : "收起"}</button>
@@ -409,18 +409,20 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
             <span>工资总额</span>
             <strong data-settlement-total>${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</strong>
           </div>
-          ${renderSettlementMetric("结算状态", renderStatusBadge(settlementStatusLabel(row.status), settlementStatusClass(row.status)), { raw: true })}
-          ${renderSettlementMetric("收入请求状态", renderStatusBadge(incomeRequestStatusLabel(row.income_request_status), incomeRequestStatusClass(row.income_request_status)), { raw: true })}
-          <label class="field part-time-work-settlement-field part-time-work-settlement-metric part-time-work-settlement-memo">
+          ${renderSettlementMetric("结算状态", renderStatusBadge(settlementStatusLabel(row.status), settlementStatusClass(row.status)), { raw: true, className: "part-time-work-status-metric" })}
+          ${renderSettlementMetric("收入请求状态", renderOptionalStatusBadge(row.income_request_status, incomeRequestStatusLabel(row.income_request_status), incomeRequestStatusClass(row.income_request_status)), { raw: true, className: "part-time-work-status-metric" })}
+        </div>
+        <div class="part-time-work-settlement-control-row">
+          <label class="field part-time-work-settlement-field part-time-work-settlement-note-card">
             <span>备注</span>
             <input class="inline-text-input" data-settlement-input="memo" type="text" value="${escapeAttribute(row.memo || "")}" ${saveDisabled}>
           </label>
-        </div>
-        <div class="action-buttons part-time-work-settlement-actions">
-          ${isDraft ? `<button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>` : ""}
-          ${canUnlock ? `<button class="button table-action-button" type="button" data-settlement-action="unlock">撤销锁定</button>` : ""}
-          ${canCreateRequest ? `<button class="button table-action-button" type="button" data-settlement-action="request">生成收入请求</button>` : ""}
-          ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
+          <div class="action-buttons part-time-work-settlement-actions">
+            ${isDraft ? `<button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>` : ""}
+            ${canUnlock ? `<button class="button table-action-button" type="button" data-settlement-action="unlock">撤销锁定</button>` : ""}
+            ${canCreateRequest ? `<button class="button table-action-button" type="button" data-settlement-action="request">生成收入请求</button>` : ""}
+            ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
+          </div>
         </div>
       </div>
       </div>
@@ -429,8 +431,9 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
 }
 
 function renderSettlementMetric(label, value, options = {}) {
+  const className = options.className ? ` ${escapeAttribute(options.className)}` : "";
   return `
-    <div class="part-time-work-settlement-metric">
+    <div class="part-time-work-settlement-metric${className}">
       <span>${escapeHtml(label)}</span>
       <strong>${options.raw ? value : escapeHtml(value)}</strong>
     </div>
@@ -439,6 +442,11 @@ function renderSettlementMetric(label, value, options = {}) {
 
 function renderStatusBadge(label, className) {
   return `<span class="status-badge part-time-work-status-badge ${escapeAttribute(className)}">${escapeHtml(label)}</span>`;
+}
+
+function renderOptionalStatusBadge(status, label, className) {
+  if (!status) return "-";
+  return renderStatusBadge(label, className);
 }
 
 function openCreatePlannedDialog() {

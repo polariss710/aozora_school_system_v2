@@ -1005,18 +1005,49 @@ h2 {
   min-height: 30px;
 }
 
-.part-time-work-settlement-memo {
-  grid-column: span 2;
+.part-time-work-status-metric strong {
+  display: flex;
+  align-items: center;
+  min-height: 20px;
+}
+
+.part-time-work-settlement-control-row {
+  display: grid;
+  align-items: end;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.part-time-work-settlement-note-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 9px 10px;
+}
+
+.part-time-work-settlement-note-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
 }
 
 .part-time-work-settlement-actions {
+  min-width: 0;
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .part-time-work-status-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
   min-height: 20px;
   padding: 1px 7px;
   font-size: 11px;
+  line-height: 1.2;
 }
 
 .part-time-work-workflow-grid {
@@ -2415,8 +2446,9 @@ h2 {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .part-time-work-settlement-memo {
-    grid-column: auto;
+  .part-time-work-settlement-control-row {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .part-time-work-settlement-actions {
