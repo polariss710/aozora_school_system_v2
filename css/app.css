@@ -911,12 +911,43 @@ h2 {
   padding: 14px;
 }
 
-.part-time-work-wage-title {
+.part-time-work-wage-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  gap: 12px;
   border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.part-time-work-wage-title-main {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.part-time-work-wage-title-main > strong {
   color: var(--text);
   font-size: 15px;
   font-weight: 800;
-  padding-bottom: 10px;
+}
+
+.part-time-work-wage-summary-line {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.part-time-work-wage-body {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
 }
 
 .part-time-work-wage-block {
@@ -964,11 +995,14 @@ h2 {
 }
 
 .part-time-work-settlement-field {
+  display: grid;
+  gap: 3px;
   margin: 0;
 }
 
 .part-time-work-settlement-field input {
   width: 100%;
+  min-height: 30px;
 }
 
 .part-time-work-settlement-memo {
@@ -977,6 +1011,12 @@ h2 {
 
 .part-time-work-settlement-actions {
   justify-content: flex-end;
+}
+
+.part-time-work-status-badge {
+  min-height: 20px;
+  padding: 1px 7px;
+  font-size: 11px;
 }
 
 .part-time-work-workflow-grid {
@@ -2381,6 +2421,11 @@ h2 {
 
   .part-time-work-settlement-actions {
     justify-content: flex-start;
+  }
+
+  .part-time-work-wage-title-row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .lesson-edit-dialog-panel .lesson-create-field-grid,

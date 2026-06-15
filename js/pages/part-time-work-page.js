@@ -59,11 +59,13 @@ const INCOME_REQUEST_STATUS_LABELS = {
 
 const dom = {};
 let lessons = [];
+let wageLessons = [];
 let settlements = [];
 let editingLesson = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
 let isSubmitting = false;
 const expandedWorkplaces = new Set();
+const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
 
 export async function initPartTimeWorkPage() {
   cacheDom();
@@ -142,6 +144,7 @@ function bindEvents() {
   dom.submitButton.addEventListener("click", submitDialog);
   dom.lessonColumns.addEventListener("click", handleWorkplaceToggleClick);
   dom.lessonColumns.addEventListener("click", handleLessonActionClick);
+  dom.wageCalculationContainer.addEventListener("click", handleWageToggleClick);
   dom.wageCalculationContainer.addEventListener("click", handleSettlementActionClick);
   dom.wageCalculationContainer.addEventListener("input", handleSettlementInputChange);
 
@@ -186,11 +189,13 @@ async function loadPageData() {
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
     ]);
     lessons = lessonRows || [];
+    wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
     renderLessons(lessons);
-    renderWageCalculation(wageLessonRows || [], settlements);
+    renderWageCalculation(wageLessons, settlements);
   } catch (error) {
     lessons = [];
+    wageLessons = [];
     settlements = [];
     renderLessons([]);
     renderWageCalculation([], []);
@@ -354,11 +359,24 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const canCreateRequest = row.status === "locked" && !row.income_request_id;
   const canExport = Boolean(row.id) && isLocked;
   const saveDisabled = isLocked ? "disabled" : "";
+  const isCollapsed = collapsedWageWorkplaces.has(workplaceName);
 
   return `
     <section class="part-time-work-wage-section" data-settlement-row data-settlement-workplace="${escapeAttribute(workplaceName)}" data-settlement-id="${escapeAttribute(row.id || "")}">
-      <div class="part-time-work-wage-title">${escapeHtml(workplaceName)}</div>
+      <div class="part-time-work-wage-title-row">
+        <div class="part-time-work-wage-title-main">
+          <strong>${escapeHtml(workplaceName)}</strong>
+          <div class="part-time-work-wage-summary-line">
+            <span>预计总额 ${escapeHtml(formatCurrency(estimated.totalJpy, "JPY"))}</span>
+            <span>实际总额 <span data-settlement-total-summary>${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</span></span>
+            <span>${renderStatusBadge(settlementStatusLabel(row.status), settlementStatusClass(row.status))}</span>
+            <span>${renderStatusBadge(incomeRequestStatusLabel(row.income_request_status), incomeRequestStatusClass(row.income_request_status))}</span>
+          </div>
+        </div>
+        <button class="button table-action-button" type="button" data-wage-workplace-toggle="${escapeAttribute(workplaceName)}" aria-expanded="${String(!isCollapsed)}">${isCollapsed ? "展开" : "收起"}</button>
+      </div>
 
+      <div class="part-time-work-wage-body ${isCollapsed ? "is-hidden" : ""}">
       <div class="part-time-work-wage-block">
         <h3>预计工资</h3>
         <div class="part-time-work-summary-grid">
@@ -383,7 +401,7 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
           ${renderSettlementMetric("实际课时", `${formatHours(row.actual_hours_total)} h`)}
           ${renderSettlementMetric("实际课时工资", formatCurrency(row.lesson_wage_jpy, "JPY"))}
           ${renderSettlementMetric("交通费", formatCurrency(row.transportation_fee_jpy, "JPY"))}
-          <label class="field part-time-work-settlement-field">
+          <label class="field part-time-work-settlement-field part-time-work-settlement-metric">
             <span>调整额</span>
             <input class="inline-number-input" data-settlement-input="adjustmentJpy" type="number" step="1" value="${escapeAttribute(row.adjustment_jpy ?? 0)}" ${saveDisabled}>
           </label>
@@ -391,9 +409,9 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
             <span>工资总额</span>
             <strong data-settlement-total>${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</strong>
           </div>
-          ${renderSettlementMetric("结算状态", `<span class="status-badge ${escapeAttribute(settlementStatusClass(row.status))}">${escapeHtml(settlementStatusLabel(row.status))}</span>`, { raw: true })}
-          ${renderSettlementMetric("收入请求状态", incomeRequestStatusLabel(row.income_request_status))}
-          <label class="field part-time-work-settlement-field part-time-work-settlement-memo">
+          ${renderSettlementMetric("结算状态", renderStatusBadge(settlementStatusLabel(row.status), settlementStatusClass(row.status)), { raw: true })}
+          ${renderSettlementMetric("收入请求状态", renderStatusBadge(incomeRequestStatusLabel(row.income_request_status), incomeRequestStatusClass(row.income_request_status)), { raw: true })}
+          <label class="field part-time-work-settlement-field part-time-work-settlement-metric part-time-work-settlement-memo">
             <span>备注</span>
             <input class="inline-text-input" data-settlement-input="memo" type="text" value="${escapeAttribute(row.memo || "")}" ${saveDisabled}>
           </label>
@@ -404,6 +422,7 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
           ${canCreateRequest ? `<button class="button table-action-button" type="button" data-settlement-action="request">生成收入请求</button>` : ""}
           ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
         </div>
+      </div>
       </div>
     </section>
   `;
@@ -416,6 +435,10 @@ function renderSettlementMetric(label, value, options = {}) {
       <strong>${options.raw ? value : escapeHtml(value)}</strong>
     </div>
   `;
+}
+
+function renderStatusBadge(label, className) {
+  return `<span class="status-badge part-time-work-status-badge ${escapeAttribute(className)}">${escapeHtml(label)}</span>`;
 }
 
 function openCreatePlannedDialog() {
@@ -636,6 +659,26 @@ function handleWorkplaceToggleClick(event) {
   renderLessons(lessons);
 }
 
+function handleWageToggleClick(event) {
+  const button = event.target.closest("[data-wage-workplace-toggle]");
+  if (!button) {
+    return;
+  }
+
+  const workplaceName = button.dataset.wageWorkplaceToggle;
+  if (!workplaceName) {
+    return;
+  }
+
+  if (collapsedWageWorkplaces.has(workplaceName)) {
+    collapsedWageWorkplaces.delete(workplaceName);
+  } else {
+    collapsedWageWorkplaces.add(workplaceName);
+  }
+
+  renderWageCalculation(wageLessons, settlements);
+}
+
 async function handleSettlementActionClick(event) {
   const button = event.target.closest("[data-settlement-action]");
   if (!button) {
@@ -789,6 +832,7 @@ function handleSettlementInputChange(event) {
 
   const row = input.closest("[data-settlement-row]");
   const totalElement = row?.querySelector("[data-settlement-total]");
+  const summaryTotalElement = row?.querySelector("[data-settlement-total-summary]");
   const workplaceName = row?.dataset.settlementWorkplace || "";
   const settlement = settlements.find((item) => item.workplace_name === workplaceName);
   if (!row || !totalElement || !settlement || settlement.status !== "draft") {
@@ -798,6 +842,9 @@ function handleSettlementInputChange(event) {
   const adjustmentJpy = parseInteger(input.value);
   if (!Number.isFinite(adjustmentJpy)) {
     totalElement.textContent = "-";
+    if (summaryTotalElement) {
+      summaryTotalElement.textContent = "-";
+    }
     return;
   }
 
@@ -805,6 +852,9 @@ function handleSettlementInputChange(event) {
     + Number(settlement.transportation_fee_jpy || 0)
     + adjustmentJpy;
   totalElement.textContent = formatCurrency(totalJpy, "JPY");
+  if (summaryTotalElement) {
+    summaryTotalElement.textContent = formatCurrency(totalJpy, "JPY");
+  }
 }
 
 function readDialogPayload() {
@@ -1094,13 +1144,21 @@ function settlementStatusLabel(status) {
 }
 
 function settlementStatusClass(status) {
-  if (status === "locked" || status === "income_request_created") return "status-paid";
+  if (status === "income_request_created") return "status-paid";
+  if (status === "locked") return "status-reversed";
   if (status === "draft") return "status-pending";
   return "status-neutral";
 }
 
 function incomeRequestStatusLabel(status) {
   return INCOME_REQUEST_STATUS_LABELS[status] || (status ? safeText(status) : "-");
+}
+
+function incomeRequestStatusClass(status) {
+  if (status === "synced") return "status-paid";
+  if (status === "pending_cash_request" || status === "awaiting_cash_confirmation") return "status-reversed";
+  if (status === "cash_rejected" || status === "failed" || status === "blocked") return "status-cancelled";
+  return "status-neutral";
 }
 
 function formatHours(value) {
