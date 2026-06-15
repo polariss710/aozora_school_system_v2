@@ -327,6 +327,7 @@ part_time_work -> School 收入记录 -> Cash request
 - Cash 只接受 `income_record` / `expense_record` 类型外部请求。
 - 移除业务模块专用 `external_reference_type` 分支。
 - Cash UI 保留业务摘要展示，但业务分类来自 School 收入/支出记录 payload，不作为 Cash 自身判断条件。
+- 2026-06-16：Cash 新请求创建已收敛到 `school_income_records` 和 `school_expense_records`。旧 `school_payment_requests` / `school_part_time_work_income_requests` 直连类型不再允许新建，只保留历史只读。
 
 ## 10. 实装约束
 
