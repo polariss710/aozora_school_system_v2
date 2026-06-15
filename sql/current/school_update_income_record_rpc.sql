@@ -8,7 +8,7 @@
 -- - Adjust the linked account current_balance and original income_adjust transaction
 --   only when the original transaction is still the latest transaction for the account.
 -- - Reject reversed income, student-payment-chain income, locked tuition settlement,
---   personal Cash-linked tuition income, account changes, currency mismatches,
+--   Cash-linked income, account changes, currency mismatches,
 --   and abnormal account transaction history.
 --
 -- Notes:
@@ -146,6 +146,35 @@ begin
 
   if v_income.student_payment_id is not null then
     raise exception '关联学生收款链路的收入暂不支持普通编辑。';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_personal_cash_income_linkage_events e
+    where e.income_record_id = v_income.id
+      and e.source_table = 'school_income_records'
+      and e.source_event_type in ('tuition_income_received', 'income_received')
+      and (
+        e.cash_transaction_id is not null
+        or e.sync_status = 'synced'
+        or e.cash_request_status in ('approved', 'synced')
+      )
+  ) then
+    raise exception 'income record has been synced to Cash and cannot be edited or deleted directly';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_personal_cash_income_linkage_events e
+    where e.income_record_id = v_income.id
+      and e.source_table = 'school_income_records'
+      and e.source_event_type in ('tuition_income_received', 'income_received')
+      and (
+        e.sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation')
+        or e.cash_request_status = 'pending'
+      )
+  ) then
+    raise exception 'income record has a pending Cash request and core fields cannot be edited directly';
   end if;
 
   if exists (

@@ -12,7 +12,8 @@
 --   transaction for the account.
 -- - Reject reversed expenses, teacher wage / payment request source expenses,
 --   reimbursed expenses, reimbursement-linked expenses, account changes,
---   currency mismatches, and abnormal account transaction history.
+--   currency mismatches, Cash-synced or Cash-pending expenses, and abnormal
+--   account transaction history.
 --
 -- Notes:
 -- - Account currency is not user-maintained. The selected account owns the
@@ -160,6 +161,15 @@ begin
     or v_expense.reversed_at is not null
     or v_expense.reversal_account_transaction_id is not null then
     raise exception '已撤销支出不能编辑。';
+  end if;
+
+  if v_expense.cash_transaction_id is not null
+    or v_expense.cash_request_status in ('approved', 'synced') then
+    raise exception 'expense record has been synced to Cash and cannot be edited or deleted directly';
+  end if;
+
+  if v_expense.cash_request_status in ('pending', 'pending_cash_request') then
+    raise exception 'expense record has a pending Cash request and core fields cannot be edited directly';
   end if;
 
   if v_expense.status is distinct from 'paid' then

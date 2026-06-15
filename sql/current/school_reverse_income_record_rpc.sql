@@ -94,6 +94,35 @@ begin
     where e.income_record_id = v_income.id
       and e.source_table = 'school_income_records'
       and e.source_event_type in ('tuition_income_received', 'income_received')
+      and (
+        e.cash_transaction_id is not null
+        or e.sync_status = 'synced'
+        or e.cash_request_status in ('approved', 'synced')
+      )
+  ) then
+    raise exception 'income record has been synced to Cash and cannot be edited or deleted directly';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_personal_cash_income_linkage_events e
+    where e.income_record_id = v_income.id
+      and e.source_table = 'school_income_records'
+      and e.source_event_type in ('tuition_income_received', 'income_received')
+      and (
+        e.sync_status in ('pending', 'pending_cash_request', 'awaiting_cash_confirmation')
+        or e.cash_request_status = 'pending'
+      )
+  ) then
+    raise exception 'income record has a pending Cash request and cannot be reversed directly';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_personal_cash_income_linkage_events e
+    where e.income_record_id = v_income.id
+      and e.source_table = 'school_income_records'
+      and e.source_event_type in ('tuition_income_received', 'income_received')
   ) then
     raise exception '该收入已进入 Cash System 联动流程，当前版本暂不支持普通收入撤销。';
   end if;

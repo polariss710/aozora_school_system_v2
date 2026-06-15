@@ -25,8 +25,8 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 老师工资结算 | V1 可用；新支付入口生成 `school_expense_records` | Payment confirmation belongs to expense records; wage lifecycle expansion remains backlog |
 | 老师工资支付 | Legacy 只读；旧 `school_payment_requests` 直连 Cash 已禁用 | 历史 paid/reversed/void 保留只读；新支付从支出记录处理 |
 | 账户管理 | V1 可用 + first-stage family account isolation + account filter simplified; `吴个人结算账户人民币` and historical `吴个人结算账户日元` School-side financial chain cleaned | Account scope/household owner expansion and family ledger records require separate guarded phases |
-| 收入记录 | V1 可用 + canonical income -> Cash flow 已通过真实 part_time_work 和 rollback smoke | Future work: reversal sync, scheduling, broader income module integrations, and personal external teaching income implementation |
-| 支出记录 | V1 可用 + expense -> Cash + teacher_wage canonical route 已接入并通过 rollback smoke | 7 条 2026-05 teacher_wage pending 支出后续从支出记录详情页提交 Cash 支付确认 |
+| 收入记录 | V1 可用 + canonical income -> Cash flow 已通过真实 part_time_work 和 rollback smoke；Cash synced / pending 记录普通编辑撤销保护已补齐 | Future work: reversal/adjustment design, scheduling, broader income module integrations, and personal external teaching income implementation |
+| 支出记录 | V1 可用 + expense -> Cash + teacher_wage canonical route 已接入并通过 rollback smoke；Cash synced / pending 记录普通编辑撤销保护已补齐 | 7 条 2026-05 teacher_wage pending 支出后续从支出记录详情页提交 Cash 支付确认 |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
@@ -72,7 +72,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 收入记录
 
-- 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。Income Cash confirmation SQL/RPC 已安装，`request-cash-income-confirmation` / `sync-cash-request-result` 已部署，真实 CNY whitelist tests 已通过。普通收入继续走 School / 法人账户路径；Cash System 收入账户由 Cash `allow_school_requests = true` + 币种过滤提供，先创建 School pending income，再创建 Cash pending external request，Cash approve 后才写 Cash transaction、增加余额并回写 School received / settled。2026-06-15 起，收入详情页也可从既有 pending `school_income_records` 提交 Cash 确认，并支持 School 原始 JPY 金额与 Cash 实际到账 CNY/JPY 金额分离。
+- 当前状态: V1 可用。收入列表/详情、received income create/edit/reversal 已可用。Income Cash confirmation SQL/RPC 已安装，`request-cash-income-confirmation` / `sync-cash-request-result` 已部署，真实 CNY whitelist tests 已通过。普通收入继续走 School / 法人账户路径；Cash System 收入账户由 Cash `allow_school_requests = true` + 币种过滤提供，先创建 School pending income，再创建 Cash pending external request，Cash approve 后才写 Cash transaction、增加余额并回写 School received / settled。2026-06-15 起，收入详情页也可从既有 pending `school_income_records` 提交 Cash 确认，并支持 School 原始 JPY 金额与 Cash 实际到账 CNY/JPY 金额分离。已同步到 Cash 或存在待确认 Cash 请求的收入记录不能走普通编辑/撤销；后续修正需单独设计冲正/调整。
 - 最近关键更新: 2026-06-15 income Cash workflow 完成安装和真实 CNY 验证。李天伦 `21,450 CNY` 通过 Cash System income path 创建 pending request 并由用户在 UI approve，School income 成为 `received` / `Cash已确认`，Cash 写入 `home_cny_transactions`，余额增加并对账一致。随后删除 3 条 reversed historical income，并按金额重建彭宇晗 `6,491 CNY`、厦门吕同学 `7,740 CNY` 两条真实 Cash System 收入，均 pending -> approve 成功、写 `home_cny_transactions`、School/Cash 对账一致。Cash request / transaction 用户可见文案已修复：income description 包含学生/付款人名 + 内容，note 保留原始备注。收入筛选已精简为月份、学生、业务归属、账户、币种。
 - 当前限制 / hard stop: 普通收入路径仍按 V1。Cash approve 前不得把 School income 标记为 received / settled，也不得从 School 直接写 Cash transaction 或改变 Cash balance。Cash reject 后不生成 transaction、不改变余额，School income 保持 pending / retryable。旧 personal tuition linkage 的 `pending` 只是历史 manual-sync 兼容状态；新 income Cash workflow 使用 `pending_cash_request`、`awaiting_cash_confirmation`、`synced`、`cash_rejected`、`failed` / `blocked`。CNY/JPY 换汇、账户调拨、支付宝与日元现金/银行之间的资金调配暂时不由 School 自动处理；School 只记录业务收入/工资结算口径，Cash 手动记录换汇/账户调拨。不从 account transaction 反推收入；不删除正式 received income；不重算 locked student settlement。
 - 下一步: Tuition income reverse sync、自动调度、青空塾代收清算、部分收款、付款计划、旧流水修正、跨账户收入迁移、结算外费用是否进入学生账单、personal external teaching income request 接入，均需另开 guarded design/implementation。
@@ -97,7 +97,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 支出记录
 
-- 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。Canonical 老师工资支出链路已接入：`school_expense_records` 承接 `source_type = teacher_wage`、工资来源 id、收款人快照和 Cash linkage 状态字段；支出详情页可提交统一 Cash 支付确认。
+- 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。Canonical 老师工资支出链路已接入：`school_expense_records` 承接 `source_type = teacher_wage`、工资来源 id、收款人快照和 Cash linkage 状态字段；支出详情页可提交统一 Cash 支付确认。已同步到 Cash 或存在待确认 Cash 请求的支出记录不能走普通编辑/撤销；后续修正需单独设计冲正/调整。
 - 最近关键更新: 2026-06-16 7 条旧 pending `teacher_wage` payment request 已迁移为 7 条 pending `teacher_wage` expense records，合计 `492,012 JPY`，未创建 Cash request / transaction。2026-06-15 新增支出记录老师工资承接阶段：专用 RPC 从 locked teacher wage snapshot 生成一条 pending `teacher_wage` expense record，普通支出新增仍拒绝手动创建 `teacher_wage`。同日已实现 `school_expense_records` -> Cash payment request 最小链路：`request-cash-expense-confirmation` 只创建 Cash pending request，Cash approve/reject 后由 `sync-cash-request-result` 回写支出记录。
 - 当前限制 / hard stop: ordinary reversal/edit 不得用于 teacher_wage expenses、来源支付请求生成的支出、已撤销支出、已报销支出或已进入报销链路的支出。编辑必须有且只有一条匹配原始 `expense_adjust` 账户流水，且该流水仍是账户最新流水；已出账支出暂不允许更换付款账户，需撤销后重新新增。Teacher_wage expense 不得加 ordinary attachment metadata；已报销 expense 必须先反转报销才能反转支出。不得删除 expense records、attachments、payment requests 或 original transactions。
 - 下一步: Supabase Storage 文件上传/下载/预览/替换/删除和 OCR 另开 storage/security phase；继续验证 canonical expense -> Cash approve/reject 的真实业务流程时必须使用 `school_expense_records`。

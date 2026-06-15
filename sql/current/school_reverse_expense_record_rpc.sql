@@ -72,6 +72,15 @@ begin
     raise exception '该支出已撤销，不能重复撤销。';
   end if;
 
+  if v_expense.cash_transaction_id is not null
+    or v_expense.cash_request_status in ('approved', 'synced') then
+    raise exception 'expense record has been synced to Cash and cannot be edited or deleted directly';
+  end if;
+
+  if v_expense.cash_request_status in ('pending', 'pending_cash_request') then
+    raise exception 'expense record has a pending Cash request and cannot be reversed directly';
+  end if;
+
   if v_expense.status is distinct from 'paid' then
     raise exception '只能撤销已支付支出。';
   end if;

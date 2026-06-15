@@ -11,6 +11,7 @@ Status date: 2026-06-16
 - Cash 新请求创建只允许 `school_income_records` 和 `school_expense_records`；旧业务模块直连类型禁止新建。
 - `sync-cash-request-result` 主路径只回写 `school_income_records` / `school_expense_records`；旧直连类型只返回 legacy deprecated。
 - 旧 `school_payment_requests` / `school_part_time_work_income_requests` direct Cash request 仅为历史审计，不得作为正常流程入口。
+- 已 Cash 同步的收入/支出记录是已结算财务记录，不能普通编辑、删除或撤销；Cash pending 记录也不能普通编辑核心金额、币种、账户、来源和业务归属字段。后续修正必须走单独的 reversal / void / adjustment 设计。
 
 ## 1. Cash 不承担业务判断
 
@@ -28,6 +29,19 @@ Cash 只关心：
 - 驳回后回写 School 状态
 
 Cash 不区分学费、外部塾打工、老师工资、交通费、教室费、报销等业务类型。这些业务分类只保留在 School 的收入记录或支出记录中。
+
+## 1.1 已同步记录保护
+
+`school_income_records` 和 `school_expense_records` 一旦完成 Cash approve/sync，即成为已结算财务记录。判断条件包括：
+
+- `cash_request_status = approved` / `synced` 或项目等价状态
+- `cash_transaction_id` 不为空
+- 对应 Cash linkage event 已为 `synced`
+- 记录状态已经等价于 received / paid / synced
+
+已同步记录不得通过普通编辑、删除、撤销、硬删除修正。后续如需修正，必须单独设计 reversal / void / adjustment 流程，保留原始记录与 Cash transaction 审计链。
+
+Cash pending 记录也不得普通修改核心字段，包括金额、币种、账户、业务来源、`source_type` / `source_id`、业务归属月和 Cash 请求关联字段。是否允许备注类字段调整，需要在具体模块中明确设计；默认保守禁止核心 edit。
 
 ## 2. 业务归属月与现金发生月必须分离
 

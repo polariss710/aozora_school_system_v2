@@ -382,6 +382,9 @@ function canEditExpense(data) {
   if (!expense) {
     return false;
   }
+  if (cashExpenseProtectionMessage(data)) {
+    return false;
+  }
 
   return expense.status === "paid"
     && expense.app_type === "school"
@@ -398,6 +401,9 @@ function canEditExpense(data) {
 function canReverseExpense(data) {
   const expense = data?.expense;
   if (!expense) {
+    return false;
+  }
+  if (cashExpenseProtectionMessage(data)) {
     return false;
   }
 
@@ -1326,6 +1332,8 @@ function reverseNotAllowedMessage(data) {
 function editNotAllowedMessage(data) {
   const expense = data?.expense;
   if (!expense) return "编辑对象不存在，请刷新后重试。";
+  const cashProtectionMessage = cashExpenseProtectionMessage(data);
+  if (cashProtectionMessage) return cashProtectionMessage;
   if (expense.status === "reversed" || expense.reversed_at || expense.reversal_account_transaction_id) {
     return "该支出已撤销，不能编辑。";
   }
@@ -1343,6 +1351,18 @@ function editNotAllowedMessage(data) {
     return "该支出已进入报销链路，不能编辑。";
   }
   return "当前支出不能编辑。";
+}
+
+function cashExpenseProtectionMessage(data) {
+  const expense = data?.expense;
+  if (!expense) return "";
+  if (expense.cash_transaction_id || ["approved", "synced"].includes(expense.cash_request_status || "")) {
+    return "已同步到 Cash，不能直接编辑或删除。请通过冲正/调整流程处理。";
+  }
+  if (["pending", "pending_cash_request"].includes(expense.cash_request_status || "")) {
+    return "该支出已有待确认 Cash 请求，不能直接编辑核心字段或撤销。";
+  }
+  return "";
 }
 
 function setEditSubmitting(isSubmitting) {

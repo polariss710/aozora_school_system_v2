@@ -1133,7 +1133,10 @@ function cashIncomeLinkageNotAllowedMessage(data) {
     return "";
   }
   if (event.sync_status === "synced") {
-    return "该收入已同步到 Cash System，当前版本暂不支持联动编辑 / 撤销。";
+    return "已同步到 Cash，不能直接编辑或删除。请通过冲正/调整流程处理。";
+  }
+  if (event.sync_status === "pending_cash_request" || event.sync_status === "awaiting_cash_confirmation" || event.cash_request_status === "pending") {
+    return "该收入已有待确认 Cash 请求，不能直接编辑核心字段或撤销。";
   }
   return "该收入已进入 Cash System 联动流程，不能走普通收入编辑 / 撤销。";
 }
