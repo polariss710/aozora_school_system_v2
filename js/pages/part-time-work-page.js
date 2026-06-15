@@ -7,6 +7,7 @@ import {
   deletePartTimeWorkLesson,
   fetchPartTimeWorkLessons,
   fetchPartTimeWorkMonthlySettlements,
+  fetchPartTimeWorkSettlementExport,
   generatePartTimeWorkActualFromPlanned,
   lockPartTimeWorkMonthlySettlement,
   savePartTimeWorkMonthlySettlement,
@@ -58,7 +59,6 @@ const INCOME_REQUEST_STATUS_LABELS = {
 
 const dom = {};
 let lessons = [];
-let progressLessons = [];
 let settlements = [];
 let editingLesson = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
@@ -112,14 +112,13 @@ function cacheDom() {
   dom.workDateInput = document.querySelector("#partTimeWorkDateInput");
   dom.workplaceNameInput = document.querySelector("#partTimeWorkWorkplaceInput");
   dom.subjectNameInput = document.querySelector("#partTimeWorkSubjectInput");
-  dom.courseGroupInput = document.querySelector("#partTimeWorkCourseGroupInput");
   dom.classDescriptionInput = document.querySelector("#partTimeWorkClassDescriptionInput");
   dom.startTimeInput = document.querySelector("#partTimeWorkStartTimeInput");
   dom.endTimeInput = document.querySelector("#partTimeWorkEndTimeInput");
   dom.hoursLabel = document.querySelector("#partTimeWorkHoursLabel");
   dom.hoursInput = document.querySelector("#partTimeWorkHoursInput");
   dom.lessonCountInput = document.querySelector("#partTimeWorkLessonCountInput");
-  dom.subtotalHoursInput = document.querySelector("#partTimeWorkSubtotalHoursInput");
+  dom.cumulativeHoursInput = document.querySelector("#partTimeWorkCumulativeHoursInput");
   dom.hourlyRateInput = document.querySelector("#partTimeWorkHourlyRateInput");
   dom.transportationFeeInput = document.querySelector("#partTimeWorkTransportationFeeInput");
   dom.memoInput = document.querySelector("#partTimeWorkMemoInput");
@@ -152,13 +151,12 @@ function bindEvents() {
     dom.workDateInput,
     dom.workplaceNameInput,
     dom.subjectNameInput,
-    dom.courseGroupInput,
     dom.classDescriptionInput,
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
     dom.lessonCountInput,
-    dom.subtotalHoursInput,
+    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -184,19 +182,16 @@ async function loadPageData() {
   showMessage("", "");
 
   try {
-    const [lessonRows, progressRows, settlementRows] = await Promise.all([
+    const [lessonRows, settlementRows] = await Promise.all([
       fetchPartTimeWorkLessons(filters),
-      fetchPartTimeWorkLessons({ workplaceName: filters.workplaceName }),
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
     ]);
     lessons = lessonRows || [];
-    progressLessons = progressRows || [];
     settlements = settlementRows || [];
     renderLessons(lessons);
     renderSettlements(settlements);
   } catch (error) {
     lessons = [];
-    progressLessons = [];
     settlements = [];
     renderLessons([]);
     renderSettlements([]);
@@ -214,14 +209,13 @@ function readFilters() {
 }
 
 function renderLessons(rows) {
-  const courseGroupProgress = buildCourseGroupProgress(progressLessons);
   dom.recordCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
-  dom.lessonColumns.innerHTML = renderWorkflowColumns(rows, courseGroupProgress);
+  dom.lessonColumns.innerHTML = renderWorkflowColumns(rows);
   dom.tableBody.innerHTML = rows.map(renderListRow).join("");
 }
 
-function renderWorkflowColumns(rows, courseGroupProgress) {
+function renderWorkflowColumns(rows) {
   const plannedRows = rows.filter((row) => row.record_kind === "planned");
   const actualRows = rows.filter((row) => row.record_kind === "actual");
 
@@ -229,7 +223,7 @@ function renderWorkflowColumns(rows, courseGroupProgress) {
     const workplacePlannedRows = plannedRows.filter((row) => row.workplace_name === workplace);
     const isExpanded = expandedWorkplaces.has(workplace);
     const body = workplacePlannedRows.length
-      ? workplacePlannedRows.map((planned) => renderLessonPair(planned, actualRows.find((actual) => actual.planned_lesson_id === planned.id), courseGroupProgress)).join("")
+      ? workplacePlannedRows.map((planned) => renderLessonPair(planned, actualRows.find((actual) => actual.planned_lesson_id === planned.id))).join("")
       : `<div class="lesson-pair-placeholder">暂无预定课时</div>`;
     return `
       <section class="part-time-work-workplace-section">
@@ -243,16 +237,16 @@ function renderWorkflowColumns(rows, courseGroupProgress) {
   }).join("");
 }
 
-function renderLessonPair(planned, actual, courseGroupProgress) {
+function renderLessonPair(planned, actual) {
   return `
     <article class="lesson-pair-row part-time-work-pair-row">
       <div class="lesson-pair-column">
         <div class="lesson-pair-column-title">预定课时</div>
-        ${renderLessonCard(planned, { side: "planned", pairedActual: actual, courseGroupProgress })}
+        ${renderLessonCard(planned, { side: "planned", pairedActual: actual })}
       </div>
       <div class="lesson-pair-column">
         <div class="lesson-pair-column-title">实际课时</div>
-        ${actual ? renderLessonCard(actual, { side: "actual", pairedPlanned: planned, courseGroupProgress }) : renderActualPlaceholder(planned)}
+        ${actual ? renderLessonCard(actual, { side: "actual", pairedPlanned: planned }) : renderActualPlaceholder(planned)}
       </div>
     </article>
   `;
@@ -271,7 +265,6 @@ function renderLessonCard(row, options = {}) {
   const isActual = row.record_kind === "actual";
   const hours = isActual ? row.actual_hours : row.planned_hours;
   const count = lessonCount(row);
-  const subtotalHours = calculateSubtotalHours(hours, count);
   const isLocked = row.settlement_status === "locked" || row.settlement_status === "income_request_created";
   const hasActual = row.record_kind === "planned" && Boolean(options.pairedActual || row.generated_actual_id);
   const canEdit = !isActual || !isLocked;
@@ -294,14 +287,12 @@ function renderLessonCard(row, options = {}) {
         <strong>${escapeHtml(formatDateOnly(row.work_date))}</strong>
         <span>${escapeHtml(timeRange(row.start_time, row.end_time))}</span>
         <span>${escapeHtml(row.subject_name || "-")}</span>
-        <span>${escapeHtml(courseGroupName(row) || "-")}</span>
         <span>${escapeHtml(row.class_description || "-")}</span>
       </div>
-      ${renderCourseGroupProgress(row, options.courseGroupProgress)}
       <dl class="lesson-pair-meta">
         <div><dt>${isActual ? "实际课时" : "预定课时"}</dt><dd>${escapeHtml(formatHours(hours))} h</dd></div>
         <div><dt>回数</dt><dd>${escapeHtml(formatLessonCount(count))}</dd></div>
-        <div><dt>课时小计</dt><dd>${escapeHtml(formatHours(subtotalHours))} h</dd></div>
+        <div><dt>累计课时</dt><dd>${escapeHtml(formatHours(cumulativeHours(row)))} h</dd></div>
         <div><dt>时给</dt><dd>${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</dd></div>
         <div><dt>交通费</dt><dd>${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</dd></div>
         <div><dt>课时工资</dt><dd>${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</dd></div>
@@ -314,29 +305,6 @@ function renderLessonCard(row, options = {}) {
         </div>
       </div>
     </article>
-  `;
-}
-
-function renderCourseGroupProgress(row, progressMap) {
-  const groupName = courseGroupName(row);
-  if (!groupName) {
-    return "";
-  }
-
-  const progress = progressMap?.get(groupName);
-  if (!progress) {
-    return "";
-  }
-
-  return `
-    <dl class="part-time-work-course-progress">
-      <div><dt>课程组</dt><dd>${escapeHtml(groupName)}</dd></div>
-      <div><dt>计划回数</dt><dd>${escapeHtml(formatLessonCount(progress.plannedCount))}</dd></div>
-      <div><dt>已上回数</dt><dd>${escapeHtml(formatLessonCount(progress.completedCount))}</dd></div>
-      <div><dt>计划总课时</dt><dd>${escapeHtml(formatHours(progress.plannedTotalHours))} h</dd></div>
-      <div><dt>实际累计课时</dt><dd>${escapeHtml(formatHours(progress.actualTotalHours))} h</dd></div>
-      <div><dt>剩余参考课时</dt><dd>${escapeHtml(formatHours(progress.remainingHours))} h</dd></div>
-    </dl>
   `;
 }
 
@@ -357,12 +325,11 @@ function renderListRow(row) {
       <td>${escapeHtml(timeRange(row.start_time, row.end_time))}</td>
       <td>${escapeHtml(row.workplace_name || "-")}</td>
       <td>${escapeHtml(row.subject_name || "-")}</td>
-      <td>${escapeHtml(courseGroupName(row) || "-")}</td>
       <td class="description-cell">${escapeHtml(row.class_description || "-")}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.planned_hours))}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.actual_hours))}</td>
       <td class="number-cell">${escapeHtml(formatLessonCount(lessonCount(row)))}</td>
-      <td class="number-cell">${escapeHtml(formatHours(calculateLessonSubtotal(row)))}</td>
+      <td class="number-cell">${escapeHtml(formatHours(cumulativeHours(row)))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
@@ -388,6 +355,7 @@ function renderSettlementRow(row) {
   const isLocked = row.status === "locked" || row.status === "income_request_created";
   const canLock = Boolean(row.id) && row.status === "draft" && Number(row.actual_lesson_count || 0) > 0;
   const canCreateRequest = row.status === "locked" && !row.income_request_id;
+  const canExport = Boolean(row.id) && isLocked;
   const saveDisabled = isLocked ? "disabled" : "";
 
   return `
@@ -412,6 +380,7 @@ function renderSettlementRow(row) {
         <div class="action-buttons">
           <button class="button table-action-button" type="button" data-settlement-action="save" ${saveDisabled}>保存</button>
           <button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定</button>
+          <button class="button table-action-button" type="button" data-settlement-action="export" ${canExport ? "" : "disabled"}>导出 Excel</button>
           <button class="button table-action-button" type="button" data-settlement-action="request" ${canCreateRequest ? "" : "disabled"}>生成收入请求</button>
         </div>
       </td>
@@ -486,13 +455,12 @@ function fillDialogFromLesson(lesson, hours) {
   dom.workDateInput.value = lesson.work_date || "";
   setSelectValueWithFallback(dom.workplaceNameInput, lesson.workplace_name || "");
   setSelectValueWithFallback(dom.subjectNameInput, lesson.subject_name || "");
-  dom.courseGroupInput.value = lesson.course_group_name || "";
   dom.classDescriptionInput.value = lesson.class_description || "";
   dom.startTimeInput.value = formatTimeInput(lesson.start_time);
   dom.endTimeInput.value = formatTimeInput(lesson.end_time);
   dom.hoursInput.value = hours ?? 0;
   dom.lessonCountInput.value = String(lessonCount(lesson));
-  dom.subtotalHoursInput.value = formatHours(calculateSubtotalHours(hours, lessonCount(lesson)));
+  dom.cumulativeHoursInput.value = formatHours(cumulativeHours(lesson));
   dom.hourlyRateInput.value = lesson.hourly_rate_jpy ?? 0;
   dom.transportationFeeInput.value = lesson.transportation_fee_jpy ?? 0;
   dom.memoInput.value = lesson.memo || "";
@@ -665,11 +633,107 @@ async function handleSettlementActionClick(event) {
       }
       await createPartTimeWorkIncomeRequest(settlementId);
       showMessage("success", `${workplaceName} 收入请求已生成。`);
+    } else if (action === "export") {
+      await handleSettlementExport(settlementId, workplaceName);
+      return;
     }
     await loadPageData();
   } catch (error) {
     showMessage("error", `月度工资结算操作失败：${error.message || error}`);
   }
+}
+
+async function handleSettlementExport(settlementId, workplaceName) {
+  if (!settlementId) {
+    showMessage("error", "请先保存并锁定月度工资结算后再导出。");
+    return;
+  }
+
+  if (!window.XLSX?.utils?.aoa_to_sheet || !window.XLSX?.writeFile) {
+    showMessage("error", "Excel 导出库尚未加载，请刷新页面后重试。");
+    return;
+  }
+
+  try {
+    const rows = await fetchPartTimeWorkSettlementExport(settlementId);
+    if (!rows.length) {
+      showMessage("error", `${workplaceName || "该打工先"} 没有可导出的锁定明细。`);
+      return;
+    }
+    exportSettlementWorkbook(rows);
+    showMessage("success", `${workplaceName || rows[0].workplace_name} 工资结算 Excel 已导出。`);
+  } catch (error) {
+    showMessage("error", `导出打工工资结算失败：${error.message || error}`);
+  }
+}
+
+function exportSettlementWorkbook(rows) {
+  const firstRow = rows[0] || {};
+  const xlsx = window.XLSX;
+  const workbook = xlsx.utils.book_new();
+  const reportRows = buildSettlementExportRows(rows);
+  const sheet = xlsx.utils.aoa_to_sheet(reportRows);
+
+  sheet["!cols"] = [
+    { wch: 12 },
+    { wch: 16 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 28 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 28 },
+  ];
+
+  xlsx.utils.book_append_sheet(workbook, sheet, sanitizeSheetName(firstRow.workplace_name || "打工工资"));
+  xlsx.writeFile(
+    workbook,
+    `part_time_work_${sanitizeFileName(firstRow.year_month || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter))}_${sanitizeFileName(firstRow.workplace_name || "workplace")}.xlsx`,
+    { bookType: "xlsx", cellStyles: true }
+  );
+}
+
+function buildSettlementExportRows(rows) {
+  return [
+    [
+      "年月",
+      "打工先",
+      "日期",
+      "科目",
+      "工作内容",
+      "实际课时",
+      "回数",
+      "累计课时",
+      "时给",
+      "课时工资",
+      "交通费",
+      "调整额",
+      "工资总额",
+      "备注",
+    ],
+    ...rows.map((row) => [
+      row.year_month || "",
+      row.workplace_name || "",
+      formatDateOnly(row.work_date),
+      row.subject_name || "",
+      row.class_description || "",
+      Number(row.actual_hours || 0),
+      Number(row.lesson_count || 1),
+      Number(row.cumulative_hours || 0),
+      Number(row.hourly_rate_jpy || 0),
+      Number(row.lesson_wage_jpy || 0),
+      Number(row.transportation_fee_jpy || 0),
+      Number(row.adjustment_jpy || 0),
+      Number(row.total_wage_jpy || 0),
+      row.memo || "",
+    ]),
+  ];
 }
 
 function readSettlementPayload(row, workplaceName) {
@@ -688,12 +752,12 @@ function readDialogPayload() {
     workplaceName: dom.workplaceNameInput.value,
     teacherName: DEFAULT_TEACHER_NAME,
     subjectName: dom.subjectNameInput.value,
-    courseGroupName: dom.courseGroupInput.value.trim(),
     classDescription: dom.classDescriptionInput.value.trim(),
     startTime: dom.startTimeInput.value,
     endTime: dom.endTimeInput.value,
     hours: calculateHoursFromTimes(dom.startTimeInput.value, dom.endTimeInput.value),
     lessonCount: parseInteger(dom.lessonCountInput.value),
+    cumulativeHours: parseDecimal(dom.cumulativeHoursInput.value),
     hourlyRateJpy: parseInteger(dom.hourlyRateInput.value),
     transportationFeeJpy: parseInteger(dom.transportationFeeInput.value),
     memo: dom.memoInput.value.trim(),
@@ -738,6 +802,11 @@ function validatePayload(payload) {
     return "请输入大于等于 1 的整数回数。";
   }
 
+  if (!Number.isFinite(payload.cumulativeHours) || payload.cumulativeHours < 0) {
+    markFieldInvalid(dom.cumulativeHoursInput);
+    return "请输入大于等于 0 的累计课时。";
+  }
+
   if (!Number.isInteger(payload.hourlyRateJpy) || payload.hourlyRateJpy < 0) {
     markFieldInvalid(dom.hourlyRateInput);
     return "时给必须是大于等于 0 的整数。";
@@ -755,13 +824,12 @@ function updatePreview() {
   const payload = readDialogPayload();
   const hours = Number.isFinite(payload.hours) ? payload.hours : 0;
   const count = Number.isInteger(payload.lessonCount) && payload.lessonCount > 0 ? payload.lessonCount : 1;
-  const subtotalHours = calculateSubtotalHours(hours, count);
+  const cumulativeHourValue = Number.isFinite(payload.cumulativeHours) ? payload.cumulativeHours : 0;
   const hourlyRate = Number.isFinite(payload.hourlyRateJpy) ? payload.hourlyRateJpy : 0;
   const transportationFee = Number.isFinite(payload.transportationFeeJpy) ? payload.transportationFeeJpy : 0;
   const lessonWageJpy = Math.round(hours * hourlyRate);
   dom.hoursInput.value = Number.isFinite(payload.hours) ? formatHours(payload.hours) : "0";
-  dom.subtotalHoursInput.value = formatHours(subtotalHours);
-  dom.preview.textContent = `预览：工资课时 ${formatHours(hours)} h / 课时小计 ${formatHours(subtotalHours)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
+  dom.preview.textContent = `预览：工资课时 ${formatHours(hours)} h / 回数 ${formatLessonCount(count)} / 累计课时 ${formatHours(cumulativeHourValue)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
 }
 
 function clearDialog() {
@@ -769,13 +837,12 @@ function clearDialog() {
     dom.workDateInput,
     dom.workplaceNameInput,
     dom.subjectNameInput,
-    dom.courseGroupInput,
     dom.classDescriptionInput,
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
     dom.lessonCountInput,
-    dom.subtotalHoursInput,
+    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -784,7 +851,7 @@ function clearDialog() {
   }
   dom.hoursInput.value = "0";
   dom.lessonCountInput.value = "1";
-  dom.subtotalHoursInput.value = "0";
+  dom.cumulativeHoursInput.value = "0";
   dom.startTimeInput.value = "";
   dom.endTimeInput.value = "";
   dom.hourlyRateInput.value = "0";
@@ -801,7 +868,7 @@ function closeDialogAfterSubmit() {
 }
 
 function setLessonFieldsReadonly(readonly) {
-  for (const input of [dom.workplaceNameInput, dom.subjectNameInput, dom.courseGroupInput, dom.classDescriptionInput]) {
+  for (const input of [dom.workplaceNameInput, dom.subjectNameInput, dom.classDescriptionInput]) {
     input.disabled = readonly;
   }
 }
@@ -861,7 +928,7 @@ function clearInvalidFields() {
     dom.endTimeInput,
     dom.hoursInput,
     dom.lessonCountInput,
-    dom.subtotalHoursInput,
+    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
   ]) {
@@ -899,6 +966,14 @@ function parseInteger(value) {
   return Number.isFinite(numberValue) ? Math.round(numberValue) : Number.NaN;
 }
 
+function parseDecimal(value) {
+  if (value === "") {
+    return Number.NaN;
+  }
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? Math.round(numberValue * 100) / 100 : Number.NaN;
+}
+
 function calculateHoursFromTimes(startTime, endTime) {
   if (!startTime || !endTime) {
     return Number.NaN;
@@ -918,70 +993,9 @@ function lessonCount(row) {
   return Number.isInteger(count) && count >= 1 ? count : 1;
 }
 
-function calculateLessonSubtotal(row) {
-  const hours = row?.record_kind === "actual" ? row.actual_hours : row?.planned_hours;
-  return calculateSubtotalHours(hours, lessonCount(row));
-}
-
-function calculateSubtotalHours(hours, count) {
-  const hourValue = Number(hours || 0);
-  const countValue = Number(count || 1);
-  if (!Number.isFinite(hourValue) || !Number.isFinite(countValue)) {
-    return 0;
-  }
-  return Math.round(hourValue * countValue * 100) / 100;
-}
-
-function buildCourseGroupProgress(rows) {
-  const grouped = new Map();
-
-  for (const row of rows || []) {
-    const groupName = courseGroupName(row);
-    if (!groupName) {
-      continue;
-    }
-
-    const current = grouped.get(groupName) || {
-      plannedRow: null,
-      completedCount: 0,
-      actualTotalHours: 0,
-    };
-
-    if (row.record_kind === "planned" && !current.plannedRow) {
-      current.plannedRow = row;
-    }
-
-    if (row.record_kind === "actual") {
-      current.completedCount += 1;
-      current.actualTotalHours += Number(row.actual_hours || 0);
-      if (!current.plannedRow) {
-        current.plannedRow = row;
-      }
-    }
-
-    grouped.set(groupName, current);
-  }
-
-  for (const [groupName, value] of grouped.entries()) {
-    const plannedRow = value.plannedRow || {};
-    const plannedHours = Number(plannedRow.planned_hours || plannedRow.actual_hours || 0);
-    const plannedCount = lessonCount(plannedRow);
-    const plannedTotalHours = calculateSubtotalHours(plannedHours, plannedCount);
-    const actualTotalHours = Math.round(value.actualTotalHours * 100) / 100;
-    grouped.set(groupName, {
-      plannedCount,
-      completedCount: value.completedCount,
-      plannedTotalHours,
-      actualTotalHours,
-      remainingHours: Math.round((plannedTotalHours - actualTotalHours) * 100) / 100,
-    });
-  }
-
-  return grouped;
-}
-
-function courseGroupName(row) {
-  return safeText(row?.course_group_name).trim();
+function cumulativeHours(row) {
+  const value = Number(row?.cumulative_hours ?? 0);
+  return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 function timeToMinutes(value) {
@@ -1071,6 +1085,15 @@ function todayDate() {
   const offset = now.getTimezoneOffset();
   const local = new Date(now.getTime() - offset * 60 * 1000);
   return local.toISOString().slice(0, 10);
+}
+
+function sanitizeSheetName(value) {
+  const normalized = safeText(value).replace(/[:\\/?*[\]]/g, "").trim();
+  return (normalized || "打工工资").slice(0, 31);
+}
+
+function sanitizeFileName(value) {
+  return safeText(value).replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_").trim() || "part_time_work";
 }
 
 function escapeHtml(value) {

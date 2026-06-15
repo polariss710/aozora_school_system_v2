@@ -963,33 +963,6 @@ h2 {
   gap: 8px;
 }
 
-.part-time-work-course-progress {
-  display: grid;
-  min-width: 0;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--soft);
-}
-
-.part-time-work-course-progress div {
-  min-width: 0;
-}
-
-.part-time-work-course-progress dt {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.part-time-work-course-progress dd {
-  margin: 1px 0 0;
-  overflow-wrap: anywhere;
-}
-
 .part-time-work-wide-field {
   grid-column: 1 / -1;
 }
@@ -2297,10 +2270,6 @@ h2 {
 
   .part-time-work-hour-row {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .part-time-work-course-progress {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .part-time-work-workflow-grid {

@@ -602,12 +602,12 @@
         </header>
         <div class="module-body">
           <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>6/7</span></div><div class="progress-track"><div class="progress-fill" style="width: 85.71%;"></div></div></div>
-          <div class="field"><div class="label">当前状态</div><div class="value">外部私塾 / 外部机构兼职授课 workflow 已替换旧的一条工资记录 V1；School DB SQL 已安装，并通过只读 schema/RPC/grant 检查。课时记录必填开始时间、结束时间和回数，课程组可选；课程组进度只用于查看，不进入工资结算。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">planned / actual 课时、从预定生成实际、课程组、回数、计划总课时、实际累计课时、剩余参考课时、月度工资结算、锁定明细快照、School 侧收入请求、<code>js/api/part-time-work-api.js</code>、<code>js/pages/part-time-work-page.js</code>、<code>part-time-work.html</code>。</div></div>
-          <div class="field"><div class="label">写入入口</div><div class="value">页面通过 API 层调用 <code>school_create_part_time_work_planned_lesson</code>、<code>school_update_part_time_work_lesson</code>、<code>school_generate_part_time_work_actual_from_planned</code>、<code>school_delete_part_time_work_lesson</code>、<code>school_save_part_time_work_monthly_settlement</code>、<code>school_lock_part_time_work_monthly_settlement</code>、<code>school_create_part_time_work_income_request</code>；页面模块不直接调用 <code>.rpc()</code>。</div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">外部私塾 / 外部机构兼职授课 workflow 已替换旧的一条工资记录 V1；School DB SQL 已安装，并通过 schema/RPC/grant 检查。课时记录必填开始时间、结束时间、回数和手动累计课时；课程组进度已废弃，不进入活跃 UI。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">planned / actual 课时、从预定生成实际、回数、手动累计课时、月度工资结算、锁定明细快照、锁定后 Excel 导出、School 侧收入请求、<code>js/api/part-time-work-api.js</code>、<code>js/pages/part-time-work-page.js</code>、<code>part-time-work.html</code>。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">页面通过 API 层调用 <code>school_create_part_time_work_planned_lesson</code>、<code>school_update_part_time_work_lesson</code>、<code>school_generate_part_time_work_actual_from_planned</code>、<code>school_delete_part_time_work_lesson</code>、<code>school_save_part_time_work_monthly_settlement</code>、<code>school_lock_part_time_work_monthly_settlement</code>、<code>school_create_part_time_work_income_request</code>；导出通过 <code>school_get_part_time_work_settlement_export</code> 读取锁定快照；页面模块不直接调用 <code>.rpc()</code>。</div></div>
           <div class="field"><div class="label">保护规则</div><div class="value">不引用学生、lesson、teacher_wage、payment request、expense、account transaction 或 Cash；锁定后冻结实际课时；RPC execute grant 只给 authenticated，不给 anon。</div></div>
-          <div class="field"><div class="label">编辑范围</div><div class="value">预定/实际课时、开始时间、结束时间、课程组、回数、打工先、科目、工作内容、时给、课时交通费、月度调整额、结算备注；授课者固定为吴峰。</div></div>
-          <div class="field"><div class="label">未完成</div><div class="value">Cash receipt confirmation 联动、导出、复杂审批、历史导入、真实业务数据迁移。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">预定/实际课时、开始时间、结束时间、回数、累计课时、打工先、科目、工作内容、时给、课时交通费、月度调整额、结算备注；授课者固定为吴峰。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">Cash receipt confirmation 联动、复杂审批、历史导入、真实业务数据迁移。</div></div>
         </div>
       </article>
 

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.116.0-part-time-work-course-group-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.117.0-part-time-work-export-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -148,12 +148,11 @@
                     <th>时间</th>
                     <th>打工先</th>
                     <th>科目</th>
-                    <th>课程组</th>
                     <th>工作内容</th>
                     <th class="number-cell">预定课时</th>
                     <th class="number-cell">实际课时</th>
                     <th class="number-cell">回数</th>
-                    <th class="number-cell">课时小计</th>
+                    <th class="number-cell">累计课时</th>
                     <th class="number-cell">时给</th>
                     <th class="number-cell">交通费</th>
                     <th class="number-cell">课时工资</th>
@@ -197,11 +196,6 @@
           </label>
 
           <label class="field">
-            <span>课程组</span>
-            <input id="partTimeWorkCourseGroupInput" type="text" autocomplete="off" placeholder="可选">
-          </label>
-
-          <label class="field">
             <span>工作内容</span>
             <input id="partTimeWorkClassDescriptionInput" type="text" autocomplete="off">
           </label>
@@ -229,9 +223,9 @@
               <input id="partTimeWorkLessonCountInput" type="number" step="1" min="1" inputmode="numeric" required>
             </label>
 
-            <label class="field" data-part-time-work-field="subtotalHours">
-              <span>课时小计</span>
-              <input id="partTimeWorkSubtotalHoursInput" type="number" step="0.01" min="0" inputmode="decimal" readonly>
+            <label class="field" data-part-time-work-field="cumulativeHours">
+              <span>累计课时</span>
+              <input id="partTimeWorkCumulativeHoursInput" type="number" step="0.01" min="0" inputmode="decimal" required>
             </label>
           </div>
 
@@ -260,6 +254,7 @@
       </section>
     </div>
 
-    <script type="module" src="./js/part-time-work-app.js?v=v2.116.0-part-time-work-course-group-20260615"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.117.0-part-time-work-export-20260615"></script>
   </body>
 </html>
