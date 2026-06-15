@@ -88,12 +88,12 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 私塾打工
 
-- 当前状态: V1 新增 / SQL 已安装。新增独立 `school_part_time_work_records` 表、`school_*part_time_work*` RPC、`js/api/part-time-work-api.js`、`js/pages/part-time-work-page.js`、`part-time-work.html` 和主导航入口。SQL 已在 School DB 执行，并通过只读 schema/RPC/grant 检查。
-- 业务定位: 外部私塾 / 外部机构兼职授课记录，一条记录同时保存课时和工资。V1 字段包含工作日期、打工先、授课者、科目、工作内容、课时、时给、课时工资、交通费、调整额、总工资、支付状态、支付日和备注。
-- 边界: 不混入现有学生记录，不复用 lesson management，不进入 teacher_wage 结算，不创建 payment request，不写 School expense/account transaction，不接入 Cash，也不自动写 `home_account_book`。后续如需打工收入 Cash 化，应另开 guarded phase。
-- 计算/权限: 页面只做金额预览；保存时由 RPC 统一计算 `lesson_wage_jpy = round(hours * hourly_rate_jpy)` 和 `total_wage_jpy = lesson_wage_jpy + transportation_fee_jpy + adjustment_jpy`。记录使用 `deleted_at` 软删除。所有 list/create/update/delete/stats RPC 只 grant execute to `authenticated`，不 grant anon。
-- 当前限制 / hard stop: V1 不做复杂锁定、结算单、导出、Cash request、历史导入或真实业务数据处理。本轮没有写测试数据到正式表；后续页面写入验证只能使用 rollback 或明确 whitelist 数据。
-- 下一步: 用 whitelist 数据做浏览器 smoke；如需要 paid/received Cash 化、月度结算锁定或支付流水，另开设计。
+- 当前状态: Workflow V1 已替换旧模型 / SQL 已安装。旧 `school_part_time_work_records` 一条记录同时保存课时和工资的错误模型已废弃并从 DB 删除。当前正式模型使用 `school_part_time_work_lessons`、`school_part_time_work_monthly_settlements`、`school_part_time_work_monthly_settlement_details`、`school_part_time_work_income_requests`，SQL 来源为 `sql/current/school_part_time_work_workflow.sql`。
+- 业务定位: 外部私塾 / 外部机构兼职授课流程，独立记录 planned 预定打工课时和 actual 实际打工课时；实际课时由预定课时生成；月底按 `year_month + 打工先` 结算工资；锁定后冻结明细快照；锁定后可生成 School 侧收入请求。
+- 边界: 不混入现有学生记录，不复用 lesson management，不进入 teacher_wage 结算，不创建 teacher_wage payment request，不写 School expense/account transaction，不连接 Cash DB，也不自动写 `home_account_book`。本轮收入请求仅为 School 侧记录，后续 Cash receipt confirmation 另开 guarded phase。
+- 计算/权限: 课时工资和结算总额由 RPC 统一计算。月度结算行保存时记录时给、交通费、调整额和总额；锁定时写入 settlement detail snapshots。所有 page-facing list/create/update/delete/generate/save/lock/request RPC 只 grant execute to `authenticated`，不 grant anon。
+- 当前限制 / hard stop: 不做 Cash 写入、月度锁定以外的审批、导出、历史导入、真实业务数据迁移或与 teacher_wage/payment request 的复用。旧 V1 active 行经用户确认是新建状态后已随表删除。
+- 下一步: 使用 whitelist `TEST_外部塾_WORKFLOW` 做端到端 smoke，并在后续单独阶段设计 School income request -> Cash receipt confirmation。
 
 ## 支出记录
 
@@ -145,6 +145,6 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 ## Backlog / 暂不实现
 
 - 当前状态: Backlog。历史维护继续由 v1 或单独 migration/repair workflow 处理。
-- 最近关键更新: 2026-06-15 私塾打工 V1 已开始实装，定位为外部私塾 / 外部机构兼职授课记录，独立于学生、lesson、teacher_wage、payment request 和 Cash；后续 Cash 化、月度锁定或支付流水另开 guarded phase。个人外部私塾打工收入模块设计已刷新为 `docs/personal-teaching-income-module-design.md`，定位为个人业务收入和 Cash 入账确认链路，不是青空塾 teacher_wage 支出。Income Cash confirmation workflow 已安装/部署并通过真实 CNY whitelist tests，可作为后续 personal teaching income request -> Cash receipt confirmation 的复用基础。账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。first-stage whitelist commit-test family 账户 `d3734cd7-fa94-4be3-b8dc-3cdc3690f667` / `codex-test-family-app-type-commit-20260613` 已经 dry-run、rollback validation、commit delete、residue check 清理完成。
+- 最近关键更新: 2026-06-15 私塾打工已从错误的一条工资记录 V1 改为 planned / actual 课时、月度工资结算、锁定、School 侧收入请求 workflow；仍独立于学生、lesson、teacher_wage、payment request 和 Cash。个人外部私塾打工收入模块设计已刷新为 `docs/personal-teaching-income-module-design.md`，定位为个人业务收入和 Cash 入账确认链路，不是青空塾 teacher_wage 支出。Income Cash confirmation workflow 已安装/部署并通过真实 CNY whitelist tests，可作为后续 personal teaching income request -> Cash receipt confirmation 的复用基础。账户/家庭账本账户联动已完成第一阶段 `app_type` 隔离实装；后续 account_scope、household/member ownership、family income/expense/transfer、family reporting 仍是 backlog。first-stage whitelist commit-test family 账户 `d3734cd7-fa94-4be3-b8dc-3cdc3690f667` / `codex-test-family-app-type-commit-20260613` 已经 dry-run、rollback validation、commit delete、residue check 清理完成。
 - 当前限制 / hard stop: destructive cleanup、真实历史修复、广义 backfill、非 whitelist real-data writes、delete/merge、物理删除、全量重算均不是默认工作。
 - 下一步候选: 青空塾代收学费 Cash 标记与法人清算、青空塾工资垫付与法人报销、manual FX/account-transfer runbook、Cash-linked reversal sync / retry UI、payment management follow-up、legacy SQL `grant execute ... to anon` 写 RPC 权限审计、weekly plan image export、full actual import/history migration、expanded wage-lock lifecycle、teacher wage adjustment items for transport/classroom fees、payment-request realtime exchange-rate CNY conversion、account_scope/household owner expansion、family ledger records/reporting、personal teaching income full workflow、account balance adjustment / opening-balance correction、business-entity-scoped wage generation、DB-level linked-actual unique/index after read-only duplicate-risk verification。

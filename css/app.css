@@ -868,6 +868,61 @@ h2 {
   gap: 6px;
 }
 
+.part-time-work-workflow-grid {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.part-time-work-workflow-column {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.part-time-work-workplace-section {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.part-time-work-workplace-title {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.part-time-work-settlement-table {
+  min-width: 1480px;
+}
+
+.part-time-work-table {
+  min-width: 1360px;
+}
+
+.part-time-work-list-details {
+  display: grid;
+  gap: 12px;
+}
+
+.part-time-work-list-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.inline-number-input {
+  width: 104px;
+  min-width: 0;
+  text-align: right;
+}
+
+.inline-text-input {
+  width: 180px;
+  min-width: 0;
+}
+
 .part-time-work-dialog-panel {
   width: min(680px, 100%);
 }
@@ -2181,6 +2236,10 @@ h2 {
   .reimbursement-create-field-grid,
   .lesson-create-field-grid,
   .part-time-work-dialog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-workflow-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

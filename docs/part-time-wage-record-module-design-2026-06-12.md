@@ -6,9 +6,9 @@ Task type: historical broader design reference.
 
 Current note, 2026-06-15:
 
-- The narrower 私塾打工 V1 implementation now exists separately as `school_part_time_work_records`, `school_part_time_work_*` RPCs, `js/api/part-time-work-api.js`, `js/pages/part-time-work-page.js`, and `part-time-work.html`.
-- That V1 is specifically for external cram-school / external institution part-time teaching records where one row contains hours and wage amounts.
-- It does not implement the broader temporary labor approval/payment-request design below, and it does not connect to students, lesson management, teacher_wage, payment requests, School expense/account transactions, or Cash.
+- The narrower 私塾打工 V1 one-row wage-record implementation has been discarded as an incorrect business model.
+- Current 私塾打工 implementation uses a School-side workflow: planned external-work lessons, actual lessons generated from planned, monthly wage settlements by workplace, lock-time detail snapshots, and School-side income requests.
+- It does not implement the broader temporary labor approval/payment-request design below, and it does not connect to students, lesson management, teacher_wage, School expense/account transactions, or Cash.
 - The rest of this document remains useful only as a future-extension reference for broader non-lesson labor/payment-flow work.
 
 ## Goal
