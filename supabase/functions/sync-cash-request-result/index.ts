@@ -49,6 +49,9 @@ const INCOME_REQUEST_TYPES = new Set([
 const INCOME_TRANSACTION_TYPE = "income";
 const PART_TIME_WORK_INCOME_REFERENCE_TYPE = "school_part_time_work_income_requests";
 const PART_TIME_WORK_INCOME_REQUEST_TYPE = "part_time_work_income_received";
+const EXPENSE_REFERENCE_TYPE = "school_expense_records";
+const EXPENSE_REQUEST_TYPE = "expense_paid";
+const EXPENSE_TRANSACTION_TYPE = "expense";
 const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -135,6 +138,16 @@ function isPartTimeWorkIncomeRequest(cashRequest: CashRequestRow): boolean {
     cashRequest.external_reference_type === PART_TIME_WORK_INCOME_REFERENCE_TYPE &&
     cashRequest.request_type === PART_TIME_WORK_INCOME_REQUEST_TYPE &&
     cashRequest.transaction_type === INCOME_TRANSACTION_TYPE &&
+    SUPPORTED_CURRENCIES.has(cashRequest.currency)
+  );
+}
+
+function isExpenseRequest(cashRequest: CashRequestRow): boolean {
+  return (
+    cashRequest.external_source === EXTERNAL_SOURCE &&
+    cashRequest.external_reference_type === EXPENSE_REFERENCE_TYPE &&
+    cashRequest.request_type === EXPENSE_REQUEST_TYPE &&
+    cashRequest.transaction_type === EXPENSE_TRANSACTION_TYPE &&
     SUPPORTED_CURRENCIES.has(cashRequest.currency)
   );
 }
@@ -256,8 +269,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const isTeacherWage = isTeacherWageRequest(cashRequest);
     const isIncome = isIncomeRequest(cashRequest);
     const isPartTimeWorkIncome = isPartTimeWorkIncomeRequest(cashRequest);
+    const isExpense = isExpenseRequest(cashRequest);
 
-    if (!isTeacherWage && !isIncome && !isPartTimeWorkIncome) {
+    if (!isTeacherWage && !isIncome && !isPartTimeWorkIncome && !isExpense) {
       return jsonResponse(
         { ok: false, message: "Cash request is not a supported School request" },
         400,
@@ -279,12 +293,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     if (action === "approved") {
-      const rpcName = isPartTimeWorkIncome
+      const rpcName = isExpense
+        ? "school_mark_cash_expense_confirmed"
+        : isPartTimeWorkIncome
         ? "school_mark_part_time_work_cash_income_confirmed"
         : isIncome
         ? "school_mark_cash_income_confirmed"
         : "school_mark_personal_cash_payment_request_confirmed";
-      const rpcPayload = isPartTimeWorkIncome
+      const rpcPayload = isExpense
+        ? {
+          p_expense_record_id: cashRequest.external_reference_id,
+          p_cash_request_id: cashRequest.id,
+          p_cash_transaction_id: cashRequest.created_transaction_id,
+          p_confirmed_at: cashRequest.approved_at,
+        }
+        : isPartTimeWorkIncome
         ? {
           p_income_request_id: cashRequest.external_reference_id,
           p_cash_request_id: cashRequest.id,
@@ -329,12 +352,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
       });
     }
 
-    const rpcName = isPartTimeWorkIncome
+    const rpcName = isExpense
+      ? "school_mark_cash_expense_rejected"
+      : isPartTimeWorkIncome
       ? "school_mark_part_time_work_cash_income_rejected"
       : isIncome
       ? "school_mark_cash_income_rejected"
       : "school_mark_personal_cash_payment_request_rejected";
-    const rpcPayload = isPartTimeWorkIncome
+    const rpcPayload = isExpense
+      ? {
+        p_expense_record_id: cashRequest.external_reference_id,
+        p_cash_request_id: cashRequest.id,
+        p_rejected_reason: cashRequest.rejected_reason,
+        p_rejected_at: cashRequest.rejected_at,
+      }
+      : isPartTimeWorkIncome
       ? {
         p_income_request_id: cashRequest.external_reference_id,
         p_cash_request_id: cashRequest.id,

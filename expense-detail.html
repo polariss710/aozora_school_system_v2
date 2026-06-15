@@ -48,6 +48,7 @@
             <div class="reimbursement-detail-actions">
               <span id="expenseDetailActionStatus" class="status-badge status-neutral">-</span>
               <button class="button button-primary is-hidden" id="openEditExpenseButton" type="button">编辑支出</button>
+              <button class="button button-primary is-hidden" id="openCashExpenseRequestButton" type="button">提交 Cash 支付确认</button>
               <button class="button button-primary is-hidden" id="openExpenseAttachmentDialogButton" type="button">新增附件摘要</button>
               <button class="button button-danger is-hidden" id="openReverseExpenseButton" type="button">撤销支出</button>
               <a class="button" href="./expense.html">返回支出记录</a>
@@ -287,6 +288,47 @@
         <div class="dialog-actions">
           <button class="button button-danger" id="reverseExpenseSubmitButton" type="button">确认撤销</button>
           <button class="button" id="reverseExpenseCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="cashExpenseRequestDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="cashExpenseRequestTitle">
+        <div class="dialog-header">
+          <h2 id="cashExpenseRequestTitle">提交 Cash 支出确认</h2>
+          <p class="section-note">Cash 支付按实际支付金额和币种提交；School 支出记录原始金额保持不变。</p>
+        </div>
+
+        <div id="cashExpenseRequestError" class="dialog-error is-hidden"></div>
+        <div id="cashExpenseRequestSummary" class="dialog-summary"></div>
+
+        <div class="expense-create-field-grid">
+          <label class="field" data-cash-expense-field="actualAmount">
+            <span>实际支付金额</span>
+            <input id="cashExpenseActualAmountInput" type="number" step="0.01" min="0" inputmode="decimal">
+          </label>
+          <label class="field" data-cash-expense-field="actualCurrency">
+            <span>实际支付币种</span>
+            <select id="cashExpenseActualCurrencySelect">
+              <option value="JPY">JPY</option>
+              <option value="CNY">CNY</option>
+            </select>
+          </label>
+          <label class="field" data-cash-expense-field="cashAccount">
+            <span>Cash 支付账户</span>
+            <select id="cashExpenseAccountSelect"></select>
+          </label>
+          <label class="field expense-create-wide-field" data-cash-expense-field="note">
+            <span>备注</span>
+            <textarea id="cashExpenseNoteInput" rows="3"></textarea>
+          </label>
+        </div>
+
+        <p id="cashExpenseRequestPreview" class="state-text">Cash 请求预览：-</p>
+
+        <div class="dialog-actions">
+          <button class="button button-primary" id="cashExpenseRequestSubmitButton" type="button">提交 Cash 支付确认</button>
+          <button class="button" id="cashExpenseRequestCancelButton" type="button">取消</button>
         </div>
       </section>
     </div>

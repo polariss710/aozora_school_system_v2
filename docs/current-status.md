@@ -26,6 +26,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. Expense-record Cash request minimum flow, 2026-06-15:
+   支出侧 canonical 链路第四阶段-1已落地最小闭环：`school_expense_records` can now submit a unified Cash expense pending request through `request-cash-expense-confirmation`, Cash accepts `external_reference_type = school_expense_records`, `request_type = expense_paid`, `transaction_type = expense`, and `sync-cash-request-result` can write Cash approve/reject results back to `school_expense_records`. School SQL source is `sql/current/school_expense_cash_confirmation_workflow.sql`; it adds per-attempt Cash request tracking and actual payment amount/currency fields, plus RPCs `school_request_cash_expense_payment_confirmation(...)`, `school_mark_cash_expense_request_submitted(...)`, `school_mark_cash_expense_confirmed(...)`, and `school_mark_cash_expense_rejected(...)`. Expense detail now has a minimal `提交 Cash 支付确认` dialog for pending expense records only. This stage does not migrate the 7 pending legacy teacher_wage payment requests, does not disable the old teacher-wage payment page, does not alter teacher_wage generation, and does not touch legacy `school_payment_requests`.
+
 1. Teacher wage expense-record route preparation, 2026-06-15:
    支出侧 canonical 链路第二阶段开始落地：老师工资未来目标链路是 teacher wage snapshot -> `school_expense_records` -> expense record Cash request -> Cash approve/reject -> expense writeback。新增准备 SQL `sql/current/school_teacher_wage_expense_record_route.sql`，为 `school_expense_records` 补齐 `source_type/source_id/payee_name_snapshot` 和 Cash linkage 状态字段，并提供专用 RPC `school_create_teacher_wage_expense_record(...)` 从 locked wage snapshot 生成一条 pending `teacher_wage` 支出记录。普通 `school_create_expense_record(...)` 仍拒绝手动创建 `teacher_wage`，避免绕过工资快照。该阶段不迁移 7 条 pending `teacher_wage` payment request，不修复旧直连造成的 paid expense 缺口，不禁用旧支付页面，不提交 Cash request，不修改 Cash repo。
 

@@ -2,13 +2,16 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createExpenseAttachmentMetadata,
   fetchExpenseDetailPage,
+  requestCashExpenseConfirmation,
   reverseExpenseRecord,
   updateExpenseRecord,
 } from "../api/expense-detail-api.js";
+import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const EXPENSE_STATUS_LABELS = {
   paid: "已支付",
+  pending: "待支付",
   reversed: "已撤销",
 };
 
@@ -68,6 +71,9 @@ let detailData = null;
 let isReverseSubmitting = false;
 let isAttachmentSubmitting = false;
 let isEditSubmitting = false;
+let isCashRequestSubmitting = false;
+let cashEligibleAccounts = [];
+let hasLoadedCashEligibleAccounts = false;
 const REVERSE_EXPENSE_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const ATTACHMENT_FIELD_IDS = ["fileName", "fileType", "fileSize", "sourceType", "note"];
 const ATTACHMENT_SOURCE_TYPE_OPTIONS = ["manual_metadata", "receipt", "invoice", "statement", "other"];
@@ -117,6 +123,7 @@ function cacheDom() {
   dom.messageArea = document.querySelector("#expenseDetailMessageArea");
   dom.actionStatus = document.querySelector("#expenseDetailActionStatus");
   dom.openEditExpenseButton = document.querySelector("#openEditExpenseButton");
+  dom.openCashExpenseRequestButton = document.querySelector("#openCashExpenseRequestButton");
   dom.openReverseExpenseButton = document.querySelector("#openReverseExpenseButton");
   dom.loadingState = document.querySelector("#expenseDetailLoadingState");
   dom.content = document.querySelector("#expenseDetailContent");
@@ -165,10 +172,21 @@ function cacheDom() {
   dom.reverseConfirmCheck = document.querySelector("#reverseExpenseConfirmCheck");
   dom.reverseSubmitButton = document.querySelector("#reverseExpenseSubmitButton");
   dom.reverseCancelButton = document.querySelector("#reverseExpenseCancelButton");
+  dom.cashExpenseRequestDialog = document.querySelector("#cashExpenseRequestDialog");
+  dom.cashExpenseRequestError = document.querySelector("#cashExpenseRequestError");
+  dom.cashExpenseRequestSummary = document.querySelector("#cashExpenseRequestSummary");
+  dom.cashExpenseActualAmountInput = document.querySelector("#cashExpenseActualAmountInput");
+  dom.cashExpenseActualCurrencySelect = document.querySelector("#cashExpenseActualCurrencySelect");
+  dom.cashExpenseAccountSelect = document.querySelector("#cashExpenseAccountSelect");
+  dom.cashExpenseNoteInput = document.querySelector("#cashExpenseNoteInput");
+  dom.cashExpenseRequestPreview = document.querySelector("#cashExpenseRequestPreview");
+  dom.cashExpenseRequestSubmitButton = document.querySelector("#cashExpenseRequestSubmitButton");
+  dom.cashExpenseRequestCancelButton = document.querySelector("#cashExpenseRequestCancelButton");
 }
 
 function bindEvents() {
   dom.openEditExpenseButton.addEventListener("click", openEditDialog);
+  dom.openCashExpenseRequestButton.addEventListener("click", openCashExpenseRequestDialog);
   dom.openReverseExpenseButton.addEventListener("click", openReverseDialog);
   dom.openAttachmentDialogButton.addEventListener("click", openAttachmentDialog);
   dom.editCancelButton.addEventListener("click", closeEditDialog);
@@ -239,6 +257,31 @@ function bindEvents() {
     setReverseFieldInvalid("confirmCheck", false);
     hideReverseErrorIfClean();
   });
+  dom.cashExpenseRequestCancelButton.addEventListener("click", closeCashExpenseRequestDialog);
+  dom.cashExpenseRequestSubmitButton.addEventListener("click", submitCashExpenseRequest);
+  for (const [input, fieldId] of [
+    [dom.cashExpenseActualAmountInput, "actualAmount"],
+    [dom.cashExpenseActualCurrencySelect, "actualCurrency"],
+    [dom.cashExpenseAccountSelect, "cashAccount"],
+    [dom.cashExpenseNoteInput, "note"],
+  ]) {
+    input.addEventListener("input", () => {
+      setCashExpenseFieldInvalid(fieldId, false);
+      hideCashExpenseRequestErrorIfClean();
+      if (input === dom.cashExpenseActualCurrencySelect) {
+        renderCashExpenseAccountOptions();
+      }
+      updateCashExpenseRequestPreview();
+    });
+    input.addEventListener("change", () => {
+      setCashExpenseFieldInvalid(fieldId, false);
+      hideCashExpenseRequestErrorIfClean();
+      if (input === dom.cashExpenseActualCurrencySelect) {
+        renderCashExpenseAccountOptions();
+      }
+      updateCashExpenseRequestPreview();
+    });
+  }
 }
 
 function readExpenseId() {
@@ -292,6 +335,13 @@ function renderExpenseDetail(data) {
 
   dom.relatedInfo.innerHTML = renderDefinitionList([
     ["账户", accountNameById(expense.account_id)],
+    ["支付对象", displayValue(expense.payee_name_snapshot)],
+    ["来源类型", sourceTypeLabel(expense.source_type)],
+    ["Cash request", expense.cash_request_id ? `${shortId(expense.cash_request_id)} / ${cashRequestStatusLabel(expense.cash_request_status)}` : cashRequestStatusLabel(expense.cash_request_status)],
+    ["Cash transaction", shortId(expense.cash_transaction_id)],
+    ["Cash 请求时间", formatDate(expense.cash_requested_at)],
+    ["Cash 同步时间", formatDate(expense.cash_synced_at)],
+    ["Cash 错误", displayValue(expense.cash_error_message)],
     ["支出 ID", shortId(expense.id)],
     ["app_type", displayValue(expense.app_type)],
   ]);
@@ -312,12 +362,15 @@ function renderActionArea(data) {
   const { expense } = data;
   const status = expense?.status || "";
   const canEdit = canEditExpense(data);
+  const canRequestCash = canRequestCashExpense(data);
   const canReverse = canReverseExpense(data);
   const canCreateAttachment = canCreateAttachmentMetadata(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = expenseStatusLabel(status);
   dom.openEditExpenseButton.classList.toggle("is-hidden", !canEdit);
   dom.openEditExpenseButton.disabled = !canEdit;
+  dom.openCashExpenseRequestButton.classList.toggle("is-hidden", !canRequestCash);
+  dom.openCashExpenseRequestButton.disabled = !canRequestCash;
   dom.openReverseExpenseButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseExpenseButton.disabled = !canReverse;
   dom.openAttachmentDialogButton.classList.toggle("is-hidden", !canCreateAttachment);
@@ -362,6 +415,28 @@ function canCreateAttachmentMetadata(data) {
   return Boolean(expense?.id)
     && expense.app_type === "school"
     && expense.expense_category !== "teacher_wage";
+}
+
+function canRequestCashExpense(data) {
+  const expense = data?.expense;
+  if (!expense?.id) return false;
+  if (expense.app_type !== "school") return false;
+  if (expense.status !== "pending") return false;
+  if (expense.reversed_at || expense.reversal_account_transaction_id) return false;
+  if (expense.cash_transaction_id) return false;
+  return !["pending", "approved", "synced"].includes(expense.cash_request_status || "");
+}
+
+function cashRequestNotAllowedMessage(data) {
+  const expense = data?.expense;
+  if (!expense) return "支出记录不存在，请刷新后重试。";
+  if (expense.app_type !== "school") return "只能提交 School 支出记录。";
+  if (expense.status !== "pending") return "只有待支付支出记录可以提交 Cash 支付确认。";
+  if (expense.reversed_at || expense.reversal_account_transaction_id) return "已撤销支出不能提交 Cash 支付确认。";
+  if (expense.cash_transaction_id) return "该支出记录已经有 Cash transaction。";
+  if (expense.cash_request_status === "pending") return "该支出记录已有待确认 Cash request。";
+  if (expense.cash_request_status === "approved" || expense.cash_request_status === "synced") return "该支出记录已同步到 Cash。";
+  return "";
 }
 
 function renderReversalInfo(expense) {
@@ -922,6 +997,216 @@ function hideAttachmentErrorIfClean() {
   }
 }
 
+async function openCashExpenseRequestDialog() {
+  if (isCashRequestSubmitting) {
+    return;
+  }
+
+  if (!canRequestCashExpense(detailData)) {
+    showMessage("error", cashRequestNotAllowedMessage(detailData));
+    return;
+  }
+
+  clearCashExpenseRequestErrors();
+  await ensureCashEligibleAccounts();
+  const expense = detailData.expense;
+  dom.cashExpenseRequestSummary.innerHTML = renderCashExpenseRequestSummary(expense);
+  dom.cashExpenseActualAmountInput.value = expense.amount ?? "";
+  dom.cashExpenseActualCurrencySelect.value = expense.currency || "JPY";
+  dom.cashExpenseNoteInput.value = [
+    expenseCategoryLabel(expense.expense_category),
+    expense.payee_name_snapshot,
+    expense.year_month,
+    expense.description,
+  ].filter(Boolean).join(" / ");
+  renderCashExpenseAccountOptions();
+  updateCashExpenseRequestPreview();
+  setCashRequestSubmitting(false);
+  dom.cashExpenseRequestDialog.classList.remove("is-hidden");
+  dom.cashExpenseRequestDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeCashExpenseRequestDialog() {
+  if (isCashRequestSubmitting) {
+    return;
+  }
+
+  dom.cashExpenseRequestDialog.classList.add("is-hidden");
+  dom.cashExpenseRequestDialog.setAttribute("aria-hidden", "true");
+}
+
+async function ensureCashEligibleAccounts() {
+  if (hasLoadedCashEligibleAccounts) {
+    return;
+  }
+
+  try {
+    cashEligibleAccounts = await fetchSchoolEligibleCashAccountsViaFunction();
+    hasLoadedCashEligibleAccounts = true;
+  } catch (error) {
+    cashEligibleAccounts = [];
+    hasLoadedCashEligibleAccounts = false;
+    showCashExpenseRequestError(`Cash 支付账户读取失败：${error.message || error}`, ["cashAccount"]);
+  }
+}
+
+function renderCashExpenseAccountOptions() {
+  const currency = dom.cashExpenseActualCurrencySelect.value || "JPY";
+  const selectedValue = dom.cashExpenseAccountSelect.value;
+  const accounts = cashEligibleAccounts.filter((account) => account.currency === currency);
+  const options = ['<option value="">请选择 Cash 支付账户</option>'];
+  for (const account of accounts) {
+    options.push(`<option value="${escapeAttribute(account.id)}">${escapeHtml(cashAccountLabel(account))}</option>`);
+  }
+  dom.cashExpenseAccountSelect.innerHTML = options.join("");
+
+  if (accounts.some((account) => account.id === selectedValue)) {
+    dom.cashExpenseAccountSelect.value = selectedValue;
+  } else if (accounts.length === 1) {
+    dom.cashExpenseAccountSelect.value = accounts[0].id;
+  }
+}
+
+function updateCashExpenseRequestPreview() {
+  const amount = Number(dom.cashExpenseActualAmountInput.value);
+  const currency = dom.cashExpenseActualCurrencySelect.value || "JPY";
+  const account = cashEligibleAccounts.find((item) => item.id === dom.cashExpenseAccountSelect.value);
+  const amountText = Number.isFinite(amount) && amount > 0 ? formatCurrency(amount, currency) : "-";
+  const accountText = account ? cashAccountLabel(account) : "-";
+  dom.cashExpenseRequestPreview.textContent = `Cash 请求预览：${amountText} / ${accountText}`;
+}
+
+async function submitCashExpenseRequest() {
+  if (isCashRequestSubmitting) {
+    return;
+  }
+
+  clearCashExpenseRequestErrors();
+  const payload = readCashExpenseRequestPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCashRequestSubmitting(true);
+
+  try {
+    const result = await requestCashExpenseConfirmation(payload);
+    setCashRequestSubmitting(false);
+    closeCashExpenseRequestDialog();
+    await loadExpenseDetail(payload.expenseId);
+    showMessage("success", `Cash 支出确认请求已提交：${shortId(result.cash_request_id)}。`);
+  } catch (error) {
+    console.error(error);
+    showCashExpenseRequestError(`提交 Cash 支出确认失败：${error.message || error}`, cashExpenseFieldIdsForError(error.message || ""));
+  } finally {
+    setCashRequestSubmitting(false);
+  }
+}
+
+function readCashExpenseRequestPayload() {
+  const expense = detailData?.expense;
+  if (!expense?.id) {
+    showCashExpenseRequestError("支出记录不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (!canRequestCashExpense(detailData)) {
+    showCashExpenseRequestError(cashRequestNotAllowedMessage(detailData));
+    return null;
+  }
+
+  const amount = Number(dom.cashExpenseActualAmountInput.value);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    showCashExpenseRequestError("实际支付金额必须大于 0。", ["actualAmount"]);
+    return null;
+  }
+
+  const currency = dom.cashExpenseActualCurrencySelect.value;
+  if (!["JPY", "CNY"].includes(currency)) {
+    showCashExpenseRequestError("请选择实际支付币种。", ["actualCurrency"]);
+    return null;
+  }
+
+  const accountId = dom.cashExpenseAccountSelect.value;
+  const account = cashEligibleAccounts.find((item) => item.id === accountId);
+  if (!account) {
+    showCashExpenseRequestError("请选择 Cash 支付账户。", ["cashAccount"]);
+    return null;
+  }
+
+  if (account.currency !== currency) {
+    showCashExpenseRequestError("Cash 支付账户币种必须与实际支付币种一致。", ["cashAccount", "actualCurrency"]);
+    return null;
+  }
+
+  return {
+    expenseId: expense.id,
+    cashAccountId: accountId,
+    actualPaymentAmount: amount,
+    actualPaymentCurrency: currency,
+    note: dom.cashExpenseNoteInput.value.trim(),
+  };
+}
+
+function renderCashExpenseRequestSummary(expense) {
+  return renderDefinitionList([
+    ["支出日期", formatDateOnly(expense.expense_date)],
+    ["目标月份", formatMonth(expense.year_month)],
+    ["分类", expenseCategoryLabel(expense.expense_category)],
+    ["支付对象", displayValue(expense.payee_name_snapshot)],
+    ["原始金额", formatCurrency(expense.amount, expense.currency)],
+    ["状态", expenseStatusLabel(expense.status)],
+  ]);
+}
+
+function setCashRequestSubmitting(isSubmitting) {
+  isCashRequestSubmitting = isSubmitting;
+  dom.cashExpenseRequestSubmitButton.disabled = isSubmitting;
+  dom.cashExpenseRequestCancelButton.disabled = isSubmitting;
+  dom.cashExpenseRequestSubmitButton.textContent = isSubmitting ? "提交中..." : "提交 Cash 支付确认";
+}
+
+function clearCashExpenseRequestErrors() {
+  dom.cashExpenseRequestError.textContent = "";
+  dom.cashExpenseRequestError.classList.add("is-hidden");
+  ["actualAmount", "actualCurrency", "cashAccount", "note"].forEach((fieldId) => {
+    setCashExpenseFieldInvalid(fieldId, false);
+  });
+}
+
+function showCashExpenseRequestError(message, fieldIds = []) {
+  dom.cashExpenseRequestError.textContent = message;
+  dom.cashExpenseRequestError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCashExpenseFieldInvalid(fieldId, true);
+  }
+  dom.cashExpenseRequestDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cashExpenseFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("金额")) fields.push("actualAmount");
+  if (text.includes("币种")) fields.push("actualCurrency");
+  if (text.includes("账户")) fields.push("cashAccount");
+  return fields;
+}
+
+function setCashExpenseFieldInvalid(fieldId, invalid) {
+  const field = dom.cashExpenseRequestDialog.querySelector(`[data-cash-expense-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideCashExpenseRequestErrorIfClean() {
+  const hasInvalidField = Boolean(dom.cashExpenseRequestDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.cashExpenseRequestError.textContent = "";
+    dom.cashExpenseRequestError.classList.add("is-hidden");
+  }
+}
+
 function openReverseDialog() {
   if (isReverseSubmitting) {
     return;
@@ -1241,6 +1526,25 @@ function paymentRequestStatusLabel(value) {
 
 function sourceTypeLabel(value) {
   return SOURCE_TYPE_LABELS[value] || displayValue(value);
+}
+
+function cashRequestStatusLabel(value) {
+  const labels = {
+    pending_cash_request: "Cash待提交",
+    pending: "Cash待确认",
+    approved: "Cash已确认",
+    synced: "已同步到 Cash",
+    rejected: "Cash已拒绝",
+  };
+  return labels[value] || displayValue(value);
+}
+
+function cashAccountLabel(account) {
+  return [
+    account.name || account.id,
+    account.currency || "-",
+    account.account_type || "",
+  ].filter(Boolean).join(" / ");
 }
 
 function transactionTypeLabel(value) {

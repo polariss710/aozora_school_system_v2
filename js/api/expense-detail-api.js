@@ -30,6 +30,20 @@ const EXPENSE_DETAIL_COLUMNS = [
   "updated_at",
   "reimbursement_status",
   "reimbursement_note",
+  "source_type",
+  "source_id",
+  "payee_name_snapshot",
+  "cash_request_id",
+  "cash_request_event_id",
+  "cash_request_attempt_no",
+  "cash_request_status",
+  "cash_transaction_id",
+  "cash_requested_at",
+  "cash_synced_at",
+  "cash_error_message",
+  "cash_payment_amount",
+  "cash_payment_currency",
+  "cash_payment_note",
 ].join(",");
 
 const PAYMENT_REQUEST_COLUMNS = [
@@ -214,6 +228,36 @@ export async function createExpenseAttachmentMetadata(payload) {
   }
 
   return result;
+}
+
+export async function requestCashExpenseConfirmation(payload) {
+  const { data, error } = await supabase.functions.invoke("request-cash-expense-confirmation", {
+    body: {
+      expense_record_id: payload.expenseId,
+      cash_account_id: payload.cashAccountId,
+      actual_payment_amount: payload.actualPaymentAmount,
+      actual_payment_currency: payload.actualPaymentCurrency,
+      note: payload.note || null,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error("Cash System 支出确认请求提交失败：Function 没有返回结果。");
+  }
+
+  if (data.ok === false) {
+    throw new Error(data.details || data.message || "Cash System 支出确认请求提交失败。");
+  }
+
+  if (data.cash_request_status !== "pending") {
+    throw new Error("Cash System 支出确认请求未停留在待确认状态。");
+  }
+
+  return data;
 }
 
 async function fetchExpenseDetail(expenseId) {
