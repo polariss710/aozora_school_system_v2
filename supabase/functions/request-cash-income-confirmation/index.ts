@@ -89,6 +89,7 @@ const INCOME_CATEGORY_LABELS: Record<string, string> = {
   material_fee: "教材费收入",
   registration_fee: "报名费收入",
   other_fee: "其他收入",
+  part_time_work: "外部塾打工收入",
 };
 
 function jsonResponse(body: unknown, status = 200): Response {

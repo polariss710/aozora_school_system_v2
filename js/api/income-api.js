@@ -23,6 +23,7 @@ const INCOME_COLUMNS = [
   "source_type",
   "source_id",
   "source_label",
+  "source_snapshot",
   "app_type",
   "created_at",
   "updated_at",
@@ -36,6 +37,10 @@ const CASH_INCOME_LINKAGE_COLUMNS = [
   "cash_account_name_snapshot",
   "cash_account_type_snapshot",
   "currency",
+  "amount",
+  "payment_currency",
+  "payment_amount",
+  "payment_exchange_rate",
   "cash_request_id",
   "cash_request_status",
   "cash_transaction_id",
@@ -132,6 +137,36 @@ export async function createCashSystemIncome(payload) {
   return data;
 }
 
+export async function requestCashIncomeConfirmationForRecord(payload) {
+  const { data, error } = await supabase.functions.invoke(
+    "request-cash-income-confirmation",
+    {
+      body: {
+        income_record_id: payload.incomeRecordId,
+        cash_account_id: payload.cashAccountId,
+        actual_received_amount: payload.actualReceivedAmount,
+        actual_received_currency: payload.actualReceivedCurrency,
+        exchange_rate: payload.exchangeRate ?? null,
+        note: payload.note || null,
+      },
+    }
+  );
+
+  if (error) {
+    throw buildFunctionError(error, data, "Cash System 收入确认请求提交失败。");
+  }
+
+  if (!data?.ok) {
+    throw new Error(data?.details || data?.message || "Cash System 收入确认请求提交失败。");
+  }
+
+  if (data.cash_request_status !== "pending") {
+    throw new Error("Cash System 收入确认请求未停留在待确认状态。");
+  }
+
+  return data;
+}
+
 export async function fetchIncomeLookups() {
   const [studentsResult, businessEntitiesResult, accountsResult] = await Promise.all([
     supabase
@@ -203,4 +238,10 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
     ...row,
     cashIncomeLinkageEvent: linkageByIncomeId.get(row.id) || null,
   }));
+}
+
+function buildFunctionError(error, data, fallbackMessage) {
+  const details = data?.details || data?.message || data?.error_description || data?.error;
+  const message = details || error?.context?.json?.details || error?.context?.json?.message || error?.message || fallbackMessage;
+  return new Error(message);
 }

@@ -615,7 +615,7 @@ function readCashIncomeRequestPayload() {
     return null;
   }
 
-  const actualReceivedAmount = Number(dom.cashIncomeActualAmountInput.value);
+  const actualReceivedAmount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
   if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
     showCashIncomeRequestError("请输入大于 0 的实际到账金额。", ["actualAmount"]);
     return null;
@@ -639,14 +639,9 @@ function readCashIncomeRequestPayload() {
     return null;
   }
 
-  const exchangeRateText = dom.cashIncomeExchangeRateInput.value.trim();
-  const exchangeRate = exchangeRateText ? Number(exchangeRateText) : null;
+  const exchangeRate = calculatedCashIncomeExchangeRate(income, actualReceivedAmount, actualReceivedCurrency);
   if (actualReceivedCurrency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-    showCashIncomeRequestError("CNY 实际到账必须填写本次汇率。", ["exchangeRate"]);
-    return null;
-  }
-  if (actualReceivedCurrency === "JPY" && exchangeRate !== null && exchangeRate !== 1) {
-    showCashIncomeRequestError("JPY 实际到账汇率应为空或 1。", ["exchangeRate"]);
+    showCashIncomeRequestError("CNY 实际到账必须能根据 School JPY 原始金额计算参考汇率。", ["exchangeRate"]);
     return null;
   }
 
@@ -660,40 +655,43 @@ function readCashIncomeRequestPayload() {
   };
 }
 
-function updateCashIncomeRequestPreview(options = {}) {
+function updateCashIncomeRequestPreview() {
   const income = detailData?.income;
   if (!income) {
     dom.cashIncomeRequestPreview.textContent = "Cash 请求预览：-";
     return;
   }
 
-  const amount = Number(dom.cashIncomeActualAmountInput.value);
+  const amount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
   const currency = dom.cashIncomeActualCurrencySelect.value;
-  const originalJpy = Number(income.amount_jpy || (income.currency === "JPY" ? income.amount : 0));
-
-  if (currency === "JPY") {
-    dom.cashIncomeExchangeRateInput.value = "1";
-    dom.cashIncomeExchangeRateInput.disabled = true;
-  } else {
-    dom.cashIncomeExchangeRateInput.disabled = false;
-    if (options.inferExchangeRate && Number.isFinite(amount) && amount > 0 && originalJpy > 0 && !dom.cashIncomeExchangeRateInput.value.trim()) {
-      dom.cashIncomeExchangeRateInput.value = String(roundDecimal(amount / originalJpy, 7));
-    }
-  }
+  const exchangeRate = calculatedCashIncomeExchangeRate(income, amount, currency);
+  dom.cashIncomeExchangeRateInput.value = Number.isFinite(exchangeRate) ? String(exchangeRate) : "";
 
   if (!Number.isFinite(amount) || amount <= 0) {
     dom.cashIncomeRequestPreview.textContent = `Cash 请求预览：School 原始金额 ${formatCurrency(income.amount, income.currency)} / 实际到账 -`;
     return;
   }
 
-  const rate = dom.cashIncomeExchangeRateInput.value.trim();
   dom.cashIncomeRequestPreview.textContent = [
     "Cash 请求预览：",
     income.source_label || income.description || incomeCategoryLabel(income.income_category),
     `School 原始金额 ${formatCurrency(income.amount, income.currency)}`,
     `实际到账 ${formatCurrency(amount, currency)}`,
-    rate ? `汇率 ${rate}` : "",
+    Number.isFinite(exchangeRate) ? `参考汇率 ${exchangeRate}` : "",
   ].filter(Boolean).join(" / ");
+}
+
+function calculatedCashIncomeExchangeRate(income, actualAmount, actualCurrency) {
+  if (actualCurrency === "JPY") {
+    return 1;
+  }
+
+  const originalJpy = Number(income.amount_jpy || (income.currency === "JPY" ? income.amount : 0));
+  if (!Number.isFinite(actualAmount) || actualAmount <= 0 || !Number.isFinite(originalJpy) || originalJpy <= 0) {
+    return NaN;
+  }
+
+  return roundDecimal(actualAmount / originalJpy, 7);
 }
 
 function defaultCashIncomeNote(income) {
@@ -705,7 +703,7 @@ function defaultCashIncomeNote(income) {
 
 function buildCashIncomeRequestNote(income, amount, currency, exchangeRate) {
   const base = dom.cashIncomeNoteInput.value.trim();
-  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，汇率${exchangeRate}` : ""}`;
+  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
   if (!base) {
     return requiredText;
   }
@@ -1446,6 +1444,14 @@ function shortId(value) {
 
 function formatDateOnly(value) {
   return safeText(value) || "-";
+}
+
+function parseNumberInput(value) {
+  const normalized = String(value ?? "").replace(/,/g, "").trim();
+  if (!normalized) {
+    return NaN;
+  }
+  return Number(normalized);
 }
 
 function currentDate() {

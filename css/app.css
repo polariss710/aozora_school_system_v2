@@ -1941,6 +1941,26 @@ h2 {
   white-space: nowrap;
 }
 
+.income-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.income-cash-sync-cell {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  align-items: flex-start;
+}
+
+.income-cash-amount {
+  font-size: 0.78rem;
+  color: #4b5563;
+  white-space: nowrap;
+}
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;
