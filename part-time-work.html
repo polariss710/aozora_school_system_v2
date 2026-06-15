@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.117.0-part-time-work-export-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.118.0-part-time-work-summary-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -101,6 +101,26 @@
           <div id="partTimeWorkLessonColumns" class="part-time-work-workflow-grid" aria-live="polite"></div>
         </section>
 
+        <section class="panel table-panel" aria-labelledby="partTimeWorkEstimatedTitle">
+          <div class="section-heading">
+            <h2 id="partTimeWorkEstimatedTitle">预计工资</h2>
+          </div>
+          <div class="part-time-work-summary-grid" aria-live="polite">
+            <article class="summary-card part-time-work-summary-card">
+              <p class="summary-label">预计课时工资</p>
+              <p class="summary-value" id="partTimeWorkEstimatedLessonWage">JPY 0</p>
+            </article>
+            <article class="summary-card part-time-work-summary-card">
+              <p class="summary-label">预计交通费</p>
+              <p class="summary-value" id="partTimeWorkEstimatedTransportationFee">JPY 0</p>
+            </article>
+            <article class="summary-card part-time-work-summary-card">
+              <p class="summary-label">预计总额</p>
+              <p class="summary-value" id="partTimeWorkEstimatedTotal">JPY 0</p>
+            </article>
+          </div>
+        </section>
+
         <section class="panel table-panel" aria-labelledby="partTimeWorkSettlementTitle">
           <div class="section-heading">
             <h2 id="partTimeWorkSettlementTitle">月度工资结算</h2>
@@ -111,9 +131,8 @@
                 <tr>
                   <th>打工先</th>
                   <th class="number-cell">实际课时</th>
-                  <th class="number-cell">时给</th>
-                  <th class="number-cell">课时工资</th>
-                  <th class="number-cell">交通费合计</th>
+                  <th class="number-cell">实际课时工资</th>
+                  <th class="number-cell">交通费</th>
                   <th class="number-cell">调整额</th>
                   <th class="number-cell">工资总额</th>
                   <th>结算状态</th>
@@ -125,46 +144,6 @@
               <tbody id="partTimeWorkSettlementTableBody"></tbody>
             </table>
           </div>
-        </section>
-
-        <section class="panel table-panel" aria-labelledby="partTimeWorkListTitle">
-          <div class="section-heading section-heading-row lesson-list-heading">
-            <div>
-              <h2 id="partTimeWorkListTitle">普通列表备选</h2>
-            </div>
-            <div class="table-actions">
-              <div class="record-count part-time-work-list-count" id="partTimeWorkRecordCount">0 条</div>
-            </div>
-          </div>
-
-          <details class="part-time-work-list-details">
-            <summary>显示普通列表</summary>
-            <div class="table-scroll">
-              <table class="payment-table part-time-work-table">
-                <thead>
-                  <tr>
-                    <th>类型</th>
-                    <th>日期</th>
-                    <th>时间</th>
-                    <th>打工先</th>
-                    <th>科目</th>
-                    <th>工作内容</th>
-                    <th class="number-cell">预定课时</th>
-                    <th class="number-cell">实际课时</th>
-                    <th class="number-cell">回数</th>
-                    <th class="number-cell">累计课时</th>
-                    <th class="number-cell">时给</th>
-                    <th class="number-cell">交通费</th>
-                    <th class="number-cell">课时工资</th>
-                    <th>结算状态</th>
-                    <th>备注</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody id="partTimeWorkTableBody"></tbody>
-              </table>
-            </div>
-          </details>
         </section>
       </main>
     </div>
@@ -255,6 +234,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v2.117.0-part-time-work-export-20260615"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.118.0-part-time-work-summary-20260615"></script>
   </body>
 </html>

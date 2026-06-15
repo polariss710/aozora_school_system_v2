@@ -117,7 +117,6 @@ export async function savePartTimeWorkMonthlySettlement(payload) {
   const { data, error } = await supabase.rpc("school_save_part_time_work_monthly_settlement", {
     p_year_month: payload.yearMonth,
     p_workplace_name: payload.workplaceName,
-    p_hourly_rate_jpy: payload.hourlyRateJpy,
     p_adjustment_jpy: payload.adjustmentJpy,
     p_memo: payload.memo || null,
   });

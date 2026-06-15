@@ -100,11 +100,12 @@ function cacheDom() {
   dom.resetButton = document.querySelector("#partTimeWorkResetButton");
   dom.openCreateButton = document.querySelector("#openPartTimeWorkCreateButton");
   dom.lessonColumns = document.querySelector("#partTimeWorkLessonColumns");
+  dom.estimatedLessonWage = document.querySelector("#partTimeWorkEstimatedLessonWage");
+  dom.estimatedTransportationFee = document.querySelector("#partTimeWorkEstimatedTransportationFee");
+  dom.estimatedTotal = document.querySelector("#partTimeWorkEstimatedTotal");
   dom.settlementTableBody = document.querySelector("#partTimeWorkSettlementTableBody");
-  dom.recordCount = document.querySelector("#partTimeWorkRecordCount");
   dom.loadingState = document.querySelector("#partTimeWorkLoadingState");
   dom.emptyState = document.querySelector("#partTimeWorkEmptyState");
-  dom.tableBody = document.querySelector("#partTimeWorkTableBody");
   dom.dialog = document.querySelector("#partTimeWorkDialog");
   dom.dialogTitle = document.querySelector("#partTimeWorkDialogTitle");
   dom.dialogKindText = document.querySelector("#partTimeWorkDialogKindText");
@@ -144,7 +145,6 @@ function bindEvents() {
   dom.submitButton.addEventListener("click", submitDialog);
   dom.lessonColumns.addEventListener("click", handleWorkplaceToggleClick);
   dom.lessonColumns.addEventListener("click", handleLessonActionClick);
-  dom.tableBody.addEventListener("click", handleLessonActionClick);
   dom.settlementTableBody.addEventListener("click", handleSettlementActionClick);
 
   for (const input of [
@@ -209,10 +209,23 @@ function readFilters() {
 }
 
 function renderLessons(rows) {
-  dom.recordCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
   dom.lessonColumns.innerHTML = renderWorkflowColumns(rows);
-  dom.tableBody.innerHTML = rows.map(renderListRow).join("");
+  renderEstimatedSummary(rows);
+}
+
+function renderEstimatedSummary(rows) {
+  const plannedRows = rows.filter((row) => row.record_kind === "planned");
+  const lessonWageJpy = plannedRows.reduce((sum, row) => (
+    sum + Math.round(Number(row.planned_hours || 0) * Number(row.hourly_rate_jpy || 0))
+  ), 0);
+  const transportationFeeJpy = plannedRows.reduce((sum, row) => (
+    sum + Number(row.transportation_fee_jpy || 0)
+  ), 0);
+
+  dom.estimatedLessonWage.textContent = formatCurrency(lessonWageJpy, "JPY");
+  dom.estimatedTransportationFee.textContent = formatCurrency(transportationFeeJpy, "JPY");
+  dom.estimatedTotal.textContent = formatCurrency(lessonWageJpy + transportationFeeJpy, "JPY");
 }
 
 function renderWorkflowColumns(rows) {
@@ -308,45 +321,6 @@ function renderLessonCard(row, options = {}) {
   `;
 }
 
-function renderListRow(row) {
-  const isActual = row.record_kind === "actual";
-  const isLocked = row.settlement_status === "locked" || row.settlement_status === "income_request_created";
-  const canGenerate = row.record_kind === "planned" && !row.generated_actual_id;
-  const canEdit = !isActual || !isLocked;
-  const canDelete = row.record_kind === "planned" && !isLocked;
-  const canCopy = row.record_kind === "planned";
-  const confirmEdit = row.record_kind === "actual" || row.generated_actual_id ? "true" : "false";
-  const confirmDelete = row.record_kind === "planned" && row.generated_actual_id ? "true" : "false";
-
-  return `
-    <tr>
-      <td><span class="status-badge ${escapeAttribute(lessonStatusClass(row))}">${escapeHtml(lessonKindLabel(row.record_kind))}</span></td>
-      <td>${escapeHtml(formatDateOnly(row.work_date))}</td>
-      <td>${escapeHtml(timeRange(row.start_time, row.end_time))}</td>
-      <td>${escapeHtml(row.workplace_name || "-")}</td>
-      <td>${escapeHtml(row.subject_name || "-")}</td>
-      <td class="description-cell">${escapeHtml(row.class_description || "-")}</td>
-      <td class="number-cell">${escapeHtml(formatHours(row.planned_hours))}</td>
-      <td class="number-cell">${escapeHtml(formatHours(row.actual_hours))}</td>
-      <td class="number-cell">${escapeHtml(formatLessonCount(lessonCount(row)))}</td>
-      <td class="number-cell">${escapeHtml(formatHours(cumulativeHours(row)))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
-      <td>${escapeHtml(settlementStatusLabel(row.settlement_status))}</td>
-      <td class="description-cell">${escapeHtml(row.memo || "-")}</td>
-      <td class="action-cell">
-        <div class="action-buttons">
-          ${canGenerate ? `<button class="button table-action-button" type="button" data-part-time-work-generate-id="${escapeAttribute(row.id)}">生成实际</button>` : ""}
-          ${canCopy ? `<button class="button table-action-button" type="button" data-part-time-work-copy-id="${escapeAttribute(row.id)}">复制</button>` : ""}
-          ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${confirmEdit}">编辑</button>` : ""}
-          ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${confirmDelete}">删除</button>` : ""}
-        </div>
-      </td>
-    </tr>
-  `;
-}
-
 function renderSettlements(rows) {
   dom.settlementTableBody.innerHTML = rows.map(renderSettlementRow).join("");
 }
@@ -362,9 +336,6 @@ function renderSettlementRow(row) {
     <tr data-settlement-workplace="${escapeAttribute(row.workplace_name)}" data-settlement-id="${escapeAttribute(row.id || "")}">
       <td>${escapeHtml(row.workplace_name || "-")}</td>
       <td class="number-cell">${escapeHtml(formatHours(row.actual_hours_total))}</td>
-      <td class="number-cell">
-        <input class="inline-number-input" data-settlement-input="hourlyRateJpy" type="number" min="0" step="1" value="${escapeAttribute(row.hourly_rate_jpy ?? 0)}" ${saveDisabled}>
-      </td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
       <td class="number-cell">
@@ -740,7 +711,6 @@ function readSettlementPayload(row, workplaceName) {
   return {
     yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
     workplaceName,
-    hourlyRateJpy: parseInteger(row.querySelector('[data-settlement-input="hourlyRateJpy"]')?.value),
     adjustmentJpy: parseInteger(row.querySelector('[data-settlement-input="adjustmentJpy"]')?.value),
     memo: row.querySelector('[data-settlement-input="memo"]')?.value.trim() || "",
   };

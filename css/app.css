@@ -859,13 +859,18 @@ h2 {
   min-width: 1880px;
 }
 
-.part-time-work-list-count {
-  margin-bottom: 8px;
-  text-align: right;
-}
-
 .part-time-work-pair-card .action-buttons {
   gap: 6px;
+}
+
+.part-time-work-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.part-time-work-summary-card {
+  min-width: 0;
 }
 
 .part-time-work-workflow-grid {
@@ -915,23 +920,7 @@ h2 {
 }
 
 .part-time-work-settlement-table {
-  min-width: 1480px;
-}
-
-.part-time-work-table {
-  min-width: 1560px;
-}
-
-.part-time-work-list-details {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-}
-
-.part-time-work-list-details summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-weight: 700;
+  min-width: 1260px;
 }
 
 .inline-number-input {
@@ -2273,6 +2262,10 @@ h2 {
   }
 
   .part-time-work-workflow-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

@@ -7,7 +7,6 @@
 -- - Drops the obsolete school_part_time_work_records V1 table and RPCs.
 -- - Creates School-side external part-time work lessons, monthly settlements,
 --   settlement detail snapshots, and School-side income requests.
--- - course_group_name is deprecated and intentionally unused by active RPC/UI.
 -- - lesson_count and cumulative_hours are display-only progress fields and do not
 --   enter monthly wage calculation.
 -- - Locked Excel export reads settlement detail snapshots only.
@@ -20,6 +19,7 @@ begin;
 drop function if exists public.school_get_part_time_work_settlement_export(uuid);
 drop function if exists public.school_create_part_time_work_income_request(uuid);
 drop function if exists public.school_lock_part_time_work_monthly_settlement(uuid);
+drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, text);
 drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text);
 drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, integer, text);
 drop function if exists public.school_list_part_time_work_monthly_settlements(text);
@@ -65,7 +65,6 @@ create table if not exists public.school_part_time_work_lessons (
   teacher_name text not null default '吴峰',
   subject_name text not null,
   class_description text,
-  course_group_name text,
   planned_hours numeric(8,2) not null default 0,
   actual_hours numeric(8,2) not null default 0,
   lesson_count integer not null default 1,
@@ -82,10 +81,10 @@ create table if not exists public.school_part_time_work_lessons (
 alter table public.school_part_time_work_lessons
   add column if not exists start_time time,
   add column if not exists end_time time,
-  add column if not exists course_group_name text,
   add column if not exists lesson_count integer not null default 1,
   add column if not exists cumulative_hours numeric(8,2) not null default 0,
-  add column if not exists transportation_fee_jpy integer not null default 0;
+  add column if not exists transportation_fee_jpy integer not null default 0,
+  drop column if exists course_group_name;
 
 alter table public.school_part_time_work_lessons
   drop constraint if exists school_part_time_work_lessons_record_kind_check,
@@ -203,7 +202,6 @@ create table if not exists public.school_part_time_work_monthly_settlement_detai
   workplace_name text not null,
   subject_name text not null,
   class_description text,
-  course_group_name text,
   actual_hours numeric(8,2) not null default 0,
   lesson_count integer not null default 1,
   cumulative_hours numeric(8,2) not null default 0,
@@ -217,10 +215,10 @@ create table if not exists public.school_part_time_work_monthly_settlement_detai
 alter table public.school_part_time_work_monthly_settlement_details
   add column if not exists start_time time,
   add column if not exists end_time time,
-  add column if not exists course_group_name text,
   add column if not exists lesson_count integer not null default 1,
   add column if not exists cumulative_hours numeric(8,2) not null default 0,
-  add column if not exists transportation_fee_jpy integer not null default 0;
+  add column if not exists transportation_fee_jpy integer not null default 0,
+  drop column if exists course_group_name;
 
 alter table public.school_part_time_work_monthly_settlement_details
   alter column start_time set not null,
@@ -960,7 +958,6 @@ as $$
       l.workplace_name,
       count(*)::integer as actual_lesson_count,
       coalesce(sum(l.actual_hours), 0)::numeric as actual_hours_total,
-      coalesce(max(l.hourly_rate_jpy), 0)::integer as default_hourly_rate_jpy,
       coalesce(sum(l.lesson_wage_jpy), 0)::integer as default_lesson_wage_jpy,
       coalesce(sum(l.transportation_fee_jpy), 0)::integer as transportation_fee_jpy
     from public.school_part_time_work_lessons l
@@ -976,17 +973,17 @@ as $$
     coalesce(s.teacher_name, '吴峰') as teacher_name,
     case when s.status in ('locked', 'income_request_created') then s.actual_lesson_count else coalesce(a.actual_lesson_count, 0) end as actual_lesson_count,
     case when s.status in ('locked', 'income_request_created') then s.actual_hours_total else coalesce(a.actual_hours_total, 0) end as actual_hours_total,
-    coalesce(s.hourly_rate_jpy, a.default_hourly_rate_jpy, 0) as hourly_rate_jpy,
+    coalesce(s.hourly_rate_jpy, 0) as hourly_rate_jpy,
     case
       when s.status in ('locked', 'income_request_created') then s.lesson_wage_jpy
-      else round(coalesce(a.actual_hours_total, 0) * coalesce(s.hourly_rate_jpy, a.default_hourly_rate_jpy, 0))::integer
+      else coalesce(a.default_lesson_wage_jpy, 0)
     end as lesson_wage_jpy,
     case when s.status in ('locked', 'income_request_created') then s.transportation_fee_jpy else coalesce(a.transportation_fee_jpy, 0) end as transportation_fee_jpy,
     coalesce(s.adjustment_jpy, 0) as adjustment_jpy,
     case
       when s.status in ('locked', 'income_request_created') then s.total_wage_jpy
       else (
-        round(coalesce(a.actual_hours_total, 0) * coalesce(s.hourly_rate_jpy, a.default_hourly_rate_jpy, 0))::integer
+        coalesce(a.default_lesson_wage_jpy, 0)
         + coalesce(a.transportation_fee_jpy, 0)
         + coalesce(s.adjustment_jpy, 0)
       )
@@ -1013,7 +1010,6 @@ $$;
 create or replace function public.school_save_part_time_work_monthly_settlement(
   p_year_month text,
   p_workplace_name text,
-  p_hourly_rate_jpy integer default 0,
   p_adjustment_jpy integer default 0,
   p_memo text default null
 )
@@ -1046,16 +1042,11 @@ declare
   v_existing public.school_part_time_work_monthly_settlements%rowtype;
   v_actual_lesson_count integer;
   v_actual_hours_total numeric(10,2);
-  v_hourly_rate_jpy integer := coalesce(p_hourly_rate_jpy, 0);
   v_transportation_fee_jpy integer;
   v_adjustment_jpy integer := coalesce(p_adjustment_jpy, 0);
   v_lesson_wage_jpy integer;
   v_total_wage_jpy integer;
 begin
-  if v_hourly_rate_jpy < 0 then
-    raise exception '时给不能小于 0。';
-  end if;
-
   select *
   into v_existing
   from public.school_part_time_work_monthly_settlements s
@@ -1071,15 +1062,15 @@ begin
   select
     count(*)::integer,
     coalesce(sum(l.actual_hours), 0)::numeric(10,2),
+    coalesce(sum(l.lesson_wage_jpy), 0)::integer,
     coalesce(sum(l.transportation_fee_jpy), 0)::integer
-  into v_actual_lesson_count, v_actual_hours_total, v_transportation_fee_jpy
+  into v_actual_lesson_count, v_actual_hours_total, v_lesson_wage_jpy, v_transportation_fee_jpy
   from public.school_part_time_work_lessons l
   where l.year_month = v_year_month
     and l.workplace_name = v_workplace_name
     and l.record_kind = 'actual'
     and l.deleted_at is null;
 
-  v_lesson_wage_jpy := round(v_actual_hours_total * v_hourly_rate_jpy);
   v_total_wage_jpy := v_lesson_wage_jpy + v_transportation_fee_jpy + v_adjustment_jpy;
 
   if v_total_wage_jpy < 0 then
@@ -1091,7 +1082,7 @@ begin
     set
       actual_lesson_count = v_actual_lesson_count,
       actual_hours_total = v_actual_hours_total,
-      hourly_rate_jpy = v_hourly_rate_jpy,
+      hourly_rate_jpy = 0,
       lesson_wage_jpy = v_lesson_wage_jpy,
       transportation_fee_jpy = v_transportation_fee_jpy,
       adjustment_jpy = v_adjustment_jpy,
@@ -1120,7 +1111,7 @@ begin
       v_workplace_name,
       v_actual_lesson_count,
       v_actual_hours_total,
-      v_hourly_rate_jpy,
+      0,
       v_lesson_wage_jpy,
       v_transportation_fee_jpy,
       v_adjustment_jpy,
@@ -1215,8 +1206,8 @@ begin
     l.actual_hours,
     l.lesson_count,
     l.cumulative_hours,
-    v_settlement.hourly_rate_jpy,
-    round(l.actual_hours * v_settlement.hourly_rate_jpy)::integer,
+    l.hourly_rate_jpy,
+    l.lesson_wage_jpy,
     l.transportation_fee_jpy,
     l.memo
   from public.school_part_time_work_lessons l
@@ -1409,7 +1400,7 @@ revoke all on function public.school_update_part_time_work_lesson(uuid, date, ti
 revoke all on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, numeric, integer, integer, text) from public, anon, authenticated;
 revoke all on function public.school_delete_part_time_work_lesson(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.school_list_part_time_work_monthly_settlements(text) from public, anon, authenticated;
-revoke all on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text) from public, anon, authenticated;
+revoke all on function public.school_save_part_time_work_monthly_settlement(text, text, integer, text) from public, anon, authenticated;
 revoke all on function public.school_lock_part_time_work_monthly_settlement(uuid) from public, anon, authenticated;
 revoke all on function public.school_create_part_time_work_income_request(uuid) from public, anon, authenticated;
 revoke all on function public.school_get_part_time_work_settlement_export(uuid) from public, anon, authenticated;
@@ -1420,7 +1411,7 @@ grant execute on function public.school_update_part_time_work_lesson(uuid, date,
 grant execute on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, numeric, integer, integer, text) to authenticated;
 grant execute on function public.school_delete_part_time_work_lesson(uuid, boolean) to authenticated;
 grant execute on function public.school_list_part_time_work_monthly_settlements(text) to authenticated;
-grant execute on function public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text) to authenticated;
+grant execute on function public.school_save_part_time_work_monthly_settlement(text, text, integer, text) to authenticated;
 grant execute on function public.school_lock_part_time_work_monthly_settlement(uuid) to authenticated;
 grant execute on function public.school_create_part_time_work_income_request(uuid) to authenticated;
 grant execute on function public.school_get_part_time_work_settlement_export(uuid) to authenticated;
