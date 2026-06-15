@@ -895,6 +895,90 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.part-time-work-wage-grid {
+  display: grid;
+  min-width: 0;
+  gap: 16px;
+}
+
+.part-time-work-wage-section {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  padding: 14px;
+}
+
+.part-time-work-wage-title {
+  border-bottom: 1px solid var(--line);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  padding-bottom: 10px;
+}
+
+.part-time-work-wage-block {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+.part-time-work-wage-block h3 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.part-time-work-settlement-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.part-time-work-settlement-metric {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 9px 10px;
+}
+
+.part-time-work-settlement-metric span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.part-time-work-settlement-metric strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 16px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.part-time-work-settlement-field {
+  margin: 0;
+}
+
+.part-time-work-settlement-field input {
+  width: 100%;
+}
+
+.part-time-work-settlement-memo {
+  grid-column: span 2;
+}
+
+.part-time-work-settlement-actions {
+  justify-content: flex-end;
+}
+
 .part-time-work-workflow-grid {
   display: grid;
   align-items: start;
@@ -939,10 +1023,6 @@ h2 {
   justify-content: space-between;
   gap: 10px;
   min-height: 100%;
-}
-
-.part-time-work-settlement-table {
-  min-width: 1260px;
 }
 
 .inline-number-input {
@@ -2289,6 +2369,18 @@ h2 {
 
   .part-time-work-summary-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-settlement-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-settlement-memo {
+    grid-column: auto;
+  }
+
+  .part-time-work-settlement-actions {
+    justify-content: flex-start;
   }
 
   .lesson-edit-dialog-panel .lesson-create-field-grid,

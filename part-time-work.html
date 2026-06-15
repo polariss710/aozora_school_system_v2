@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.118.0-part-time-work-summary-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.119.0-part-time-work-workplace-settlement-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -101,49 +101,11 @@
           <div id="partTimeWorkLessonColumns" class="part-time-work-workflow-grid" aria-live="polite"></div>
         </section>
 
-        <section class="panel table-panel" aria-labelledby="partTimeWorkEstimatedTitle">
+        <section class="panel table-panel" aria-labelledby="partTimeWorkWageCalculationTitle">
           <div class="section-heading">
-            <h2 id="partTimeWorkEstimatedTitle">预计工资</h2>
+            <h2 id="partTimeWorkWageCalculationTitle">工资计算</h2>
           </div>
-          <div class="part-time-work-summary-grid" aria-live="polite">
-            <article class="summary-card part-time-work-summary-card">
-              <p class="summary-label">预计课时工资</p>
-              <p class="summary-value" id="partTimeWorkEstimatedLessonWage">JPY 0</p>
-            </article>
-            <article class="summary-card part-time-work-summary-card">
-              <p class="summary-label">预计交通费</p>
-              <p class="summary-value" id="partTimeWorkEstimatedTransportationFee">JPY 0</p>
-            </article>
-            <article class="summary-card part-time-work-summary-card">
-              <p class="summary-label">预计总额</p>
-              <p class="summary-value" id="partTimeWorkEstimatedTotal">JPY 0</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel table-panel" aria-labelledby="partTimeWorkSettlementTitle">
-          <div class="section-heading">
-            <h2 id="partTimeWorkSettlementTitle">月度工资结算</h2>
-          </div>
-          <div class="table-scroll">
-            <table class="payment-table part-time-work-settlement-table">
-              <thead>
-                <tr>
-                  <th>打工先</th>
-                  <th class="number-cell">实际课时</th>
-                  <th class="number-cell">实际课时工资</th>
-                  <th class="number-cell">交通费</th>
-                  <th class="number-cell">调整额</th>
-                  <th class="number-cell">工资总额</th>
-                  <th>结算状态</th>
-                  <th>收入请求状态</th>
-                  <th>备注</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody id="partTimeWorkSettlementTableBody"></tbody>
-            </table>
-          </div>
+          <div id="partTimeWorkWageCalculationContainer" class="part-time-work-wage-grid" aria-live="polite"></div>
         </section>
       </main>
     </div>
@@ -234,6 +196,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v2.118.0-part-time-work-summary-20260615"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.119.0-part-time-work-workplace-settlement-20260615"></script>
   </body>
 </html>

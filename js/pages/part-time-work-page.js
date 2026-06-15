@@ -75,7 +75,7 @@ export async function initPartTimeWorkPage() {
   renderOptionSelect(dom.subjectNameInput, SUBJECT_OPTIONS);
   bindEvents();
   renderLessons([]);
-  renderSettlements([]);
+  renderWageCalculation([], []);
 
   if (!hasSupabaseConfig()) {
     showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。当前页面不会发起数据请求。");
@@ -100,10 +100,7 @@ function cacheDom() {
   dom.resetButton = document.querySelector("#partTimeWorkResetButton");
   dom.openCreateButton = document.querySelector("#openPartTimeWorkCreateButton");
   dom.lessonColumns = document.querySelector("#partTimeWorkLessonColumns");
-  dom.estimatedLessonWage = document.querySelector("#partTimeWorkEstimatedLessonWage");
-  dom.estimatedTransportationFee = document.querySelector("#partTimeWorkEstimatedTransportationFee");
-  dom.estimatedTotal = document.querySelector("#partTimeWorkEstimatedTotal");
-  dom.settlementTableBody = document.querySelector("#partTimeWorkSettlementTableBody");
+  dom.wageCalculationContainer = document.querySelector("#partTimeWorkWageCalculationContainer");
   dom.loadingState = document.querySelector("#partTimeWorkLoadingState");
   dom.emptyState = document.querySelector("#partTimeWorkEmptyState");
   dom.dialog = document.querySelector("#partTimeWorkDialog");
@@ -145,7 +142,8 @@ function bindEvents() {
   dom.submitButton.addEventListener("click", submitDialog);
   dom.lessonColumns.addEventListener("click", handleWorkplaceToggleClick);
   dom.lessonColumns.addEventListener("click", handleLessonActionClick);
-  dom.settlementTableBody.addEventListener("click", handleSettlementActionClick);
+  dom.wageCalculationContainer.addEventListener("click", handleSettlementActionClick);
+  dom.wageCalculationContainer.addEventListener("input", handleSettlementInputChange);
 
   for (const input of [
     dom.workDateInput,
@@ -172,7 +170,7 @@ function bindEvents() {
 async function loadPageData() {
   if (!isLoggedIn()) {
     renderLessons([]);
-    renderSettlements([]);
+    renderWageCalculation([], []);
     showMessage("error", "请先登录后查看或编辑私塾打工记录。");
     return;
   }
@@ -182,19 +180,20 @@ async function loadPageData() {
   showMessage("", "");
 
   try {
-    const [lessonRows, settlementRows] = await Promise.all([
+    const [lessonRows, wageLessonRows, settlementRows] = await Promise.all([
       fetchPartTimeWorkLessons(filters),
+      fetchPartTimeWorkLessons({ yearMonth: filters.yearMonth }),
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
     ]);
     lessons = lessonRows || [];
     settlements = settlementRows || [];
     renderLessons(lessons);
-    renderSettlements(settlements);
+    renderWageCalculation(wageLessonRows || [], settlements);
   } catch (error) {
     lessons = [];
     settlements = [];
     renderLessons([]);
-    renderSettlements([]);
+    renderWageCalculation([], []);
     showMessage("error", `私塾打工数据读取失败：${error.message || error}`);
   } finally {
     setLoading(false);
@@ -211,11 +210,10 @@ function readFilters() {
 function renderLessons(rows) {
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
   dom.lessonColumns.innerHTML = renderWorkflowColumns(rows);
-  renderEstimatedSummary(rows);
 }
 
-function renderEstimatedSummary(rows) {
-  const plannedRows = rows.filter((row) => row.record_kind === "planned");
+function buildEstimatedSummary(rows, workplaceName) {
+  const plannedRows = rows.filter((row) => row.record_kind === "planned" && row.workplace_name === workplaceName);
   const lessonWageJpy = plannedRows.reduce((sum, row) => (
     sum + Math.round(Number(row.planned_hours || 0) * Number(row.hourly_rate_jpy || 0))
   ), 0);
@@ -223,9 +221,11 @@ function renderEstimatedSummary(rows) {
     sum + Number(row.transportation_fee_jpy || 0)
   ), 0);
 
-  dom.estimatedLessonWage.textContent = formatCurrency(lessonWageJpy, "JPY");
-  dom.estimatedTransportationFee.textContent = formatCurrency(transportationFeeJpy, "JPY");
-  dom.estimatedTotal.textContent = formatCurrency(lessonWageJpy + transportationFeeJpy, "JPY");
+  return {
+    lessonWageJpy,
+    transportationFeeJpy,
+    totalJpy: lessonWageJpy + transportationFeeJpy,
+  };
 }
 
 function renderWorkflowColumns(rows) {
@@ -321,11 +321,32 @@ function renderLessonCard(row, options = {}) {
   `;
 }
 
-function renderSettlements(rows) {
-  dom.settlementTableBody.innerHTML = rows.map(renderSettlementRow).join("");
+function renderWageCalculation(lessonRows, settlementRows) {
+  dom.wageCalculationContainer.innerHTML = WORKPLACE_OPTIONS.map((workplaceName) => {
+    const estimated = buildEstimatedSummary(lessonRows, workplaceName);
+    const settlement = settlementRows.find((row) => row.workplace_name === workplaceName)
+      || buildEmptySettlementRow(workplaceName);
+    return renderWageWorkplaceSection(workplaceName, estimated, settlement);
+  }).join("");
 }
 
-function renderSettlementRow(row) {
+function buildEmptySettlementRow(workplaceName) {
+  return {
+    id: "",
+    workplace_name: workplaceName,
+    actual_hours_total: 0,
+    lesson_wage_jpy: 0,
+    transportation_fee_jpy: 0,
+    adjustment_jpy: 0,
+    total_wage_jpy: 0,
+    status: "draft",
+    income_request_status: "",
+    income_request_id: "",
+    memo: "",
+  };
+}
+
+function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const isLocked = row.status === "locked" || row.status === "income_request_created";
   const isDraft = row.status === "draft";
   const canLock = row.status === "draft" && Number(row.actual_lesson_count || 0) > 0;
@@ -335,29 +356,65 @@ function renderSettlementRow(row) {
   const saveDisabled = isLocked ? "disabled" : "";
 
   return `
-    <tr data-settlement-workplace="${escapeAttribute(row.workplace_name)}" data-settlement-id="${escapeAttribute(row.id || "")}">
-      <td>${escapeHtml(row.workplace_name || "-")}</td>
-      <td class="number-cell">${escapeHtml(formatHours(row.actual_hours_total))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</td>
-      <td class="number-cell">
-        <input class="inline-number-input" data-settlement-input="adjustmentJpy" type="number" step="1" value="${escapeAttribute(row.adjustment_jpy ?? 0)}" ${saveDisabled}>
-      </td>
-      <td class="number-cell">${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</td>
-      <td><span class="status-badge ${escapeAttribute(settlementStatusClass(row.status))}">${escapeHtml(settlementStatusLabel(row.status))}</span></td>
-      <td>${escapeHtml(incomeRequestStatusLabel(row.income_request_status))}</td>
-      <td>
-        <input class="inline-text-input" data-settlement-input="memo" type="text" value="${escapeAttribute(row.memo || "")}" ${saveDisabled}>
-      </td>
-      <td class="action-cell">
-        <div class="action-buttons">
+    <section class="part-time-work-wage-section" data-settlement-row data-settlement-workplace="${escapeAttribute(workplaceName)}" data-settlement-id="${escapeAttribute(row.id || "")}">
+      <div class="part-time-work-wage-title">${escapeHtml(workplaceName)}</div>
+
+      <div class="part-time-work-wage-block">
+        <h3>预计工资</h3>
+        <div class="part-time-work-summary-grid">
+          <article class="summary-card part-time-work-summary-card">
+            <p class="summary-label">预计课时工资</p>
+            <p class="summary-value">${escapeHtml(formatCurrency(estimated.lessonWageJpy, "JPY"))}</p>
+          </article>
+          <article class="summary-card part-time-work-summary-card">
+            <p class="summary-label">预计交通费</p>
+            <p class="summary-value">${escapeHtml(formatCurrency(estimated.transportationFeeJpy, "JPY"))}</p>
+          </article>
+          <article class="summary-card part-time-work-summary-card">
+            <p class="summary-label">预计总额</p>
+            <p class="summary-value">${escapeHtml(formatCurrency(estimated.totalJpy, "JPY"))}</p>
+          </article>
+        </div>
+      </div>
+
+      <div class="part-time-work-wage-block">
+        <h3>实际工资结算</h3>
+        <div class="part-time-work-settlement-grid">
+          ${renderSettlementMetric("实际课时", `${formatHours(row.actual_hours_total)} h`)}
+          ${renderSettlementMetric("实际课时工资", formatCurrency(row.lesson_wage_jpy, "JPY"))}
+          ${renderSettlementMetric("交通费", formatCurrency(row.transportation_fee_jpy, "JPY"))}
+          <label class="field part-time-work-settlement-field">
+            <span>调整额</span>
+            <input class="inline-number-input" data-settlement-input="adjustmentJpy" type="number" step="1" value="${escapeAttribute(row.adjustment_jpy ?? 0)}" ${saveDisabled}>
+          </label>
+          <div class="part-time-work-settlement-metric">
+            <span>工资总额</span>
+            <strong data-settlement-total>${escapeHtml(formatCurrency(row.total_wage_jpy, "JPY"))}</strong>
+          </div>
+          ${renderSettlementMetric("结算状态", `<span class="status-badge ${escapeAttribute(settlementStatusClass(row.status))}">${escapeHtml(settlementStatusLabel(row.status))}</span>`, { raw: true })}
+          ${renderSettlementMetric("收入请求状态", incomeRequestStatusLabel(row.income_request_status))}
+          <label class="field part-time-work-settlement-field part-time-work-settlement-memo">
+            <span>备注</span>
+            <input class="inline-text-input" data-settlement-input="memo" type="text" value="${escapeAttribute(row.memo || "")}" ${saveDisabled}>
+          </label>
+        </div>
+        <div class="action-buttons part-time-work-settlement-actions">
           ${isDraft ? `<button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>` : ""}
           ${canUnlock ? `<button class="button table-action-button" type="button" data-settlement-action="unlock">撤销锁定</button>` : ""}
-          ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
           ${canCreateRequest ? `<button class="button table-action-button" type="button" data-settlement-action="request">生成收入请求</button>` : ""}
+          ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
         </div>
-      </td>
-    </tr>
+      </div>
+    </section>
+  `;
+}
+
+function renderSettlementMetric(label, value, options = {}) {
+  return `
+    <div class="part-time-work-settlement-metric">
+      <span>${escapeHtml(label)}</span>
+      <strong>${options.raw ? value : escapeHtml(value)}</strong>
+    </div>
   `;
 }
 
@@ -585,7 +642,7 @@ async function handleSettlementActionClick(event) {
     return;
   }
 
-  const row = button.closest("tr");
+  const row = button.closest("[data-settlement-row]");
   const action = button.dataset.settlementAction;
   const settlementId = row?.dataset.settlementId || "";
   const workplaceName = row?.dataset.settlementWorkplace || "";
@@ -722,6 +779,32 @@ function readSettlementPayload(row, workplaceName) {
     adjustmentJpy: parseInteger(row.querySelector('[data-settlement-input="adjustmentJpy"]')?.value),
     memo: row.querySelector('[data-settlement-input="memo"]')?.value.trim() || "",
   };
+}
+
+function handleSettlementInputChange(event) {
+  const input = event.target.closest('[data-settlement-input="adjustmentJpy"]');
+  if (!input) {
+    return;
+  }
+
+  const row = input.closest("[data-settlement-row]");
+  const totalElement = row?.querySelector("[data-settlement-total]");
+  const workplaceName = row?.dataset.settlementWorkplace || "";
+  const settlement = settlements.find((item) => item.workplace_name === workplaceName);
+  if (!row || !totalElement || !settlement || settlement.status !== "draft") {
+    return;
+  }
+
+  const adjustmentJpy = parseInteger(input.value);
+  if (!Number.isFinite(adjustmentJpy)) {
+    totalElement.textContent = "-";
+    return;
+  }
+
+  const totalJpy = Number(settlement.lesson_wage_jpy || 0)
+    + Number(settlement.transportation_fee_jpy || 0)
+    + adjustmentJpy;
+  totalElement.textContent = formatCurrency(totalJpy, "JPY");
 }
 
 function readDialogPayload() {
