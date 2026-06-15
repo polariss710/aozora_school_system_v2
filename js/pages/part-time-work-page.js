@@ -10,7 +10,7 @@ import {
   fetchPartTimeWorkSettlementExport,
   generatePartTimeWorkActualFromPlanned,
   lockPartTimeWorkMonthlySettlement,
-  savePartTimeWorkMonthlySettlement,
+  unlockPartTimeWorkMonthlySettlement,
   updatePartTimeWorkLesson,
 } from "../api/part-time-work-api.js";
 import {
@@ -327,7 +327,9 @@ function renderSettlements(rows) {
 
 function renderSettlementRow(row) {
   const isLocked = row.status === "locked" || row.status === "income_request_created";
-  const canLock = Boolean(row.id) && row.status === "draft" && Number(row.actual_lesson_count || 0) > 0;
+  const isDraft = row.status === "draft";
+  const canLock = row.status === "draft" && Number(row.actual_lesson_count || 0) > 0;
+  const canUnlock = row.status === "locked" && !row.income_request_id;
   const canCreateRequest = row.status === "locked" && !row.income_request_id;
   const canExport = Boolean(row.id) && isLocked;
   const saveDisabled = isLocked ? "disabled" : "";
@@ -349,10 +351,10 @@ function renderSettlementRow(row) {
       </td>
       <td class="action-cell">
         <div class="action-buttons">
-          <button class="button table-action-button" type="button" data-settlement-action="save" ${saveDisabled}>保存</button>
-          <button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定</button>
-          <button class="button table-action-button" type="button" data-settlement-action="export" ${canExport ? "" : "disabled"}>导出 Excel</button>
-          <button class="button table-action-button" type="button" data-settlement-action="request" ${canCreateRequest ? "" : "disabled"}>生成收入请求</button>
+          ${isDraft ? `<button class="button table-action-button" type="button" data-settlement-action="lock" ${canLock ? "" : "disabled"}>锁定结算</button>` : ""}
+          ${canUnlock ? `<button class="button table-action-button" type="button" data-settlement-action="unlock">撤销锁定</button>` : ""}
+          ${canExport ? `<button class="button table-action-button" type="button" data-settlement-action="export">导出 Excel</button>` : ""}
+          ${canCreateRequest ? `<button class="button table-action-button" type="button" data-settlement-action="request">生成收入请求</button>` : ""}
         </div>
       </td>
     </tr>
@@ -589,15 +591,21 @@ async function handleSettlementActionClick(event) {
   const workplaceName = row?.dataset.settlementWorkplace || "";
 
   try {
-    if (action === "save") {
-      await savePartTimeWorkMonthlySettlement(readSettlementPayload(row, workplaceName));
-      showMessage("success", `${workplaceName} 月度工资结算已保存。`);
-    } else if (action === "lock") {
-      if (!window.confirm(`确认锁定 ${workplaceName} 的月度工资结算？锁定后关联实际课时不能再编辑。`)) {
+    if (action === "lock") {
+      if (!window.confirm(`确认锁定 ${workplaceName} 的月度工资结算？当前调整额和备注会一并保存，锁定后关联实际课时不能再编辑。`)) {
         return;
       }
-      await lockPartTimeWorkMonthlySettlement(settlementId);
+      await lockPartTimeWorkMonthlySettlement(readSettlementPayload(row, workplaceName));
       showMessage("success", `${workplaceName} 月度工资结算已锁定。`);
+    } else if (action === "unlock") {
+      if (!window.confirm(`确认撤销 ${workplaceName} 的月度工资结算锁定？锁定快照会被删除，调整额和备注将重新可编辑。`)) {
+        return;
+      }
+      if (!window.confirm("再次确认撤销锁定？已生成收入请求的结算不能撤销。")) {
+        return;
+      }
+      await unlockPartTimeWorkMonthlySettlement(settlementId);
+      showMessage("success", `${workplaceName} 月度工资结算已撤销锁定。`);
     } else if (action === "request") {
       if (!window.confirm(`确认为 ${workplaceName} 生成 School 侧收入请求？本轮不会写入 Cash。`)) {
         return;
@@ -616,7 +624,7 @@ async function handleSettlementActionClick(event) {
 
 async function handleSettlementExport(settlementId, workplaceName) {
   if (!settlementId) {
-    showMessage("error", "请先保存并锁定月度工资结算后再导出。");
+    showMessage("error", "请先锁定月度工资结算后再导出。");
     return;
   }
 

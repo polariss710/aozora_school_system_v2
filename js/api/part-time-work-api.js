@@ -113,8 +113,8 @@ export async function deletePartTimeWorkLesson(id, options = {}) {
   return firstResult(data, "打工课时删除失败：RPC 没有返回结果。");
 }
 
-export async function savePartTimeWorkMonthlySettlement(payload) {
-  const { data, error } = await supabase.rpc("school_save_part_time_work_monthly_settlement", {
+export async function lockPartTimeWorkMonthlySettlement(payload) {
+  const { data, error } = await supabase.rpc("school_lock_part_time_work_monthly_settlement", {
     p_year_month: payload.yearMonth,
     p_workplace_name: payload.workplaceName,
     p_adjustment_jpy: payload.adjustmentJpy,
@@ -125,11 +125,11 @@ export async function savePartTimeWorkMonthlySettlement(payload) {
     throw error;
   }
 
-  return firstResult(data, "月度工资结算保存失败：RPC 没有返回结果。");
+  return firstResult(data, "月度工资结算锁定失败：RPC 没有返回结果。");
 }
 
-export async function lockPartTimeWorkMonthlySettlement(id) {
-  const { data, error } = await supabase.rpc("school_lock_part_time_work_monthly_settlement", {
+export async function unlockPartTimeWorkMonthlySettlement(id) {
+  const { data, error } = await supabase.rpc("school_unlock_part_time_work_monthly_settlement", {
     p_settlement_id: id,
   });
 
@@ -137,7 +137,7 @@ export async function lockPartTimeWorkMonthlySettlement(id) {
     throw error;
   }
 
-  return firstResult(data, "月度工资结算锁定失败：RPC 没有返回结果。");
+  return firstResult(data, "月度工资结算撤销锁定失败：RPC 没有返回结果。");
 }
 
 export async function createPartTimeWorkIncomeRequest(settlementId) {

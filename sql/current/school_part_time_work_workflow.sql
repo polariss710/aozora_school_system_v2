@@ -18,7 +18,9 @@ begin;
 
 drop function if exists public.school_get_part_time_work_settlement_export(uuid);
 drop function if exists public.school_create_part_time_work_income_request(uuid);
+drop function if exists public.school_unlock_part_time_work_monthly_settlement(uuid);
 drop function if exists public.school_lock_part_time_work_monthly_settlement(uuid);
+drop function if exists public.school_lock_part_time_work_monthly_settlement(text, text, integer, text);
 drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, text);
 drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, text);
 drop function if exists public.school_save_part_time_work_monthly_settlement(text, text, integer, integer, integer, text);
@@ -1007,7 +1009,7 @@ as $$
   order by case w.workplace_name when '诺应教育' then 1 when '致远教育' then 2 else 3 end;
 $$;
 
-create or replace function public.school_save_part_time_work_monthly_settlement(
+create or replace function public.school_lock_part_time_work_monthly_settlement(
   p_year_month text,
   p_workplace_name text,
   p_adjustment_jpy integer default 0,
@@ -1039,24 +1041,25 @@ as $$
 declare
   v_year_month text := public.school_part_time_work_validate_year_month(p_year_month);
   v_workplace_name text := public.school_part_time_work_validate_workplace(p_workplace_name);
-  v_existing public.school_part_time_work_monthly_settlements%rowtype;
+  v_settlement public.school_part_time_work_monthly_settlements%rowtype;
   v_actual_lesson_count integer;
   v_actual_hours_total numeric(10,2);
+  v_lesson_wage_jpy integer;
   v_transportation_fee_jpy integer;
   v_adjustment_jpy integer := coalesce(p_adjustment_jpy, 0);
-  v_lesson_wage_jpy integer;
   v_total_wage_jpy integer;
+  v_detail_count integer;
 begin
   select *
-  into v_existing
+  into v_settlement
   from public.school_part_time_work_monthly_settlements s
   where s.year_month = v_year_month
     and s.workplace_name = v_workplace_name
     and s.deleted_at is null
   for update;
 
-  if found and v_existing.status in ('locked', 'income_request_created') then
-    raise exception '该月度工资结算已锁定，不能保存草稿。';
+  if found and v_settlement.status <> 'draft' then
+    raise exception '只有草稿状态的月度工资结算可以锁定。';
   end if;
 
   select
@@ -1071,13 +1074,17 @@ begin
     and l.record_kind = 'actual'
     and l.deleted_at is null;
 
+  if v_actual_lesson_count <= 0 then
+    raise exception '没有实际打工课时，不能锁定工资结算。';
+  end if;
+
   v_total_wage_jpy := v_lesson_wage_jpy + v_transportation_fee_jpy + v_adjustment_jpy;
 
   if v_total_wage_jpy < 0 then
     raise exception '工资总额不能小于 0。';
   end if;
 
-  if v_existing.id is not null then
+  if v_settlement.id is not null then
     update public.school_part_time_work_monthly_settlements s
     set
       actual_lesson_count = v_actual_lesson_count,
@@ -1087,10 +1094,10 @@ begin
       transportation_fee_jpy = v_transportation_fee_jpy,
       adjustment_jpy = v_adjustment_jpy,
       total_wage_jpy = v_total_wage_jpy,
-      status = 'draft',
       memo = nullif(trim(coalesce(p_memo, '')), ''),
       updated_at = now()
-    where s.id = v_existing.id;
+    where s.id = v_settlement.id
+    returning * into v_settlement;
   else
     insert into public.school_part_time_work_monthly_settlements (
       year_month,
@@ -1119,59 +1126,8 @@ begin
       'draft',
       nullif(trim(coalesce(p_memo, '')), ''),
       now()
-    );
-  end if;
-
-  return query
-  select *
-  from public.school_list_part_time_work_monthly_settlements(v_year_month) r
-  where r.workplace_name = v_workplace_name;
-end;
-$$;
-
-create or replace function public.school_lock_part_time_work_monthly_settlement(p_settlement_id uuid)
-returns table (
-  id uuid,
-  year_month text,
-  workplace_name text,
-  teacher_name text,
-  actual_lesson_count integer,
-  actual_hours_total numeric,
-  hourly_rate_jpy integer,
-  lesson_wage_jpy integer,
-  transportation_fee_jpy integer,
-  adjustment_jpy integer,
-  total_wage_jpy integer,
-  status text,
-  locked_at timestamptz,
-  income_request_id uuid,
-  income_request_status text,
-  memo text,
-  updated_at timestamptz
-)
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_settlement public.school_part_time_work_monthly_settlements%rowtype;
-  v_detail_count integer;
-begin
-  select *
-  into v_settlement
-  from public.school_part_time_work_monthly_settlements s
-  where s.id = p_settlement_id
-    and s.deleted_at is null
-  for update;
-
-  if not found then
-    raise exception '月度工资结算不存在。';
-  end if;
-  if v_settlement.status <> 'draft' then
-    raise exception '只有草稿状态的月度工资结算可以锁定。';
-  end if;
-  if v_settlement.actual_lesson_count <= 0 then
-    raise exception '没有实际打工课时，不能锁定工资结算。';
+    )
+    returning * into v_settlement;
   end if;
 
   delete from public.school_part_time_work_monthly_settlement_details
@@ -1220,12 +1176,77 @@ begin
   get diagnostics v_detail_count = row_count;
 
   if v_detail_count <> v_settlement.actual_lesson_count then
-    raise exception '锁定明细数量不一致，请重新保存结算草稿后再锁定。';
+    raise exception '锁定明细数量不一致，请刷新后重新锁定结算。';
   end if;
 
   update public.school_part_time_work_monthly_settlements
   set status = 'locked',
       locked_at = now(),
+      updated_at = now()
+  where school_part_time_work_monthly_settlements.id = v_settlement.id;
+
+  return query
+  select *
+  from public.school_list_part_time_work_monthly_settlements(v_settlement.year_month) r
+  where r.id = v_settlement.id;
+end;
+$$;
+
+create or replace function public.school_unlock_part_time_work_monthly_settlement(p_settlement_id uuid)
+returns table (
+  id uuid,
+  year_month text,
+  workplace_name text,
+  teacher_name text,
+  actual_lesson_count integer,
+  actual_hours_total numeric,
+  hourly_rate_jpy integer,
+  lesson_wage_jpy integer,
+  transportation_fee_jpy integer,
+  adjustment_jpy integer,
+  total_wage_jpy integer,
+  status text,
+  locked_at timestamptz,
+  income_request_id uuid,
+  income_request_status text,
+  memo text,
+  updated_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settlement public.school_part_time_work_monthly_settlements%rowtype;
+begin
+  select *
+  into v_settlement
+  from public.school_part_time_work_monthly_settlements s
+  where s.id = p_settlement_id
+    and s.deleted_at is null
+  for update;
+
+  if not found then
+    raise exception '月度工资结算不存在。';
+  end if;
+  if v_settlement.status <> 'locked' then
+    raise exception '只有已锁定且未生成收入请求的结算可以撤销锁定。';
+  end if;
+  if v_settlement.income_request_id is not null or exists (
+    select 1
+    from public.school_part_time_work_income_requests ir
+    where ir.settlement_id = v_settlement.id
+      and ir.deleted_at is null
+  ) then
+    raise exception '已生成收入请求，不能撤销锁定。';
+  end if;
+
+  delete from public.school_part_time_work_monthly_settlement_details d
+  where d.settlement_id = v_settlement.id;
+
+  update public.school_part_time_work_monthly_settlements
+  set status = 'draft',
+      locked_at = null,
       updated_at = now()
   where school_part_time_work_monthly_settlements.id = v_settlement.id;
 
@@ -1400,8 +1421,8 @@ revoke all on function public.school_update_part_time_work_lesson(uuid, date, ti
 revoke all on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, numeric, integer, integer, text) from public, anon, authenticated;
 revoke all on function public.school_delete_part_time_work_lesson(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.school_list_part_time_work_monthly_settlements(text) from public, anon, authenticated;
-revoke all on function public.school_save_part_time_work_monthly_settlement(text, text, integer, text) from public, anon, authenticated;
-revoke all on function public.school_lock_part_time_work_monthly_settlement(uuid) from public, anon, authenticated;
+revoke all on function public.school_lock_part_time_work_monthly_settlement(text, text, integer, text) from public, anon, authenticated;
+revoke all on function public.school_unlock_part_time_work_monthly_settlement(uuid) from public, anon, authenticated;
 revoke all on function public.school_create_part_time_work_income_request(uuid) from public, anon, authenticated;
 revoke all on function public.school_get_part_time_work_settlement_export(uuid) from public, anon, authenticated;
 
@@ -1411,8 +1432,8 @@ grant execute on function public.school_update_part_time_work_lesson(uuid, date,
 grant execute on function public.school_generate_part_time_work_actual_from_planned(uuid, date, time, time, integer, numeric, integer, integer, text) to authenticated;
 grant execute on function public.school_delete_part_time_work_lesson(uuid, boolean) to authenticated;
 grant execute on function public.school_list_part_time_work_monthly_settlements(text) to authenticated;
-grant execute on function public.school_save_part_time_work_monthly_settlement(text, text, integer, text) to authenticated;
-grant execute on function public.school_lock_part_time_work_monthly_settlement(uuid) to authenticated;
+grant execute on function public.school_lock_part_time_work_monthly_settlement(text, text, integer, text) to authenticated;
+grant execute on function public.school_unlock_part_time_work_monthly_settlement(uuid) to authenticated;
 grant execute on function public.school_create_part_time_work_income_request(uuid) to authenticated;
 grant execute on function public.school_get_part_time_work_settlement_export(uuid) to authenticated;
 
