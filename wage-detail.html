@@ -43,7 +43,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageDetailPageTitle">详情</h2>
-              <p class="section-note">本页显示已保存的老师工资快照。未生成支付请求的快照可通过受控 RPC 调整明细课时和费用；已生成支付请求后只读。当前工资规则仅作为未来配置源，不用于重算历史工资快照。</p>
+              <p class="section-note">本页显示已保存的老师工资快照。未生成支出记录或旧支付请求的快照可通过受控 RPC 调整明细课时和费用；生成后只读。当前工资规则仅作为未来配置源，不用于重算历史工资快照。</p>
             </div>
             <div class="section-actions">
               <button class="button button-danger is-hidden" id="openVoidWageLockButton" type="button">撤销快照</button>
@@ -84,10 +84,10 @@
           <section class="panel" aria-labelledby="wageDetailPaymentTitle">
             <div class="section-heading section-heading-row">
               <div>
-                <h2 id="wageDetailPaymentTitle">关联支付请求</h2>
-                <p class="section-note">仅显示 source_type = teacher_wage 且 source_id 为当前工资快照记录的支付请求。支付确认、撤销、取消、恢复和重新生成仍在老师工资支付模块处理。</p>
+                <h2 id="wageDetailPaymentTitle">关联支出记录</h2>
+                <p class="section-note">新老师工资支付链路从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认。旧支付请求仅作为 legacy 历史记录展示。</p>
               </div>
-              <button class="button button-primary is-hidden" id="openCreatePaymentRequestButton" type="button">生成支付请求</button>
+              <button class="button button-primary is-hidden" id="openCreatePaymentRequestButton" type="button">生成支出记录</button>
             </div>
             <div id="wageDetailPaymentRequests" class="detail-list"></div>
           </section>
@@ -138,7 +138,7 @@
             <div class="section-heading section-heading-row">
               <div>
                 <h2 id="wageAdjustmentAuditTitle">调整记录</h2>
-                <p class="section-note">记录老师工资明细手动调整的旧值、新值和备注；已生成支付请求后本快照只读。</p>
+                <p class="section-note">记录老师工资明细手动调整的旧值、新值和备注；已生成支出记录或旧支付请求后本快照只读。</p>
               </div>
               <span id="wageAdjustmentAuditCount" class="record-count">0 条</span>
             </div>
@@ -152,21 +152,21 @@
     <div id="createPaymentRequestDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createPaymentRequestTitle">
         <div class="section-heading">
-          <h2 id="createPaymentRequestTitle">生成老师工资支付请求</h2>
-          <p class="section-note">从当前老师工资快照生成一条待支付请求。</p>
+          <h2 id="createPaymentRequestTitle">生成老师工资支出记录</h2>
+          <p class="section-note">从当前老师工资快照生成一条待支付支出记录。</p>
         </div>
 
         <div id="createPaymentRequestSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          本操作只写入支付请求。不会确认支付，不会生成支出，不会写账户流水，不会扣账户余额，不会写收入或学生结算。生成后请到老师工资支付模块继续处理支付确认。
+          本操作只写入 School 支出记录。不会提交 Cash 请求，不会确认支付，不会写账户流水，不会扣账户余额，不会写收入或学生结算。生成后请到支出记录详情页提交 Cash 支付确认。
         </div>
 
         <div id="createPaymentRequestError" class="dialog-error is-hidden" aria-live="polite"></div>
 
         <label class="field confirm-check" data-create-payment-request-field="confirm">
           <input id="createPaymentRequestConfirmCheckbox" type="checkbox">
-          <span>我确认从当前工资快照生成一条待支付请求，且理解同一工资快照不能重复生成初始支付请求。</span>
+          <span>我确认从当前工资快照生成一条待支付支出记录，且理解同一工资快照不能重复生成支出记录。</span>
         </label>
 
         <div class="dialog-actions">
@@ -186,7 +186,7 @@
         <div id="adjustWageDetailSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          已生成支付请求或已支付的工资快照不能在本页直接调整。请填写明确备注，便于追踪调整原因。
+          已生成支出记录、旧支付请求或已支付的工资快照不能在本页直接调整。请填写明确备注，便于追踪调整原因。
         </div>
 
         <div id="adjustWageDetailError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -221,13 +221,13 @@
       <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="voidWageLockTitle">
         <div class="section-heading">
           <h2 id="voidWageLockTitle">撤销老师工资快照</h2>
-          <p class="section-note">仅允许撤销未生成支付请求、未支付、无支出和无账户流水依赖的工资快照。</p>
+          <p class="section-note">仅允许撤销未生成支出记录、未生成旧支付请求、未支付、无账户流水依赖的工资快照。</p>
         </div>
 
         <div id="voidWageLockSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          撤销后当前工资快照会标记为已作废；对应课时不会被删除，actual_minutes 不会修改，并会重新回到工资生成候选范围。已生成支付请求、已支付或已有支出/账户流水依赖的快照不能撤销。
+          撤销后当前工资快照会标记为已作废；对应课时不会被删除，actual_minutes 不会修改，并会重新回到工资生成候选范围。已生成支出记录、旧支付请求、已支付或已有账户流水依赖的快照不能撤销。
         </div>
 
         <div id="voidWageLockError" class="dialog-error is-hidden" aria-live="polite"></div>

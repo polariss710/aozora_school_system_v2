@@ -1,7 +1,7 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   adjustTeacherWageDetail,
-  createTeacherWagePaymentRequest,
+  createTeacherWageExpenseRecord,
   fetchWageDetailPage,
   voidTeacherWageLock,
 } from "../api/wage-detail-api.js";
@@ -28,6 +28,20 @@ const PAYMENT_REQUEST_STATUS_LABELS = {
   reversed: "已撤销",
   void: "已作废",
   cancelled: "已取消",
+};
+
+const EXPENSE_STATUS_LABELS = {
+  pending: "待支付",
+  paid: "已支付",
+  reversed: "已撤销",
+};
+
+const CASH_REQUEST_STATUS_LABELS = {
+  pending_cash_request: "Cash待提交",
+  pending: "Cash待确认",
+  approved: "Cash已确认",
+  synced: "已同步到 Cash",
+  rejected: "Cash已拒绝",
 };
 
 const DUTY_REPORT_MIN_DETAIL_ROWS = 31;
@@ -234,7 +248,7 @@ async function loadWageDetail(wageLockId) {
 }
 
 function renderWageDetail(data) {
-  const { wageLock, details, paymentRequests, adjustments } = data;
+  const { wageLock, details, paymentRequests, expenseRecords, adjustments } = data;
   const detailTotalJpy = sumBy(details, "total_jpy");
   const detailTotalCny = sumBy(details, "total_cny");
   const detailPayHours = sumBy(details, "pay_hours");
@@ -290,39 +304,42 @@ function renderWageDetail(data) {
     ["updated_at", formatDate(wageLock.updated_at)],
   ]);
 
+  renderTeacherWageExpenseRecords(expenseRecords || []);
   renderPaymentRequests(paymentRequests);
-  renderCreatePaymentRequestAction(wageLock, paymentRequests);
-  renderVoidWageLockAction(wageLock, paymentRequests);
-  const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests);
+  renderCreatePaymentRequestAction(wageLock, paymentRequests, expenseRecords || []);
+  renderVoidWageLockAction(wageLock, paymentRequests, expenseRecords || []);
+  const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests, expenseRecords || []);
   renderWageAdjustmentState(readonlyReason);
   renderDetailRows(details, !readonlyReason, readonlyReason);
   renderAdjustmentAudits(adjustments || [], details || []);
 }
 
-function renderVoidWageLockAction(wageLock, paymentRequests) {
-  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests);
+function renderVoidWageLockAction(wageLock, paymentRequests, expenseRecords = []) {
+  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests, expenseRecords);
   const canVoid = !readonlyReason;
   dom.openVoidWageLockButton?.classList.toggle("is-hidden", !canVoid);
 
   if (dom.voidWageLockReadonlyReason) {
     dom.voidWageLockReadonlyReason.textContent = canVoid
-      ? "未生成支付请求，可撤销快照。"
+      ? "未生成支出记录或旧支付请求，可撤销快照。"
       : readonlyReason;
   }
 }
 
-function wageVoidReadonlyReason(wageLock, paymentRequests = []) {
+function wageVoidReadonlyReason(wageLock, paymentRequests = [], expenseRecords = []) {
   if (!wageLock) return "工资快照尚未加载。";
   if (wageLock.status === "void" || wageLock.voided_at) return "该工资快照已作废，不能重复撤销。";
   if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以撤销。";
-  if (paymentRequests.length > 0) return "该工资快照已生成支付请求，不能撤销。";
+  if (paymentRequests.length > 0) return "该工资快照已生成旧支付请求，不能撤销。";
+  if (expenseRecords.length > 0) return "该工资快照已生成支出记录，不能撤销。";
   return "";
 }
 
 function openVoidWageLockDialog() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
-  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests);
+  const expenseRecords = detailData?.expenseRecords || [];
+  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests, expenseRecords);
 
   if (readonlyReason) {
     showMessage("error", readonlyReason);
@@ -420,11 +437,12 @@ function renderVoidWageLockSummary(wageLock) {
   ].join("");
 }
 
-function renderCreatePaymentRequestAction(wageLock, paymentRequests) {
+function renderCreatePaymentRequestAction(wageLock, paymentRequests, expenseRecords = []) {
   const canCreate = wageLock.status === "locked"
     && !wageLock.voided_at
     && Number(wageLock.total_jpy || 0) > 0
-    && paymentRequests.length === 0;
+    && paymentRequests.length === 0
+    && expenseRecords.length === 0;
 
   dom.openCreatePaymentRequestButton.classList.toggle("is-hidden", !canCreate);
 }
@@ -432,6 +450,7 @@ function renderCreatePaymentRequestAction(wageLock, paymentRequests) {
 function openCreatePaymentRequestDialog() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
+  const expenseRecords = detailData?.expenseRecords || [];
 
   if (!wageLock) {
     showMessage("error", "工资快照记录尚未加载。");
@@ -439,17 +458,22 @@ function openCreatePaymentRequestDialog() {
   }
 
   if (paymentRequests.length > 0) {
-    showMessage("error", "该工资快照记录已有关联支付请求，不能重复生成。");
+    showMessage("error", "该工资快照记录已有关联旧支付请求，不能重复生成支出记录。");
+    return;
+  }
+
+  if (expenseRecords.length > 0) {
+    showMessage("error", "该工资快照记录已生成支出记录，不能重复生成。");
     return;
   }
 
   if (wageLock.status !== "locked" || wageLock.voided_at) {
-    showMessage("error", "只有未作废的已生成工资快照可以生成支付请求。");
+    showMessage("error", "只有未作废的已生成工资快照可以生成支出记录。");
     return;
   }
 
   if (Number(wageLock.total_jpy || 0) <= 0) {
-    showMessage("error", "工资结算金额为 0，不能生成支付请求。");
+    showMessage("error", "工资结算金额为 0，不能生成支出记录。");
     return;
   }
 
@@ -475,8 +499,20 @@ function closeCreatePaymentRequestDialog(force = false) {
 
 async function submitCreatePaymentRequest() {
   const wageLock = detailData?.wageLock;
+  const paymentRequests = detailData?.paymentRequests || [];
+  const expenseRecords = detailData?.expenseRecords || [];
   if (!wageLock) {
     showCreatePaymentRequestError("工资快照记录尚未加载。");
+    return;
+  }
+
+  if (paymentRequests.length > 0) {
+    showCreatePaymentRequestError("该工资快照记录已有关联旧支付请求，不能重复生成支出记录。");
+    return;
+  }
+
+  if (expenseRecords.length > 0) {
+    showCreatePaymentRequestError("该工资快照记录已生成支出记录，不能重复生成。");
     return;
   }
 
@@ -489,7 +525,7 @@ async function submitCreatePaymentRequest() {
   hideCreatePaymentRequestError();
 
   try {
-    const paymentRequest = await createTeacherWagePaymentRequest({
+    const expenseRecord = await createTeacherWageExpenseRecord({
       wageLockId: wageLock.id,
     });
 
@@ -497,7 +533,7 @@ async function submitCreatePaymentRequest() {
     closeCreatePaymentRequestDialog(true);
     showMessage(
       "success",
-      `老师工资支付请求已生成：${shortId(paymentRequest?.payment_request_id)} / ${formatCurrency(paymentRequest?.amount, paymentRequest?.currency || "JPY")}。`
+      `老师工资支出记录已生成：${shortId(expenseRecord?.expense_id)} / ${formatCurrency(expenseRecord?.amount, expenseRecord?.currency || "JPY")}。请到支出记录详情页提交 Cash 支付确认。`
     );
   } catch (error) {
     showCreatePaymentRequestError(formatCreatePaymentRequestError(error));
@@ -508,17 +544,20 @@ async function submitCreatePaymentRequest() {
 
 function renderPaymentRequests(requests) {
   if (!requests.length) {
-    dom.paymentRequests.innerHTML = '<div class="state-text">尚未生成支付请求。</div>';
     return;
   }
 
-  dom.paymentRequests.innerHTML = requests.map((request) => `
+  dom.paymentRequests.insertAdjacentHTML("beforeend", `
+    <div class="section-note">Legacy 旧支付请求，仅用于历史记录查看和后续遗留处理；新老师工资支付请从支出记录详情页提交 Cash 支付确认。</div>
+  `);
+
+  dom.paymentRequests.insertAdjacentHTML("beforeend", requests.map((request) => `
     <article class="detail-list-card">
       <div class="detail-list-card-header">
-        <strong>${escapeHtml(shortId(request.id))}</strong>
+        <strong>旧支付请求 ${escapeHtml(shortId(request.id))}</strong>
         <span class="status-badge ${escapeAttribute(paymentRequestStatusClass(request.status))}">${escapeHtml(paymentRequestStatusLabel(request.status))}</span>
       </div>
-      <p><a class="table-action-button" href="./payment-detail.html?id=${encodeURIComponent(request.id)}">支付请求详情</a></p>
+      <p><a class="table-action-button" href="./payment-detail.html?id=${encodeURIComponent(request.id)}">旧支付请求详情</a></p>
       ${request.status === "reversed" || request.status === "void" ? '<p class="section-note">该支付请求已撤销或作废；本页仅展示工资支付状态链，不提供任何支付操作。</p>' : ""}
       ${renderDefinitionList([
         ["请求月份", formatMonth(request.request_month)],
@@ -535,7 +574,38 @@ function renderPaymentRequests(requests) {
         ["reissued_at", formatDate(request.reissued_at)],
         ["created_at", formatDate(request.created_at)],
       ])}
-      ${request.paid_expense_id ? `<p><a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(request.paid_expense_id)}">支出详情</a></p>` : ""}
+      ${request.paid_expense_id ? `<p><a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(request.paid_expense_id)}">关联支出详情</a></p>` : ""}
+    </article>
+  `).join(""));
+}
+
+function renderTeacherWageExpenseRecords(records) {
+  dom.paymentRequests.innerHTML = "";
+
+  if (!records.length) {
+    dom.paymentRequests.innerHTML = '<div class="state-text">尚未生成支出记录。</div>';
+    return;
+  }
+
+  dom.paymentRequests.innerHTML = records.map((record) => `
+    <article class="detail-list-card">
+      <div class="detail-list-card-header">
+        <strong>支出记录 ${escapeHtml(shortId(record.id))}</strong>
+        <span class="status-badge ${escapeAttribute(expenseStatusClass(record.status))}">${escapeHtml(expenseStatusLabel(record.status))}</span>
+      </div>
+      ${renderDefinitionList([
+        ["目标月份", formatMonth(record.year_month)],
+        ["支付对象", displayValue(record.payee_name_snapshot)],
+        ["金额", formatCurrency(record.amount, record.currency)],
+        ["Cash 状态", cashRequestStatusLabel(record.cash_request_status)],
+        ["Cash request", shortId(record.cash_request_id)],
+        ["Cash transaction", shortId(record.cash_transaction_id)],
+        ["Cash 请求时间", formatDate(record.cash_requested_at)],
+        ["Cash 同步时间", formatDate(record.cash_synced_at)],
+        ["Cash 错误", displayValue(record.cash_error_message)],
+        ["created_at", formatDate(record.created_at)],
+      ])}
+      <p><a class="table-action-button" href="./expense-detail.html?id=${encodeURIComponent(record.id)}">支出记录详情</a></p>
     </article>
   `).join("");
 }
@@ -546,7 +616,7 @@ function renderCreatePaymentRequestSummary(wageLock) {
     renderDialogSummaryRow("老师", displayValue(wageLock.teacher_name)),
     renderDialogSummaryRow("业务归属", displayValue(wageLock.business_name)),
     renderDialogSummaryRow("支付对象", "老师"),
-    renderDialogSummaryRow("请求金额", formatCurrency(wageLock.total_jpy, "JPY")),
+    renderDialogSummaryRow("支出金额", formatCurrency(wageLock.total_jpy, "JPY")),
     renderDialogSummaryRow("来源", `工资快照 ${shortId(wageLock.id)}`),
   ].join("");
 }
@@ -564,7 +634,7 @@ function formatCreatePaymentRequestError(error) {
   const message = error?.message || String(error || "");
 
   if (message.includes("already exists")) {
-    return `生成失败：该工资快照记录已有关联支付请求，不能重复生成。${message}`;
+    return `生成失败：该工资快照记录已有关联记录，不能重复生成。${message}`;
   }
 
   if (message.includes("total_jpy")) {
@@ -610,7 +680,10 @@ function setCreatePaymentRequestFieldInvalid(fieldId, isInvalid) {
 function formatVoidWageLockError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("支付请求")) {
-    return "撤销失败：该工资快照已生成支付请求，不能撤销。";
+    return "撤销失败：该工资快照已生成旧支付请求，不能撤销。";
+  }
+  if (message.includes("支出记录")) {
+    return "撤销失败：该工资快照已生成支出记录，不能撤销。";
   }
   if (message.includes("已经作废") || message.includes("重复撤销")) {
     return "撤销失败：该工资快照已经作废，不能重复撤销。";
@@ -727,11 +800,12 @@ function handleWageDetailRowActionClick(event) {
   openAdjustWageDetailDialog(detail);
 }
 
-function wageAdjustmentReadonlyReason(wageLock, paymentRequests = []) {
+function wageAdjustmentReadonlyReason(wageLock, paymentRequests = [], expenseRecords = []) {
   if (!wageLock) return "工资快照尚未加载。";
   if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以调整。";
   if (wageLock.voided_at) return "已作废的工资快照不能调整。";
-  if (paymentRequests.length > 0) return "该工资快照已生成支付请求，不能直接调整。";
+  if (paymentRequests.length > 0) return "该工资快照已生成旧支付请求，不能直接调整。";
+  if (expenseRecords.length > 0) return "该工资快照已生成支出记录，不能直接调整。";
   return "";
 }
 
@@ -754,14 +828,15 @@ function renderWageAdjustmentState(readonlyReason) {
   dom.adjustmentState.textContent = "可调整";
   dom.adjustmentState.title = "可调整结算课时、交通费、教室费；保存时必须填写备注并由 DB/RPC 写入审计记录。";
   if (dom.adjustmentReason) {
-    dom.adjustmentReason.textContent = "未生成支付请求，可调整结算课时、交通费、教室费。";
+    dom.adjustmentReason.textContent = "未生成支出记录或旧支付请求，可调整结算课时、交通费、教室费。";
   }
 }
 
 function openAdjustWageDetailDialog(detail) {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
-  const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests);
+  const expenseRecords = detailData?.expenseRecords || [];
+  const readonlyReason = wageAdjustmentReadonlyReason(wageLock, paymentRequests, expenseRecords);
   if (readonlyReason) {
     showMessage("error", readonlyReason);
     return;
@@ -794,8 +869,18 @@ function closeAdjustWageDetailDialog(force = false) {
 async function submitAdjustWageDetail() {
   const wageLock = detailData?.wageLock;
   const detail = activeAdjustWageDetail;
+  const readonlyReason = wageAdjustmentReadonlyReason(
+    wageLock,
+    detailData?.paymentRequests || [],
+    detailData?.expenseRecords || []
+  );
   if (!wageLock || !detail) {
     showAdjustWageDetailError("工资明细尚未加载。");
+    return;
+  }
+
+  if (readonlyReason) {
+    showAdjustWageDetailError(readonlyReason);
     return;
   }
 
@@ -895,7 +980,10 @@ function renderAdjustWageDetailSummary(detail, wageLock) {
 function formatAdjustWageDetailError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("已生成支付请求")) {
-    return "调整失败：该工资快照已生成支付请求，不能直接修改。";
+    return "调整失败：该工资快照已生成旧支付请求，不能直接修改。";
+  }
+  if (message.includes("已生成支出记录")) {
+    return "调整失败：该工资快照已生成支出记录，不能直接修改。";
   }
   return `调整失败：${message}`;
 }

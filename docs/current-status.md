@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-15
+Status date: 2026-06-16
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -25,6 +25,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. Teacher wage new payment entry routed to expense records, 2026-06-16:
+   老师工资新支付入口已从旧 `school_payment_requests` 改为 canonical `school_expense_records`。`wage-detail.html` 的操作文案改为 `生成支出记录`，页面通过 API wrapper 调用既有 RPC `school_create_teacher_wage_expense_record(...)`，生成 `source_type = teacher_wage`、`expense_category = teacher_wage`、`status = pending` 的支出记录，不再从该入口调用 `school_create_teacher_wage_payment_request(...)`。工资详情会显示已生成的支出记录和支出详情链接，并把支出记录纳入工资快照调整/撤销保护；旧 `school_payment_requests` 仍在同一区域作为 legacy 只读历史展示。`index.html` 老师工资支付模块保留为 legacy 旧支付请求入口，未迁移 7 条 pending 请求，未删除旧表，未禁用历史 paid/reversed/void 处理，未提交 Cash 请求。
 
 1. Expense-record Cash request minimum flow, 2026-06-15:
    支出侧 canonical 链路第四阶段-1已落地最小闭环：`school_expense_records` can now submit a unified Cash expense pending request through `request-cash-expense-confirmation`, Cash accepts `external_reference_type = school_expense_records`, `request_type = expense_paid`, `transaction_type = expense`, and `sync-cash-request-result` can write Cash approve/reject results back to `school_expense_records`. School SQL source is `sql/current/school_expense_cash_confirmation_workflow.sql`; it adds per-attempt Cash request tracking and actual payment amount/currency fields, plus RPCs `school_request_cash_expense_payment_confirmation(...)`, `school_mark_cash_expense_request_submitted(...)`, `school_mark_cash_expense_confirmed(...)`, and `school_mark_cash_expense_rejected(...)`. Expense detail now has a minimal `提交 Cash 支付确认` dialog for pending expense records only. This stage does not migrate the 7 pending legacy teacher_wage payment requests, does not disable the old teacher-wage payment page, does not alter teacher_wage generation, and does not touch legacy `school_payment_requests`.

@@ -11,7 +11,7 @@
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
-          <h1>老师工资支付</h1>
+          <h1>老师工资支付（Legacy）</h1>
           <nav class="page-nav" aria-label="主导航">
             <a class="is-active" href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -31,7 +31,7 @@
           </nav>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">旧支付请求</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -59,6 +59,7 @@
         <section id="messageArea" class="message is-hidden" aria-live="polite"></section>
 
         <section class="panel filter-panel" aria-labelledby="filterTitle">
+          <p class="section-note">本页保留旧 `school_payment_requests` 老师工资支付请求的历史处理入口。新老师工资支付请从工资快照生成支出记录，并在支出记录详情页提交 Cash 支付确认。</p>
           <div class="section-heading">
             <h2 id="filterTitle">筛选</h2>
           </div>
