@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 私塾打工</title>
+    <link rel="stylesheet" href="./css/app.css?v=v2.113.0-part-time-work-20260615">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>私塾打工</h1>
+          <nav class="page-nav" aria-label="主导航">
+            <a href="./index.html">老师工资支付</a>
+            <a href="./profit-summary.html">利润分析</a>
+            <a href="./account.html">账户管理</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+            <a class="is-active" href="./part-time-work.html">私塾打工</a>
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage-rule.html">老师工资规则</a>
+            <a href="./student.html">学生管理</a>
+            <a href="./subject.html">科目管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">学生月度结算</a>
+            <a href="./wage.html">老师工资结算</a>
+          </nav>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">外部塾アルバイト</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <section id="schoolAuthPanel" class="auth-panel" aria-label="School 登录">
+        <div>
+          <p class="auth-title">School 登录</p>
+          <p id="schoolAuthStatusText" class="auth-status">未登录</p>
+        </div>
+
+        <form id="schoolAuthForm" class="auth-form">
+          <input id="schoolAuthEmailInput" type="email" autocomplete="email" placeholder="email" aria-label="email">
+          <input id="schoolAuthPasswordInput" type="password" autocomplete="current-password" placeholder="password" aria-label="password">
+          <button id="schoolAuthLoginButton" class="button button-primary" type="submit">登录</button>
+        </form>
+
+        <div id="schoolAuthUserPanel" class="auth-user-panel is-hidden">
+          <button id="schoolAuthLogoutButton" class="button" type="button">登出</button>
+        </div>
+
+        <p id="schoolAuthMessage" class="auth-message" aria-live="polite"></p>
+      </section>
+
+      <main class="page-main">
+        <section id="partTimeWorkMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel filter-panel" aria-labelledby="partTimeWorkFilterTitle">
+          <div class="section-heading">
+            <h2 id="partTimeWorkFilterTitle">筛选</h2>
+          </div>
+
+          <form id="partTimeWorkFilterForm" class="filter-grid">
+            <label class="field month-select-field">
+              <span>月份</span>
+              <div class="month-select-group">
+                <select id="partTimeWorkYearFilter" name="year" aria-label="年份"></select>
+                <select id="partTimeWorkMonthFilter" name="month" aria-label="月份"></select>
+              </div>
+            </label>
+
+            <label class="field">
+              <span>打工先</span>
+              <input id="partTimeWorkWorkplaceFilter" name="workplaceName" type="text" autocomplete="off">
+            </label>
+
+            <label class="field">
+              <span>支付状态</span>
+              <select id="partTimeWorkPaymentStatusFilter" name="paymentStatus">
+                <option value="">全部</option>
+                <option value="unpaid">未支付</option>
+                <option value="paid">已支付</option>
+                <option value="cancelled">已取消</option>
+              </select>
+            </label>
+
+            <div class="filter-actions">
+              <button class="button button-primary" type="submit">查询</button>
+              <button class="button" id="partTimeWorkResetButton" type="button">重置</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel" aria-labelledby="partTimeWorkSummaryTitle">
+          <div class="section-heading">
+            <h2 id="partTimeWorkSummaryTitle">月度统计</h2>
+          </div>
+          <div id="partTimeWorkSummaryGrid" class="summary-grid"></div>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="partTimeWorkTableTitle">
+          <div class="section-heading section-heading-row">
+            <h2 id="partTimeWorkTableTitle">私塾打工记录</h2>
+            <div class="table-actions">
+              <span id="partTimeWorkRecordCount" class="record-count">0 条</span>
+              <button class="button button-primary" id="openPartTimeWorkCreateButton" type="button">新增记录</button>
+            </div>
+          </div>
+
+          <div id="partTimeWorkLoadingState" class="state-text is-hidden">正在加载...</div>
+          <div id="partTimeWorkEmptyState" class="state-text is-hidden">暂无符合条件的私塾打工记录。</div>
+
+          <div class="table-scroll">
+            <table class="payment-table part-time-work-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>打工先</th>
+                  <th>授课者/老师</th>
+                  <th>科目</th>
+                  <th>工作内容</th>
+                  <th class="number-cell">课时</th>
+                  <th class="number-cell">时给</th>
+                  <th class="number-cell">课时工资</th>
+                  <th class="number-cell">交通费</th>
+                  <th class="number-cell">调整额</th>
+                  <th class="number-cell">总工资</th>
+                  <th>支付状态</th>
+                  <th>支付日</th>
+                  <th>备注</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="partTimeWorkTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="partTimeWorkDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="partTimeWorkDialogTitle">
+        <div class="section-heading">
+          <h2 id="partTimeWorkDialogTitle">新增私塾打工记录</h2>
+        </div>
+
+        <div id="partTimeWorkDialogError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-part-time-work-field="workDate">
+          <span>工作日期</span>
+          <input id="partTimeWorkDateInput" type="date">
+        </label>
+
+        <label class="field" data-part-time-work-field="workplaceName">
+          <span>打工先</span>
+          <input id="partTimeWorkWorkplaceInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>授课者/老师</span>
+          <input id="partTimeWorkTeacherInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>科目</span>
+          <input id="partTimeWorkSubjectInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field">
+          <span>工作内容</span>
+          <input id="partTimeWorkClassDescriptionInput" type="text" autocomplete="off">
+        </label>
+
+        <label class="field" data-part-time-work-field="hours">
+          <span>课时</span>
+          <input id="partTimeWorkHoursInput" type="number" step="0.5" min="0" inputmode="decimal">
+        </label>
+
+        <label class="field" data-part-time-work-field="hourlyRateJpy">
+          <span>时给 JPY</span>
+          <input id="partTimeWorkHourlyRateInput" type="number" step="1" min="0" inputmode="numeric">
+        </label>
+
+        <label class="field" data-part-time-work-field="transportationFeeJpy">
+          <span>交通费 JPY</span>
+          <input id="partTimeWorkTransportationFeeInput" type="number" step="1" min="0" inputmode="numeric">
+        </label>
+
+        <label class="field" data-part-time-work-field="adjustmentJpy">
+          <span>调整额 JPY</span>
+          <input id="partTimeWorkAdjustmentInput" type="number" step="1" inputmode="numeric">
+        </label>
+
+        <label class="field">
+          <span>支付状态</span>
+          <select id="partTimeWorkPaymentStatusInput">
+            <option value="unpaid">未支付</option>
+            <option value="paid">已支付</option>
+            <option value="cancelled">已取消</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span>支付日</span>
+          <input id="partTimeWorkPaidDateInput" type="date">
+        </label>
+
+        <label class="field">
+          <span>备注</span>
+          <textarea id="partTimeWorkMemoInput" rows="3"></textarea>
+        </label>
+
+        <p id="partTimeWorkPreview" class="state-text">预览：课时工资 JPY 0 / 总工资 JPY 0</p>
+
+        <div class="dialog-actions">
+          <button class="button" id="partTimeWorkCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="partTimeWorkSubmitButton" type="button">保存</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/part-time-work-app.js?v=v2.113.0-part-time-work-20260615"></script>
+  </body>
+</html>

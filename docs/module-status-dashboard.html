@@ -412,9 +412,9 @@
     </section>
 
     <section class="summary-grid" aria-label="状态总览">
-      <div class="summary-card"><span class="summary-value">11</span><span class="summary-label">覆盖模块</span></div>
+      <div class="summary-card"><span class="summary-value">12</span><span class="summary-label">覆盖模块</span></div>
       <div class="summary-card"><span class="summary-value">3</span><span class="summary-label">已收口</span></div>
-      <div class="summary-card"><span class="summary-value">6</span><span class="summary-label">V1 可用</span></div>
+      <div class="summary-card"><span class="summary-value">7</span><span class="summary-label">V1 可用</span></div>
       <div class="summary-card"><span class="summary-value">1</span><span class="summary-label">只读/预览</span></div>
       <div class="summary-card"><span class="summary-value">1</span><span class="summary-label">Backlog</span></div>
     </section>
@@ -592,6 +592,22 @@
           <div class="field"><div class="label">保护规则</div><div class="value">任意行错误阻止整批提交；实际课时行被提交前拦截；已锁定学生结算月被拒绝；预定 ID 不写入。</div></div>
           <div class="field"><div class="label">编辑范围</div><div class="value">不适用；当前是导入/导出流程，不是记录资料编辑页。</div></div>
           <div class="field"><div class="label">未完成</div><div class="value">完整实际导入、历史迁移导入、导入撤销、更多导入结果/详情导航。full actual import 继续保持 future/history migration backlog，不进入当前实现。</div></div>
+        </div>
+      </article>
+
+      <article class="module-card">
+        <header class="module-head">
+          <h2>私塾打工</h2>
+          <span class="tag v1">V1 新增</span>
+        </header>
+        <div class="module-body">
+          <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>5/7</span></div><div class="progress-track"><div class="progress-fill" style="width: 71.43%;"></div></div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">外部私塾 / 外部机构兼职授课记录 V1 已新增页面、API、SQL 定义和导航入口；School DB SQL 已安装，并通过只读 schema/RPC/grant 检查。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">独立表设计、list/create/update/soft-delete/stats RPC、<code>js/api/part-time-work-api.js</code>、<code>js/pages/part-time-work-page.js</code>、<code>part-time-work.html</code>、主导航入口。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">页面通过 API 层调用 <code>school_create_part_time_work_record</code>、<code>school_update_part_time_work_record</code>、<code>school_delete_part_time_work_record</code>；页面模块不直接调用 <code>.rpc()</code>。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">不引用学生、lesson、teacher_wage、payment request、expense、account transaction 或 Cash；金额由 RPC 计算；RPC execute grant 只给 authenticated，不给 anon。</div></div>
+          <div class="field"><div class="label">编辑范围</div><div class="value">工作日期、打工先、授课者、科目、工作内容、课时、时给、交通费、调整额、支付状态、支付日、备注。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">Whitelist-only 页面写入 smoke、Cash 化、月度结算锁定、支付请求、导出、复杂审批、历史导入、真实业务数据验证。</div></div>
         </div>
       </article>
 
