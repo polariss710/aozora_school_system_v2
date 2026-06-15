@@ -629,7 +629,7 @@ begin
     actual_hours = case when v_lesson.record_kind = 'actual' then v_hours else 0 end,
     lesson_count = v_lesson_count,
     hourly_rate_jpy = v_hourly_rate_jpy,
-    lesson_wage_jpy = case when v_lesson.record_kind = 'actual' then round(v_hours * v_lesson_count * v_hourly_rate_jpy) else 0 end,
+    lesson_wage_jpy = case when v_lesson.record_kind = 'actual' then round(v_hours * v_hourly_rate_jpy) else 0 end,
     transportation_fee_jpy = v_transportation_fee_jpy,
     memo = nullif(trim(coalesce(p_memo, '')), ''),
     updated_at = now()
@@ -768,7 +768,7 @@ begin
     v_actual_hours,
     v_lesson_count,
     v_hourly_rate_jpy,
-    round(v_actual_hours * v_lesson_count * v_hourly_rate_jpy),
+    round(v_actual_hours * v_hourly_rate_jpy),
     v_transportation_fee_jpy,
     coalesce(nullif(trim(coalesce(p_memo, '')), ''), v_planned.memo)
   )
@@ -908,7 +908,7 @@ as $$
     select
       l.workplace_name,
       count(*)::integer as actual_lesson_count,
-      coalesce(sum(l.actual_hours * l.lesson_count), 0)::numeric as actual_hours_total,
+      coalesce(sum(l.actual_hours), 0)::numeric as actual_hours_total,
       coalesce(max(l.hourly_rate_jpy), 0)::integer as default_hourly_rate_jpy,
       coalesce(sum(l.lesson_wage_jpy), 0)::integer as default_lesson_wage_jpy,
       coalesce(sum(l.transportation_fee_jpy), 0)::integer as transportation_fee_jpy
@@ -1019,7 +1019,7 @@ begin
 
   select
     count(*)::integer,
-    coalesce(sum(l.actual_hours * l.lesson_count), 0)::numeric(10,2),
+    coalesce(sum(l.actual_hours), 0)::numeric(10,2),
     coalesce(sum(l.transportation_fee_jpy), 0)::integer
   into v_actual_lesson_count, v_actual_hours_total, v_transportation_fee_jpy
   from public.school_part_time_work_lessons l
@@ -1163,7 +1163,7 @@ begin
     l.actual_hours,
     l.lesson_count,
     v_settlement.hourly_rate_jpy,
-    round(l.actual_hours * l.lesson_count * v_settlement.hourly_rate_jpy)::integer,
+    round(l.actual_hours * v_settlement.hourly_rate_jpy)::integer,
     l.transportation_fee_jpy,
     l.memo
   from public.school_part_time_work_lessons l

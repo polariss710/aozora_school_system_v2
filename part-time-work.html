@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.114.0-part-time-work-count-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v2.115.0-part-time-work-settlement-hours-20260615">
   </head>
   <body>
     <div class="app-shell">
@@ -110,7 +110,7 @@
               <thead>
                 <tr>
                   <th>打工先</th>
-                  <th class="number-cell">实际课时小计</th>
+                  <th class="number-cell">实际课时</th>
                   <th class="number-cell">时给</th>
                   <th class="number-cell">课时工资</th>
                   <th class="number-cell">交通费合计</th>
@@ -220,14 +220,7 @@
 
             <label class="field" data-part-time-work-field="lessonCount">
               <span>回数</span>
-              <select id="partTimeWorkLessonCountInput">
-                <option value="1">1 回</option>
-                <option value="2">2 回</option>
-                <option value="3">3 回</option>
-                <option value="4">4 回</option>
-                <option value="5">5 回</option>
-                <option value="6">6 回</option>
-              </select>
+              <input id="partTimeWorkLessonCountInput" type="number" step="1" min="1" inputmode="numeric" required>
             </label>
 
             <label class="field" data-part-time-work-field="subtotalHours">
@@ -261,6 +254,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/part-time-work-app.js?v=v2.114.0-part-time-work-count-20260615"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v2.115.0-part-time-work-settlement-hours-20260615"></script>
   </body>
 </html>

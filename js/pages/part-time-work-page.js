@@ -700,7 +700,7 @@ function validatePayload(payload) {
 
   if (!Number.isInteger(payload.lessonCount) || payload.lessonCount < 1) {
     markFieldInvalid(dom.lessonCountInput);
-    return "请选择回数。";
+    return "请输入大于等于 1 的整数回数。";
   }
 
   if (!Number.isInteger(payload.hourlyRateJpy) || payload.hourlyRateJpy < 0) {
@@ -723,10 +723,10 @@ function updatePreview() {
   const subtotalHours = calculateSubtotalHours(hours, count);
   const hourlyRate = Number.isFinite(payload.hourlyRateJpy) ? payload.hourlyRateJpy : 0;
   const transportationFee = Number.isFinite(payload.transportationFeeJpy) ? payload.transportationFeeJpy : 0;
-  const lessonWageJpy = Math.round(subtotalHours * hourlyRate);
+  const lessonWageJpy = Math.round(hours * hourlyRate);
   dom.hoursInput.value = Number.isFinite(payload.hours) ? formatHours(payload.hours) : "0";
   dom.subtotalHoursInput.value = formatHours(subtotalHours);
-  dom.preview.textContent = `预览：课时 ${formatHours(hours)} h × ${formatLessonCount(count)} = ${formatHours(subtotalHours)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
+  dom.preview.textContent = `预览：工资课时 ${formatHours(hours)} h / 课时小计 ${formatHours(subtotalHours)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
 }
 
 function clearDialog() {
