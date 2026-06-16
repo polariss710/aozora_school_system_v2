@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { buildFunctionError } from "./function-error.js";
 
 const INCOME_COLUMNS = [
   "id",
@@ -124,7 +125,7 @@ export async function createCashSystemIncome(payload) {
   );
 
   if (error) {
-    throw error;
+    throw await buildFunctionError(error, data, "Cash System 收入提交失败。");
   }
 
   if (!data?.ok) {
@@ -155,7 +156,7 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
   );
 
   if (error) {
-    throw buildFunctionError(error, data, "Cash System 收入确认请求提交失败。");
+    throw await buildFunctionError(error, data, "Cash System 收入确认请求提交失败。");
   }
 
   if (!data?.ok) {
@@ -240,10 +241,4 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
     ...row,
     cashIncomeLinkageEvent: linkageByIncomeId.get(row.id) || null,
   }));
-}
-
-function buildFunctionError(error, data, fallbackMessage) {
-  const details = data?.details || data?.message || data?.error_description || data?.error;
-  const message = details || error?.context?.json?.details || error?.context?.json?.message || error?.message || fallbackMessage;
-  return new Error(message);
 }

@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { buildFunctionError } from "./function-error.js";
 
 const EXPENSE_COLUMNS = [
   "id",
@@ -162,7 +163,7 @@ export async function requestCashExpenseConfirmation(payload) {
   });
 
   if (error) {
-    throw error;
+    throw await buildFunctionError(error, data, "Cash System 支出确认请求提交失败。");
   }
 
   if (!data) {
