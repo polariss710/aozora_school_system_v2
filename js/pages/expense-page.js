@@ -102,6 +102,12 @@ const CASH_REQUEST_STATUS_LABELS = {
   cash_rejected: "Cash已拒绝",
   failed: "Cash失败",
 };
+const JPY_CNY_RATE_API_URL = "https://api.frankfurter.dev/v2/rate/JPY/CNY";
+const ROUNDING_MODE_LABELS = {
+  round: "四舍五入",
+  ceil: "向上取整",
+  floor: "向下取整",
+};
 
 const dom = {};
 let businessEntities = [];
@@ -206,6 +212,7 @@ function bindEvents() {
   dom.batchCashExpenseSubmitButton.addEventListener("click", submitBatchCashExpenseRequests);
   dom.batchCashExpenseTableBody.addEventListener("input", handleBatchCashExpenseInput);
   dom.batchCashExpenseTableBody.addEventListener("change", handleBatchCashExpenseInput);
+  dom.batchCashExpenseTableBody.addEventListener("click", handleBatchCashExpenseClick);
   dom.createExpenseCancelButton.addEventListener("click", closeCreateExpenseDialog);
   dom.createExpenseSubmitButton.addEventListener("click", submitCreateExpense);
   dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
@@ -783,6 +790,10 @@ async function openBatchCashExpenseDialog(rows) {
     paymentDate: currentJapanDate(),
     accountId: "",
     note: defaultCashExpenseNote(expense),
+    exchangeRate: "",
+    theoreticalAmount: "",
+    roundingMode: "",
+    rateStatus: "",
     result: "",
   }));
   clearBatchCashExpenseError();
@@ -831,6 +842,7 @@ function renderBatchCashExpenseRows() {
             ${CASH_EXPENSE_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
           </select>
         </td>
+        <td>${renderBatchCashExpenseRateAssist(state)}</td>
         <td>
           <select data-batch-expense-account="${escapeAttribute(expense.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
             ${renderBatchCashExpenseAccountOptions(state)}
@@ -841,6 +853,33 @@ function renderBatchCashExpenseRows() {
       </tr>
     `;
   }).join("");
+}
+
+function renderBatchCashExpenseRateAssist(state) {
+  const expenseId = state.expense.id;
+  if (state.currency !== "CNY") {
+    return '<span class="state-text">JPY 支付不需要汇率</span>';
+  }
+
+  return `
+    <div class="expense-rate-assist">
+      <div class="expense-rate-assist-row">
+        <span class="expense-rate-assist-label">CNY/JPY</span>
+        <input data-batch-expense-rate="${escapeAttribute(expenseId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
+        <button class="button compact-button" data-batch-expense-rate-fetch="${escapeAttribute(expenseId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
+      </div>
+      <div class="expense-rate-assist-row">
+        <span class="expense-rate-assist-label">理论</span>
+        <span class="expense-rate-assist-value">${escapeHtml(formatTheoreticalCnyAmount(state.theoreticalAmount))}</span>
+      </div>
+      <div class="expense-rounding-buttons" aria-label="取整方式">
+        <button class="button compact-button" data-batch-expense-round="${escapeAttribute(expenseId)}" data-rounding-mode="round" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>四舍五入</button>
+        <button class="button compact-button" data-batch-expense-round="${escapeAttribute(expenseId)}" data-rounding-mode="ceil" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>向上取整</button>
+        <button class="button compact-button" data-batch-expense-round="${escapeAttribute(expenseId)}" data-rounding-mode="floor" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>向下取整</button>
+      </div>
+      <div class="expense-rate-assist-status">${escapeHtml(state.rateStatus || rateAssistHint(state))}</div>
+    </div>
+  `;
 }
 
 function renderBatchCashExpenseAccountOptions(state) {
@@ -863,7 +902,12 @@ function handleBatchCashExpenseInput(event) {
   }
 
   const shouldRerender = Boolean(event.target.closest("[data-batch-expense-currency]"));
+  const shouldRefreshRateAssist = event.type === "change" && Boolean(
+    event.target.closest("[data-batch-expense-rate]")
+    || event.target.closest("[data-batch-expense-amount]")
+  );
   syncBatchCashExpenseRowsFromDom();
+  updateBatchCashExpenseDerivedValues();
   if (shouldRerender) {
     for (const state of batchCashExpenseRows) {
       const account = cashEligibleAccounts.find((row) => row.id === state.accountId);
@@ -872,8 +916,35 @@ function handleBatchCashExpenseInput(event) {
       }
     }
     renderBatchCashExpenseRows();
+  } else if (shouldRefreshRateAssist) {
+    renderBatchCashExpenseRows();
   }
   clearBatchCashExpenseError();
+}
+
+async function handleBatchCashExpenseClick(event) {
+  const fetchButton = event.target.closest("[data-batch-expense-rate-fetch]");
+  const roundButton = event.target.closest("[data-batch-expense-round]");
+  if (!fetchButton && !roundButton) {
+    return;
+  }
+
+  event.preventDefault();
+  syncBatchCashExpenseRowsFromDom();
+  updateBatchCashExpenseDerivedValues();
+
+  const expenseId = fetchButton?.dataset.batchExpenseRateFetch || roundButton?.dataset.batchExpenseRound;
+  const state = batchCashExpenseRows.find((row) => row.expense.id === expenseId);
+  if (!state || state.currency !== "CNY") {
+    return;
+  }
+
+  if (fetchButton) {
+    await fetchTodayJpyCnyRateForState(state);
+    return;
+  }
+
+  applyBatchCashExpenseRounding(state, roundButton.dataset.roundingMode);
 }
 
 function syncBatchCashExpenseRowsFromDom() {
@@ -884,6 +955,7 @@ function syncBatchCashExpenseRowsFromDom() {
     state.currency = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
     state.accountId = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
     state.note = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-note="${cssEscape(id)}"]`)?.value ?? state.note;
+    state.exchangeRate = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-rate="${cssEscape(id)}"]`)?.value ?? state.exchangeRate;
   }
 }
 
@@ -975,7 +1047,8 @@ function readBatchCashExpensePayloads() {
         actualPaymentAmount,
         actualPaymentCurrency: state.currency,
         actualPaymentDate: state.paymentDate,
-        note: buildCashExpenseRequestNote(expense, actualPaymentAmount, state.currency, state.paymentDate, state.note),
+        exchangeRate: state.currency === "CNY" ? parseOptionalPositiveNumber(state.exchangeRate) : null,
+        note: buildCashExpenseRequestNote(expense, actualPaymentAmount, state.currency, state.paymentDate, state.note, rateAssistNote(state)),
       },
     });
   }
@@ -1400,13 +1473,161 @@ function defaultCashExpenseNote(expense) {
   ].filter(Boolean).join(" / ");
 }
 
-function buildCashExpenseRequestNote(expense, amount, currency, paymentDate, baseNote) {
+function buildCashExpenseRequestNote(expense, amount, currency, paymentDate, baseNote, rateNote = "") {
   const base = safeText(baseNote).trim();
-  const requiredText = `${expenseObjectName(expense)}，实际支付日${paymentDate}，实际支付${formatCurrency(amount, currency)}`;
+  const requiredText = [
+    `${expenseObjectName(expense)}，实际支付日${paymentDate}，实际支付${formatCurrency(amount, currency)}`,
+    rateNote,
+  ].filter(Boolean).join("；");
   if (!base) {
     return requiredText;
   }
-  return base.includes("实际支付日") ? base : `${base}；${requiredText}`;
+  if (base.includes("实际支付日")) {
+    return rateNote && !base.includes("参考汇率") ? `${base}；${rateNote}` : base;
+  }
+  return `${base}；${requiredText}`;
+}
+
+function updateBatchCashExpenseDerivedValues() {
+  for (const state of batchCashExpenseRows) {
+    updateBatchCashExpenseDerivedValue(state);
+  }
+}
+
+function updateBatchCashExpenseDerivedValue(state) {
+  if (state.currency !== "CNY") {
+    state.theoreticalAmount = "";
+    state.roundingMode = "";
+    state.rateStatus = "";
+    return;
+  }
+
+  const rate = parseNumberInput(state.exchangeRate);
+  const jpyAmount = originalJpyAmount(state.expense);
+  if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(jpyAmount) || jpyAmount <= 0) {
+    state.theoreticalAmount = "";
+    return;
+  }
+
+  state.theoreticalAmount = formatDecimal(jpyAmount * rate, 2);
+}
+
+async function fetchTodayJpyCnyRateForState(state) {
+  try {
+    const rate = await fetchLatestJpyCnyRate();
+    state.exchangeRate = formatRateValue(rate);
+    updateBatchCashExpenseDerivedValue(state);
+    state.rateStatus = "已获取今日参考汇率，可取整或手动修改金额。";
+    clearBatchCashExpenseError();
+  } catch (error) {
+    state.rateStatus = "汇率获取失败，可手动输入参考汇率。";
+    showBatchCashExpenseError(`今日汇率获取失败：${error.message || error}。可手动输入金额继续。`);
+  } finally {
+    renderBatchCashExpenseRows();
+  }
+}
+
+async function fetchLatestJpyCnyRate() {
+  const response = await fetch(JPY_CNY_RATE_API_URL, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Frankfurter API HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rate = Number(data?.rate ?? data?.rates?.CNY);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error("Frankfurter API 未返回有效 CNY/JPY 汇率");
+  }
+
+  return rate;
+}
+
+function applyBatchCashExpenseRounding(state, mode) {
+  updateBatchCashExpenseDerivedValue(state);
+  const theoreticalAmount = parseNumberInput(state.theoreticalAmount);
+  if (!Number.isFinite(theoreticalAmount) || theoreticalAmount <= 0) {
+    state.rateStatus = "请先获取或输入有效参考汇率。";
+    renderBatchCashExpenseRows();
+    return;
+  }
+
+  const roundedAmount = roundCnyPaymentAmount(theoreticalAmount, mode);
+  state.amount = String(roundedAmount);
+  state.roundingMode = ROUNDING_MODE_LABELS[mode] ? mode : "";
+  state.rateStatus = `${ROUNDING_MODE_LABELS[mode] || "取整"}已填入实际支付金额，仍可手动修改。`;
+  renderBatchCashExpenseRows();
+}
+
+function roundCnyPaymentAmount(amount, mode) {
+  if (mode === "ceil") {
+    return Math.ceil(amount);
+  }
+
+  if (mode === "floor") {
+    return Math.floor(amount);
+  }
+
+  return Math.round(amount);
+}
+
+function originalJpyAmount(expense) {
+  const amountJpy = Number(expense?.amount_jpy);
+  if (Number.isFinite(amountJpy) && amountJpy > 0) {
+    return amountJpy;
+  }
+
+  const amount = Number(expense?.amount);
+  if (expense?.currency === "JPY" && Number.isFinite(amount) && amount > 0) {
+    return amount;
+  }
+
+  return NaN;
+}
+
+function formatTheoreticalCnyAmount(value) {
+  const amount = parseNumberInput(value);
+  return Number.isFinite(amount) && amount > 0 ? `${formatDecimal(amount, 2)} CNY` : "-";
+}
+
+function rateAssistHint(state) {
+  if (!Number.isFinite(originalJpyAmount(state.expense))) {
+    return "缺少 JPY 原始金额，可手动输入实际支付金额。";
+  }
+
+  return "获取或输入汇率后可计算理论金额。";
+}
+
+function rateAssistNote(state) {
+  if (state.currency !== "CNY") {
+    return "";
+  }
+
+  const rate = parseNumberInput(state.exchangeRate);
+  const theoreticalAmount = parseNumberInput(state.theoreticalAmount);
+  const parts = [];
+  if (Number.isFinite(rate) && rate > 0) {
+    parts.push(`参考汇率 CNY/JPY ${formatRateValue(rate)}`);
+  }
+  if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
+    parts.push(`理论金额 ${formatDecimal(theoreticalAmount, 2)} CNY`);
+  }
+  if (ROUNDING_MODE_LABELS[state.roundingMode]) {
+    parts.push(`取整方式 ${ROUNDING_MODE_LABELS[state.roundingMode]}`);
+  }
+
+  return parts.join("，");
+}
+
+function formatRateValue(value) {
+  const rate = Number(value);
+  return Number.isFinite(rate) ? rate.toFixed(7).replace(/0+$/, "").replace(/\.$/, "") : "";
+}
+
+function formatDecimal(value, decimals) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(decimals) : "";
 }
 
 function parseNumberInput(value) {
@@ -1415,6 +1636,11 @@ function parseNumberInput(value) {
     return NaN;
   }
   return Number(normalized);
+}
+
+function parseOptionalPositiveNumber(value) {
+  const number = parseNumberInput(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
 }
 
 function currentDate() {

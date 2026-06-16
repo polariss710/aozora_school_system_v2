@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.108.0-expense-exchange-rate-optional-20260613">
+    <link rel="stylesheet" href="./css/app.css?v=v2.124.0-expense-cny-rate-assist-20260616">
   </head>
   <body>
     <div class="app-shell">
@@ -148,7 +148,7 @@
     </div>
 
     <div id="batchCashExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="batchCashExpenseTitle">
+      <section class="dialog-panel app-dialog--lg expense-batch-cash-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="batchCashExpenseTitle">
         <div class="section-heading">
           <h2 id="batchCashExpenseTitle">批量提交 Cash 支付确认</h2>
           <p class="section-note">只会创建 Cash 待确认请求；Cash 确认后才会生成支出交易。请逐条确认实际支付金额、币种、账户和备注。</p>
@@ -156,8 +156,8 @@
 
         <div id="batchCashExpenseError" class="dialog-error is-hidden"></div>
 
-        <div class="table-scroll">
-          <table class="payment-table">
+        <div class="table-scroll expense-batch-cash-table-scroll">
+          <table class="payment-table expense-batch-cash-table">
             <thead>
               <tr>
                 <th>支付对象 / 来源</th>
@@ -166,6 +166,7 @@
                 <th>原始金额</th>
                 <th>实际支付金额</th>
                 <th>币种</th>
+                <th>CNY 汇率辅助</th>
                 <th>Cash 账户</th>
                 <th>备注</th>
                 <th>结果</th>
@@ -273,6 +274,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=v2.123.0-expense-teacher-filter-20260616"></script>
+    <script type="module" src="./js/expense-app.js?v=v2.124.0-expense-cny-rate-assist-20260616"></script>
   </body>
 </html>

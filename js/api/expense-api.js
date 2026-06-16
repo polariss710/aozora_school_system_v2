@@ -161,6 +161,7 @@ export async function requestCashExpenseConfirmation(payload) {
       actual_payment_amount: payload.actualPaymentAmount,
       actual_payment_currency: payload.actualPaymentCurrency,
       actual_payment_date: payload.actualPaymentDate,
+      exchange_rate: payload.exchangeRate ?? null,
       note: payload.note || null,
     },
   });
