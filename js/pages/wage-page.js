@@ -14,11 +14,11 @@ import {
 import {
   currentYearMonth,
   getYearMonthSelectValue,
-  isPageReload,
   populateMonthSelect,
   populateYearSelect,
   setYearMonthSelectValue,
   updateMonthScopedNavigation,
+  updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -116,6 +116,8 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
+  dom.yearFilter.addEventListener("change", updateWageMonthNavigationFromCurrentSelection);
+  dom.monthFilter.addEventListener("change", updateWageMonthNavigationFromCurrentSelection);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
@@ -346,6 +348,16 @@ function restoreFilterSelections(filters) {
   dom.settlementTypeSelect.value = filters.settlementType;
   dom.statusSelect.value = filters.status;
   dom.keywordInput.value = filters.keyword;
+  updateWageMonthNavigationFromCurrentSelection();
+}
+
+function updateWageMonthNavigationFromCurrentSelection() {
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (!month) {
+    return;
+  }
+  updateUrlMonthParams(month);
+  updateMonthScopedNavigation(month);
 }
 
 function renderMasterOptions() {
@@ -1153,10 +1165,6 @@ function filterWageCandidateLessons(rows, filters) {
 }
 
 function readFiltersFromUrl() {
-  if (isPageReload()) {
-    return null;
-  }
-
   const params = new URLSearchParams(window.location.search);
   const year = safeText(params.get("year")).trim();
   const monthPart = safeText(params.get("month")).trim();

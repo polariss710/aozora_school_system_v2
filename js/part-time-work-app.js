@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initPartTimeWorkPage } from "./pages/part-time-work-page.js";
+import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=v2.122.0-month-filter-url-preserve-20260616";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

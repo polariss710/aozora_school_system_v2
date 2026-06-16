@@ -72,15 +72,7 @@ export function monthFromUrl(search = window.location.search) {
 }
 
 export function initialYearMonthFromUrl() {
-  if (isPageReload()) {
-    return currentYearMonth();
-  }
   return monthFromUrl() || currentYearMonth();
-}
-
-export function isPageReload() {
-  const [navigation] = performance.getEntriesByType?.("navigation") || [];
-  return navigation?.type === "reload";
 }
 
 export function updateUrlMonthParams(yearMonth) {

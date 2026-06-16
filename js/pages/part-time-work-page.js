@@ -140,6 +140,8 @@ function bindEvents() {
     event.preventDefault();
     loadPageData();
   });
+  dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
+  dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
 
   dom.resetButton.addEventListener("click", () => {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
@@ -221,6 +223,15 @@ function readFilters() {
     yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
     workplaceName: dom.workplaceFilter.value,
   };
+}
+
+function updateMonthNavigationFromCurrentSelection() {
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (!month) {
+    return;
+  }
+  updateUrlMonthParams(month);
+  updateMonthScopedNavigation(month);
 }
 
 function renderLessons(rows) {

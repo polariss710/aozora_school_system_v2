@@ -185,6 +185,8 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
+  dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
+  dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters({ month: currentYearMonth() });
@@ -365,6 +367,16 @@ function restoreFilterSelections(filters) {
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
   dom.currencySelect.value = filters.currency;
+  updateMonthNavigationFromCurrentSelection();
+}
+
+function updateMonthNavigationFromCurrentSelection() {
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (!month) {
+    return;
+  }
+  updateUrlMonthParams(month);
+  updateMonthScopedNavigation(month);
 }
 
 function renderMasterOptions() {
