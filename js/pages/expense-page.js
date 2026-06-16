@@ -24,6 +24,7 @@ import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/form
 
 const DEFAULT_FILTERS = {
   studentId: "",
+  teacherId: "",
   businessEntityId: "",
   accountId: "",
   currency: "",
@@ -146,6 +147,7 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#expenseYearFilter");
   dom.monthFilter = document.querySelector("#expenseMonthFilter");
   dom.studentSelect = document.querySelector("#expenseStudentSelect");
+  dom.teacherSelect = document.querySelector("#expenseTeacherSelect");
   dom.businessEntitySelect = document.querySelector("#expenseBusinessEntitySelect");
   dom.accountSelect = document.querySelector("#expenseAccountSelect");
   dom.currencySelect = document.querySelector("#expenseCurrencySelect");
@@ -187,6 +189,7 @@ function bindEvents() {
   });
   dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
   dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
+  dom.teacherSelect.addEventListener("change", applyCurrentFilters);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters({ month: currentYearMonth() });
@@ -243,6 +246,7 @@ function bindEvents() {
 function setDefaultFilters(overrides = null) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
+  dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
@@ -355,6 +359,7 @@ function readFilters() {
   return {
     month,
     studentId: dom.studentSelect.value,
+    teacherId: dom.teacherSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
     accountId: dom.accountSelect.value,
     currency: dom.currencySelect.value,
@@ -364,6 +369,7 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
+  dom.teacherSelect.value = filters.teacherId;
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
   dom.currencySelect.value = filters.currency;
@@ -381,6 +387,7 @@ function updateMonthNavigationFromCurrentSelection() {
 
 function renderMasterOptions() {
   renderEntityOptions(dom.studentSelect, students, studentName);
+  renderEntityOptions(dom.teacherSelect, teachers, teacherName, "全部老师");
   renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderEntityOptions(dom.accountSelect, accounts, accountName);
 }
@@ -389,8 +396,8 @@ function renderDataOptions(rows) {
   renderValueOptions(dom.currencySelect, distinctValues(rows, "currency"), displayValue);
 }
 
-function renderEntityOptions(selectEl, rows, labelGetter) {
-  const options = ['<option value="">全部</option>'];
+function renderEntityOptions(selectEl, rows, labelGetter, emptyLabel = "全部") {
+  const options = [`<option value="">${escapeHtml(emptyLabel)}</option>`];
 
   for (const row of rows) {
     options.push(
@@ -1119,12 +1126,20 @@ function filterExpenseRecords(rows, filters) {
       return false;
     }
 
+    if (filters.teacherId && (!isTeacherWageExpense(row) || row.teacher_id !== filters.teacherId)) {
+      return false;
+    }
+
     if (filters.currency && row.currency !== filters.currency) {
       return false;
     }
 
     return true;
   });
+}
+
+function isTeacherWageExpense(row) {
+  return row?.source_type === "teacher_wage" || row?.expense_category === "teacher_wage";
 }
 
 function canRequestCashExpense(row) {
