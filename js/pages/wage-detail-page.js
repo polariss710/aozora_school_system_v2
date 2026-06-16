@@ -6,6 +6,10 @@ import {
   voidTeacherWageLock,
 } from "../api/wage-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  monthFromUrl,
+  updateMonthScopedNavigation,
+} from "../utils/month-filter.js";
 
 const WAGE_STATUS_LABELS = {
   locked: "已生成快照",
@@ -201,6 +205,10 @@ function readWageLockId() {
 function configureReturnLink() {
   if (dom.returnLink) {
     dom.returnLink.href = buildReturnUrl();
+  }
+  const month = monthFromUrl();
+  if (month) {
+    updateMonthScopedNavigation(month);
   }
 }
 

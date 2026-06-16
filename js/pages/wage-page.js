@@ -14,9 +14,11 @@ import {
 import {
   currentYearMonth,
   getYearMonthSelectValue,
+  isPageReload,
   populateMonthSelect,
   populateYearSelect,
   setYearMonthSelectValue,
+  updateMonthScopedNavigation,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -314,6 +316,7 @@ function applyCurrentFilters() {
   restoreFilterSelections(filters);
   activeFilters = filters;
   updateUrlFromFilters(filters);
+  updateMonthScopedNavigation(filters.month);
   renderWageLocks(filterWageLocks(wageLocks, filters));
   renderWageCandidates(filterWageCandidateLessons(wageCandidateLessons, filters));
 }
@@ -337,6 +340,7 @@ function readFilters() {
 
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
+  updateMonthScopedNavigation(filters.month);
   dom.teacherSelect.value = filters.teacherId;
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.settlementTypeSelect.value = filters.settlementType;
@@ -1149,6 +1153,10 @@ function filterWageCandidateLessons(rows, filters) {
 }
 
 function readFiltersFromUrl() {
+  if (isPageReload()) {
+    return null;
+  }
+
   const params = new URLSearchParams(window.location.search);
   const year = safeText(params.get("year")).trim();
   const monthPart = safeText(params.get("month")).trim();

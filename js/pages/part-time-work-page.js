@@ -16,9 +16,12 @@ import {
 import {
   currentYearMonth,
   getYearMonthSelectValue,
+  initialYearMonthFromUrl,
   populateMonthSelect,
   populateYearSelect,
   setYearMonthSelectValue,
+  updateMonthScopedNavigation,
+  updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, safeText } from "../utils/format.js";
 
@@ -68,12 +71,15 @@ let dialogMode = DIALOG_MODES.CREATE_PLANNED;
 let isSubmitting = false;
 const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
+let initialMonth = "";
 
 export async function initPartTimeWorkPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+  initialMonth = initialYearMonthFromUrl();
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, initialMonth);
+  updateMonthScopedNavigation(initialMonth);
   renderOptionSelect(dom.workplaceFilter, WORKPLACE_OPTIONS, { includeAll: true });
   renderOptionSelect(dom.workplaceNameInput, WORKPLACE_OPTIONS);
   renderOptionSelect(dom.subjectNameInput, SUBJECT_OPTIONS);
@@ -182,6 +188,8 @@ async function loadPageData() {
   }
 
   const filters = readFilters();
+  updateUrlMonthParams(filters.yearMonth);
+  updateMonthScopedNavigation(filters.yearMonth);
   setLoading(true);
   showMessage("", "");
 

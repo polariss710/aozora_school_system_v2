@@ -173,6 +173,7 @@
               <tr>
                 <th>对象 / 来源</th>
                 <th>业务归属月</th>
+                <th>实际到账日（Cash流水日）</th>
                 <th>原始金额</th>
                 <th>实际到账金额</th>
                 <th>币种</th>
@@ -330,6 +331,11 @@
           <label class="field" data-cash-income-field="actualAmount">
             <span>实际到账金额</span>
             <input id="cashIncomeActualAmountInput" type="number" step="0.01" min="0" inputmode="decimal">
+          </label>
+
+          <label class="field" data-cash-income-field="actualDate">
+            <span>实际到账日（Cash流水日）</span>
+            <input id="cashIncomeActualDateInput" type="date">
           </label>
 
           <label class="field" data-cash-income-field="actualCurrency">

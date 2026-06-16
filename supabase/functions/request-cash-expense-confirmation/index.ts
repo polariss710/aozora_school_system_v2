@@ -12,6 +12,7 @@ type RequestBody = {
   cash_account_id?: string;
   actual_payment_amount?: number | string;
   actual_payment_currency?: string;
+  actual_payment_date?: string;
   note?: string | null;
 };
 
@@ -187,6 +188,19 @@ function requireCurrency(value: unknown): string {
   return currency;
 }
 
+function optionalDate(value: unknown, fieldName: string): string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(text)) {
+    throw new Error(`${fieldName} must be YYYY-MM-DD`);
+  }
+
+  return text;
+}
+
 function optionalText(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
@@ -284,6 +298,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "actual_payment_amount",
     );
     const actualPaymentCurrency = requireCurrency(body.actual_payment_currency);
+    const requestedPaymentDate = optionalDate(body.actual_payment_date, "actual_payment_date");
     const note = optionalText(body.note);
 
     const { data: expenseData, error: expenseError } = await schoolClient
@@ -369,6 +384,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       schoolRequest.payment_currency,
       Number(schoolRequest.payment_amount),
     );
+    const actualPaymentDate = requestedPaymentDate ?? schoolRequest.expense_date;
     const cashPayload = {
       external_source: CASH_EXTERNAL_SOURCE,
       external_event_id: schoolRequest.request_event_id,
@@ -378,6 +394,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       transaction_type: CASH_TRANSACTION_TYPE,
       expense_record_id: schoolRequest.expense_id,
       expense_date: schoolRequest.expense_date,
+      actual_payment_date: actualPaymentDate,
       year_month: schoolRequest.year_month,
       expense_category: schoolRequest.expense_category,
       expense_category_label: expenseCategoryLabel(schoolRequest.expense_category),
@@ -414,7 +431,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         p_external_reference_id: schoolRequest.expense_id,
         p_request_type: schoolRequest.request_type,
         p_transaction_type: CASH_TRANSACTION_TYPE,
-        p_transacted_at: schoolRequest.expense_date,
+        p_transacted_at: actualPaymentDate,
         p_amount: Number(schoolRequest.payment_amount),
         p_idempotency_key: schoolRequest.idempotency_key,
         p_description: cashDescription,

@@ -10,11 +10,15 @@ import {
 } from "../api/expense-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
+  currentJapanDate,
   currentYearMonth,
   getYearMonthSelectValue,
+  initialYearMonthFromUrl,
   populateMonthSelect,
   populateYearSelect,
   setYearMonthSelectValue,
+  updateMonthScopedNavigation,
+  updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -114,11 +118,13 @@ let loadedMonth = "";
 let isCreateSubmitting = false;
 let batchCashExpenseRows = [];
 let isBatchCashSubmitting = false;
+let initialMonth = "";
 
 export function initExpensePage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
+  initialMonth = initialYearMonthFromUrl();
   setDefaultFilters();
   bindEvents();
 
@@ -181,7 +187,7 @@ function bindEvents() {
   });
 
   dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters();
+    setDefaultFilters({ month: currentYearMonth() });
     applyQuery();
   });
 
@@ -232,12 +238,13 @@ function bindEvents() {
   }
 }
 
-function setDefaultFilters() {
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+function setDefaultFilters(overrides = null) {
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
+  updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
 }
 
 async function loadInitialData() {
@@ -251,7 +258,10 @@ async function loadInitialData() {
     teachers = lookups.teachers;
     students = lookups.students;
     renderMasterOptions();
-    await loadExpenseMonth(currentYearMonth());
+    const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
+    await loadExpenseMonth(month);
+    updateUrlMonthParams(month);
+    updateMonthScopedNavigation(month);
     applyCurrentFilters();
     showMessage("success", "支出记录数据已加载。");
   } catch (error) {
@@ -281,6 +291,9 @@ async function applyQuery() {
   if (!filters) {
     return;
   }
+
+  updateUrlMonthParams(filters.month);
+  updateMonthScopedNavigation(filters.month);
 
   if (filters.month !== loadedMonth) {
     setLoading(true);
@@ -749,6 +762,7 @@ async function openBatchCashExpenseDialog(rows) {
     expense,
     amount: expense.amount ?? "",
     currency: expense.currency || "JPY",
+    paymentDate: currentJapanDate(),
     accountId: "",
     note: defaultCashExpenseNote(expense),
     result: "",
@@ -791,6 +805,7 @@ function renderBatchCashExpenseRows() {
       <tr data-batch-expense-row-id="${escapeAttribute(expense.id)}">
         <td>${escapeHtml(expenseObjectName(expense))}</td>
         <td class="expense-nowrap">${escapeHtml(formatMonth(expense.year_month))}</td>
+        <td><input data-batch-expense-date="${escapeAttribute(expense.id)}" type="date" value="${escapeAttribute(state.paymentDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
         <td><input data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>
@@ -847,6 +862,7 @@ function syncBatchCashExpenseRowsFromDom() {
   for (const state of batchCashExpenseRows) {
     const id = state.expense.id;
     state.amount = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-amount="${cssEscape(id)}"]`)?.value ?? state.amount;
+    state.paymentDate = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-date="${cssEscape(id)}"]`)?.value ?? state.paymentDate;
     state.currency = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
     state.accountId = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
     state.note = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-note="${cssEscape(id)}"]`)?.value ?? state.note;
@@ -914,6 +930,12 @@ function readBatchCashExpensePayloads() {
       continue;
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(state.paymentDate || "")) {
+      state.result = "请选择实际支付日";
+      hasError = true;
+      continue;
+    }
+
     if (!CASH_EXPENSE_CURRENCIES.includes(state.currency)) {
       state.result = "币种无效";
       hasError = true;
@@ -934,7 +956,8 @@ function readBatchCashExpensePayloads() {
         cashAccountId: state.accountId,
         actualPaymentAmount,
         actualPaymentCurrency: state.currency,
-        note: state.note,
+        actualPaymentDate: state.paymentDate,
+        note: buildCashExpenseRequestNote(expense, actualPaymentAmount, state.currency, state.paymentDate, state.note),
       },
     });
   }
@@ -1120,7 +1143,13 @@ function renderCashRequestStatus(row) {
   const status = row.cash_transaction_id && !row.cash_request_status
     ? "synced"
     : row.cash_request_status;
-  return `<span class="status-badge ${escapeAttribute(cashRequestStatusClass(status))}">${escapeHtml(cashRequestStatusLabel(status))}</span>`;
+  const noteText = safeText(row.cash_payment_note);
+  return `
+    <div class="income-cash-sync-cell">
+      <span class="status-badge ${escapeAttribute(cashRequestStatusClass(status))}">${escapeHtml(cashRequestStatusLabel(status))}</span>
+      ${noteText ? `<div class="table-cell-summary">${escapeHtml(noteText)}</div>` : ""}
+    </div>
+  `;
 }
 
 function cashRequestStatusLabel(value) {
@@ -1345,6 +1374,15 @@ function defaultCashExpenseNote(expense) {
   ].filter(Boolean).join(" / ");
 }
 
+function buildCashExpenseRequestNote(expense, amount, currency, paymentDate, baseNote) {
+  const base = safeText(baseNote).trim();
+  const requiredText = `${expenseObjectName(expense)}，实际支付日${paymentDate}，实际支付${formatCurrency(amount, currency)}`;
+  if (!base) {
+    return requiredText;
+  }
+  return base.includes("实际支付日") ? base : `${base}；${requiredText}`;
+}
+
 function parseNumberInput(value) {
   const normalized = String(value ?? "").replace(/,/g, "").trim();
   if (!normalized) {
@@ -1366,7 +1404,15 @@ function displayValue(value) {
 }
 
 function expenseDetailUrl(expenseId) {
-  return `./expense-detail.html?id=${encodeURIComponent(safeText(expenseId))}`;
+  const params = new URLSearchParams();
+  params.set("id", safeText(expenseId));
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (month) {
+    const [year, monthPart] = month.split("-");
+    params.set("year", year);
+    params.set("month", monthPart);
+  }
+  return `./expense-detail.html?${params.toString()}`;
 }
 
 function setLoading(isLoading) {

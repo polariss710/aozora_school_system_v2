@@ -10,11 +10,15 @@ import {
 } from "../api/income-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
+  currentJapanDate,
   currentYearMonth,
   getYearMonthSelectValue,
+  initialYearMonthFromUrl,
   populateMonthSelect,
   populateYearSelect,
   setYearMonthSelectValue,
+  updateMonthScopedNavigation,
+  updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -77,12 +81,14 @@ let cashRequestIncomeRecord = null;
 let isCashRequestSubmitting = false;
 let batchCashIncomeRows = [];
 let isBatchCashSubmitting = false;
+let initialMonth = "";
 
 export function initIncomePage() {
   cacheDom();
   initSchoolAuth();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
+  initialMonth = initialYearMonthFromUrl();
   setDefaultFilters();
   bindEvents();
 
@@ -145,6 +151,7 @@ function cacheDom() {
   dom.cashIncomeRequestError = document.querySelector("#cashIncomeRequestError");
   dom.cashIncomeRequestSummary = document.querySelector("#cashIncomeRequestSummary");
   dom.cashIncomeActualAmountInput = document.querySelector("#cashIncomeActualAmountInput");
+  dom.cashIncomeActualDateInput = document.querySelector("#cashIncomeActualDateInput");
   dom.cashIncomeActualCurrencySelect = document.querySelector("#cashIncomeActualCurrencySelect");
   dom.cashIncomeExchangeRateInput = document.querySelector("#cashIncomeExchangeRateInput");
   dom.cashIncomeAccountSelect = document.querySelector("#cashIncomeAccountSelect");
@@ -161,7 +168,7 @@ function bindEvents() {
   });
 
   dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters();
+    setDefaultFilters({ month: currentYearMonth() });
     applyQuery();
   });
 
@@ -182,6 +189,7 @@ function bindEvents() {
   dom.cashIncomeRequestSubmitButton.addEventListener("click", submitCashIncomeRequest);
   for (const [input, fieldId] of [
     [dom.cashIncomeActualAmountInput, "actualAmount"],
+    [dom.cashIncomeActualDateInput, "actualDate"],
     [dom.cashIncomeActualCurrencySelect, "actualCurrency"],
     [dom.cashIncomeAccountSelect, "cashAccount"],
     [dom.cashIncomeNoteInput, "note"],
@@ -265,12 +273,13 @@ function bindEvents() {
   }
 }
 
-function setDefaultFilters() {
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+function setDefaultFilters(overrides = null) {
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
+  updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
 }
 
 async function loadInitialData() {
@@ -283,7 +292,10 @@ async function loadInitialData() {
     businessEntities = lookups.businessEntities;
     accounts = lookups.accounts;
     renderMasterOptions();
-    await loadIncomeMonth(currentYearMonth());
+    const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
+    await loadIncomeMonth(month);
+    updateUrlMonthParams(month);
+    updateMonthScopedNavigation(month);
     applyCurrentFilters();
     showMessage("success", "收入记录数据已加载。");
   } catch (error) {
@@ -312,6 +324,9 @@ async function applyQuery() {
   if (!filters) {
     return;
   }
+
+  updateUrlMonthParams(filters.month);
+  updateMonthScopedNavigation(filters.month);
 
   if (filters.month !== loadedMonth) {
     setLoading(true);
@@ -472,10 +487,22 @@ function renderIncomeRowActions(row) {
     : "";
   return `
     <div class="income-row-actions">
-      <a class="table-action-button" href="./income-detail.html?id=${encodeURIComponent(row.id)}">详情</a>
+      <a class="table-action-button" href="${escapeAttribute(incomeDetailHref(row.id))}">详情</a>
       ${cashButton}
     </div>
   `;
+}
+
+function incomeDetailHref(incomeId) {
+  const params = new URLSearchParams();
+  params.set("id", incomeId);
+  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  if (month) {
+    const [year, monthPart] = month.split("-");
+    params.set("year", year);
+    params.set("month", monthPart);
+  }
+  return `./income-detail.html?${params.toString()}`;
 }
 
 function handleIncomeTableClick(event) {
@@ -555,6 +582,7 @@ async function openCashIncomeRequestDialog(income) {
   setCashRequestSubmitting(false);
   dom.cashIncomeRequestSummary.innerHTML = renderCashIncomeRequestSummary(income);
   dom.cashIncomeActualAmountInput.value = "";
+  dom.cashIncomeActualDateInput.value = currentJapanDate();
   dom.cashIncomeActualCurrencySelect.value = income.source_type === "part_time_work" ? "CNY" : income.currency || "JPY";
   dom.cashIncomeExchangeRateInput.value = "";
   dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
@@ -650,6 +678,7 @@ async function openBatchCashIncomeDialog(rows) {
     income,
     amount: income.amount ?? "",
     currency: income.currency || "JPY",
+    receivedDate: currentJapanDate(),
     accountId: "",
     note: defaultCashIncomeNote(income),
     result: "",
@@ -678,6 +707,7 @@ function renderBatchCashIncomeRows() {
       <tr data-batch-income-row-id="${escapeAttribute(income.id)}">
         <td>${escapeHtml(incomeObjectName(income))}</td>
         <td class="income-nowrap">${escapeHtml(formatMonth(income.year_month))}</td>
+        <td><input data-batch-income-date="${escapeAttribute(income.id)}" type="date" value="${escapeAttribute(state.receivedDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td class="number-cell income-nowrap">${escapeHtml(formatCurrency(income.amount, income.currency))}</td>
         <td><input data-batch-income-amount="${escapeAttribute(income.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>
@@ -734,6 +764,7 @@ function syncBatchCashIncomeRowsFromDom() {
   for (const state of batchCashIncomeRows) {
     const id = state.income.id;
     state.amount = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-amount="${cssEscape(id)}"]`)?.value ?? state.amount;
+    state.receivedDate = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-date="${cssEscape(id)}"]`)?.value ?? state.receivedDate;
     state.currency = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
     state.accountId = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
     state.note = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-note="${cssEscape(id)}"]`)?.value ?? state.note;
@@ -801,6 +832,12 @@ function readBatchCashIncomePayloads() {
       continue;
     }
 
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(state.receivedDate || "")) {
+      state.result = "请选择实际到账日";
+      hasError = true;
+      continue;
+    }
+
     if (!CASH_INCOME_CURRENCIES.includes(state.currency)) {
       state.result = "币种无效";
       hasError = true;
@@ -828,8 +865,9 @@ function readBatchCashIncomePayloads() {
         cashAccountId: state.accountId,
         actualReceivedAmount,
         actualReceivedCurrency: state.currency,
+        actualReceivedDate: state.receivedDate,
         exchangeRate: state.currency === "JPY" ? 1 : exchangeRate,
-        note: buildCashIncomeRequestNoteFromBase(income, actualReceivedAmount, state.currency, exchangeRate, state.note),
+        note: buildCashIncomeRequestNoteFromBase(income, actualReceivedAmount, state.currency, exchangeRate, state.receivedDate, state.note),
       },
     });
   }
@@ -862,6 +900,12 @@ function readCashIncomeRequestPayload() {
     return null;
   }
 
+  const actualReceivedDate = dom.cashIncomeActualDateInput.value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(actualReceivedDate || "")) {
+    showCashIncomeRequestError("请选择实际到账日。", ["actualDate"]);
+    return null;
+  }
+
   const actualReceivedCurrency = dom.cashIncomeActualCurrencySelect.value;
   if (!CASH_INCOME_CURRENCIES.includes(actualReceivedCurrency)) {
     showCashIncomeRequestError("请选择实际到账币种。", ["actualCurrency"]);
@@ -890,9 +934,10 @@ function readCashIncomeRequestPayload() {
     incomeRecordId: income.id,
     cashAccountId,
     actualReceivedAmount,
+    actualReceivedDate,
     actualReceivedCurrency,
     exchangeRate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
-    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate),
+    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate, actualReceivedDate),
   };
 }
 
@@ -949,6 +994,7 @@ function updateCashIncomeRequestPreview() {
   }
 
   const amount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
+  const receivedDate = dom.cashIncomeActualDateInput.value;
   const currency = dom.cashIncomeActualCurrencySelect.value;
   const exchangeRate = calculatedCashIncomeExchangeRate(income, amount, currency);
   dom.cashIncomeExchangeRateInput.value = Number.isFinite(exchangeRate) ? String(exchangeRate) : "";
@@ -962,6 +1008,7 @@ function updateCashIncomeRequestPreview() {
     "Cash 请求预览：",
     income.source_label || incomeObjectName(income),
     `School 原始金额 ${formatCurrency(income.amount, income.currency)}`,
+    receivedDate ? `实际到账日 ${receivedDate}` : "",
     `实际到账 ${formatCurrency(amount, currency)}`,
     Number.isFinite(exchangeRate) ? `参考汇率 ${exchangeRate}` : "",
   ].filter(Boolean).join(" / ");
@@ -987,18 +1034,18 @@ function defaultCashIncomeNote(income) {
   return income.note || income.source_label || incomeCategoryLabel(income.income_category);
 }
 
-function buildCashIncomeRequestNote(income, amount, currency, exchangeRate) {
+function buildCashIncomeRequestNote(income, amount, currency, exchangeRate, receivedDate) {
   const base = dom.cashIncomeNoteInput.value.trim();
-  return buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, base);
+  return buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, receivedDate, base);
 }
 
-function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, baseNote) {
+function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, receivedDate, baseNote) {
   const base = safeText(baseNote).trim();
-  const requiredText = `${income.source_label || incomeObjectName(income)}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
+  const requiredText = `${income.source_label || incomeObjectName(income)}，实际到账日${receivedDate}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
   if (!base) {
     return requiredText;
   }
-  return base.includes("实际到账") ? base : `${base}；${requiredText}`;
+  return base.includes("实际到账日") ? base : `${base}；${requiredText}`;
 }
 
 function openCreateIncomeDialog() {
@@ -1677,10 +1724,12 @@ function renderCashSyncSummary(event) {
   const amountText = event.payment_amount && event.payment_currency
     ? `<span class="income-cash-amount">${escapeHtml(formatCurrency(event.payment_amount, event.payment_currency))}</span>`
     : "";
+  const noteText = safeText(event.note);
   return `
     <div class="income-cash-sync-cell">
       ${renderCashSyncBadge(event)}
       ${amountText}
+      ${noteText ? `<div class="table-cell-summary">${escapeHtml(noteText)}</div>` : ""}
     </div>
   `;
 }
@@ -1757,7 +1806,7 @@ function showMessage(type, text) {
 function clearCashIncomeRequestErrors() {
   dom.cashIncomeRequestError.textContent = "";
   dom.cashIncomeRequestError.classList.add("is-hidden");
-  for (const fieldId of ["actualAmount", "actualCurrency", "exchangeRate", "cashAccount", "note"]) {
+  for (const fieldId of ["actualAmount", "actualDate", "actualCurrency", "exchangeRate", "cashAccount", "note"]) {
     clearCashIncomeRequestFieldInvalid(fieldId);
   }
 }

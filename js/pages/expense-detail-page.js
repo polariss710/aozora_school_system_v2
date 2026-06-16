@@ -8,6 +8,11 @@ import {
 } from "../api/expense-detail-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  currentJapanDate,
+  monthFromUrl,
+  updateMonthScopedNavigation,
+} from "../utils/month-filter.js";
 
 const EXPENSE_STATUS_LABELS = {
   paid: "已支付",
@@ -99,6 +104,7 @@ const EDIT_EXPENSE_FIELD_IDS = [
 export function initExpenseDetailPage() {
   cacheDom();
   bindEvents();
+  configureMonthScopedLinks();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -124,6 +130,7 @@ function cacheDom() {
   dom.actionStatus = document.querySelector("#expenseDetailActionStatus");
   dom.openEditExpenseButton = document.querySelector("#openEditExpenseButton");
   dom.openCashExpenseRequestButton = document.querySelector("#openCashExpenseRequestButton");
+  dom.returnLink = document.querySelector('.reimbursement-detail-actions a[href="./expense.html"]');
   dom.openReverseExpenseButton = document.querySelector("#openReverseExpenseButton");
   dom.loadingState = document.querySelector("#expenseDetailLoadingState");
   dom.content = document.querySelector("#expenseDetailContent");
@@ -176,6 +183,7 @@ function cacheDom() {
   dom.cashExpenseRequestError = document.querySelector("#cashExpenseRequestError");
   dom.cashExpenseRequestSummary = document.querySelector("#cashExpenseRequestSummary");
   dom.cashExpenseActualAmountInput = document.querySelector("#cashExpenseActualAmountInput");
+  dom.cashExpenseActualDateInput = document.querySelector("#cashExpenseActualDateInput");
   dom.cashExpenseActualCurrencySelect = document.querySelector("#cashExpenseActualCurrencySelect");
   dom.cashExpenseAccountSelect = document.querySelector("#cashExpenseAccountSelect");
   dom.cashExpenseNoteInput = document.querySelector("#cashExpenseNoteInput");
@@ -261,6 +269,7 @@ function bindEvents() {
   dom.cashExpenseRequestSubmitButton.addEventListener("click", submitCashExpenseRequest);
   for (const [input, fieldId] of [
     [dom.cashExpenseActualAmountInput, "actualAmount"],
+    [dom.cashExpenseActualDateInput, "actualDate"],
     [dom.cashExpenseActualCurrencySelect, "actualCurrency"],
     [dom.cashExpenseAccountSelect, "cashAccount"],
     [dom.cashExpenseNoteInput, "note"],
@@ -282,6 +291,20 @@ function bindEvents() {
       updateCashExpenseRequestPreview();
     });
   }
+}
+
+function configureMonthScopedLinks() {
+  const month = monthFromUrl();
+  if (!month) {
+    return;
+  }
+
+  const [year, monthPart] = month.split("-");
+  const params = new URLSearchParams({ year, month: monthPart });
+  if (dom.returnLink) {
+    dom.returnLink.href = `./expense.html?${params.toString()}`;
+  }
+  updateMonthScopedNavigation(month);
 }
 
 function readExpenseId() {
@@ -339,6 +362,7 @@ function renderExpenseDetail(data) {
     ["来源类型", sourceTypeLabel(expense.source_type)],
     ["Cash request", expense.cash_request_id ? `${shortId(expense.cash_request_id)} / ${cashRequestStatusLabel(expense.cash_request_status)}` : cashRequestStatusLabel(expense.cash_request_status)],
     ["Cash transaction", shortId(expense.cash_transaction_id)],
+    ["Cash 支付备注", displayValue(expense.cash_payment_note)],
     ["Cash 请求时间", formatDate(expense.cash_requested_at)],
     ["Cash 同步时间", formatDate(expense.cash_synced_at)],
     ["Cash 错误", displayValue(expense.cash_error_message)],
@@ -1018,6 +1042,7 @@ async function openCashExpenseRequestDialog() {
   const expense = detailData.expense;
   dom.cashExpenseRequestSummary.innerHTML = renderCashExpenseRequestSummary(expense);
   dom.cashExpenseActualAmountInput.value = expense.amount ?? "";
+  dom.cashExpenseActualDateInput.value = currentJapanDate();
   dom.cashExpenseActualCurrencySelect.value = expense.currency || "JPY";
   dom.cashExpenseNoteInput.value = [
     expenseCategoryLabel(expense.expense_category),
@@ -1076,10 +1101,11 @@ function renderCashExpenseAccountOptions() {
 function updateCashExpenseRequestPreview() {
   const amount = Number(dom.cashExpenseActualAmountInput.value);
   const currency = dom.cashExpenseActualCurrencySelect.value || "JPY";
+  const paymentDate = dom.cashExpenseActualDateInput.value;
   const account = cashEligibleAccounts.find((item) => item.id === dom.cashExpenseAccountSelect.value);
   const amountText = Number.isFinite(amount) && amount > 0 ? formatCurrency(amount, currency) : "-";
   const accountText = account ? cashAccountLabel(account) : "-";
-  dom.cashExpenseRequestPreview.textContent = `Cash 请求预览：${amountText} / ${accountText}`;
+  dom.cashExpenseRequestPreview.textContent = `Cash 请求预览：${paymentDate || "-"} / ${amountText} / ${accountText}`;
 }
 
 async function submitCashExpenseRequest() {
@@ -1127,6 +1153,12 @@ function readCashExpenseRequestPayload() {
     return null;
   }
 
+  const actualPaymentDate = dom.cashExpenseActualDateInput.value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(actualPaymentDate || "")) {
+    showCashExpenseRequestError("请选择实际支付日。", ["actualDate"]);
+    return null;
+  }
+
   const currency = dom.cashExpenseActualCurrencySelect.value;
   if (!["JPY", "CNY"].includes(currency)) {
     showCashExpenseRequestError("请选择实际支付币种。", ["actualCurrency"]);
@@ -1150,7 +1182,8 @@ function readCashExpenseRequestPayload() {
     cashAccountId: accountId,
     actualPaymentAmount: amount,
     actualPaymentCurrency: currency,
-    note: dom.cashExpenseNoteInput.value.trim(),
+    actualPaymentDate,
+    note: buildCashExpenseRequestNote(expense, amount, currency, actualPaymentDate),
   };
 }
 
@@ -1165,6 +1198,15 @@ function renderCashExpenseRequestSummary(expense) {
   ]);
 }
 
+function buildCashExpenseRequestNote(expense, amount, currency, paymentDate) {
+  const base = dom.cashExpenseNoteInput.value.trim();
+  const requiredText = `${displayValue(expense.payee_name_snapshot || expense.description)}，实际支付日${paymentDate}，实际支付${formatCurrency(amount, currency)}`;
+  if (!base) {
+    return requiredText;
+  }
+  return base.includes("实际支付日") ? base : `${base}；${requiredText}`;
+}
+
 function setCashRequestSubmitting(isSubmitting) {
   isCashRequestSubmitting = isSubmitting;
   dom.cashExpenseRequestSubmitButton.disabled = isSubmitting;
@@ -1175,7 +1217,7 @@ function setCashRequestSubmitting(isSubmitting) {
 function clearCashExpenseRequestErrors() {
   dom.cashExpenseRequestError.textContent = "";
   dom.cashExpenseRequestError.classList.add("is-hidden");
-  ["actualAmount", "actualCurrency", "cashAccount", "note"].forEach((fieldId) => {
+  ["actualAmount", "actualDate", "actualCurrency", "cashAccount", "note"].forEach((fieldId) => {
     setCashExpenseFieldInvalid(fieldId, false);
   });
 }

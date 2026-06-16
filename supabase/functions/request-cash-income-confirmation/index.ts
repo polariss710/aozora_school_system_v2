@@ -17,6 +17,7 @@ type RequestBody = {
   amount?: number | string;
   actual_received_amount?: number | string;
   actual_received_currency?: string;
+  actual_received_date?: string;
   income_category?: string;
   description?: string | null;
   currency?: string;
@@ -432,6 +433,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
         ? await fetchStudentDisplayName(schoolClient, studentId)
         : null;
       const incomeDate = String((incomeData as { income_date: string }).income_date);
+      const actualReceivedDate = body.actual_received_date === undefined || body.actual_received_date === null || body.actual_received_date === ""
+        ? incomeDate
+        : requireDate(body.actual_received_date, "actual_received_date");
       const settlementMonth = String((incomeData as { settlement_month: string }).settlement_month);
       const businessEntityId = String((incomeData as { business_entity_id: string }).business_entity_id);
       const incomeCategory = optionalText((incomeData as { income_category?: string }).income_category) ?? "other_fee";
@@ -452,6 +456,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         request_type: schoolRequest.request_type,
         transaction_type: CASH_TRANSACTION_TYPE,
         income_date: incomeDate,
+        actual_received_date: actualReceivedDate,
         settlement_month: settlementMonth,
         business_entity_id: businessEntityId,
         student_id: studentId,
@@ -485,7 +490,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           p_external_reference_id: schoolRequest.income_id,
           p_request_type: schoolRequest.request_type,
           p_transaction_type: CASH_TRANSACTION_TYPE,
-          p_transacted_at: incomeDate,
+          p_transacted_at: actualReceivedDate,
           p_amount: cashAmount,
           p_idempotency_key: schoolRequest.idempotency_key,
           p_description: cashDescription,

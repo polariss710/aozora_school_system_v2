@@ -237,6 +237,7 @@ export async function requestCashExpenseConfirmation(payload) {
       cash_account_id: payload.cashAccountId,
       actual_payment_amount: payload.actualPaymentAmount,
       actual_payment_currency: payload.actualPaymentCurrency,
+      actual_payment_date: payload.actualPaymentDate,
       note: payload.note || null,
     },
   });

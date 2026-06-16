@@ -8,6 +8,11 @@ import {
 } from "../api/income-detail-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  currentJapanDate,
+  monthFromUrl,
+  updateMonthScopedNavigation,
+} from "../utils/month-filter.js";
 
 const INCOME_STATUS_LABELS = {
   pending: "待确认",
@@ -76,6 +81,7 @@ const EDIT_INCOME_FIELD_IDS = [
 export function initIncomeDetailPage() {
   cacheDom();
   bindEvents();
+  configureMonthScopedLinks();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -103,6 +109,7 @@ function cacheDom() {
   dom.openEditIncomeButton = document.querySelector("#openEditIncomeButton");
   dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
   dom.openCashIncomeRequestButton = document.querySelector("#openCashIncomeRequestButton");
+  dom.returnLink = document.querySelector('.income-detail-actions a[href="./income.html"]');
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
   dom.content = document.querySelector("#incomeDetailContent");
   dom.titleText = document.querySelector("#incomeDetailTitleText");
@@ -122,6 +129,7 @@ function cacheDom() {
   dom.cashIncomeRequestError = document.querySelector("#cashIncomeRequestError");
   dom.cashIncomeRequestSummary = document.querySelector("#cashIncomeRequestSummary");
   dom.cashIncomeActualAmountInput = document.querySelector("#cashIncomeActualAmountInput");
+  dom.cashIncomeActualDateInput = document.querySelector("#cashIncomeActualDateInput");
   dom.cashIncomeActualCurrencySelect = document.querySelector("#cashIncomeActualCurrencySelect");
   dom.cashIncomeExchangeRateInput = document.querySelector("#cashIncomeExchangeRateInput");
   dom.cashIncomeAccountSelect = document.querySelector("#cashIncomeAccountSelect");
@@ -165,6 +173,7 @@ function bindEvents() {
   dom.cashIncomeRequestSubmitButton.addEventListener("click", submitCashIncomeRequest);
   for (const input of [
     dom.cashIncomeActualAmountInput,
+    dom.cashIncomeActualDateInput,
     dom.cashIncomeActualCurrencySelect,
     dom.cashIncomeExchangeRateInput,
     dom.cashIncomeAccountSelect,
@@ -225,6 +234,20 @@ function bindEvents() {
     setReverseFieldInvalid("confirmCheck", false);
     hideReverseErrorIfClean();
   });
+}
+
+function configureMonthScopedLinks() {
+  const month = monthFromUrl();
+  if (!month) {
+    return;
+  }
+
+  const [year, monthPart] = month.split("-");
+  const params = new URLSearchParams({ year, month: monthPart });
+  if (dom.returnLink) {
+    dom.returnLink.href = `./income.html?${params.toString()}`;
+  }
+  updateMonthScopedNavigation(month);
 }
 
 function readIncomeId() {
@@ -437,6 +460,10 @@ function renderCashSyncInfo(event) {
         <dd>${escapeHtml(formatCurrency(event.payment_amount, event.payment_currency))}</dd>
       </div>
       <div>
+        <dt>Cash 请求备注</dt>
+        <dd>${escapeHtml(displayValue(event.note))}</dd>
+      </div>
+      <div>
         <dt>本次汇率</dt>
         <dd>${escapeHtml(displayValue(event.payment_exchange_rate))}</dd>
       </div>
@@ -528,6 +555,7 @@ async function openCashIncomeRequestDialog() {
     ["JPY 金额", formatCurrency(income.amount_jpy, "JPY")],
   ]);
   dom.cashIncomeActualAmountInput.value = "";
+  dom.cashIncomeActualDateInput.value = currentJapanDate();
   dom.cashIncomeActualCurrencySelect.value = income.source_type === "part_time_work" ? "CNY" : income.currency || "JPY";
   dom.cashIncomeExchangeRateInput.value = "";
   dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
@@ -621,6 +649,12 @@ function readCashIncomeRequestPayload() {
     return null;
   }
 
+  const actualReceivedDate = dom.cashIncomeActualDateInput.value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(actualReceivedDate || "")) {
+    showCashIncomeRequestError("请选择实际到账日。", ["actualDate"]);
+    return null;
+  }
+
   const actualReceivedCurrency = dom.cashIncomeActualCurrencySelect.value;
   if (!["JPY", "CNY"].includes(actualReceivedCurrency)) {
     showCashIncomeRequestError("请选择实际到账币种。", ["actualCurrency"]);
@@ -649,9 +683,10 @@ function readCashIncomeRequestPayload() {
     incomeRecordId: income.id,
     cashAccountId,
     actualReceivedAmount,
+    actualReceivedDate,
     actualReceivedCurrency,
     exchangeRate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
-    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate),
+    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate, actualReceivedDate),
   };
 }
 
@@ -663,6 +698,7 @@ function updateCashIncomeRequestPreview() {
   }
 
   const amount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
+  const receivedDate = dom.cashIncomeActualDateInput.value;
   const currency = dom.cashIncomeActualCurrencySelect.value;
   const exchangeRate = calculatedCashIncomeExchangeRate(income, amount, currency);
   dom.cashIncomeExchangeRateInput.value = Number.isFinite(exchangeRate) ? String(exchangeRate) : "";
@@ -676,6 +712,7 @@ function updateCashIncomeRequestPreview() {
     "Cash 请求预览：",
     income.source_label || income.description || incomeCategoryLabel(income.income_category),
     `School 原始金额 ${formatCurrency(income.amount, income.currency)}`,
+    receivedDate ? `实际到账日 ${receivedDate}` : "",
     `实际到账 ${formatCurrency(amount, currency)}`,
     Number.isFinite(exchangeRate) ? `参考汇率 ${exchangeRate}` : "",
   ].filter(Boolean).join(" / ");
@@ -701,13 +738,13 @@ function defaultCashIncomeNote(income) {
   return income.note || income.description || incomeCategoryLabel(income.income_category);
 }
 
-function buildCashIncomeRequestNote(income, amount, currency, exchangeRate) {
+function buildCashIncomeRequestNote(income, amount, currency, exchangeRate, receivedDate) {
   const base = dom.cashIncomeNoteInput.value.trim();
-  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
+  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，实际到账日${receivedDate}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
   if (!base) {
     return requiredText;
   }
-  return base.includes("实际到账") ? base : `${base}；${requiredText}`;
+  return base.includes("实际到账日") ? base : `${base}；${requiredText}`;
 }
 
 function openEditDialog() {

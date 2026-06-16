@@ -51,3 +51,80 @@ export function currentYearMonth() {
   const month = String(now.getMonth() + 1).padStart(2, "0");
   return `${year}-${month}`;
 }
+
+export function currentJapanDate() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export function monthFromUrl(search = window.location.search) {
+  const params = new URLSearchParams(search);
+  const year = String(params.get("year") || "").trim();
+  const month = String(params.get("month") || "").trim().padStart(2, "0");
+  const yearMonth = `${year}-${month}`;
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(yearMonth) ? yearMonth : "";
+}
+
+export function initialYearMonthFromUrl() {
+  if (isPageReload()) {
+    return currentYearMonth();
+  }
+  return monthFromUrl() || currentYearMonth();
+}
+
+export function isPageReload() {
+  const [navigation] = performance.getEntriesByType?.("navigation") || [];
+  return navigation?.type === "reload";
+}
+
+export function updateUrlMonthParams(yearMonth) {
+  if (!window.history?.replaceState || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth || ""))) {
+    return;
+  }
+
+  const [year, month] = yearMonth.split("-");
+  const url = new URL(window.location.href);
+  url.searchParams.set("year", year);
+  url.searchParams.set("month", month);
+  window.history.replaceState({}, "", url);
+}
+
+export function buildMonthScopedHref(href, yearMonth) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(String(yearMonth || ""))) {
+    return href;
+  }
+
+  const monthScopedPages = new Set([
+    "income.html",
+    "expense.html",
+    "wage.html",
+    "part-time-work.html",
+  ]);
+  const url = new URL(href, window.location.href);
+  const pageName = url.pathname.split("/").pop();
+  if (!monthScopedPages.has(pageName)) {
+    return href;
+  }
+
+  const [year, month] = yearMonth.split("-");
+  url.searchParams.set("year", year);
+  url.searchParams.set("month", month);
+  const query = url.searchParams.toString();
+  return `./${pageName}${query ? `?${query}` : ""}${url.hash || ""}`;
+}
+
+export function updateMonthScopedNavigation(yearMonth, root = document) {
+  root.querySelectorAll("nav.page-nav a[href]").forEach((link) => {
+    const href = link.getAttribute("href");
+    if (!href) {
+      return;
+    }
+    link.setAttribute("href", buildMonthScopedHref(href, yearMonth));
+  });
+}
