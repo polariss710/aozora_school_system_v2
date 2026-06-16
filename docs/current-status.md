@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. Teacher wage test detail cleanup, 2026-06-16:
+   受控删除一条人工确认的历史测试老师工资明细 `school_teacher_wage_lock_details.id = f9d36502-7c80-492d-92ba-db31942a7170`，所属工资锁 `2aa849e9-4898-425d-b861-843a0dbd8001`。执行 SQL `sql/current/repair_delete_test_teacher_wage_detail_202602.sql` 前确认该 detail 无 adjustment、无 `teacher_wage` 支出记录、无旧 payment request、无 Cash linkage。由于 detail 表没有 `deleted_at`，本次物理删除目标 detail，并按剩余 2 条明细重算工资锁汇总：`lesson_count 3 -> 2`、`total_minutes 360 -> 240`、`pay_hours 6 -> 4`、`lesson_wage_jpy/total_jpy 30000 -> 20000`、`lesson_wage_cny/total_cny 1284.54 -> 856.36`、`fee_jpy = 0`。独立只读验证确认目标 detail 剩余 0，下游支出/payment/Cash/adjustment 关联仍为 0。
+
 1. Income/expense list Cash submission and part-time export polish, 2026-06-16:
    私塾打工 locked settlement Excel 导出现在从 locked snapshot 明细导出开始时间和结束时间，仍不从当前可变课时重新计算金额。收入记录和支出记录一览页新增行内 Cash 提交入口、可提交记录 checkbox、全选和批量提交 modal；批量提交逐条复用现有 `request-cash-income-confirmation` / `request-cash-expense-confirmation`，只创建 Cash pending request，不直接创建 Cash transaction，不修改 Cash approve/reject 或 `sync-cash-request-result`。支出列表补充 Cash linkage 状态字段读取和显示，已 pending / approved / synced 或已有 Cash transaction 的记录不可再次提交。
 
