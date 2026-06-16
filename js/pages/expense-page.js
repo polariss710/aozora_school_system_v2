@@ -189,7 +189,6 @@ function bindEvents() {
   });
   dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
   dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
-  dom.teacherSelect.addEventListener("change", applyCurrentFilters);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters({ month: currentYearMonth() });
