@@ -632,6 +632,7 @@ async function submitCashIncomeRequest() {
   setCashRequestSubmitting(true);
   try {
     await requestCashIncomeConfirmationForRecord(payload);
+    setCashRequestSubmitting(false);
     closeCashIncomeRequestDialog();
     await refreshCurrentIncomeList();
     showMessage("success", "Cash 收入确认请求已提交，等待 Cash 侧确认。");
