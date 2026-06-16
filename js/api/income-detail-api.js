@@ -1,5 +1,6 @@
 import { supabase } from "../supabase-client.js";
 import { buildFunctionError } from "./function-error.js";
+import { requireUuid } from "./validation.js";
 
 const INCOME_DETAIL_COLUMNS = [
   "id",
@@ -229,11 +230,13 @@ export async function retryPersonalCashIncomeLinkageEvent(eventId) {
 }
 
 export async function requestCashIncomeConfirmationForRecord(payload) {
+  const incomeRecordId = requireUuid(payload.incomeRecordId, "income_record_id");
+
   const { data, error } = await supabase.functions.invoke(
     "request-cash-income-confirmation",
     {
       body: {
-        income_record_id: payload.incomeRecordId,
+        income_record_id: incomeRecordId,
         cash_account_id: payload.cashAccountId,
         actual_received_amount: payload.actualReceivedAmount,
         actual_received_currency: payload.actualReceivedCurrency,

@@ -1,5 +1,6 @@
 import { supabase } from "../supabase-client.js";
 import { buildFunctionError } from "./function-error.js";
+import { requireUuid } from "./validation.js";
 
 const EXPENSE_DETAIL_COLUMNS = [
   "id",
@@ -232,9 +233,11 @@ export async function createExpenseAttachmentMetadata(payload) {
 }
 
 export async function requestCashExpenseConfirmation(payload) {
+  const expenseId = requireUuid(payload.expenseId, "expense_record_id");
+
   const { data, error } = await supabase.functions.invoke("request-cash-expense-confirmation", {
     body: {
-      expense_record_id: payload.expenseId,
+      expense_record_id: expenseId,
       cash_account_id: payload.cashAccountId,
       actual_payment_amount: payload.actualPaymentAmount,
       actual_payment_currency: payload.actualPaymentCurrency,
