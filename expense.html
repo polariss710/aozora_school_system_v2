@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.0.4-batch-cash-payment-total">
+    <link rel="stylesheet" href="./css/app.css?v=v10.0.5-expense-ui-sample-20260617">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--expense">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>支出记录</h1>
+          <p class="page-subtitle">按业务归属月管理支出，Cash 流水按实际支付日同步</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -39,14 +40,14 @@
       <main class="page-main">
         <section id="expenseMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="expenseFilterTitle">
+        <section class="panel filter-panel expense-filter-panel" aria-labelledby="expenseFilterTitle">
           <div class="section-heading">
             <h2 id="expenseFilterTitle">筛选</h2>
           </div>
 
           <form id="expenseFilterForm" class="filter-grid">
             <label class="field month-select-field">
-              <span>月份</span>
+              <span>业务归属月</span>
               <div class="month-select-group">
                 <select id="expenseYearFilter" name="year" aria-label="年份"></select>
                 <select id="expenseMonthFilter" name="month" aria-label="月份"></select>
@@ -95,11 +96,11 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="expenseListTitle">
+        <section class="panel expense-list-panel" aria-labelledby="expenseListTitle">
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="expenseListTitle">支出记录</h2>
-              <p class="section-note">本页显示已登记支出记录；普通支出可新增，详情页可在保护规则内编辑。老师工资类支出会显示来源工资支付状态，已撤销或已作废记录仍保留用于审计，不代表有效经营支出。表格可横向滚动查看更多列。</p>
+              <p class="section-note">按业务归属月管理支出，Cash 流水按实际支付日同步。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="openCreateExpenseButton" type="button">新增支出</button>
@@ -110,34 +111,30 @@
 
           <div id="expenseLoadingState" class="state-text is-hidden">正在加载支出记录...</div>
           <div id="expenseEmptyState" class="state-text is-hidden">暂无符合条件的支出记录。</div>
-          <div class="table-scroll">
+          <div class="table-scroll expense-table-scroll">
             <table class="payment-table expense-table">
+              <colgroup>
+                <col class="expense-col-select">
+                <col class="expense-col-source">
+                <col class="expense-col-category">
+                <col class="expense-col-month">
+                <col class="expense-col-date">
+                <col class="expense-col-amount">
+                <col class="expense-col-cash">
+                <col class="expense-col-related">
+                <col class="expense-col-action">
+              </colgroup>
               <thead>
                 <tr>
                   <th><input id="expenseSelectAllCashRequests" type="checkbox" aria-label="全选可提交 Cash 支付确认支出"></th>
+                  <th>支出对象 / 来源</th>
+                  <th>分类</th>
+                  <th>业务归属月</th>
+                  <th>实际支付日</th>
+                  <th>金额</th>
+                  <th>Cash 状态</th>
+                  <th>老师 / 关联对象</th>
                   <th>操作</th>
-                  <th>支出日期</th>
-                  <th>月份</th>
-                  <th>支出分类</th>
-                  <th>业务归属</th>
-                  <th>账户</th>
-                  <th>老师</th>
-                  <th>描述</th>
-                  <th>币种</th>
-                  <th>原币金额</th>
-                  <th>JPY 金额</th>
-                  <th>CNY 金额</th>
-                  <th>汇率</th>
-                  <th>支付方式</th>
-                  <th>支出状态</th>
-                  <th>Cash 同步</th>
-                  <th>工资支付状态</th>
-                  <th>收据状态</th>
-                  <th>报销状态</th>
-                  <th>附件</th>
-                  <th>备注</th>
-                  <th>创建时间</th>
-                  <th>更新时间</th>
                 </tr>
               </thead>
               <tbody id="expenseTableBody"></tbody>
@@ -276,6 +273,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=v10.0.4-batch-cash-payment-total"></script>
+    <script type="module" src="./js/expense-app.js?v=v10.0.5-expense-ui-sample-20260617"></script>
   </body>
 </html>

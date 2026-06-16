@@ -441,33 +441,42 @@ function renderExpenseRecords(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td>${renderExpenseSelectionCell(row)}</td>
-      <td class="action-cell">${renderExpenseRowActions(row)}</td>
-      <td class="expense-nowrap">${escapeHtml(formatDateOnly(row.expense_date))}</td>
-      <td class="expense-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
+      <td class="expense-select-cell">${renderExpenseSelectionCell(row)}</td>
+      <td class="expense-source-cell">${renderExpenseSourceCell(row)}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(expenseCategoryLabel(row.expense_category))}</span></td>
-      <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
-      <td>${escapeHtml(accountNameById(row.account_id))}</td>
-      <td>${escapeHtml(teacherNameById(row.teacher_id))}</td>
-      <td class="expense-description-cell">${escapeHtml(displayValue(row.description))}</td>
-      <td class="expense-nowrap">${escapeHtml(displayValue(row.currency))}</td>
-      <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
-      <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(row.amount_jpy, "JPY"))}</td>
-      <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(row.amount_cny, "CNY"))}</td>
-      <td class="number-cell expense-nowrap">${escapeHtml(displayValue(row.exchange_rate))}</td>
-      <td>${escapeHtml(paymentMethodLabel(row.payment_method))}</td>
-      <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(expenseStatusLabel(row.status))}</span></td>
+      <td class="expense-nowrap month-cell">${escapeHtml(formatMonth(row.year_month))}</td>
+      <td class="expense-nowrap date-cell">${escapeHtml(formatDateOnly(row.expense_date))}</td>
+      <td class="number-cell expense-nowrap amount-cell">${escapeHtml(formatExpenseListAmount(row))}</td>
       <td>${renderCashRequestStatus(row)}</td>
-      <td>${renderWagePaymentStatus(row)}</td>
-      <td>${escapeHtml(displayValue(row.receipt_status))}</td>
-      <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status, row.expense_category))}</td>
-      <td class="expense-nowrap">${renderAttachmentStatus(row)}</td>
-      <td class="expense-note-cell">${escapeHtml(displayValue(row.note))}</td>
-      <td class="expense-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
-      <td class="expense-nowrap">${escapeHtml(formatDate(row.updated_at))}</td>
+      <td class="expense-related-cell">${renderExpenseRelatedCell(row)}</td>
+      <td class="action-cell expense-action-cell">${renderExpenseRowActions(row)}</td>
     </tr>
   `).join("");
   updateExpenseBatchControls();
+}
+
+function renderExpenseSourceCell(row) {
+  const title = [
+    expenseObjectName(row),
+    row?.description,
+    row?.note,
+  ].filter(Boolean).join(" / ");
+  return `
+    <div class="expense-list-primary" title="${escapeAttribute(title)}">${escapeHtml(expenseObjectName(row))}</div>
+    <div class="expense-list-secondary" title="${escapeAttribute(displayValue(row.description))}">${escapeHtml(displayValue(row.description))}</div>
+  `;
+}
+
+function renderExpenseRelatedCell(row) {
+  const primary = relatedObjectLabel(row);
+  const secondary = [
+    businessNameById(row.business_entity_id),
+    accountNameById(row.account_id),
+  ].filter((value) => value && value !== "-").join(" / ");
+  return `
+    <div class="expense-list-primary" title="${escapeAttribute(primary)}">${escapeHtml(primary)}</div>
+    <div class="expense-list-secondary" title="${escapeAttribute(secondary)}">${escapeHtml(secondary || "-")}</div>
+  `;
 }
 
 function renderExpenseSelectionCell(row) {
@@ -485,7 +494,7 @@ function renderExpenseSelectionCell(row) {
 
 function renderExpenseRowActions(row) {
   const cashButton = canRequestCashExpense(row)
-    ? `<button class="table-action-button" type="button" data-expense-cash-request-id="${escapeAttribute(row.id)}">提交 Cash 支付确认</button>`
+    ? `<button class="table-action-button" type="button" data-expense-cash-request-id="${escapeAttribute(row.id)}">提交Cash</button>`
     : "";
   return `
     <div class="income-row-actions">
@@ -765,6 +774,9 @@ function updateExpenseBatchControls() {
   const selectableRows = renderedExpenseRows.filter(canRequestCashExpense);
   const selectedRows = selectedExpenseRows();
   dom.openBatchCashExpenseButton.disabled = selectedRows.length === 0;
+  dom.openBatchCashExpenseButton.textContent = selectedRows.length > 0
+    ? `批量提交 Cash（已选 ${selectedRows.length} 条）`
+    : "批量提交 Cash";
   dom.selectAllCashRequests.disabled = selectableRows.length === 0;
   dom.selectAllCashRequests.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
   dom.selectAllCashRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
@@ -834,10 +846,10 @@ function renderBatchCashExpenseRows() {
     return `
       <tr data-batch-expense-row-id="${escapeAttribute(expense.id)}">
         <td>${escapeHtml(expenseObjectName(expense))}</td>
-        <td class="expense-nowrap">${escapeHtml(formatMonth(expense.year_month))}</td>
-        <td><input data-batch-expense-date="${escapeAttribute(expense.id)}" type="date" value="${escapeAttribute(state.paymentDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
-        <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
-        <td><input data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td class="expense-nowrap month-cell">${escapeHtml(formatMonth(expense.year_month))}</td>
+        <td><input class="date-cell" data-batch-expense-date="${escapeAttribute(expense.id)}" type="date" value="${escapeAttribute(state.paymentDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td class="number-cell expense-nowrap amount-cell">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
+        <td><input class="amount-cell" data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>
           <select data-batch-expense-currency="${escapeAttribute(expense.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
             ${CASH_EXPENSE_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
@@ -1239,19 +1251,29 @@ function cashRequestNotAllowedMessage(row) {
 
 function renderCashRequestStatus(row) {
   if (!row?.cash_request_status && !row?.cash_transaction_id) {
-    return "-";
+    return `
+      <div class="expense-cash-status-cell">
+        <span class="status-badge status-neutral">未提交 Cash</span>
+      </div>
+    `;
   }
 
   const status = row.cash_transaction_id && !row.cash_request_status
     ? "synced"
     : row.cash_request_status;
-  const noteText = safeText(row.cash_payment_note);
   return `
-    <div class="income-cash-sync-cell">
+    <div class="expense-cash-status-cell">
       <span class="status-badge ${escapeAttribute(cashRequestStatusClass(status))}">${escapeHtml(cashRequestStatusLabel(status))}</span>
-      ${noteText ? `<div class="table-cell-summary">${escapeHtml(noteText)}</div>` : ""}
+      <span class="expense-cash-hint">${escapeHtml(cashRequestStatusHint(status))}</span>
     </div>
   `;
+}
+
+function cashRequestStatusHint(value) {
+  if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "请求已生成";
+  if (value === "approved" || value === "synced") return "已生成流水";
+  if (value === "rejected" || value === "cash_rejected" || value === "failed") return "需要处理";
+  return "";
 }
 
 function cashRequestStatusLabel(value) {
@@ -1373,6 +1395,26 @@ function expenseObjectName(row) {
   }
 
   return displayValue(row?.description);
+}
+
+function relatedObjectLabel(row) {
+  if (row?.teacher_id) {
+    return teacherNameById(row.teacher_id);
+  }
+
+  if (row?.student_id) {
+    return studentNameById(row.student_id);
+  }
+
+  return businessNameById(row?.business_entity_id);
+}
+
+function formatExpenseListAmount(row) {
+  if (!row) {
+    return "-";
+  }
+
+  return formatCurrency(row.amount, row.currency);
 }
 
 function studentNameById(id) {
