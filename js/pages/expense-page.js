@@ -168,6 +168,7 @@ function cacheDom() {
   dom.batchCashExpenseDialog = document.querySelector("#batchCashExpenseDialog");
   dom.batchCashExpenseError = document.querySelector("#batchCashExpenseError");
   dom.batchCashExpenseTableBody = document.querySelector("#batchCashExpenseTableBody");
+  dom.batchCashExpenseTotal = document.querySelector("#batchCashExpenseTotal");
   dom.batchCashExpenseSubmitButton = document.querySelector("#batchCashExpenseSubmitButton");
   dom.batchCashExpenseCancelButton = document.querySelector("#batchCashExpenseCancelButton");
   dom.createExpenseDialog = document.querySelector("#createExpenseDialog");
@@ -853,6 +854,7 @@ function renderBatchCashExpenseRows() {
       </tr>
     `;
   }).join("");
+  updateBatchCashExpenseTotal();
 }
 
 function renderBatchCashExpenseRateAssist(state) {
@@ -957,6 +959,7 @@ function syncBatchCashExpenseRowsFromDom() {
     state.note = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-note="${cssEscape(id)}"]`)?.value ?? state.note;
     state.exchangeRate = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-rate="${cssEscape(id)}"]`)?.value ?? state.exchangeRate;
   }
+  updateBatchCashExpenseTotal();
 }
 
 async function submitBatchCashExpenseRequests() {
@@ -1558,6 +1561,53 @@ function applyBatchCashExpenseRounding(state, mode) {
   state.roundingMode = ROUNDING_MODE_LABELS[mode] ? mode : "";
   state.rateStatus = `${ROUNDING_MODE_LABELS[mode] || "取整"}已填入实际支付金额，仍可手动修改。`;
   renderBatchCashExpenseRows();
+}
+
+function updateBatchCashExpenseTotal() {
+  if (!dom.batchCashExpenseTotal) {
+    return;
+  }
+
+  dom.batchCashExpenseTotal.textContent = batchCashExpenseTotalLabel(batchCashExpenseRows);
+}
+
+function batchCashExpenseTotalLabel(rows) {
+  const totals = new Map();
+  for (const state of rows || []) {
+    const currency = state?.currency;
+    if (!CASH_EXPENSE_CURRENCIES.includes(currency)) {
+      continue;
+    }
+
+    const amount = parseNumberInput(state.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      continue;
+    }
+
+    totals.set(currency, (totals.get(currency) || 0) + amount);
+  }
+
+  const parts = CASH_EXPENSE_CURRENCIES
+    .filter((currency) => totals.has(currency))
+    .map((currency) => `${currency} ${formatBatchCashTotalAmount(totals.get(currency), currency)}`);
+
+  return `本次提交合计：${parts.length ? parts.join(" / ") : "-"}`;
+}
+
+function formatBatchCashTotalAmount(amount, currency) {
+  if (!Number.isFinite(amount)) {
+    return "-";
+  }
+
+  if (currency === "JPY") {
+    return Math.round(amount).toLocaleString("en-US");
+  }
+
+  const rounded = Math.round(amount * 100) / 100;
+  return rounded.toLocaleString("en-US", {
+    minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function roundCnyPaymentAmount(amount, mode) {

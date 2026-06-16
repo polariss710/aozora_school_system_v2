@@ -2007,6 +2007,7 @@ h2 {
 
 .expense-batch-cash-dialog-panel > .section-heading,
 .expense-batch-cash-dialog-panel > .dialog-error,
+.expense-batch-cash-dialog-panel > .expense-batch-cash-total,
 .expense-batch-cash-dialog-panel > .dialog-actions {
   flex: 0 0 auto;
 }
@@ -2026,6 +2027,18 @@ h2 {
   margin-top: 12px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
+}
+
+.expense-batch-cash-total {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: right;
 }
 
 .expense-rate-assist {
