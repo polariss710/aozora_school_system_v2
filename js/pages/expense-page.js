@@ -846,10 +846,10 @@ function renderBatchCashExpenseRows() {
     return `
       <tr data-batch-expense-row-id="${escapeAttribute(expense.id)}">
         <td>${escapeHtml(expenseObjectName(expense))}</td>
-        <td class="expense-nowrap month-cell">${escapeHtml(formatMonth(expense.year_month))}</td>
-        <td><input class="date-cell" data-batch-expense-date="${escapeAttribute(expense.id)}" type="date" value="${escapeAttribute(state.paymentDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
-        <td class="number-cell expense-nowrap amount-cell">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
-        <td><input class="amount-cell" data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td class="expense-nowrap">${escapeHtml(formatMonth(expense.year_month))}</td>
+        <td><input data-batch-expense-date="${escapeAttribute(expense.id)}" type="date" value="${escapeAttribute(state.paymentDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
+        <td><input data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>
           <select data-batch-expense-currency="${escapeAttribute(expense.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
             ${CASH_EXPENSE_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}

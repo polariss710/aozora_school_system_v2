@@ -2032,52 +2032,6 @@ h2 {
   overflow-wrap: anywhere;
 }
 
-.app-shell--expense .detail-card {
-  background: #fff;
-}
-
-.app-shell--expense .detail-card .detail-definition-list dd {
-  display: -webkit-box;
-  max-height: 4.5em;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.expense-note-preview {
-  display: -webkit-box;
-  max-height: 4.5em;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.expense-note-full {
-  margin-top: 10px;
-  border-top: 1px solid var(--line);
-  padding-top: 8px;
-}
-
-.expense-note-full summary,
-.system-info-disclosure summary {
-  cursor: pointer;
-  color: var(--accent);
-  font-weight: 800;
-}
-
-.system-info-disclosure {
-  display: grid;
-  gap: 12px;
-}
-
-.system-info-disclosure summary {
-  list-style-position: inside;
-}
-
-.system-info-disclosure[open] summary {
-  margin-bottom: 8px;
-}
-
 .reimbursement-table .reimbursement-note-cell {
   width: 260px;
   min-width: 260px;
@@ -2129,30 +2083,26 @@ h2 {
   white-space: nowrap;
 }
 
-.app-shell--expense .status-badge,
-.expense-batch-cash-dialog-panel .status-badge {
+.app-shell--expense .status-badge {
   border: 1px solid transparent;
   padding-inline: 10px;
   font-size: 11px;
   letter-spacing: 0;
 }
 
-.app-shell--expense .status-pending,
-.expense-batch-cash-dialog-panel .status-pending {
+.app-shell--expense .status-pending {
   border-color: #fed7aa;
   background: #fff7ed;
   color: #b45309;
 }
 
-.app-shell--expense .status-paid,
-.expense-batch-cash-dialog-panel .status-paid {
+.app-shell--expense .status-paid {
   border-color: #a7f3d0;
   background: #ecfdf5;
   color: #047857;
 }
 
 .app-shell--expense .status-cancelled,
-.expense-batch-cash-dialog-panel .status-cancelled,
 .app-shell--expense .status-void {
   border-color: #fecaca;
   background: #fef2f2;
@@ -2165,8 +2115,7 @@ h2 {
   color: #1d4ed8;
 }
 
-.app-shell--expense .status-neutral,
-.expense-batch-cash-dialog-panel .status-neutral {
+.app-shell--expense .status-neutral {
   border-color: #e5e7eb;
   background: #f8fafc;
   color: #4b5563;
@@ -2338,8 +2287,6 @@ h2 {
   max-height: min(80vh, calc(100vh - 32px));
   flex-direction: column;
   overflow: hidden;
-  border-radius: 12px;
-  padding: 0;
 }
 
 .expense-batch-cash-dialog-panel > .section-heading,
@@ -2349,80 +2296,29 @@ h2 {
   flex: 0 0 auto;
 }
 
-.expense-batch-cash-dialog-panel > .section-heading {
-  margin: 0;
-  border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  padding: 18px 20px 16px;
-}
-
-.expense-batch-cash-dialog-panel > .dialog-error {
-  margin: 14px 20px 0;
-}
-
 .expense-batch-cash-table-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  margin: 16px 20px 0;
-  border: 1px solid var(--line);
-  border-radius: 10px;
   overflow: auto;
 }
 
 .expense-batch-cash-table {
   width: 100%;
   min-width: 1120px;
-  font-size: 13px;
-}
-
-.expense-batch-cash-table th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: #f8fafc;
-  color: #526173;
-}
-
-.expense-batch-cash-table td {
-  vertical-align: middle;
-}
-
-.expense-batch-cash-table input,
-.expense-batch-cash-table select {
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 13px;
-}
-
-.expense-batch-cash-table .amount-cell {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  text-align: right;
-}
-
-.expense-batch-cash-table input.amount-cell {
-  width: 120px;
-}
-
-.expense-batch-cash-table .date-cell {
-  font-variant-numeric: tabular-nums;
 }
 
 .expense-batch-cash-dialog-panel .dialog-actions {
-  margin-top: 0;
+  margin-top: 12px;
   border-top: 1px solid var(--line);
-  background: #fff;
-  padding: 14px 20px 18px;
+  padding-top: 12px;
 }
 
 .expense-batch-cash-total {
-  margin: 12px 20px;
-  border: 1px solid #cfe0f3;
-  border-radius: 8px;
-  background: #f5faff;
-  padding: 10px 12px;
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+  padding: 8px 10px;
   color: var(--text);
   font-size: 14px;
   font-weight: 800;
@@ -2431,12 +2327,8 @@ h2 {
 
 .expense-rate-assist {
   display: grid;
-  min-width: 210px;
-  gap: 7px;
-  border: 1px solid #e5edf6;
-  border-radius: 8px;
-  background: #fbfdff;
-  padding: 8px;
+  min-width: 220px;
+  gap: 6px;
   font-size: 12px;
 }
 

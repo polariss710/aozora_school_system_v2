@@ -4,15 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.0.5-expense-ui-sample-20260617">
+    <link rel="stylesheet" href="./css/app.css?v=v2.108.0-expense-exchange-rate-optional-20260613">
   </head>
   <body>
-    <div class="app-shell app-shell--expense">
+    <div class="app-shell">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>支出记录详情</h1>
-          <p class="page-subtitle">查看支出业务摘要、Cash 同步状态和审计信息</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -44,7 +43,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="expenseDetailPageTitle">详情</h2>
-              <p class="section-note">默认展示日常业务信息；系统字段和审计链路收纳在下方折叠区。</p>
+              <p class="section-note">本页展示支出记录详情。普通支出可在保护规则内编辑；老师工资、来源支付请求、已报销或已进入报销链路的支出保持只读。</p>
             </div>
             <div class="reimbursement-detail-actions">
               <span id="expenseDetailActionStatus" class="status-badge status-neutral">-</span>
@@ -94,14 +93,6 @@
               <h2 id="expenseDetailNoteTitle">备注</h2>
             </div>
             <div id="expenseDetailNoteBlock" class="readonly-text-block"></div>
-          </section>
-
-          <section class="panel" aria-labelledby="expenseDetailSystemTitle">
-            <details class="system-info-disclosure">
-              <summary id="expenseDetailSystemTitle">展开系统信息 / 收起系统信息</summary>
-              <p class="section-note">用于排查 Cash 同步、迁移备注、系统链路和审计字段，默认收起。</p>
-              <div id="expenseDetailSystemInfo" class="detail-list"></div>
-            </details>
           </section>
 
           <section class="panel" aria-labelledby="expenseDetailReimbursementTitle">
@@ -346,6 +337,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-detail-app.js?v=v10.0.5-expense-ui-sample-20260617"></script>
+    <script type="module" src="./js/expense-detail-app.js?v=v2.122.0-month-filter-url-preserve-20260616"></script>
   </body>
 </html>
