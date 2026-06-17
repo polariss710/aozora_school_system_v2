@@ -874,6 +874,7 @@ function renderBatchCashExpenseRows() {
         <td><input data-batch-expense-note="${escapeAttribute(expense.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>${escapeHtml(state.result || "-")}</td>
       </tr>
+      ${renderBatchCashExpenseRateRow(state)}
     `;
   }).join("");
   updateBatchCashExpenseTotal();
@@ -904,42 +905,39 @@ function renderBatchCashExpenseRateAssist(state) {
   `;
 }
 
+function renderBatchCashExpenseRateRow(state) {
+  if (state.currency !== "CNY") {
+    return "";
+  }
+
+  const expenseId = state.expense.id;
+  return `
+    <tr class="expense-batch-cash-rate-row" data-batch-expense-row-id="${escapeAttribute(expenseId)}">
+      <td colspan="10">
+        <div class="expense-rate-toolbar-card">
+          <div class="expense-rate-toolbar-title">
+            <strong>CNY / JPY 汇率辅助</strong>
+            <span>${escapeHtml(`${expenseObjectName(state.expense)} / ${formatCurrency(state.expense.amount, state.expense.currency)}`)}</span>
+          </div>
+          <div class="expense-rate-toolbar-controls">
+            <span>1 JPY =</span>
+            <input data-batch-expense-rate="${escapeAttribute(expenseId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
+            <span>CNY</span>
+            <button class="button compact-button" data-batch-expense-rate-fetch="${escapeAttribute(expenseId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
 function renderBatchCashExpenseRateToolbar() {
   if (!dom.batchCashExpenseRateToolbar) {
     return;
   }
 
-  const cnyRows = batchCashExpenseRows.filter((state) => state.currency === "CNY");
-  if (!cnyRows.length) {
-    dom.batchCashExpenseRateToolbar.innerHTML = `
-      <div class="expense-rate-toolbar-card expense-rate-toolbar-card--muted">
-        <div class="expense-rate-toolbar-title">
-          <strong>CNY / JPY 汇率辅助</strong>
-          <span>选择 CNY 支付后，可在这里输入或获取汇率。</span>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  dom.batchCashExpenseRateToolbar.innerHTML = cnyRows.map((state) => {
-    const expenseId = state.expense.id;
-    const needsRowLabel = cnyRows.length > 1;
-    return `
-      <div class="expense-rate-toolbar-card" data-batch-expense-row-id="${escapeAttribute(expenseId)}">
-        <div class="expense-rate-toolbar-title">
-          <strong>CNY / JPY 汇率辅助</strong>
-          <span>${escapeHtml(needsRowLabel ? expenseObjectName(state.expense) : "输入或获取汇率后，可计算理论 CNY 金额。")}</span>
-        </div>
-        <div class="expense-rate-toolbar-controls">
-          <span>1 JPY =</span>
-          <input data-batch-expense-rate="${escapeAttribute(expenseId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
-          <span>CNY</span>
-          <button class="button compact-button" data-batch-expense-rate-fetch="${escapeAttribute(expenseId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
-        </div>
-      </div>
-    `;
-  }).join("");
+  dom.batchCashExpenseRateToolbar.innerHTML = "";
+  dom.batchCashExpenseRateToolbar.hidden = true;
 }
 
 function renderBatchCashExpenseAccountOptions(state) {

@@ -2528,17 +2528,19 @@ h2 {
 .expense-rate-toolbar-controls input {
   box-sizing: border-box;
   width: 108px;
-  min-height: 28px;
-  padding: 4px 7px;
+  height: 34px;
+  min-height: 34px;
+  padding: 6px 8px;
   border-color: #9bd0f8;
   background: #ffffff;
   font-size: 12px;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
 
 .expense-rate-toolbar-controls .compact-button {
-  min-height: 28px;
-  padding: 4px 9px;
+  min-height: 34px;
+  padding: 6px 10px;
   border-color: #7fc1f0;
   color: #0369a1;
   font-size: 12px;
@@ -2559,6 +2561,10 @@ h2 {
 .expense-batch-cash-table th,
 .expense-batch-cash-table td {
   vertical-align: top;
+}
+
+.expense-batch-cash-table tbody tr:not(.expense-batch-cash-rate-row) td {
+  vertical-align: middle;
 }
 
 .expense-batch-cash-table th:nth-child(1),
@@ -2626,13 +2632,32 @@ h2 {
 .expense-batch-cash-table td:nth-child(6) select,
 .expense-batch-cash-table td:nth-child(8) select,
 .expense-batch-cash-table td:nth-child(9) input {
+  box-sizing: border-box;
+  height: 34px;
   min-width: 0;
+  min-height: 34px;
   width: 100%;
+  padding-block: 6px;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 .expense-batch-cash-table td:nth-child(6) select {
   min-width: 82px;
   padding-inline: 10px 24px;
+}
+
+.expense-batch-cash-table .expense-batch-cash-rate-row td:nth-child(1) {
+  width: auto;
+  min-width: 0;
+  border-top: 0;
+  background: #f8fbff;
+  padding-top: 0;
+}
+
+.expense-batch-cash-rate-row .expense-rate-toolbar-card {
+  min-height: 46px;
+  margin: 0;
 }
 
 .expense-batch-cash-footer {
