@@ -456,14 +456,17 @@ function renderExpenseRecords(rows) {
 }
 
 function renderExpenseSourceCell(row) {
+  const description = businessListText(row?.description, "");
+  const descriptionDisplay = description || "-";
+  const note = businessListText(row?.note, "");
   const title = [
     expenseObjectName(row),
-    row?.description,
-    row?.note,
+    description,
+    note,
   ].filter(Boolean).join(" / ");
   return `
-    <div class="expense-list-primary" title="${escapeAttribute(title)}">${escapeHtml(expenseObjectName(row))}</div>
-    <div class="expense-list-secondary" title="${escapeAttribute(displayValue(row.description))}">${escapeHtml(displayValue(row.description))}</div>
+    <div class="expense-list-primary" title="${escapeAttribute(title || "无业务备注")}">${escapeHtml(expenseObjectName(row))}</div>
+    <div class="expense-list-secondary" title="${escapeAttribute(descriptionDisplay)}">${escapeHtml(descriptionDisplay)}</div>
   `;
 }
 
@@ -1415,6 +1418,19 @@ function formatExpenseListAmount(row) {
   }
 
   return formatCurrency(row.amount, row.currency);
+}
+
+function businessListText(value, emptyText = "-") {
+  const text = safeText(value);
+  if (!text) {
+    return emptyText;
+  }
+
+  return isSystemMigrationNote(text) ? "无业务备注" : text;
+}
+
+function isSystemMigrationNote(value) {
+  return /migrated_to_|canonical_flow|payment_request_id=|migration/i.test(safeText(value));
 }
 
 function studentNameById(id) {

@@ -58,6 +58,12 @@ textarea {
   max-width: 1440px;
 }
 
+.app-shell--expense-list {
+  width: min(1680px, calc(100vw - clamp(24px, 5vw, 80px)));
+  max-width: none;
+  padding-inline: 0;
+}
+
 .page-header {
   display: flex;
   min-width: 0;
@@ -930,45 +936,45 @@ h2 {
 }
 
 .expense-table {
-  width: 1296px;
-  min-width: 1296px;
+  width: 100%;
+  min-width: 1348px;
   table-layout: fixed;
 }
 
 .expense-col-select {
-  width: 44px;
+  width: 36px;
 }
 
 .expense-col-source {
-  width: 300px;
+  width: 285px;
 }
 
 .expense-col-category {
-  width: 110px;
+  width: 86px;
 }
 
 .expense-col-month {
-  width: 112px;
+  width: 102px;
 }
 
 .expense-col-date {
-  width: 120px;
+  width: 110px;
 }
 
 .expense-col-amount {
-  width: 150px;
+  width: 168px;
 }
 
 .expense-col-cash {
-  width: 180px;
+  width: 194px;
 }
 
 .expense-col-related {
-  width: 180px;
+  width: 265px;
 }
 
 .expense-col-action {
-  width: 100px;
+  width: 102px;
 }
 
 .expense-table-scroll {
@@ -989,6 +995,7 @@ h2 {
   font-size: 12px;
   letter-spacing: 0;
   overflow: hidden;
+  text-align: left;
   text-overflow: ellipsis;
 }
 
@@ -1000,17 +1007,41 @@ h2 {
   vertical-align: middle;
 }
 
+.expense-table th:nth-child(3),
+.expense-table td:nth-child(3),
+.expense-table th:nth-child(4),
+.expense-table th:nth-child(5),
+.expense-table th:nth-child(9),
+.expense-table td:nth-child(9) {
+  text-align: center;
+}
+
+.expense-table th:nth-child(6) {
+  text-align: right;
+}
+
+.expense-table th:nth-child(6),
+.expense-table td:nth-child(6) {
+  padding-right: 18px;
+}
+
+.expense-table th:nth-child(7),
+.expense-table td:nth-child(7) {
+  padding-left: 18px;
+  text-align: center;
+}
+
 .expense-table tbody tr:hover td {
   background: #f8fbff;
 }
 
 .expense-table .expense-select-cell {
-  padding-inline: 8px;
+  padding-inline: 4px;
   text-align: center;
 }
 
 .expense-table th:first-child {
-  padding-inline: 8px;
+  padding-inline: 4px;
   text-align: center;
 }
 
@@ -1037,11 +1068,13 @@ h2 {
 
 .expense-action-cell {
   padding-inline: 8px;
+  text-align: center;
 }
 
 .expense-action-cell .income-row-actions {
   display: grid;
   gap: 5px;
+  justify-items: center;
 }
 
 .expense-action-cell .table-action-button {
@@ -1073,7 +1106,9 @@ h2 {
 .expense-cash-status-cell {
   display: grid;
   min-width: 0;
+  justify-items: center;
   gap: 3px;
+  text-align: center;
 }
 
 .expense-cash-status-cell .status-badge {
@@ -1085,6 +1120,7 @@ h2 {
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  max-width: 100%;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
