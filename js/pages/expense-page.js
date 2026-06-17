@@ -872,7 +872,6 @@ function renderBatchCashExpenseRows() {
           </select>
         </td>
         <td><input data-batch-expense-note="${escapeAttribute(expense.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
-        <td>${escapeHtml(state.result || "-")}</td>
       </tr>
       ${renderBatchCashExpenseRateRow(state)}
     `;
@@ -913,7 +912,7 @@ function renderBatchCashExpenseRateRow(state) {
   const expenseId = state.expense.id;
   return `
     <tr class="expense-batch-cash-rate-row" data-batch-expense-row-id="${escapeAttribute(expenseId)}">
-      <td colspan="10">
+      <td colspan="9">
         <div class="expense-rate-toolbar-card">
           <div class="expense-rate-toolbar-title">
             <strong>CNY / JPY 汇率辅助</strong>
@@ -1052,7 +1051,7 @@ async function submitBatchCashExpenseRequests() {
 
   const failedCount = payloads.length - successCount;
   if (failedCount > 0) {
-    showBatchCashExpenseError(`已提交 ${successCount} 条，失败 ${failedCount} 条。请查看每行结果。`);
+    showBatchCashExpenseError(`已提交 ${successCount} 条，失败 ${failedCount} 条。请稍后重试或回到支出列表确认 Cash 状态。`);
   } else {
     closeBatchCashExpenseDialog();
     showMessage("success", `已提交 ${successCount} 条 Cash 支付确认请求，等待 Cash 侧确认。`);
