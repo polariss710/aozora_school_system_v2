@@ -153,6 +153,8 @@
 
         <div id="batchCashExpenseError" class="dialog-error is-hidden"></div>
 
+        <div id="batchCashExpenseRateToolbar" class="expense-batch-cash-rate-toolbar"></div>
+
         <div class="table-scroll expense-batch-cash-table-scroll">
           <table class="payment-table expense-batch-cash-table">
             <thead>
@@ -173,11 +175,12 @@
           </table>
         </div>
 
-        <div id="batchCashExpenseTotal" class="expense-batch-cash-total">本次提交合计：-</div>
-
-        <div class="dialog-actions">
-          <button class="button button-primary" id="batchCashExpenseSubmitButton" type="button">提交所选 Cash 支付确认</button>
-          <button class="button" id="batchCashExpenseCancelButton" type="button">取消</button>
+        <div class="expense-batch-cash-footer">
+          <div id="batchCashExpenseTotal" class="expense-batch-cash-total">本次提交合计：-</div>
+          <div class="dialog-actions">
+            <button class="button" id="batchCashExpenseCancelButton" type="button">取消</button>
+            <button class="button button-primary" id="batchCashExpenseSubmitButton" type="button">提交所选 Cash 支付确认</button>
+          </div>
         </div>
       </section>
     </div>

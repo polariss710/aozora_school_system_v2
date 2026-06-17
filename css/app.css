@@ -2458,17 +2458,91 @@ h2 {
 
 .expense-batch-cash-dialog-panel {
   display: flex;
-  width: min(1200px, calc(100vw - 32px));
-  max-height: min(80vh, calc(100vh - 32px));
+  width: min(1240px, calc(100vw - 32px));
+  max-height: min(86vh, calc(100vh - 32px));
   flex-direction: column;
   overflow: hidden;
 }
 
 .expense-batch-cash-dialog-panel > .section-heading,
 .expense-batch-cash-dialog-panel > .dialog-error,
-.expense-batch-cash-dialog-panel > .expense-batch-cash-total,
-.expense-batch-cash-dialog-panel > .dialog-actions {
+.expense-batch-cash-dialog-panel > .expense-batch-cash-rate-toolbar,
+.expense-batch-cash-dialog-panel > .expense-batch-cash-footer {
   flex: 0 0 auto;
+}
+
+.expense-batch-cash-rate-toolbar {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.expense-rate-toolbar-card {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #a9dafd;
+  border-radius: 6px;
+  background: #eaf7ff;
+  padding: 10px 14px;
+}
+
+.expense-rate-toolbar-card--muted {
+  justify-content: flex-start;
+}
+
+.expense-rate-toolbar-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.expense-rate-toolbar-title strong {
+  color: #075985;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.expense-rate-toolbar-title span {
+  overflow: hidden;
+  color: #42637f;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expense-rate-toolbar-controls {
+  display: grid;
+  grid-template-columns: auto 86px auto auto;
+  align-items: center;
+  gap: 8px;
+  color: #075985;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.expense-rate-toolbar-controls input {
+  box-sizing: border-box;
+  width: 86px;
+  min-height: 28px;
+  padding: 4px 7px;
+  border-color: #9bd0f8;
+  background: #ffffff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.expense-rate-toolbar-controls .compact-button {
+  min-height: 28px;
+  padding: 4px 9px;
+  border-color: #7fc1f0;
+  color: #0369a1;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .expense-batch-cash-table-scroll {
@@ -2489,8 +2563,8 @@ h2 {
 
 .expense-batch-cash-table th:nth-child(7),
 .expense-batch-cash-table td:nth-child(7) {
-  width: 236px;
-  min-width: 236px;
+  width: 170px;
+  min-width: 170px;
 }
 
 .expense-batch-cash-table td:nth-child(3) input,
@@ -2500,22 +2574,31 @@ h2 {
   width: 100%;
 }
 
-.expense-batch-cash-dialog-panel .dialog-actions {
+.expense-batch-cash-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-top: 12px;
   border-top: 1px solid var(--line);
   padding-top: 12px;
 }
 
+.expense-batch-cash-dialog-panel .dialog-actions {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+
 .expense-batch-cash-total {
-  margin-top: 12px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #f8fafc;
-  padding: 8px 10px;
+  margin-top: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
-  text-align: right;
+  text-align: left;
 }
 
 .expense-rate-assist {
@@ -2524,16 +2607,16 @@ h2 {
   font-size: 12px;
 }
 
-.expense-rate-assist--cny {
+.expense-rate-assist--compact {
   min-width: 0;
   border: 1px solid #dbeafe;
-  border-radius: 8px;
-  background: #f8fbff;
-  padding: 8px;
+  border-radius: 6px;
+  background: #fbfdff;
+  padding: 7px;
 }
 
 .expense-rate-assist--muted {
-  max-width: 180px;
+  max-width: 150px;
   color: var(--muted);
   line-height: 1.4;
 }
@@ -2581,9 +2664,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-radius: 6px;
-  background: #ffffff;
-  padding: 6px 8px;
+  padding: 0;
 }
 
 .expense-rate-assist-theory span:first-child {
@@ -2594,13 +2675,14 @@ h2 {
 .expense-rounding-buttons {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 4px;
 }
 
 .expense-rounding-buttons .compact-button {
-  min-height: 30px;
-  padding: 4px 5px;
-  font-size: 11px;
+  min-height: 26px;
+  padding: 3px 4px;
+  font-size: 12px;
+  font-weight: 900;
   text-align: center;
   white-space: nowrap;
 }
@@ -2627,7 +2709,7 @@ h2 {
   }
 
   .expense-batch-cash-dialog-panel {
-    max-height: min(80dvh, calc(100dvh - 32px));
+    max-height: min(86dvh, calc(100dvh - 32px));
   }
 }
 

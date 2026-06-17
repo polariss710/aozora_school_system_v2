@@ -167,6 +167,7 @@ function cacheDom() {
   dom.selectAllCashRequests = document.querySelector("#expenseSelectAllCashRequests");
   dom.batchCashExpenseDialog = document.querySelector("#batchCashExpenseDialog");
   dom.batchCashExpenseError = document.querySelector("#batchCashExpenseError");
+  dom.batchCashExpenseRateToolbar = document.querySelector("#batchCashExpenseRateToolbar");
   dom.batchCashExpenseTableBody = document.querySelector("#batchCashExpenseTableBody");
   dom.batchCashExpenseTotal = document.querySelector("#batchCashExpenseTotal");
   dom.batchCashExpenseSubmitButton = document.querySelector("#batchCashExpenseSubmitButton");
@@ -214,6 +215,9 @@ function bindEvents() {
   dom.batchCashExpenseTableBody.addEventListener("input", handleBatchCashExpenseInput);
   dom.batchCashExpenseTableBody.addEventListener("change", handleBatchCashExpenseInput);
   dom.batchCashExpenseTableBody.addEventListener("click", handleBatchCashExpenseClick);
+  dom.batchCashExpenseRateToolbar?.addEventListener("input", handleBatchCashExpenseInput);
+  dom.batchCashExpenseRateToolbar?.addEventListener("change", handleBatchCashExpenseInput);
+  dom.batchCashExpenseRateToolbar?.addEventListener("click", handleBatchCashExpenseClick);
   dom.createExpenseCancelButton.addEventListener("click", closeCreateExpenseDialog);
   dom.createExpenseSubmitButton.addEventListener("click", submitCreateExpense);
   dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
@@ -846,6 +850,7 @@ async function ensureCashEligibleAccountsLoaded() {
 }
 
 function renderBatchCashExpenseRows() {
+  renderBatchCashExpenseRateToolbar();
   dom.batchCashExpenseTableBody.innerHTML = batchCashExpenseRows.map((state) => {
     const expense = state.expense;
     return `
@@ -875,7 +880,6 @@ function renderBatchCashExpenseRows() {
 }
 
 function renderBatchCashExpenseRateAssist(state) {
-  const expenseId = state.expense.id;
   if (state.currency !== "CNY") {
     return `
       <div class="expense-rate-assist expense-rate-assist--muted">
@@ -885,28 +889,57 @@ function renderBatchCashExpenseRateAssist(state) {
   }
 
   return `
-    <div class="expense-rate-assist expense-rate-assist--cny">
-      <div class="expense-rate-assist-heading">
-        <strong>CNY / 汇率换算</strong>
-        <span>输入或获取汇率后计算理论金额</span>
-      </div>
-      <div class="expense-rate-assist-row">
-        <span class="expense-rate-assist-label">CNY/JPY</span>
-        <input data-batch-expense-rate="${escapeAttribute(expenseId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
-        <button class="button compact-button" data-batch-expense-rate-fetch="${escapeAttribute(expenseId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
-      </div>
+    <div class="expense-rate-assist expense-rate-assist--compact">
       <div class="expense-rate-assist-theory">
         <span>理论金额</span>
         <span class="expense-rate-assist-value">${escapeHtml(formatTheoreticalCnyAmount(state.theoreticalAmount))}</span>
       </div>
       <div class="expense-rounding-buttons" aria-label="取整方式">
-        <button class="button compact-button" data-batch-expense-round="${escapeAttribute(expenseId)}" data-rounding-mode="round" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>四舍五入</button>
-        <button class="button compact-button" data-batch-expense-round="${escapeAttribute(expenseId)}" data-rounding-mode="ceil" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>向上取整</button>
-        <button class="button compact-button" data-batch-expense-round="${escapeAttribute(expenseId)}" data-rounding-mode="floor" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>向下取整</button>
+        <button class="button compact-button" title="四舍五入" data-batch-expense-round="${escapeAttribute(state.expense.id)}" data-rounding-mode="round" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>≈</button>
+        <button class="button compact-button" title="向上取整" data-batch-expense-round="${escapeAttribute(state.expense.id)}" data-rounding-mode="ceil" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>↑</button>
+        <button class="button compact-button" title="向下取整" data-batch-expense-round="${escapeAttribute(state.expense.id)}" data-rounding-mode="floor" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>↓</button>
       </div>
       <div class="expense-rate-assist-status">${escapeHtml(state.rateStatus || rateAssistHint(state))}</div>
     </div>
   `;
+}
+
+function renderBatchCashExpenseRateToolbar() {
+  if (!dom.batchCashExpenseRateToolbar) {
+    return;
+  }
+
+  const cnyRows = batchCashExpenseRows.filter((state) => state.currency === "CNY");
+  if (!cnyRows.length) {
+    dom.batchCashExpenseRateToolbar.innerHTML = `
+      <div class="expense-rate-toolbar-card expense-rate-toolbar-card--muted">
+        <div class="expense-rate-toolbar-title">
+          <strong>CNY / JPY 汇率辅助</strong>
+          <span>选择 CNY 支付后，可在这里输入或获取汇率。</span>
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  dom.batchCashExpenseRateToolbar.innerHTML = cnyRows.map((state) => {
+    const expenseId = state.expense.id;
+    const needsRowLabel = cnyRows.length > 1;
+    return `
+      <div class="expense-rate-toolbar-card" data-batch-expense-row-id="${escapeAttribute(expenseId)}">
+        <div class="expense-rate-toolbar-title">
+          <strong>CNY / JPY 汇率辅助</strong>
+          <span>${escapeHtml(needsRowLabel ? expenseObjectName(state.expense) : "输入或获取汇率后，可计算理论 CNY 金额。")}</span>
+        </div>
+        <div class="expense-rate-toolbar-controls">
+          <span>1 JPY =</span>
+          <input data-batch-expense-rate="${escapeAttribute(expenseId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
+          <span>CNY</span>
+          <button class="button compact-button" data-batch-expense-rate-fetch="${escapeAttribute(expenseId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
+        </div>
+      </div>
+    `;
+  }).join("");
 }
 
 function renderBatchCashExpenseAccountOptions(state) {
@@ -982,7 +1015,9 @@ function syncBatchCashExpenseRowsFromDom() {
     state.currency = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
     state.accountId = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
     state.note = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-note="${cssEscape(id)}"]`)?.value ?? state.note;
-    state.exchangeRate = dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-rate="${cssEscape(id)}"]`)?.value ?? state.exchangeRate;
+    state.exchangeRate = dom.batchCashExpenseRateToolbar?.querySelector(`[data-batch-expense-rate="${cssEscape(id)}"]`)?.value
+      ?? dom.batchCashExpenseTableBody.querySelector(`[data-batch-expense-rate="${cssEscape(id)}"]`)?.value
+      ?? state.exchangeRate;
   }
   updateBatchCashExpenseTotal();
 }
