@@ -434,7 +434,8 @@ function renderValueOptions(selectEl, values, labelGetter) {
 function renderExpenseRecords(rows) {
   renderedExpenseRows = rows;
   pruneSelectedExpenseIds();
-  dom.expenseCount.textContent = `${rows.length} 条`;
+  const cashRequestableCount = rows.filter(canRequestCashExpense).length;
+  dom.expenseCount.textContent = `共 ${rows.length} 条｜可提交 Cash ${cashRequestableCount} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
 
   if (!rows.length) {
@@ -1575,12 +1576,66 @@ function formatDateOnly(value) {
 }
 
 function defaultCashExpenseNote(expense) {
-  return [
+  const standardParts = [
     expenseCategoryLabel(expense.expense_category),
     expenseObjectName(expense),
     expense.year_month,
-    expense.description,
+  ].map((value) => safeText(value)).filter((value) => value && value !== "-");
+  const extraNote = defaultCashExpenseExtraNote(expense.description, standardParts);
+  return [
+    standardParts.join(" / "),
+    extraNote,
   ].filter(Boolean).join(" / ");
+}
+
+function defaultCashExpenseExtraNote(value, standardParts) {
+  const text = safeText(value).trim();
+  if (!text || isSystemMigrationNote(text)) {
+    return "";
+  }
+
+  let extra = text;
+  for (const part of defaultCashExpenseDuplicateTerms(standardParts)) {
+    extra = extra.replace(new RegExp(escapeRegExp(part), "g"), " ");
+  }
+  extra = extra.replace(/[／/|,，、;；:：()（）\[\]【】]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!extra) {
+    return "";
+  }
+
+  const standardTokens = noteComparisonTokens(standardParts.join(" "));
+  const extraTokens = noteComparisonTokens(extra);
+  if (extraTokens.length && extraTokens.every((token) => standardTokens.includes(token))) {
+    return "";
+  }
+
+  return extra;
+}
+
+function defaultCashExpenseDuplicateTerms(standardParts) {
+  const terms = new Set(standardParts);
+  for (const part of standardParts) {
+    const monthMatch = part.match(/^(\d{4})-(\d{2})$/);
+    if (monthMatch) {
+      terms.add(`${monthMatch[1]} ${monthMatch[2]}`);
+      terms.add(`${monthMatch[1]}/${monthMatch[2]}`);
+      terms.add(`${monthMatch[1]}年${monthMatch[2]}月`);
+    }
+  }
+  return Array.from(terms).sort((a, b) => b.length - a.length);
+}
+
+function noteComparisonTokens(value) {
+  return safeText(value)
+    .toLowerCase()
+    .replace(/[／/|,，、;；:：()（）\[\]【】]+/g, " ")
+    .replace(/-/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function escapeRegExp(value) {
+  return safeText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function buildCashExpenseRequestNote(expense, amount, currency, paymentDate, baseNote, rateNote = "") {
