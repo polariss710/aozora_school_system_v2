@@ -930,45 +930,45 @@ h2 {
 }
 
 .expense-table {
-  width: 1068px;
-  min-width: 1068px;
+  width: 1296px;
+  min-width: 1296px;
   table-layout: fixed;
 }
 
 .expense-col-select {
-  width: 40px;
+  width: 44px;
 }
 
 .expense-col-source {
-  width: 220px;
+  width: 300px;
 }
 
 .expense-col-category {
-  width: 96px;
+  width: 110px;
 }
 
 .expense-col-month {
-  width: 100px;
-}
-
-.expense-col-date {
   width: 112px;
 }
 
-.expense-col-amount {
-  width: 130px;
+.expense-col-date {
+  width: 120px;
 }
 
-.expense-col-cash {
+.expense-col-amount {
   width: 150px;
 }
 
+.expense-col-cash {
+  width: 180px;
+}
+
 .expense-col-related {
-  width: 140px;
+  width: 180px;
 }
 
 .expense-col-action {
-  width: 80px;
+  width: 100px;
 }
 
 .expense-table-scroll {
