@@ -877,18 +877,26 @@ function renderBatchCashExpenseRows() {
 function renderBatchCashExpenseRateAssist(state) {
   const expenseId = state.expense.id;
   if (state.currency !== "CNY") {
-    return '<span class="state-text">JPY 支付不需要汇率</span>';
+    return `
+      <div class="expense-rate-assist expense-rate-assist--muted">
+        <span>JPY 支付不需要汇率</span>
+      </div>
+    `;
   }
 
   return `
-    <div class="expense-rate-assist">
+    <div class="expense-rate-assist expense-rate-assist--cny">
+      <div class="expense-rate-assist-heading">
+        <strong>CNY / 汇率换算</strong>
+        <span>输入或获取汇率后计算理论金额</span>
+      </div>
       <div class="expense-rate-assist-row">
         <span class="expense-rate-assist-label">CNY/JPY</span>
         <input data-batch-expense-rate="${escapeAttribute(expenseId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
         <button class="button compact-button" data-batch-expense-rate-fetch="${escapeAttribute(expenseId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
       </div>
-      <div class="expense-rate-assist-row">
-        <span class="expense-rate-assist-label">理论</span>
+      <div class="expense-rate-assist-theory">
+        <span>理论金额</span>
         <span class="expense-rate-assist-value">${escapeHtml(formatTheoreticalCnyAmount(state.theoreticalAmount))}</span>
       </div>
       <div class="expense-rounding-buttons" aria-label="取整方式">

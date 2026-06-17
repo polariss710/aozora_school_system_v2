@@ -2479,7 +2479,25 @@ h2 {
 
 .expense-batch-cash-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1040px;
+}
+
+.expense-batch-cash-table th,
+.expense-batch-cash-table td {
+  vertical-align: top;
+}
+
+.expense-batch-cash-table th:nth-child(7),
+.expense-batch-cash-table td:nth-child(7) {
+  width: 236px;
+  min-width: 236px;
+}
+
+.expense-batch-cash-table td:nth-child(3) input,
+.expense-batch-cash-table td:nth-child(5) input,
+.expense-batch-cash-table td:nth-child(6) select {
+  min-width: 0;
+  width: 100%;
 }
 
 .expense-batch-cash-dialog-panel .dialog-actions {
@@ -2502,24 +2520,89 @@ h2 {
 
 .expense-rate-assist {
   display: grid;
-  min-width: 220px;
-  gap: 6px;
+  gap: 8px;
   font-size: 12px;
+}
+
+.expense-rate-assist--cny {
+  min-width: 0;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 8px;
+}
+
+.expense-rate-assist--muted {
+  max-width: 180px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.expense-rate-assist-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.expense-rate-assist-heading strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.expense-rate-assist-heading span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .expense-rate-assist input {
   min-height: 32px;
+  min-width: 0;
   padding: 5px 7px;
   font-size: 12px;
 }
 
-.expense-rate-assist-row,
-.expense-rounding-buttons {
-  display: flex;
+.expense-rate-assist-row {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
   min-width: 0;
   align-items: center;
-  flex-wrap: wrap;
   gap: 6px;
+}
+
+.expense-rate-assist-row .compact-button {
+  min-height: 32px;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.expense-rate-assist-theory {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 6px 8px;
+}
+
+.expense-rate-assist-theory span:first-child {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.expense-rounding-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.expense-rounding-buttons .compact-button {
+  min-height: 30px;
+  padding: 4px 5px;
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .expense-rate-assist-label {
@@ -2534,6 +2617,7 @@ h2 {
 
 .expense-rate-assist-status {
   color: var(--muted);
+  font-size: 11px;
   line-height: 1.35;
 }
 
