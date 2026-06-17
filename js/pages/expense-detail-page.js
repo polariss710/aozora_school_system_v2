@@ -142,6 +142,7 @@ function cacheDom() {
   dom.reversalCard = document.querySelector("#expenseDetailReversalCard");
   dom.reversalInfo = document.querySelector("#expenseDetailReversalInfo");
   dom.noteBlock = document.querySelector("#expenseDetailNoteBlock");
+  dom.systemInfo = document.querySelector("#expenseDetailSystemInfo");
   dom.reimbursements = document.querySelector("#expenseDetailReimbursements");
   dom.openAttachmentDialogButton = document.querySelector("#openExpenseAttachmentDialogButton");
   dom.attachments = document.querySelector("#expenseDetailAttachments");
@@ -334,52 +335,128 @@ async function loadExpenseDetail(expenseId) {
 function renderExpenseDetail(data) {
   const { expense } = data;
   renderActionArea(data);
-  dom.titleText.textContent = `${expenseCategoryLabel(expense.expense_category)} / ${displayValue(expense.description)}`;
+  dom.titleText.textContent = `${expenseObjectName(expense)} / ${expenseCategoryLabel(expense.expense_category)}`;
+  renderAmountSummary(expense);
   dom.basicInfo.innerHTML = renderDefinitionList([
-    ["支出日期", formatDateOnly(expense.expense_date)],
-    ["目标月份", formatMonth(expense.year_month)],
-    ["支出分类", expenseCategoryLabel(expense.expense_category)],
-    ["描述", displayValue(expense.description)],
+    ["支出对象 / 来源", expenseObjectName(expense)],
+    ["分类", expenseCategoryLabel(expense.expense_category)],
+    ["业务归属月", formatMonth(expense.year_month)],
+    ["实际支付日", actualPaymentDateLabel(expense)],
+    ["支出内容", displayValue(expense.description)],
     ["状态", expenseStatusLabel(expense.status)],
     ["业务归属", businessNameById(expense.business_entity_id)],
-    ["创建时间", formatDate(expense.created_at)],
-    ["更新时间", formatDate(expense.updated_at)],
   ]);
 
-  dom.amountInfo.innerHTML = renderDefinitionList([
-    ["币种", displayValue(expense.currency)],
-    ["原币金额", formatCurrency(expense.amount, expense.currency)],
-    ["JPY 金额", formatCurrency(expense.amount_jpy, "JPY")],
-    ["CNY 金额", formatCurrency(expense.amount_cny, "CNY")],
-    ["汇率", displayValue(expense.exchange_rate)],
-    ["支付方式", paymentMethodLabel(expense.payment_method)],
-    ["税务分类", displayValue(expense.tax_category)],
-  ]);
-
-  dom.relatedInfo.innerHTML = renderDefinitionList([
-    ["账户", accountNameById(expense.account_id)],
-    ["支付对象", displayValue(expense.payee_name_snapshot)],
-    ["来源类型", sourceTypeLabel(expense.source_type)],
-    ["Cash request", expense.cash_request_id ? `${shortId(expense.cash_request_id)} / ${cashRequestStatusLabel(expense.cash_request_status)}` : cashRequestStatusLabel(expense.cash_request_status)],
-    ["Cash transaction", shortId(expense.cash_transaction_id)],
-    ["Cash 支付备注", displayValue(expense.cash_payment_note)],
-    ["Cash 请求时间", formatDate(expense.cash_requested_at)],
-    ["Cash 同步时间", formatDate(expense.cash_synced_at)],
-    ["Cash 错误", displayValue(expense.cash_error_message)],
-    ["支出 ID", shortId(expense.id)],
-    ["app_type", displayValue(expense.app_type)],
-  ]);
+  dom.relatedInfo.innerHTML = renderNonEmptyDefinitionList([
+    ["老师", teacherNameForDisplay(expense.teacher_id)],
+    ["支付对象", safeText(expense.payee_name_snapshot)],
+    ["账户", accountNameForDisplay(expense.account_id)],
+    ["业务来源", businessSourceLabel(expense)],
+  ], "无关联对象。");
 
   dom.receiptInfo.innerHTML = renderDefinitionList([
+    ["附件", attachmentSummaryLabel(data.attachments)],
     ["收据状态", displayValue(expense.receipt_status)],
     ["报销状态", reimbursementStatusLabel(expense.reimbursement_status, expense.expense_category)],
     ["报销备注", displayValue(expense.reimbursement_note)],
   ]);
 
   renderReversalInfo(expense);
-  dom.noteBlock.textContent = displayValue(expense.note);
+  renderNoteBlock(expense.note);
+  renderSystemInfo(data);
   renderReimbursements(data.reimbursementItems, data.reimbursements);
   renderAttachments(data.attachments);
+}
+
+function renderAmountSummary(expense) {
+  const cashStatus = expense.cash_transaction_id && !expense.cash_request_status
+    ? "synced"
+    : expense.cash_request_status;
+  dom.amountInfo.innerHTML = `
+    <div class="expense-detail-main-amount">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</div>
+    <div class="expense-detail-main-meta">
+      <span>${escapeHtml(displayValue(expense.currency))}</span>
+      <span class="status-badge ${escapeAttribute(cashRequestStatusClass(cashStatus))}">${escapeHtml(cashRequestStatusLabel(cashStatus))}</span>
+    </div>
+    ${renderDefinitionList([
+      ["JPY 金额", formatCurrency(expense.amount_jpy, "JPY")],
+      ["CNY 金额", formatCurrency(expense.amount_cny, "CNY")],
+      ["Cash 支付金额", formatCashPaymentAmount(expense)],
+      ["Cash 同步时间", formatDate(expense.cash_synced_at)],
+    ])}
+  `;
+}
+
+function renderNoteBlock(note) {
+  const text = safeText(note);
+  const businessNote = isSystemMigrationNote(text) ? "" : text;
+  if (!businessNote) {
+    dom.noteBlock.innerHTML = '<span class="expense-note-empty">无业务备注</span>';
+    return;
+  }
+
+  const needsCollapse = businessNote.length > 120 || businessNote.includes("\n");
+  if (!needsCollapse) {
+    dom.noteBlock.textContent = businessNote;
+    return;
+  }
+
+  dom.noteBlock.innerHTML = `
+    <div class="expense-note-preview">${escapeHtml(notePreview(businessNote))}</div>
+    <details class="expense-note-disclosure">
+      <summary>
+        <span class="summary-closed">展开完整备注</span>
+        <span class="summary-open">收起完整备注</span>
+      </summary>
+      <div class="expense-note-full-text">${escapeHtml(businessNote)}</div>
+    </details>
+  `;
+}
+
+function renderSystemInfo(data) {
+  const { expense } = data;
+  dom.systemInfo.innerHTML = `
+    <article class="detail-list-card">
+      <h3>记录与来源</h3>
+      ${renderDefinitionList([
+        ["支出 ID", shortId(expense.id)],
+        ["app_type", displayValue(expense.app_type)],
+        ["source_type", sourceTypeLabel(expense.source_type)],
+        ["source_id", shortId(expense.source_id)],
+        ["salary_payment_id", shortId(expense.salary_payment_id)],
+        ["teacher_id", shortId(expense.teacher_id)],
+        ["student_id", shortId(expense.student_id)],
+        ["account_id", shortId(expense.account_id)],
+        ["payment_method", paymentMethodLabel(expense.payment_method)],
+        ["payee_name_snapshot", displayValue(expense.payee_name_snapshot)],
+        ["is_business_expense", booleanLabel(expense.is_business_expense)],
+        ["税务分类", displayValue(expense.tax_category)],
+        ["汇率", displayValue(expense.exchange_rate)],
+        ["created_at", formatDate(expense.created_at)],
+        ["updated_at", formatDate(expense.updated_at)],
+      ])}
+    </article>
+    <article class="detail-list-card">
+      <h3>Cash 链路</h3>
+      ${renderDefinitionList([
+        ["cash_request_id", shortId(expense.cash_request_id)],
+        ["cash_request_event_id", shortId(expense.cash_request_event_id)],
+        ["cash_request_attempt_no", displayValue(expense.cash_request_attempt_no)],
+        ["cash_request_status", cashRequestStatusLabel(expense.cash_request_status)],
+        ["cash_transaction_id", shortId(expense.cash_transaction_id)],
+        ["cash_requested_at", formatDate(expense.cash_requested_at)],
+        ["cash_synced_at", formatDate(expense.cash_synced_at)],
+        ["cash_payment_amount", formatCashPaymentAmount(expense)],
+        ["cash_error_message", displayValue(expense.cash_error_message)],
+      ])}
+      ${renderSystemTextBlock("Cash 原始备注", expense.cash_payment_note)}
+    </article>
+    <article class="detail-list-card">
+      <h3>备注原文</h3>
+      ${isSystemMigrationNote(expense.note) ? renderSystemTextBlock("迁移说明", expense.note) : renderSystemTextBlock("支出备注", expense.note)}
+      ${renderSystemTextBlock("报销备注", expense.reimbursement_note)}
+    </article>
+  `;
 }
 
 function renderActionArea(data) {
@@ -1521,6 +1598,110 @@ function renderDefinitionList(items) {
   `;
 }
 
+function renderNonEmptyDefinitionList(items, emptyText = "无记录。") {
+  const visibleItems = items.filter(([, value]) => hasDisplayValue(value));
+  if (!visibleItems.length) {
+    return `<div class="state-text">${escapeHtml(emptyText)}</div>`;
+  }
+
+  return renderDefinitionList(visibleItems);
+}
+
+function renderSystemTextBlock(label, value) {
+  const text = safeText(value);
+  if (!text) {
+    return "";
+  }
+
+  return `
+    <div class="expense-system-text-block">
+      <strong>${escapeHtml(label)}</strong>
+      <pre>${escapeHtml(text)}</pre>
+    </div>
+  `;
+}
+
+function hasDisplayValue(value) {
+  const text = safeText(value);
+  return Boolean(text) && !["-", "未设置", "未知", "undefined", "null"].includes(text);
+}
+
+function expenseObjectName(expense) {
+  const payeeName = safeText(expense?.payee_name_snapshot);
+  if (payeeName) {
+    return payeeName;
+  }
+
+  if (expense?.teacher_id) {
+    return teacherNameById(expense.teacher_id);
+  }
+
+  if (expense?.student_id) {
+    return studentNameById(expense.student_id);
+  }
+
+  return displayValue(expense?.description);
+}
+
+function teacherNameForDisplay(id) {
+  return id ? teacherNameById(id) : "";
+}
+
+function accountNameForDisplay(id) {
+  return id ? accountNameById(id) : "";
+}
+
+function businessSourceLabel(expense) {
+  if (!expense?.source_type) {
+    return "";
+  }
+
+  if (expense.source_type === "teacher_wage") {
+    return "老师工资";
+  }
+
+  if (expense.source_type === "manual" && !expense.source_id) {
+    return "手工记录";
+  }
+
+  return sourceTypeLabel(expense.source_type);
+}
+
+function actualPaymentDateLabel(expense) {
+  if (safeText(expense?.expense_date)) {
+    return formatDateOnly(expense.expense_date);
+  }
+
+  if (expense?.status === "pending" && !expense?.cash_transaction_id) {
+    return "未提交 Cash";
+  }
+
+  return "未设置";
+}
+
+function attachmentSummaryLabel(attachments) {
+  const count = Array.isArray(attachments) ? attachments.length : 0;
+  return count > 0 ? `${count} 个附件摘要` : "无附件";
+}
+
+function formatCashPaymentAmount(expense) {
+  if (expense?.cash_payment_amount === null || expense?.cash_payment_amount === undefined || expense?.cash_payment_amount === "") {
+    return "-";
+  }
+
+  return formatCurrency(expense.cash_payment_amount, expense.cash_payment_currency || expense.currency);
+}
+
+function notePreview(text) {
+  const normalized = safeText(text).replace(/\s+/g, " ").trim();
+  return normalized.length > 120 ? `${normalized.slice(0, 120)}...` : normalized;
+}
+
+function isSystemMigrationNote(value) {
+  const text = safeText(value);
+  return /migrated_to_|canonical_flow|payment_request_id=|migration/i.test(text);
+}
+
 function businessNameById(id) {
   const entity = detailData?.lookups.businessEntities.find((item) => item.id === id);
   return entity ? safeText(entity.name) || "未设置" : id ? "未知" : "未设置";
@@ -1598,7 +1779,23 @@ function cashRequestStatusLabel(value) {
     synced: "已同步到 Cash",
     rejected: "Cash已拒绝",
   };
-  return labels[value] || displayValue(value);
+  return labels[value] || (safeText(value) ? displayValue(value) : "未提交 Cash");
+}
+
+function cashRequestStatusClass(value) {
+  if (value === "approved" || value === "synced") {
+    return "status-paid";
+  }
+
+  if (value === "pending" || value === "pending_cash_request") {
+    return "status-pending";
+  }
+
+  if (value === "rejected") {
+    return "status-cancelled";
+  }
+
+  return "status-neutral";
 }
 
 function cashAccountLabel(account) {

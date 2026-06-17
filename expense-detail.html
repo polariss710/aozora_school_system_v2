@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.108.0-expense-exchange-rate-optional-20260613">
+    <link rel="stylesheet" href="./css/app.css?v=v10.0.6-expense-detail-ui-20260617">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--expense">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>支出记录详情</h1>
+          <p class="page-subtitle">查看支出业务摘要、Cash 状态、附件和报销链路</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -42,8 +43,8 @@
         <section class="panel" aria-labelledby="expenseDetailPageTitle">
           <div class="section-heading section-heading-row">
             <div>
-              <h2 id="expenseDetailPageTitle">详情</h2>
-              <p class="section-note">本页展示支出记录详情。普通支出可在保护规则内编辑；老师工资、来源支付请求、已报销或已进入报销链路的支出保持只读。</p>
+              <h2 id="expenseDetailPageTitle">支出详情</h2>
+              <p class="section-note">优先展示业务人员常用信息；系统字段收纳在下方折叠区。</p>
             </div>
             <div class="reimbursement-detail-actions">
               <span id="expenseDetailActionStatus" class="status-badge status-neutral">-</span>
@@ -59,26 +60,26 @@
         <div id="expenseDetailLoadingState" class="state-text is-hidden">正在加载支出记录详情...</div>
 
         <section id="expenseDetailContent" class="page-main is-hidden">
-          <section class="panel" aria-labelledby="expenseDetailTitle">
+          <section class="panel expense-detail-summary-panel" aria-labelledby="expenseDetailTitle">
             <div class="section-heading">
-              <h2 id="expenseDetailTitle">支出摘要</h2>
+              <h2 id="expenseDetailTitle">业务摘要</h2>
               <p id="expenseDetailTitleText" class="section-note"></p>
             </div>
-            <div class="detail-grid">
-              <article class="detail-card">
-                <h3>支出基本信息</h3>
-                <div id="expenseDetailBasicInfo"></div>
+            <div class="expense-detail-summary-grid">
+              <article class="detail-card expense-detail-amount-card">
+                <h3>金额 / Cash</h3>
+                <div id="expenseDetailAmountInfo"></div>
               </article>
               <article class="detail-card">
-                <h3>金额信息</h3>
-                <div id="expenseDetailAmountInfo"></div>
+                <h3>支出信息</h3>
+                <div id="expenseDetailBasicInfo"></div>
               </article>
               <article class="detail-card">
                 <h3>关联对象</h3>
                 <div id="expenseDetailRelatedInfo"></div>
               </article>
               <article class="detail-card">
-                <h3>收据 / 报销状态</h3>
+                <h3>附件 / 报销</h3>
                 <div id="expenseDetailReceiptInfo"></div>
               </article>
               <article id="expenseDetailReversalCard" class="detail-card is-hidden">
@@ -93,6 +94,16 @@
               <h2 id="expenseDetailNoteTitle">备注</h2>
             </div>
             <div id="expenseDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="expenseDetailSystemTitle">
+            <details class="expense-system-disclosure">
+              <summary id="expenseDetailSystemTitle">
+                <span>系统信息</span>
+                <small>Cash 链路、审计字段和技术字段默认收起</small>
+              </summary>
+              <div id="expenseDetailSystemInfo" class="detail-list"></div>
+            </details>
           </section>
 
           <section class="panel" aria-labelledby="expenseDetailReimbursementTitle">
@@ -337,6 +348,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-detail-app.js?v=v2.122.0-month-filter-url-preserve-20260616"></script>
+    <script type="module" src="./js/expense-detail-app.js?v=v10.0.6-expense-detail-ui-20260617"></script>
   </body>
 </html>
