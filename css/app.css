@@ -2615,6 +2615,174 @@ h2 {
   grid-column: 1 / -1;
 }
 
+#createExpenseDialog .expense-create-dialog-panel {
+  display: flex;
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(88vh, calc(100vh - 32px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+  padding: 0;
+}
+
+#createExpenseDialog .expense-create-dialog-header {
+  flex: 0 0 auto;
+  margin: 0;
+  border-bottom: 1px solid #e3edf8;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  padding: 18px 22px 14px;
+}
+
+#createExpenseDialog .dialog-error {
+  flex: 0 0 auto;
+  margin: 14px 22px 0;
+}
+
+.expense-create-dialog-body {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 14px 22px 16px;
+}
+
+.expense-create-section {
+  min-width: 0;
+  border: 1px solid #e3edf8;
+  border-radius: 10px;
+  background: #fbfdff;
+  padding: 12px;
+}
+
+.expense-create-section-title {
+  margin-bottom: 10px;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 8px;
+}
+
+.expense-create-section-title h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.expense-create-section-title p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#createExpenseDialog .expense-create-field-grid {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px 14px;
+}
+
+#createExpenseDialog .field {
+  margin-top: 0;
+}
+
+#createExpenseDialog .field > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #526173;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+#createExpenseDialog .field input,
+#createExpenseDialog .field select,
+#createExpenseDialog .field textarea {
+  box-sizing: border-box;
+  min-height: 42px;
+  border-color: #d7e2ee;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 8px 10px;
+}
+
+#createExpenseDialog .field input,
+#createExpenseDialog .field select {
+  height: 42px;
+}
+
+#createExpenseDialog .field textarea {
+  min-height: 76px;
+}
+
+.expense-create-field-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  padding: 7px 10px;
+  color: #315f9e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#createExpenseDialog .field input:focus,
+#createExpenseDialog .field select:focus,
+#createExpenseDialog .field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(29, 112, 214, 0.12);
+  outline: none;
+}
+
+.required-mark {
+  color: #b91c1c;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.expense-create-advanced {
+  padding: 0;
+}
+
+.expense-create-advanced summary {
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  color: var(--accent);
+  font-weight: 900;
+  list-style-position: inside;
+}
+
+.expense-create-advanced summary small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.expense-create-advanced .expense-create-field-grid {
+  border-top: 1px solid #edf2f7;
+  padding: 12px;
+}
+
+.expense-create-actions {
+  flex: 0 0 auto;
+  justify-content: space-between;
+  margin-top: 0;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  padding: 12px 22px 16px;
+}
+
+.expense-create-actions .button {
+  min-width: 120px;
+}
+
 .lesson-source-select-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -3029,6 +3197,20 @@ h2 {
   .reimbursement-create-field-grid,
   .lesson-create-field-grid,
   .part-time-work-dialog-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #createExpenseDialog .expense-create-dialog-panel {
+    width: calc(100vw - 24px);
+  }
+
+  #createExpenseDialog .expense-create-dialog-header,
+  .expense-create-dialog-body,
+  .expense-create-actions {
+    padding-inline: 14px;
+  }
+
+  #createExpenseDialog .expense-create-field-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.0.5-expense-ui-sample-20260617">
+    <link rel="stylesheet" href="./css/app.css?v=v10.0.9-expense-create-quick-20260617">
   </head>
   <body>
     <div class="app-shell app-shell--expense app-shell--expense-list">
@@ -182,93 +182,114 @@
       </section>
     </div>
 
-    <div id="createExpenseDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+    <div id="createExpenseDialog" class="dialog-backdrop expense-create-dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel expense-create-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="createExpenseTitle">
-        <div class="section-heading">
-          <h2 id="createExpenseTitle">新增支出</h2>
-          <p class="section-note">新增后会通过 RPC 自动写入支出记录、账户余额和账户流水；第一版仅支持普通已支付支出，不支持老师工资或报销流程。附件摘要可在支出详情页单独登记。</p>
+        <div class="section-heading expense-create-dialog-header">
+          <div>
+            <h2 id="createExpenseTitle">新增支出</h2>
+            <p class="section-note">登记一笔业务支出。保存后仍可按现有流程提交 Cash。</p>
+          </div>
         </div>
 
         <div id="createExpenseError" class="dialog-error is-hidden"></div>
 
-        <div class="expense-create-field-grid">
-          <label class="field" data-create-expense-field="expenseDate">
-            <span>支出日期</span>
-            <input id="createExpenseDateInput" type="date">
-          </label>
+        <div class="expense-create-dialog-body">
+          <section class="expense-create-section" aria-labelledby="createExpenseBasicTitle">
+            <div class="expense-create-section-title">
+              <h3 id="createExpenseBasicTitle">快速登记</h3>
+            </div>
 
-          <label class="field" data-create-expense-field="businessEntity">
-            <span>业务归属</span>
-            <select id="createExpenseBusinessEntitySelect"></select>
-          </label>
+            <div class="expense-create-field-grid">
+              <label class="field expense-create-wide-field" data-create-expense-field="description">
+                <span>支出对象 / 来源 <b class="required-mark">必填</b></span>
+                <input id="createExpenseDescriptionInput" type="text" autocomplete="off" placeholder="例：教室租金 / 软件订阅 / 广告投放">
+              </label>
 
-          <label class="field" data-create-expense-field="account">
-            <span>付款账户</span>
-            <select id="createExpenseAccountSelect"></select>
-          </label>
+              <label class="field" data-create-expense-field="expenseCategory">
+                <span>支出分类 <b class="required-mark">必填</b></span>
+                <select id="createExpenseCategorySelect"></select>
+              </label>
 
-          <label class="field" data-create-expense-field="expenseCategory">
-            <span>支出分类</span>
-            <select id="createExpenseCategorySelect"></select>
-          </label>
+              <label class="field" data-create-expense-field="expenseDate">
+                <span>支出日期 <b class="required-mark">必填</b></span>
+                <input id="createExpenseDateInput" type="date">
+              </label>
 
-          <label class="field" data-create-expense-field="amount">
-            <span>金额</span>
-            <input id="createExpenseAmountInput" type="number" min="0" step="0.01" inputmode="decimal">
-          </label>
+              <p class="expense-create-field-note">业务归属月按支出日期所属月份生成。</p>
 
-          <label class="field expense-create-wide-field" data-create-expense-field="description">
-            <span>支出内容</span>
-            <input id="createExpenseDescriptionInput" type="text" autocomplete="off" placeholder="支出内容 / 描述">
-          </label>
+              <label class="field" data-create-expense-field="amount">
+                <span>金额 <b class="required-mark">必填</b></span>
+                <input id="createExpenseAmountInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+              </label>
 
-          <label class="field" data-create-expense-field="paymentMethod">
-            <span>支付方式</span>
-            <select id="createExpensePaymentMethodSelect">
-              <option value="">请选择支付方式</option>
-              <option value="cash">现金支付</option>
-              <option value="bank_transfer">银行转账</option>
-              <option value="card">信用卡</option>
-              <option value="alipay">支付宝</option>
-            </select>
-          </label>
+              <label class="field" data-create-expense-field="paymentMethod">
+                <span>支付方式 <b class="required-mark">必填</b></span>
+                <select id="createExpensePaymentMethodSelect">
+                  <option value="">请选择支付方式</option>
+                  <option value="cash">现金支付</option>
+                  <option value="bank_transfer">银行转账</option>
+                  <option value="card">信用卡</option>
+                  <option value="alipay">支付宝</option>
+                </select>
+              </label>
 
-          <label class="field" data-create-expense-field="receiptStatus">
-            <span>收据状态</span>
-            <select id="createExpenseReceiptStatusSelect">
-              <option value="待确认">待确认</option>
-              <option value="有">有</option>
-              <option value="无需收据">无需收据</option>
-            </select>
-          </label>
+              <label class="field" data-create-expense-field="businessEntity">
+                <span>业务归属 <b class="required-mark">必填</b></span>
+                <select id="createExpenseBusinessEntitySelect"></select>
+              </label>
 
-          <label class="field" data-create-expense-field="reimbursementStatus">
-            <span>报销状态</span>
-            <select id="createExpenseReimbursementStatusSelect">
-              <option value="not_required">无需报销</option>
-              <option value="pending">待报销</option>
-            </select>
-          </label>
+              <label class="field" data-create-expense-field="account">
+                <span>付款账户 <b class="required-mark">必填</b></span>
+                <select id="createExpenseAccountSelect"></select>
+              </label>
 
-          <label class="field" data-create-expense-field="taxCategory">
-            <span>税务分类</span>
-            <input id="createExpenseTaxCategoryInput" type="text" autocomplete="off" placeholder="待确认">
-          </label>
+              <label class="field expense-create-wide-field" data-create-expense-field="note">
+                <span>业务备注</span>
+                <textarea id="createExpenseNoteInput" rows="2" placeholder="可选：填写业务背景、收据说明或报销备注"></textarea>
+              </label>
+            </div>
+          </section>
 
-          <label class="field" data-create-expense-field="exchangeRate">
-            <span>汇率</span>
-            <input id="createExpenseExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal" placeholder="可选">
-          </label>
+          <details class="expense-create-section expense-create-advanced">
+            <summary>
+              <span>高级选项</span>
+              <small>收据 / 报销 / 税务 / 汇率</small>
+            </summary>
 
-          <label class="field expense-create-wide-field" data-create-expense-field="note">
-            <span>备注</span>
-            <textarea id="createExpenseNoteInput" rows="3"></textarea>
-          </label>
+            <div class="expense-create-field-grid">
+              <label class="field" data-create-expense-field="exchangeRate">
+                <span>汇率</span>
+                <input id="createExpenseExchangeRateInput" type="number" min="0" step="0.000001" inputmode="decimal" placeholder="可选">
+              </label>
+
+              <label class="field" data-create-expense-field="receiptStatus">
+                <span>收据状态 <b class="required-mark">必填</b></span>
+                <select id="createExpenseReceiptStatusSelect">
+                  <option value="待确认">待确认</option>
+                  <option value="有">有</option>
+                  <option value="无需收据">无需收据</option>
+                </select>
+              </label>
+
+              <label class="field" data-create-expense-field="reimbursementStatus">
+                <span>报销状态 <b class="required-mark">必填</b></span>
+                <select id="createExpenseReimbursementStatusSelect">
+                  <option value="not_required">无需报销</option>
+                  <option value="pending">待报销</option>
+                </select>
+              </label>
+
+              <label class="field" data-create-expense-field="taxCategory">
+                <span>税务分类</span>
+                <input id="createExpenseTaxCategoryInput" type="text" autocomplete="off" placeholder="待确认">
+              </label>
+            </div>
+          </details>
         </div>
 
-        <div class="dialog-actions">
-          <button class="button button-primary" id="createExpenseSubmitButton" type="button">保存支出</button>
+        <div class="dialog-actions expense-create-actions">
           <button class="button" id="createExpenseCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="createExpenseSubmitButton" type="button">保存支出</button>
         </div>
       </section>
     </div>
