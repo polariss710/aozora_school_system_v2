@@ -484,11 +484,13 @@ function renderExpenseRelatedCell(row) {
 
 function renderExpenseSelectionCell(row) {
   const selectable = canRequestCashExpense(row);
+  const disabledReason = selectable ? "" : cashRequestDisabledTitle(row);
   return `
     <input
       type="checkbox"
       data-expense-select-id="${escapeAttribute(row.id)}"
       aria-label="选择支出记录 ${escapeAttribute(expenseObjectName(row))}"
+      ${disabledReason ? `title="${escapeAttribute(disabledReason)}"` : ""}
       ${selectable ? "" : "disabled"}
       ${selectedExpenseIds.has(row.id) ? "checked" : ""}
     >
@@ -1250,6 +1252,13 @@ function cashRequestNotAllowedMessage(row) {
   if (row.cash_request_status === "pending") return "该支出记录已有待确认 Cash request。";
   if (row.cash_request_status === "approved" || row.cash_request_status === "synced") return "该支出记录已同步到 Cash。";
   return "";
+}
+
+function cashRequestDisabledTitle(row) {
+  if (row?.status !== "pending" && !row?.cash_transaction_id) {
+    return "已支付支出不能提交 Cash。只有待支付支出可提交 Cash。";
+  }
+  return cashRequestNotAllowedMessage(row);
 }
 
 function renderCashRequestStatus(row) {
