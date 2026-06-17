@@ -2458,7 +2458,7 @@ h2 {
 
 .expense-batch-cash-dialog-panel {
   display: flex;
-  width: min(1240px, calc(100vw - 32px));
+  width: min(1500px, calc(100vw - 48px));
   max-height: min(86vh, calc(100vh - 32px));
   flex-direction: column;
   overflow: hidden;
@@ -2517,7 +2517,7 @@ h2 {
 
 .expense-rate-toolbar-controls {
   display: grid;
-  grid-template-columns: auto 86px auto auto;
+  grid-template-columns: auto 108px auto auto;
   align-items: center;
   gap: 8px;
   color: #075985;
@@ -2527,7 +2527,7 @@ h2 {
 
 .expense-rate-toolbar-controls input {
   box-sizing: border-box;
-  width: 86px;
+  width: 108px;
   min-height: 28px;
   padding: 4px 7px;
   border-color: #9bd0f8;
@@ -2553,7 +2553,7 @@ h2 {
 
 .expense-batch-cash-table {
   width: 100%;
-  min-width: 1040px;
+  min-width: 1440px;
 }
 
 .expense-batch-cash-table th,
@@ -2561,17 +2561,78 @@ h2 {
   vertical-align: top;
 }
 
+.expense-batch-cash-table th:nth-child(1),
+.expense-batch-cash-table td:nth-child(1) {
+  width: 136px;
+  min-width: 136px;
+}
+
+.expense-batch-cash-table th:nth-child(2),
+.expense-batch-cash-table td:nth-child(2) {
+  width: 92px;
+  min-width: 92px;
+}
+
+.expense-batch-cash-table th:nth-child(3),
+.expense-batch-cash-table td:nth-child(3) {
+  width: 150px;
+  min-width: 150px;
+}
+
+.expense-batch-cash-table th:nth-child(4),
+.expense-batch-cash-table td:nth-child(4) {
+  width: 108px;
+  min-width: 108px;
+}
+
+.expense-batch-cash-table th:nth-child(5),
+.expense-batch-cash-table td:nth-child(5) {
+  width: 132px;
+  min-width: 132px;
+}
+
+.expense-batch-cash-table th:nth-child(6),
+.expense-batch-cash-table td:nth-child(6) {
+  width: 96px;
+  min-width: 96px;
+}
+
 .expense-batch-cash-table th:nth-child(7),
 .expense-batch-cash-table td:nth-child(7) {
-  width: 170px;
-  min-width: 170px;
+  width: 210px;
+  min-width: 210px;
+}
+
+.expense-batch-cash-table th:nth-child(8),
+.expense-batch-cash-table td:nth-child(8) {
+  width: 210px;
+  min-width: 210px;
+}
+
+.expense-batch-cash-table th:nth-child(9),
+.expense-batch-cash-table td:nth-child(9) {
+  width: 250px;
+  min-width: 250px;
+}
+
+.expense-batch-cash-table th:nth-child(10),
+.expense-batch-cash-table td:nth-child(10) {
+  width: 84px;
+  min-width: 84px;
 }
 
 .expense-batch-cash-table td:nth-child(3) input,
 .expense-batch-cash-table td:nth-child(5) input,
-.expense-batch-cash-table td:nth-child(6) select {
+.expense-batch-cash-table td:nth-child(6) select,
+.expense-batch-cash-table td:nth-child(8) select,
+.expense-batch-cash-table td:nth-child(9) input {
   min-width: 0;
   width: 100%;
+}
+
+.expense-batch-cash-table td:nth-child(6) select {
+  min-width: 82px;
+  padding-inline: 10px 24px;
 }
 
 .expense-batch-cash-footer {
