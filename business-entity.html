@@ -13,22 +13,48 @@
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>业务归属</h1>
           <p class="page-subtitle">用于区分收入、支出、课时、结算等记录归属的业务线。</p>
-          <nav class="page-nav" aria-label="主导航">
-            <a href="./index.html">老师工资支付</a>
-                        <a href="./profit-summary.html">利润分析</a>
-<a href="./account.html">账户管理</a>
-            <a href="./income.html">收入记录</a>
-            <a href="./expense.html">支出记录</a>
-            <a href="./reimbursement.html">报销管理</a>
-            <a href="./part-time-work.html">私塾打工</a>
-            <a class="is-active" href="./business-entity.html">业务归属</a>
-            <a href="./teacher.html">老师管理</a>
-            <a href="./wage-rule.html">老师工资规则</a>
-            <a href="./student.html">学生管理</a>
-            <a href="./subject.html">科目管理</a>
-            <a href="./lesson.html">课时管理</a>
-            <a href="./settlement.html">学生月度结算</a>
-            <a href="./wage.html">老师工资结算</a>
+          <nav class="page-nav page-nav--grouped" aria-label="主导航">
+            <details class="page-nav-group">
+              <summary>学生</summary>
+              <div class="page-nav-group-links">
+                <a href="./student.html">学生管理</a>
+                <a href="./lesson.html">课时管理</a>
+                <a href="./settlement.html">月度结算</a>
+              </div>
+            </details>
+            <details class="page-nav-group">
+              <summary>老师</summary>
+              <div class="page-nav-group-links">
+                <a href="./teacher.html">老师管理</a>
+                <a href="./wage.html">工资结算</a>
+                <a href="./index.html">工资支付</a>
+                <a href="./wage-rule.html">工资规则</a>
+              </div>
+            </details>
+            <details class="page-nav-group">
+              <summary>外部授课</summary>
+              <div class="page-nav-group-links">
+                <a href="./part-time-work.html?view=lessons" data-part-time-work-nav-view="lessons">授课记录</a>
+                <a href="./part-time-work.html?view=settlement" data-part-time-work-nav-view="settlement">授课结算</a>
+              </div>
+            </details>
+            <details class="page-nav-group">
+              <summary>财务</summary>
+              <div class="page-nav-group-links">
+                <a href="./profit-summary.html">利润分析</a>
+                <a href="./income.html">收入记录</a>
+                <a href="./expense.html">支出记录</a>
+                <a href="./reimbursement.html">报销管理</a>
+              </div>
+            </details>
+            <details class="page-nav-group is-active-group" open>
+              <summary>设置</summary>
+              <div class="page-nav-group-links">
+                <a class="is-active" href="./business-entity.html">业务归属</a>
+                <a href="./account.html">账户</a>
+                <a href="./subject.html">科目</a>
+              </div>
+            </details>
           </nav>
         </div>
         <div class="header-meta">

@@ -79,6 +79,8 @@ const appliedFilters = {
 };
 
 export async function initPartTimeWorkPage() {
+  const initialView = partTimeWorkViewFromUrl();
+  updatePartTimeWorkNavForView(initialView || "lessons");
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
@@ -94,6 +96,9 @@ export async function initPartTimeWorkPage() {
   bindEvents();
   renderLessons([]);
   renderWageCalculation([], []);
+  if (initialView) {
+    scrollToPartTimeWorkView(initialView);
+  }
 
   if (!hasSupabaseConfig()) {
     showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。当前页面不会发起数据请求。");
@@ -107,6 +112,9 @@ export async function initPartTimeWorkPage() {
   }
 
   await loadPageData();
+  if (initialView) {
+    scrollToPartTimeWorkView(initialView);
+  }
 }
 
 function cacheDom() {
@@ -278,6 +286,29 @@ function updateMonthNavigationFromCurrentSelection() {
   }
   updateUrlMonthParams(month);
   updateMonthScopedNavigation(month);
+}
+
+function partTimeWorkViewFromUrl() {
+  const view = new URLSearchParams(window.location.search).get("view");
+  return view === "settlement" || view === "lessons" ? view : "";
+}
+
+function updatePartTimeWorkNavForView(view) {
+  document.querySelectorAll("[data-part-time-work-nav-view]").forEach((link) => {
+    link.classList.toggle("is-active", link.dataset.partTimeWorkNavView === view);
+  });
+}
+
+function scrollToPartTimeWorkView(view) {
+  const target = view === "settlement"
+    ? document.querySelector("#partTimeWorkWageCalculationTitle")
+    : document.querySelector("#partTimeWorkLessonsTitle");
+  if (!target) {
+    return;
+  }
+  requestAnimationFrame(() => {
+    target.scrollIntoView({ block: "start" });
+  });
 }
 
 function renderLessons(rows) {
