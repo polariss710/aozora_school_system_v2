@@ -1251,6 +1251,23 @@ h2 {
   gap: 6px;
 }
 
+.part-time-work-filter-panel .filter-grid {
+  grid-template-columns:
+    196px
+    minmax(150px, 180px)
+    minmax(220px, 320px)
+    auto;
+}
+
+.part-time-work-content-filter-field {
+  width: clamp(220px, 24vw, 320px);
+  max-width: 100%;
+}
+
+.part-time-work-content-filter-field select {
+  text-overflow: ellipsis;
+}
+
 .part-time-work-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3801,7 +3818,8 @@ h2 {
 
 @media (max-width: 1023px) {
   .income-filter-panel .filter-grid,
-  .expense-filter-panel .filter-grid {
+  .expense-filter-panel .filter-grid,
+  .part-time-work-filter-panel .filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -3813,8 +3831,13 @@ h2 {
 
 @media (max-width: 767px) {
   .income-filter-panel .filter-grid,
-  .expense-filter-panel .filter-grid {
+  .expense-filter-panel .filter-grid,
+  .part-time-work-filter-panel .filter-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-content-filter-field {
+    width: 100%;
   }
 
   .income-detail-summary-grid,

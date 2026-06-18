@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v2.120.0-part-time-work-cash-request-20260615">
+    <link rel="stylesheet" href="./css/app.css?v=v10.1.10-parttime-work-content-filter">
   </head>
   <body>
     <div class="app-shell">
@@ -59,7 +59,7 @@
       <main class="page-main">
         <section id="partTimeWorkMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="partTimeWorkFilterTitle">
+        <section class="panel filter-panel part-time-work-filter-panel" aria-labelledby="partTimeWorkFilterTitle">
           <div class="section-heading">
             <h2 id="partTimeWorkFilterTitle">筛选</h2>
           </div>
@@ -76,6 +76,11 @@
             <label class="field">
               <span>打工先</span>
               <select id="partTimeWorkWorkplaceFilter" name="workplaceName"></select>
+            </label>
+
+            <label class="field part-time-work-content-filter-field">
+              <span>工作内容</span>
+              <select id="partTimeWorkContentFilter" name="classDescription"></select>
             </label>
 
             <div class="filter-actions">
@@ -197,6 +202,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v2.122.0-month-filter-url-preserve-20260616"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v10.1.10-parttime-work-content-filter"></script>
   </body>
 </html>

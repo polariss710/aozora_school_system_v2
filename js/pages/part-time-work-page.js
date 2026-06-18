@@ -81,6 +81,7 @@ export async function initPartTimeWorkPage() {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, initialMonth);
   updateMonthScopedNavigation(initialMonth);
   renderOptionSelect(dom.workplaceFilter, WORKPLACE_OPTIONS, { includeAll: true });
+  renderOptionSelect(dom.classDescriptionFilter, [], { includeAll: true });
   renderOptionSelect(dom.workplaceNameInput, WORKPLACE_OPTIONS);
   renderOptionSelect(dom.subjectNameInput, SUBJECT_OPTIONS);
   bindEvents();
@@ -107,6 +108,7 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#partTimeWorkYearFilter");
   dom.monthFilter = document.querySelector("#partTimeWorkMonthFilter");
   dom.workplaceFilter = document.querySelector("#partTimeWorkWorkplaceFilter");
+  dom.classDescriptionFilter = document.querySelector("#partTimeWorkContentFilter");
   dom.resetButton = document.querySelector("#partTimeWorkResetButton");
   dom.openCreateButton = document.querySelector("#openPartTimeWorkCreateButton");
   dom.lessonColumns = document.querySelector("#partTimeWorkLessonColumns");
@@ -146,7 +148,12 @@ function bindEvents() {
   dom.resetButton.addEventListener("click", () => {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
     dom.workplaceFilter.value = "";
+    dom.classDescriptionFilter.value = "";
     loadPageData();
+  });
+
+  dom.classDescriptionFilter.addEventListener("change", () => {
+    renderVisibleLessons(readFilters());
   });
 
   dom.openCreateButton.addEventListener("click", openCreatePlannedDialog);
@@ -204,12 +211,14 @@ async function loadPageData() {
     lessons = lessonRows || [];
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
-    renderLessons(lessons);
+    renderClassDescriptionOptions(lessons, filters.classDescription);
+    renderVisibleLessons(filters);
     renderWageCalculation(wageLessons, settlements);
   } catch (error) {
     lessons = [];
     wageLessons = [];
     settlements = [];
+    renderClassDescriptionOptions([], "");
     renderLessons([]);
     renderWageCalculation([], []);
     showMessage("error", `私塾打工数据读取失败：${error.message || error}`);
@@ -222,6 +231,7 @@ function readFilters() {
   return {
     yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
     workplaceName: dom.workplaceFilter.value,
+    classDescription: dom.classDescriptionFilter.value,
   };
 }
 
@@ -237,6 +247,56 @@ function updateMonthNavigationFromCurrentSelection() {
 function renderLessons(rows) {
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
   dom.lessonColumns.innerHTML = renderWorkflowColumns(rows);
+}
+
+function renderVisibleLessons(filters = readFilters()) {
+  renderLessons(filterLessonsByClassDescription(lessons, filters.classDescription));
+}
+
+function renderClassDescriptionOptions(rows, selectedValue = "") {
+  const normalizedSelected = safeText(selectedValue).trim();
+  const options = distinctClassDescriptions(rows);
+  if (normalizedSelected && !options.includes(normalizedSelected)) {
+    options.unshift(normalizedSelected);
+  }
+
+  renderOptionSelect(dom.classDescriptionFilter, options, { includeAll: true });
+  dom.classDescriptionFilter.value = normalizedSelected;
+}
+
+function distinctClassDescriptions(rows) {
+  return Array.from(
+    new Set(
+      rows
+        .map((row) => safeText(row.class_description).trim())
+        .filter(Boolean)
+    )
+  ).sort((left, right) => left.localeCompare(right, "zh-CN"));
+}
+
+function filterLessonsByClassDescription(rows, classDescription) {
+  const target = safeText(classDescription).trim();
+  if (!target) {
+    return rows;
+  }
+
+  const matchingPlannedIds = new Set();
+  for (const row of rows) {
+    if (safeText(row.class_description).trim() !== target) {
+      continue;
+    }
+    if (row.record_kind === "planned") {
+      matchingPlannedIds.add(row.id);
+    } else if (row.planned_lesson_id) {
+      matchingPlannedIds.add(row.planned_lesson_id);
+    }
+  }
+
+  return rows.filter((row) => (
+    safeText(row.class_description).trim() === target
+    || (row.record_kind === "planned" && matchingPlannedIds.has(row.id))
+    || (row.record_kind === "actual" && matchingPlannedIds.has(row.planned_lesson_id))
+  ));
 }
 
 function buildEstimatedSummary(rows, workplaceName) {
@@ -690,7 +750,7 @@ function handleWorkplaceToggleClick(event) {
     expandedWorkplaces.add(workplace);
   }
 
-  renderLessons(lessons);
+  renderVisibleLessons();
 }
 
 function handleWageToggleClick(event) {
@@ -1093,7 +1153,7 @@ function renderOptionSelect(select, options, config = {}) {
     optionHtml.push('<option value="">全部</option>');
   }
   optionHtml.push(...options.map((option) => (
-    `<option value="${escapeAttribute(option)}">${escapeHtml(option)}</option>`
+    `<option value="${escapeAttribute(option)}" title="${escapeAttribute(option)}">${escapeHtml(option)}</option>`
   )));
   select.innerHTML = optionHtml.join("");
 }
