@@ -821,7 +821,6 @@ async function openBatchCashExpenseDialog(rows) {
     theoreticalAmount: "",
     roundingMode: "",
     rateStatus: "",
-    result: "",
   }));
   clearBatchCashExpenseError();
   setBatchCashExpenseSubmitting(false);
@@ -1043,11 +1042,9 @@ async function submitBatchCashExpenseRequests() {
   for (const item of payloads) {
     try {
       await requestCashExpenseConfirmation(item.payload);
-      item.state.result = "已提交";
       selectedExpenseIds.delete(item.state.expense.id);
       successCount += 1;
-    } catch (error) {
-      item.state.result = `失败：${error.message || error}`;
+    } catch {
     }
     renderBatchCashExpenseRows();
   }
@@ -1071,35 +1068,29 @@ function readBatchCashExpensePayloads() {
 
   for (const state of batchCashExpenseRows) {
     const expense = state.expense;
-    state.result = "";
     if (!canRequestCashExpense(expense)) {
-      state.result = cashRequestNotAllowedMessage(expense) || "当前状态不可提交";
       hasError = true;
       continue;
     }
 
     const actualPaymentAmount = parseNumberInput(state.amount);
     if (!Number.isFinite(actualPaymentAmount) || actualPaymentAmount <= 0) {
-      state.result = "请输入大于 0 的金额";
       hasError = true;
       continue;
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(state.paymentDate || "")) {
-      state.result = "请选择实际支付日";
       hasError = true;
       continue;
     }
 
     if (!CASH_EXPENSE_CURRENCIES.includes(state.currency)) {
-      state.result = "币种无效";
       hasError = true;
       continue;
     }
 
     const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
     if (!cashAccount || cashAccount.currency !== state.currency) {
-      state.result = "请选择同币种 Cash 账户";
       hasError = true;
       continue;
     }
