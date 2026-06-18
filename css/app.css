@@ -1187,6 +1187,22 @@ h2 {
   max-width: 100%;
 }
 
+.expense-status-cash-cell {
+  gap: 4px;
+}
+
+.expense-cash-substatus {
+  display: inline-grid;
+  justify-items: center;
+  max-width: 100%;
+  gap: 2px;
+}
+
+.expense-cash-substatus .status-badge {
+  min-height: 20px;
+  padding-inline: 8px;
+}
+
 .income-cash-hint,
 .expense-cash-hint {
   overflow: hidden;

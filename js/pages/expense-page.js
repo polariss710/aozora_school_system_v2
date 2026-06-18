@@ -31,7 +31,11 @@ const DEFAULT_FILTERS = {
 };
 
 const EXPENSE_STATUS_LABELS = {
+  pending: "待支付",
   paid: "已支付",
+  reversed: "已撤销",
+  void: "已作废",
+  cancelled: "已取消",
 };
 
 const EXPENSE_CATEGORY_LABELS = {
@@ -452,7 +456,7 @@ function renderExpenseRecords(rows) {
       <td class="expense-nowrap month-cell">${escapeHtml(formatMonth(row.year_month))}</td>
       <td class="expense-nowrap date-cell">${escapeHtml(formatDateOnly(row.expense_date))}</td>
       <td class="number-cell expense-nowrap amount-cell">${escapeHtml(formatExpenseListAmount(row))}</td>
-      <td>${renderCashRequestStatus(row)}</td>
+      <td>${renderExpenseStatusCash(row)}</td>
       <td class="expense-related-cell">${renderExpenseRelatedCell(row)}</td>
       <td class="action-cell expense-action-cell">${renderExpenseRowActions(row)}</td>
     </tr>
@@ -1302,23 +1306,35 @@ function cashRequestDisabledTitle(row) {
   return cashRequestNotAllowedMessage(row);
 }
 
+function renderExpenseStatusCash(row) {
+  const businessStatus = expenseListStatus(row);
+  return `
+    <div class="expense-cash-status-cell expense-status-cash-cell">
+      <span class="status-badge ${escapeAttribute(statusClass(businessStatus))}">${escapeHtml(expenseStatusLabel(businessStatus))}</span>
+      <span class="expense-cash-substatus">${renderCashRequestStatus(row)}</span>
+    </div>
+  `;
+}
+
+function expenseListStatus(row) {
+  if (row?.reversed_at || row?.reversal_account_transaction_id || row?.status === "reversed") {
+    return "reversed";
+  }
+
+  return row?.status || "";
+}
+
 function renderCashRequestStatus(row) {
   if (!row?.cash_request_status && !row?.cash_transaction_id) {
-    return `
-      <div class="expense-cash-status-cell">
-        <span class="status-badge status-neutral">未提交 Cash</span>
-      </div>
-    `;
+    return '<span class="status-badge status-neutral">Cash未提交</span>';
   }
 
   const status = row.cash_transaction_id && !row.cash_request_status
     ? "synced"
     : row.cash_request_status;
   return `
-    <div class="expense-cash-status-cell">
-      <span class="status-badge ${escapeAttribute(cashRequestStatusClass(status))}">${escapeHtml(cashRequestStatusLabel(status))}</span>
-      <span class="expense-cash-hint">${escapeHtml(cashRequestStatusHint(status))}</span>
-    </div>
+    <span class="status-badge ${escapeAttribute(cashRequestStatusClass(status))}">${escapeHtml(cashRequestStatusLabel(status))}</span>
+    <span class="expense-cash-hint">${escapeHtml(cashRequestStatusHint(status))}</span>
   `;
 }
 
@@ -1550,6 +1566,14 @@ function wagePaymentStatusLabel(value) {
 function statusClass(status) {
   if (status === "paid") {
     return "status-paid";
+  }
+
+  if (status === "reversed" || status === "void" || status === "cancelled") {
+    return "status-cancelled";
+  }
+
+  if (status === "pending") {
+    return "status-pending";
   }
 
   return "status-neutral";
