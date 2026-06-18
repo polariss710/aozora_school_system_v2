@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.101.0-teacher-dialog-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v10.1.15-teacher-management-ui-polish">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--teacher">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>老师管理</h1>
+          <p class="page-subtitle">管理老师基础信息、时给、结算规则和启用状态。</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -39,7 +40,7 @@
       <main class="page-main">
         <section id="teacherMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="teacherFilterTitle">
+        <section class="panel filter-panel teacher-filter-panel" aria-labelledby="teacherFilterTitle">
           <div class="section-heading">
             <h2 id="teacherFilterTitle">筛选</h2>
           </div>
@@ -78,12 +79,15 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="teacherListTitle">
+        <section class="panel teacher-list-panel" aria-labelledby="teacherListTitle">
           <div class="section-heading section-heading-row">
-            <h2 id="teacherListTitle">老师列表</h2>
-            <div class="header-meta">
-              <span id="teacherCount" class="record-count">0 人</span>
+            <div>
+              <h2 id="teacherListTitle">老师列表</h2>
+              <p class="section-note">维护老师资料、默认科目、默认业务归属和支付信息；工资规则与结算数据不在此处变更。</p>
+            </div>
+            <div class="table-actions">
               <button class="button button-primary" id="createTeacherButton" type="button">新增老师</button>
+              <span id="teacherCount" class="record-count">共 0 名</span>
             </div>
           </div>
 
@@ -262,6 +266,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/teacher-app.js?v=v2.101.0-teacher-dialog-field-scope-20260612"></script>
+    <script type="module" src="./js/teacher-app.js?v=v10.1.15-teacher-management-ui-polish"></script>
   </body>
 </html>

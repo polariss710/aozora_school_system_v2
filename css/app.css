@@ -88,6 +88,10 @@ textarea {
   max-width: 1280px;
 }
 
+.app-shell--teacher {
+  max-width: 1280px;
+}
+
 .page-header {
   display: flex;
   min-width: 0;
@@ -383,7 +387,8 @@ h2 {
 .expense-filter-panel,
 .business-entity-filter-panel,
 .account-filter-panel,
-.subject-filter-panel {
+.subject-filter-panel,
+.teacher-filter-panel {
   border-color: #cfe0f3;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
@@ -392,14 +397,16 @@ h2 {
 .expense-filter-panel .section-heading,
 .business-entity-filter-panel .section-heading,
 .account-filter-panel .section-heading,
-.subject-filter-panel .section-heading {
+.subject-filter-panel .section-heading,
+.teacher-filter-panel .section-heading {
   margin-bottom: 16px;
 }
 
 .income-filter-panel .filter-grid,
 .expense-filter-panel .filter-grid,
 .account-filter-panel .filter-grid,
-.subject-filter-panel .filter-grid {
+.subject-filter-panel .filter-grid,
+.teacher-filter-panel .filter-grid {
   grid-template-columns:
     196px
     repeat(5, minmax(0, 1fr));
@@ -416,7 +423,8 @@ h2 {
 .expense-filter-panel .field select,
 .business-entity-filter-panel .field select,
 .account-filter-panel .field select,
-.subject-filter-panel .field select {
+.subject-filter-panel .field select,
+.teacher-filter-panel .field select {
   text-overflow: ellipsis;
 }
 
@@ -424,7 +432,8 @@ h2 {
 .expense-filter-panel .field span,
 .business-entity-filter-panel .field span,
 .account-filter-panel .field span,
-.subject-filter-panel .field span {
+.subject-filter-panel .field span,
+.teacher-filter-panel .field span {
   color: #526173;
   font-size: 12px;
   letter-spacing: 0;
@@ -439,7 +448,9 @@ h2 {
 .account-filter-panel .field input,
 .account-filter-panel .field select,
 .subject-filter-panel .field input,
-.subject-filter-panel .field select {
+.subject-filter-panel .field select,
+.teacher-filter-panel .field input,
+.teacher-filter-panel .field select {
   min-height: 42px;
   border-color: #d7e2ee;
   background: #fff;
@@ -454,7 +465,9 @@ h2 {
 .account-filter-panel .field input:focus,
 .account-filter-panel .field select:focus,
 .subject-filter-panel .field input:focus,
-.subject-filter-panel .field select:focus {
+.subject-filter-panel .field select:focus,
+.teacher-filter-panel .field input:focus,
+.teacher-filter-panel .field select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(29, 112, 214, 0.12);
   outline: none;
@@ -474,7 +487,8 @@ h2 {
 .expense-list-panel .section-heading-row,
 .business-entity-list-panel .section-heading-row,
 .account-list-panel .section-heading-row,
-.subject-list-panel .section-heading-row {
+.subject-list-panel .section-heading-row,
+.teacher-list-panel .section-heading-row {
   align-items: flex-start;
   border-bottom: 1px solid #edf2f7;
   padding-bottom: 14px;
@@ -484,7 +498,8 @@ h2 {
 .expense-list-panel .table-actions,
 .business-entity-list-panel > .section-heading-row .table-actions,
 .account-list-panel > .section-heading-row .table-actions,
-.subject-list-panel > .section-heading-row .table-actions {
+.subject-list-panel > .section-heading-row .table-actions,
+.teacher-list-panel > .section-heading-row .table-actions {
   align-items: center;
   border: 1px solid #e3edf8;
   border-radius: 10px;
@@ -718,8 +733,9 @@ h2 {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcfe;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   padding: 14px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
 }
 
 .teacher-card-header {
@@ -732,6 +748,7 @@ h2 {
 .teacher-name {
   font-size: 17px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .teacher-code {
@@ -741,11 +758,18 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.teacher-card > .table-actions {
+  justify-content: flex-start;
+  margin-top: 12px;
+}
+
 .teacher-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 14px 0 0;
+  border-top: 1px solid #edf2f7;
+  padding-top: 12px;
 }
 
 .teacher-meta div {
@@ -3937,6 +3961,7 @@ h2 {
   .expense-filter-panel .filter-grid,
   .account-filter-panel .filter-grid,
   .subject-filter-panel .filter-grid,
+  .teacher-filter-panel .filter-grid,
   .part-time-work-filter-panel .filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3952,6 +3977,7 @@ h2 {
   .expense-filter-panel .filter-grid,
   .account-filter-panel .filter-grid,
   .subject-filter-panel .filter-grid,
+  .teacher-filter-panel .filter-grid,
   .part-time-work-filter-panel .filter-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3979,7 +4005,8 @@ h2 {
   .income-list-panel .table-actions,
   .expense-list-panel .table-actions,
   .account-list-panel .table-actions,
-  .subject-list-panel .table-actions {
+  .subject-list-panel .table-actions,
+  .teacher-list-panel .table-actions {
     width: 100%;
     justify-content: stretch;
   }
@@ -3991,7 +4018,9 @@ h2 {
   .account-list-panel .table-actions .button,
   .account-list-panel .table-actions .record-count,
   .subject-list-panel .table-actions .button,
-  .subject-list-panel .table-actions .record-count {
+  .subject-list-panel .table-actions .record-count,
+  .teacher-list-panel .table-actions .button,
+  .teacher-list-panel .table-actions .record-count {
     width: 100%;
   }
 }

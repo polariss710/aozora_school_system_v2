@@ -278,7 +278,7 @@ function renderBusinessEntityOptions(items, teacherRows) {
 }
 
 function renderTeachers(items) {
-  dom.teacherCount.textContent = `${items.length} 人`;
+  dom.teacherCount.textContent = `共 ${items.length} 名`;
   dom.teacherEmptyState.classList.toggle("is-hidden", items.length > 0);
 
   if (!items.length) {
