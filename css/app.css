@@ -1142,7 +1142,7 @@ h2 {
 
 .income-col-source,
 .expense-col-source {
-  width: 235px;
+  width: 215px;
 }
 
 .income-col-category,
@@ -1157,7 +1157,7 @@ h2 {
 
 .income-col-date,
 .expense-col-date {
-  width: 100px;
+  width: 120px;
 }
 
 .income-col-amount,
