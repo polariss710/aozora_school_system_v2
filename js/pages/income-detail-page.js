@@ -278,65 +278,89 @@ function renderIncomeDetail(data) {
   const { income } = data;
   const cashLinkageEvent = cashIncomeLinkageEvent(data);
   renderActionArea(data);
-  dom.titleText.textContent = `${formatDateOnly(income.income_date)} / ${incomeCategoryLabel(income.income_category)} / ${formatCurrency(income.amount, income.currency)}`;
+  dom.titleText.textContent = `${incomeObjectName(income)} / ${incomeCategoryLabel(income.income_category)}`;
+  renderAmountSummary(income, cashLinkageEvent);
 
   dom.basicInfo.innerHTML = renderDefinitionList([
-    ["收入 ID", shortId(income.id)],
-    ["收入日期", formatDateOnly(income.income_date)],
-    ["目标月份", formatMonth(income.year_month)],
-    ["结算月份", formatMonth(income.settlement_month)],
+    ["收入对象 / 来源", incomeObjectName(income)],
     ["收入分类", incomeCategoryLabel(income.income_category)],
-    ["描述", displayValue(income.description)],
-    ["来源", displayValue(income.source_label || income.source_type)],
-    ["状态", incomeStatusLabel(income.status)],
+    ["业务归属月", formatMonth(income.year_month)],
+    ["实际收款日", formatDateOnly(income.income_date)],
+    ["结算月份", formatMonth(income.settlement_month)],
+    ["收款方式", paymentMethodLabel(income.payment_method)],
     ["业务归属", businessNameById(income.business_entity_id)],
-    ["创建时间", formatDate(income.created_at)],
-    ["更新时间", formatDate(income.updated_at)],
-  ]);
-
-  dom.amountInfo.innerHTML = renderDefinitionList([
-    ["币种", displayValue(income.currency)],
-    ["原币金额", formatCurrency(income.amount, income.currency)],
-    ["JPY 金额", formatCurrency(income.amount_jpy, "JPY")],
-    ["CNY 金额", formatCurrency(income.amount_cny, "CNY")],
-    ["汇率", displayValue(income.exchange_rate)],
-    ["付款币种", displayValue(income.payment_currency)],
-    ["支付方式", paymentMethodLabel(income.payment_method)],
-    ["应税收入", booleanLabel(income.is_taxable_income)],
-    ["税务分类", displayValue(income.tax_category)],
-    ["收据状态", displayValue(income.receipt_status)],
-    ["进入学生结算", booleanLabel(income.include_in_student_settlement)],
+    ["描述", displayValue(income.description || income.source_label)],
   ]);
 
   dom.relatedInfo.innerHTML = renderDefinitionList([
     ["学生", studentNameById(income.student_id)],
-    ["学生编号", studentFieldById(income.student_id, "student_code")],
+    ["账户", accountNameById(income.account_id)],
+    ["收据状态", displayValue(income.receipt_status)],
+    ["进入学生结算", booleanLabel(income.include_in_student_settlement)],
     ["课程方向", studentFieldById(income.student_id, "course_track")],
     ["目标类型", studentFieldById(income.student_id, "target_type")],
-    ["学生默认币种", studentFieldById(income.student_id, "default_currency")],
-    ["账户", accountNameById(income.account_id)],
-    ["账户编码", accountFieldById(income.account_id, "account_code")],
-    ["账户类型", accountFieldById(income.account_id, "account_type")],
-  ]);
-
-  dom.systemInfo.innerHTML = renderDefinitionList([
-    ["id", shortId(income.id)],
-    ["student_id", shortId(income.student_id)],
-    ["student_payment_id", shortId(income.student_payment_id)],
-    ["account_id", shortId(income.account_id)],
-    ["business_entity_id", shortId(income.business_entity_id)],
-    ["source_type", displayValue(income.source_type)],
-    ["source_id", shortId(income.source_id)],
-    ["Cash linkage", cashLinkageEvent ? cashIncomeLinkageSummary(cashLinkageEvent) : "-"],
-    ["app_type", displayValue(income.app_type)],
-    ["created_at", formatDate(income.created_at)],
-    ["updated_at", formatDate(income.updated_at)],
   ]);
 
   renderReversalInfo(income);
   renderCashSyncInfo(cashLinkageEvent);
+  renderSystemInfo(data, cashLinkageEvent);
   dom.noteBlock.textContent = displayValue(income.note);
   renderTransactions(data.transactions);
+}
+
+function renderAmountSummary(income, cashLinkageEvent) {
+  dom.amountInfo.innerHTML = `
+    <div class="income-detail-main-amount">${escapeHtml(formatCurrency(income.amount, income.currency))}</div>
+    <div class="income-detail-main-meta">
+      <span>${escapeHtml(displayValue(income.currency))}</span>
+      <span class="status-badge ${escapeAttribute(statusClass(income.status))}">${escapeHtml(incomeStatusLabel(income.status))}</span>
+      ${cashLinkageEvent ? `<span class="status-badge ${escapeAttribute(cashLinkageStatusClass(cashLinkageEvent.sync_status))}">${escapeHtml(cashLinkageStatusText(cashLinkageEvent.sync_status))}</span>` : ""}
+    </div>
+    ${renderDefinitionList([
+      ["JPY 金额", formatCurrency(income.amount_jpy, "JPY")],
+      ["CNY 金额", formatCurrency(income.amount_cny, "CNY")],
+      ["汇率", displayValue(income.exchange_rate)],
+      ["Cash 实际到账", cashLinkageEvent ? formatCurrency(cashLinkageEvent.payment_amount, cashLinkageEvent.payment_currency) : "-"],
+      ["Cash 同步时间", cashLinkageEvent ? formatDate(cashLinkageEvent.synced_at) : "-"],
+    ])}
+  `;
+}
+
+function renderSystemInfo(data, cashLinkageEvent) {
+  const { income } = data;
+  dom.systemInfo.innerHTML = `
+    <article class="detail-list-card">
+      <h3>记录与来源</h3>
+      ${renderDefinitionList([
+        ["收入 ID", shortId(income.id)],
+        ["app_type", displayValue(income.app_type)],
+        ["source_type", displayValue(income.source_type)],
+        ["source_id", shortId(income.source_id)],
+        ["student_payment_id", shortId(income.student_payment_id)],
+        ["student_id", shortId(income.student_id)],
+        ["account_id", shortId(income.account_id)],
+        ["business_entity_id", shortId(income.business_entity_id)],
+        ["payment_currency", displayValue(income.payment_currency)],
+        ["is_taxable_income", booleanLabel(income.is_taxable_income)],
+        ["税务分类", displayValue(income.tax_category)],
+        ["created_at", formatDate(income.created_at)],
+        ["updated_at", formatDate(income.updated_at)],
+      ])}
+    </article>
+    <article class="detail-list-card">
+      <h3>Cash 链路</h3>
+      ${renderDefinitionList([
+        ["Cash linkage", cashLinkageEvent ? cashIncomeLinkageSummary(cashLinkageEvent) : "-"],
+        ["cash_request_id", shortId(cashLinkageEvent?.cash_request_id)],
+        ["cash_request_status", displayValue(cashLinkageEvent?.cash_request_status)],
+        ["cash_transaction_id", shortId(cashLinkageEvent?.cash_transaction_id)],
+        ["Cash account", cashLinkageEvent ? cashAccountSnapshotLabel(cashLinkageEvent) : "-"],
+        ["实际到账", cashLinkageEvent ? formatCurrency(cashLinkageEvent.payment_amount, cashLinkageEvent.payment_currency) : "-"],
+        ["本次汇率", displayValue(cashLinkageEvent?.payment_exchange_rate)],
+        ["last_error", displayValue(cashLinkageEvent?.last_error)],
+      ])}
+    </article>
+  `;
 }
 
 function renderActionArea(data) {
@@ -1170,6 +1194,9 @@ function cashIncomeLinkageNotAllowedMessage(data) {
   if (!event) {
     return "";
   }
+  if (event.sync_status === "cash_rejected") {
+    return "";
+  }
   if (event.sync_status === "synced") {
     return "已同步到 Cash，不能直接编辑或删除。请通过冲正/调整流程处理。";
   }
@@ -1407,6 +1434,14 @@ function accountNameById(id) {
   const name = safeText(account.name) || "未设置";
   const currency = safeText(account.currency);
   return currency ? `${name} / ${currency}` : name;
+}
+
+function incomeObjectName(income) {
+  if (income?.source_type === "part_time_work") {
+    return safeText(income.source_label || income.description) || "外部塾打工收入";
+  }
+
+  return studentNameById(income?.student_id);
 }
 
 function cashAccountLabel(account) {

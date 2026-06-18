@@ -7,11 +7,12 @@
     <link rel="stylesheet" href="./css/app.css?v=v2.112.0-income-cash-sync-status-20260613">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--income">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>收入记录详情</h1>
+          <p class="page-subtitle">查看收入业务摘要、学生归属、账户和 Cash 状态</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -42,8 +43,8 @@
         <section class="panel" aria-labelledby="incomeDetailPageTitle">
           <div class="section-heading section-heading-row">
             <div>
-              <h2 id="incomeDetailPageTitle">详情</h2>
-              <p class="section-note">本页为收入记录详情。编辑和撤销均通过 RPC 守卫执行，不从账户流水反推收入金额，也不修改学生月度结算快照。</p>
+              <h2 id="incomeDetailPageTitle">收入详情</h2>
+              <p class="section-note">优先展示业务人员常用信息；系统字段收纳在下方折叠区。</p>
               <p id="incomeDetailActionReason" class="section-note is-hidden"></p>
             </div>
             <div class="income-detail-actions">
@@ -59,35 +60,31 @@
         <div id="incomeDetailLoadingState" class="state-text is-hidden">正在加载收入记录详情...</div>
 
         <section id="incomeDetailContent" class="page-main is-hidden">
-          <section class="panel" aria-labelledby="incomeDetailTitle">
+          <section class="panel income-detail-summary-panel" aria-labelledby="incomeDetailTitle">
             <div class="section-heading">
-              <h2 id="incomeDetailTitle">收入摘要</h2>
+              <h2 id="incomeDetailTitle">业务摘要</h2>
               <p id="incomeDetailTitleText" class="section-note"></p>
             </div>
-            <div class="detail-grid">
-              <article class="detail-card">
-                <h3>收入基本信息</h3>
-                <div id="incomeDetailBasicInfo"></div>
+            <div class="income-detail-summary-grid">
+              <article class="detail-card income-detail-amount-card">
+                <h3>金额 / Cash</h3>
+                <div id="incomeDetailAmountInfo"></div>
               </article>
               <article class="detail-card">
-                <h3>金额信息</h3>
-                <div id="incomeDetailAmountInfo"></div>
+                <h3>收入信息</h3>
+                <div id="incomeDetailBasicInfo"></div>
               </article>
               <article class="detail-card">
                 <h3>学生 / 账户</h3>
                 <div id="incomeDetailRelatedInfo"></div>
               </article>
-              <article class="detail-card">
-                <h3>系统信息</h3>
-                <div id="incomeDetailSystemInfo"></div>
+              <article id="incomeDetailCashSyncCard" class="detail-card is-hidden">
+                <h3>Cash / 收据</h3>
+                <div id="incomeDetailCashSyncInfo"></div>
               </article>
               <article id="incomeDetailReversalCard" class="detail-card is-hidden">
                 <h3>撤销信息</h3>
                 <div id="incomeDetailReversalInfo"></div>
-              </article>
-              <article id="incomeDetailCashSyncCard" class="detail-card is-hidden">
-                <h3>Cash sync</h3>
-                <div id="incomeDetailCashSyncInfo"></div>
               </article>
             </div>
           </section>
@@ -97,6 +94,16 @@
               <h2 id="incomeDetailNoteTitle">备注</h2>
             </div>
             <div id="incomeDetailNoteBlock" class="readonly-text-block"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="incomeDetailSystemTitle">
+            <details class="income-system-disclosure expense-system-disclosure">
+              <summary id="incomeDetailSystemTitle">
+                <span>系统信息</span>
+                <small>Cash 链路、审计字段和技术字段默认收起</small>
+              </summary>
+              <div id="incomeDetailSystemInfo" class="detail-list"></div>
+            </details>
           </section>
 
           <section class="panel" aria-labelledby="incomeDetailTransactionTitle">
