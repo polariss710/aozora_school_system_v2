@@ -47,6 +47,12 @@ const EDITABLE_INCOME_CATEGORIES = ["tuition", "material_fee", "registration_fee
 const CREATE_MODE_SCHOOL_ACCOUNT = "school_account";
 const CREATE_MODE_CASH_SYSTEM_INCOME = "cash_system_income";
 const CASH_INCOME_CURRENCIES = ["JPY", "CNY"];
+const JPY_CNY_RATE_API_URL = "https://api.frankfurter.dev/v2/rate/JPY/CNY";
+const ROUNDING_MODE_LABELS = {
+  round: "四舍五入",
+  ceil: "向上取整",
+  floor: "向下取整",
+};
 
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
@@ -77,8 +83,6 @@ let renderedIncomeRows = [];
 let selectedIncomeIds = new Set();
 let loadedMonth = "";
 let isCreateSubmitting = false;
-let cashRequestIncomeRecord = null;
-let isCashRequestSubmitting = false;
 let batchCashIncomeRows = [];
 let isBatchCashSubmitting = false;
 let initialMonth = "";
@@ -148,18 +152,6 @@ function cacheDom() {
   dom.createIncomeNoteInput = document.querySelector("#createIncomeNoteInput");
   dom.createIncomeSubmitButton = document.querySelector("#createIncomeSubmitButton");
   dom.createIncomeCancelButton = document.querySelector("#createIncomeCancelButton");
-  dom.cashIncomeRequestDialog = document.querySelector("#cashIncomeRequestDialog");
-  dom.cashIncomeRequestError = document.querySelector("#cashIncomeRequestError");
-  dom.cashIncomeRequestSummary = document.querySelector("#cashIncomeRequestSummary");
-  dom.cashIncomeActualAmountInput = document.querySelector("#cashIncomeActualAmountInput");
-  dom.cashIncomeActualDateInput = document.querySelector("#cashIncomeActualDateInput");
-  dom.cashIncomeActualCurrencySelect = document.querySelector("#cashIncomeActualCurrencySelect");
-  dom.cashIncomeExchangeRateInput = document.querySelector("#cashIncomeExchangeRateInput");
-  dom.cashIncomeAccountSelect = document.querySelector("#cashIncomeAccountSelect");
-  dom.cashIncomeNoteInput = document.querySelector("#cashIncomeNoteInput");
-  dom.cashIncomeRequestPreview = document.querySelector("#cashIncomeRequestPreview");
-  dom.cashIncomeRequestSubmitButton = document.querySelector("#cashIncomeRequestSubmitButton");
-  dom.cashIncomeRequestCancelButton = document.querySelector("#cashIncomeRequestCancelButton");
 }
 
 function bindEvents() {
@@ -186,26 +178,9 @@ function bindEvents() {
   dom.batchCashIncomeSubmitButton.addEventListener("click", submitBatchCashIncomeRequests);
   dom.batchCashIncomeTableBody.addEventListener("input", handleBatchCashIncomeInput);
   dom.batchCashIncomeTableBody.addEventListener("change", handleBatchCashIncomeInput);
+  dom.batchCashIncomeTableBody.addEventListener("click", handleBatchCashIncomeClick);
   dom.createIncomeCancelButton.addEventListener("click", closeCreateIncomeDialog);
   dom.createIncomeSubmitButton.addEventListener("click", submitCreateIncome);
-  dom.cashIncomeRequestCancelButton.addEventListener("click", closeCashIncomeRequestDialog);
-  dom.cashIncomeRequestSubmitButton.addEventListener("click", submitCashIncomeRequest);
-  for (const [input, fieldId] of [
-    [dom.cashIncomeActualAmountInput, "actualAmount"],
-    [dom.cashIncomeActualDateInput, "actualDate"],
-    [dom.cashIncomeActualCurrencySelect, "actualCurrency"],
-    [dom.cashIncomeAccountSelect, "cashAccount"],
-    [dom.cashIncomeNoteInput, "note"],
-  ]) {
-    input.addEventListener("input", () => {
-      if (input === dom.cashIncomeActualCurrencySelect) {
-        renderCashIncomeAccountOptions();
-      }
-      clearCashIncomeRequestFieldInvalid(fieldId);
-      hideCashIncomeRequestErrorIfClean();
-      updateCashIncomeRequestPreview();
-    });
-  }
   dom.createIncomeModeSelect.addEventListener("change", async () => {
     clearCreateFieldInvalid("createMode");
     hideCreateErrorIfClean();
@@ -561,7 +536,7 @@ function handleIncomeTableClick(event) {
     return;
   }
 
-  openCashIncomeRequestDialog(income);
+  openBatchCashIncomeDialog([income]);
 }
 
 function handleIncomeTableChange(event) {
@@ -597,81 +572,6 @@ function handleIncomeSelectAllChange() {
     }
   }
   renderIncomeRecords(renderedIncomeRows);
-}
-
-async function openCashIncomeRequestDialog(income) {
-  if (!canRequestCashIncome(income)) {
-    showMessage("error", "当前收入记录不能提交 Cash 确认请求。");
-    return;
-  }
-
-  if (
-    !requireLoginForCashConfirmation((_type, message) => {
-      showMessage("error", message);
-    })
-  ) {
-    return;
-  }
-
-  try {
-    await ensureCashEligibleAccountsLoaded();
-  } catch (error) {
-    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
-    return;
-  }
-
-  cashRequestIncomeRecord = income;
-  clearCashIncomeRequestErrors();
-  setCashRequestSubmitting(false);
-  dom.cashIncomeRequestSummary.innerHTML = renderCashIncomeRequestSummary(income);
-  dom.cashIncomeActualAmountInput.value = "";
-  dom.cashIncomeActualDateInput.value = currentJapanDate();
-  dom.cashIncomeActualCurrencySelect.value = income.source_type === "part_time_work" ? "CNY" : income.currency || "JPY";
-  dom.cashIncomeExchangeRateInput.value = "";
-  dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
-  renderCashIncomeAccountOptions();
-  updateCashIncomeRequestPreview();
-  dom.cashIncomeRequestDialog.classList.remove("is-hidden");
-  dom.cashIncomeRequestDialog.setAttribute("aria-hidden", "false");
-  dom.cashIncomeActualAmountInput.focus();
-}
-
-function closeCashIncomeRequestDialog() {
-  if (isCashRequestSubmitting) {
-    return;
-  }
-
-  cashRequestIncomeRecord = null;
-  dom.cashIncomeRequestDialog.classList.add("is-hidden");
-  dom.cashIncomeRequestDialog.setAttribute("aria-hidden", "true");
-}
-
-async function submitCashIncomeRequest() {
-  if (isCashRequestSubmitting || !cashRequestIncomeRecord) {
-    return;
-  }
-
-  const payload = readCashIncomeRequestPayload();
-  if (!payload) {
-    return;
-  }
-
-  if (!window.confirm("确认提交 Cash 待确认请求？Cash 确认后才会生成 Cash 交易。")) {
-    return;
-  }
-
-  setCashRequestSubmitting(true);
-  try {
-    await requestCashIncomeConfirmationForRecord(payload);
-    setCashRequestSubmitting(false);
-    closeCashIncomeRequestDialog();
-    await refreshCurrentIncomeList();
-    showMessage("success", "Cash 收入确认请求已提交，等待 Cash 侧确认。");
-  } catch (error) {
-    showCashIncomeRequestError(`Cash 收入确认请求提交失败：${error.message || error}`);
-  } finally {
-    setCashRequestSubmitting(false);
-  }
 }
 
 function selectedIncomeRows() {
@@ -728,6 +628,10 @@ async function openBatchCashIncomeDialog(rows) {
     receivedDate: currentJapanDate(),
     accountId: "",
     note: defaultCashIncomeNote(income),
+    exchangeRate: "",
+    theoreticalAmount: "",
+    roundingMode: "",
+    rateStatus: "",
     result: "",
   }));
   clearBatchCashIncomeError();
@@ -748,6 +652,7 @@ function closeBatchCashIncomeDialog() {
 }
 
 function renderBatchCashIncomeRows() {
+  updateBatchCashIncomeDerivedValues();
   dom.batchCashIncomeTableBody.innerHTML = batchCashIncomeRows.map((state) => {
     const income = state.income;
     return `
@@ -771,6 +676,7 @@ function renderBatchCashIncomeRows() {
         <td><input data-batch-income-note="${escapeAttribute(income.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>${escapeHtml(state.result || "-")}</td>
       </tr>
+      ${renderBatchCashIncomeRateRow(state)}
     `;
   }).join("");
   updateBatchCashIncomeTotal();
@@ -785,16 +691,45 @@ function renderBatchCashIncomeRateReference(state) {
     `;
   }
 
-  const amount = parseNumberInput(state.amount);
-  const exchangeRate = calculatedCashIncomeExchangeRate(state.income, amount, state.currency);
   return `
     <div class="expense-rate-assist expense-rate-assist--compact">
       <div class="expense-rate-assist-theory">
-        <span>参考汇率</span>
-        <span class="expense-rate-assist-value">${escapeHtml(Number.isFinite(exchangeRate) ? String(exchangeRate) : "-")}</span>
+        <span>理论金额</span>
+        <span class="expense-rate-assist-value">${escapeHtml(formatTheoreticalCnyAmount(state.theoreticalAmount))}</span>
       </div>
-      <div class="expense-rate-assist-status">按 School JPY 原始金额和实际到账 CNY 自动计算，仅随本行提交。</div>
+      <div class="expense-rounding-buttons" aria-label="取整方式">
+        <button class="button compact-button" title="四舍五入" data-batch-income-round="${escapeAttribute(state.income.id)}" data-rounding-mode="round" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>≈</button>
+        <button class="button compact-button" title="向上取整" data-batch-income-round="${escapeAttribute(state.income.id)}" data-rounding-mode="ceil" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>↑</button>
+        <button class="button compact-button" title="向下取整" data-batch-income-round="${escapeAttribute(state.income.id)}" data-rounding-mode="floor" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>↓</button>
+      </div>
+      <div class="expense-rate-assist-status">${escapeHtml(state.rateStatus || incomeRateAssistHint(state))}</div>
     </div>
+  `;
+}
+
+function renderBatchCashIncomeRateRow(state) {
+  if (state.currency !== "CNY") {
+    return "";
+  }
+
+  const incomeId = state.income.id;
+  return `
+    <tr class="expense-batch-cash-rate-row income-batch-cash-rate-row" data-batch-income-row-id="${escapeAttribute(incomeId)}">
+      <td colspan="10">
+        <div class="expense-rate-toolbar-card">
+          <div class="expense-rate-toolbar-title">
+            <strong>CNY / JPY 汇率辅助</strong>
+            <span>${escapeHtml(`${incomeObjectName(state.income)} / School 原始金额 ${formatCurrency(state.income.amount, state.income.currency)}`)}</span>
+          </div>
+          <div class="expense-rate-toolbar-controls">
+            <span>1 JPY =</span>
+            <input data-batch-income-rate="${escapeAttribute(incomeId)}" type="number" min="0" step="0.0000001" inputmode="decimal" value="${escapeAttribute(state.exchangeRate)}" placeholder="0.0358629" ${isBatchCashSubmitting ? "disabled" : ""}>
+            <span>CNY</span>
+            <button class="button compact-button" data-batch-income-rate-fetch="${escapeAttribute(incomeId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
+          </div>
+        </div>
+      </td>
+    </tr>
   `;
 }
 
@@ -818,8 +753,12 @@ function handleBatchCashIncomeInput(event) {
   }
 
   const shouldRerender = Boolean(event.target.closest("[data-batch-income-currency]"));
-  const shouldRefreshRateReference = event.type === "change" && Boolean(event.target.closest("[data-batch-income-amount]"));
+  const shouldRefreshRateReference = event.type === "change" && Boolean(
+    event.target.closest("[data-batch-income-rate]")
+    || event.target.closest("[data-batch-income-amount]")
+  );
   syncBatchCashIncomeRowsFromDom();
+  updateBatchCashIncomeDerivedValues();
   if (shouldRerender) {
     for (const state of batchCashIncomeRows) {
       const account = cashEligibleAccounts.find((row) => row.id === state.accountId);
@@ -834,6 +773,31 @@ function handleBatchCashIncomeInput(event) {
   clearBatchCashIncomeError();
 }
 
+async function handleBatchCashIncomeClick(event) {
+  const fetchButton = event.target.closest("[data-batch-income-rate-fetch]");
+  const roundButton = event.target.closest("[data-batch-income-round]");
+  if (!fetchButton && !roundButton) {
+    return;
+  }
+
+  event.preventDefault();
+  syncBatchCashIncomeRowsFromDom();
+  updateBatchCashIncomeDerivedValues();
+
+  const incomeId = fetchButton?.dataset.batchIncomeRateFetch || roundButton?.dataset.batchIncomeRound;
+  const state = batchCashIncomeRows.find((row) => row.income.id === incomeId);
+  if (!state || state.currency !== "CNY") {
+    return;
+  }
+
+  if (fetchButton) {
+    await fetchTodayJpyCnyRateForIncomeState(state);
+    return;
+  }
+
+  applyBatchCashIncomeRounding(state, roundButton.dataset.roundingMode);
+}
+
 function syncBatchCashIncomeRowsFromDom() {
   for (const state of batchCashIncomeRows) {
     const id = state.income.id;
@@ -842,6 +806,7 @@ function syncBatchCashIncomeRowsFromDom() {
     state.currency = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-currency="${cssEscape(id)}"]`)?.value ?? state.currency;
     state.accountId = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-account="${cssEscape(id)}"]`)?.value ?? state.accountId;
     state.note = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-note="${cssEscape(id)}"]`)?.value ?? state.note;
+    state.exchangeRate = dom.batchCashIncomeTableBody.querySelector(`[data-batch-income-rate="${cssEscape(id)}"]`)?.value ?? state.exchangeRate;
   }
   updateBatchCashIncomeTotal();
 }
@@ -942,7 +907,15 @@ function readBatchCashIncomePayloads() {
         actualReceivedCurrency: state.currency,
         actualReceivedDate: state.receivedDate,
         exchangeRate: state.currency === "JPY" ? 1 : exchangeRate,
-        note: buildCashIncomeRequestNoteFromBase(income, actualReceivedAmount, state.currency, exchangeRate, state.receivedDate, state.note),
+        note: buildCashIncomeRequestNoteFromBase(
+          income,
+          actualReceivedAmount,
+          state.currency,
+          exchangeRate,
+          state.receivedDate,
+          state.note,
+          incomeRateAssistNote(state)
+        ),
       },
     });
   }
@@ -961,134 +934,6 @@ function readBatchCashIncomePayloads() {
   return payloads;
 }
 
-function readCashIncomeRequestPayload() {
-  clearCashIncomeRequestErrors();
-  const income = cashRequestIncomeRecord;
-  if (!income?.id) {
-    showCashIncomeRequestError("收入记录不存在，请刷新后重试。");
-    return null;
-  }
-
-  const actualReceivedAmount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
-  if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
-    showCashIncomeRequestError("请输入大于 0 的实际到账金额。", ["actualAmount"]);
-    return null;
-  }
-
-  const actualReceivedDate = dom.cashIncomeActualDateInput.value;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(actualReceivedDate || "")) {
-    showCashIncomeRequestError("请选择实际到账日。", ["actualDate"]);
-    return null;
-  }
-
-  const actualReceivedCurrency = dom.cashIncomeActualCurrencySelect.value;
-  if (!CASH_INCOME_CURRENCIES.includes(actualReceivedCurrency)) {
-    showCashIncomeRequestError("请选择实际到账币种。", ["actualCurrency"]);
-    return null;
-  }
-
-  const cashAccountId = dom.cashIncomeAccountSelect.value;
-  if (!cashAccountId) {
-    showCashIncomeRequestError("请选择 Cash 收款账户。", ["cashAccount"]);
-    return null;
-  }
-
-  const cashAccount = cashEligibleAccounts.find((account) => account.id === cashAccountId);
-  if (!cashAccount || cashAccount.currency !== actualReceivedCurrency) {
-    showCashIncomeRequestError("Cash 收款账户币种与实际到账币种不一致。", ["cashAccount"]);
-    return null;
-  }
-
-  const exchangeRate = calculatedCashIncomeExchangeRate(income, actualReceivedAmount, actualReceivedCurrency);
-  if (actualReceivedCurrency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-    showCashIncomeRequestError("CNY 实际到账必须能根据 School JPY 原始金额计算参考汇率。", ["exchangeRate"]);
-    return null;
-  }
-
-  return {
-    incomeRecordId: income.id,
-    cashAccountId,
-    actualReceivedAmount,
-    actualReceivedDate,
-    actualReceivedCurrency,
-    exchangeRate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
-    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate, actualReceivedDate),
-  };
-}
-
-function renderCashIncomeRequestSummary(income) {
-  return `
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">收入记录</span>
-      <span>${escapeHtml(shortId(income.id))}</span>
-    </div>
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">对象 / 来源</span>
-      <span>${escapeHtml(incomeObjectName(income))}</span>
-    </div>
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">业务归属月</span>
-      <span>${escapeHtml(formatMonth(income.year_month))}</span>
-    </div>
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">School 原始金额</span>
-      <span>${escapeHtml(formatCurrency(income.amount, income.currency))}</span>
-    </div>
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">JPY 金额</span>
-      <span>${escapeHtml(formatCurrency(income.amount_jpy, "JPY"))}</span>
-    </div>
-  `;
-}
-
-function renderCashIncomeAccountOptions() {
-  const selectedValue = dom.cashIncomeAccountSelect.value;
-  const currency = dom.cashIncomeActualCurrencySelect.value;
-  const rows = cashEligibleAccounts.filter((account) => (
-    account?.is_active === true &&
-    account?.allow_school_requests === true &&
-    account.currency === currency
-  ));
-  dom.cashIncomeAccountSelect.innerHTML = [
-    '<option value="">请选择 Cash 收款账户</option>',
-    ...rows.map((account) => (
-      `<option value="${escapeAttribute(account.id)}">${escapeHtml(createCashAccountLabel(account))}</option>`
-    )),
-  ].join("");
-
-  if (rows.some((account) => account.id === selectedValue)) {
-    dom.cashIncomeAccountSelect.value = selectedValue;
-  }
-}
-
-function updateCashIncomeRequestPreview() {
-  const income = cashRequestIncomeRecord;
-  if (!income) {
-    dom.cashIncomeRequestPreview.textContent = "Cash 请求预览：-";
-    return;
-  }
-
-  const amount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
-  const receivedDate = dom.cashIncomeActualDateInput.value;
-  const currency = dom.cashIncomeActualCurrencySelect.value;
-  const exchangeRate = calculatedCashIncomeExchangeRate(income, amount, currency);
-  dom.cashIncomeExchangeRateInput.value = Number.isFinite(exchangeRate) ? String(exchangeRate) : "";
-
-  if (!Number.isFinite(amount) || amount <= 0) {
-    dom.cashIncomeRequestPreview.textContent = `Cash 请求预览：School 原始金额 ${formatCurrency(income.amount, income.currency)} / 实际到账 -`;
-    return;
-  }
-
-  dom.cashIncomeRequestPreview.textContent = [
-    "Cash 请求预览：",
-    income.source_label || incomeObjectName(income),
-    `School 原始金额 ${formatCurrency(income.amount, income.currency)}`,
-    receivedDate ? `实际到账日 ${receivedDate}` : "",
-    `实际到账 ${formatCurrency(amount, currency)}`,
-    Number.isFinite(exchangeRate) ? `参考汇率 ${exchangeRate}` : "",
-  ].filter(Boolean).join(" / ");
-}
-
 function calculatedCashIncomeExchangeRate(income, actualAmount, actualCurrency) {
   if (actualCurrency === "JPY") {
     return 1;
@@ -1100,6 +945,152 @@ function calculatedCashIncomeExchangeRate(income, actualAmount, actualCurrency) 
   }
 
   return roundDecimal(actualAmount / originalJpy, 7);
+}
+
+function updateBatchCashIncomeDerivedValues() {
+  for (const state of batchCashIncomeRows) {
+    updateBatchCashIncomeDerivedValue(state);
+  }
+}
+
+function updateBatchCashIncomeDerivedValue(state) {
+  if (state.currency !== "CNY") {
+    state.theoreticalAmount = "";
+    state.roundingMode = "";
+    state.rateStatus = "";
+    return;
+  }
+
+  const rate = parseNumberInput(state.exchangeRate);
+  const jpyAmount = originalIncomeJpyAmount(state.income);
+  if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(jpyAmount) || jpyAmount <= 0) {
+    state.theoreticalAmount = "";
+    return;
+  }
+
+  state.theoreticalAmount = formatDecimal(jpyAmount * rate, 2);
+}
+
+async function fetchTodayJpyCnyRateForIncomeState(state) {
+  try {
+    const rate = await fetchLatestJpyCnyRate();
+    state.exchangeRate = formatRateValue(rate);
+    updateBatchCashIncomeDerivedValue(state);
+    state.rateStatus = "已获取今日参考汇率，可取整或手动修改金额。";
+    clearBatchCashIncomeError();
+  } catch (error) {
+    state.rateStatus = "汇率获取失败，可手动输入参考汇率。";
+    showBatchCashIncomeError(`今日汇率获取失败：${error.message || error}。可手动输入金额继续。`);
+  } finally {
+    renderBatchCashIncomeRows();
+  }
+}
+
+async function fetchLatestJpyCnyRate() {
+  const response = await fetch(JPY_CNY_RATE_API_URL, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Frankfurter API HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rate = Number(data?.rate ?? data?.rates?.CNY);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error("Frankfurter API 未返回有效 CNY/JPY 汇率");
+  }
+
+  return rate;
+}
+
+function applyBatchCashIncomeRounding(state, mode) {
+  updateBatchCashIncomeDerivedValue(state);
+  const theoreticalAmount = parseNumberInput(state.theoreticalAmount);
+  if (!Number.isFinite(theoreticalAmount) || theoreticalAmount <= 0) {
+    state.rateStatus = "请先获取或输入有效参考汇率。";
+    renderBatchCashIncomeRows();
+    return;
+  }
+
+  const roundedAmount = roundCnyIncomeAmount(theoreticalAmount, mode);
+  state.amount = String(roundedAmount);
+  state.roundingMode = ROUNDING_MODE_LABELS[mode] ? mode : "";
+  state.rateStatus = `${ROUNDING_MODE_LABELS[mode] || "取整"}已填入实际到账金额，仍可手动修改。`;
+  renderBatchCashIncomeRows();
+}
+
+function roundCnyIncomeAmount(amount, mode) {
+  if (mode === "ceil") {
+    return Math.ceil(amount);
+  }
+
+  if (mode === "floor") {
+    return Math.floor(amount);
+  }
+
+  return Math.round(amount);
+}
+
+function originalIncomeJpyAmount(income) {
+  const amountJpy = Number(income?.amount_jpy);
+  if (Number.isFinite(amountJpy) && amountJpy > 0) {
+    return amountJpy;
+  }
+
+  const amount = Number(income?.amount);
+  if (income?.currency === "JPY" && Number.isFinite(amount) && amount > 0) {
+    return amount;
+  }
+
+  return NaN;
+}
+
+function formatTheoreticalCnyAmount(value) {
+  const amount = parseNumberInput(value);
+  return Number.isFinite(amount) && amount > 0 ? `${formatDecimal(amount, 2)} CNY` : "-";
+}
+
+function incomeRateAssistHint(state) {
+  if (!Number.isFinite(originalIncomeJpyAmount(state.income))) {
+    return "缺少 JPY 原始金额，可手动输入实际到账金额。";
+  }
+
+  return "获取或输入汇率后可计算理论到账金额。";
+}
+
+function incomeRateAssistNote(state) {
+  if (state.currency !== "CNY") {
+    return "";
+  }
+
+  const rate = parseNumberInput(state.exchangeRate);
+  const theoreticalAmount = parseNumberInput(state.theoreticalAmount);
+  const parts = [];
+  if (Number.isFinite(rate) && rate > 0) {
+    parts.push(`参考汇率 CNY/JPY ${formatRateValue(rate)}`);
+  }
+  if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
+    parts.push(`理论到账 ${formatDecimal(theoreticalAmount, 2)} CNY`);
+  }
+  if (ROUNDING_MODE_LABELS[state.roundingMode]) {
+    parts.push(`取整方式 ${ROUNDING_MODE_LABELS[state.roundingMode]}`);
+  }
+
+  return parts.join("，");
+}
+
+function formatRateValue(value) {
+  const rate = Number(value);
+  return Number.isFinite(rate) ? rate.toFixed(7).replace(/0+$/, "").replace(/\.$/, "") : "";
+}
+
+function formatDecimal(value, decimals) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    return "";
+  }
+
+  return numberValue.toFixed(decimals).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function defaultCashIncomeNote(income) {
@@ -1168,18 +1159,19 @@ function escapeRegExp(value) {
   return safeText(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function buildCashIncomeRequestNote(income, amount, currency, exchangeRate, receivedDate) {
-  const base = dom.cashIncomeNoteInput.value.trim();
-  return buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, receivedDate, base);
-}
-
-function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, receivedDate, baseNote) {
+function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRate, receivedDate, baseNote, extraNote = "") {
   const base = safeText(baseNote).trim();
-  const requiredText = `${income.source_label || incomeObjectName(income)}，实际到账日${receivedDate}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
+  const requiredText = [
+    `${income.source_label || incomeObjectName(income)}，实际到账日${receivedDate}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`,
+    extraNote,
+  ].filter(Boolean).join("；");
   if (!base) {
     return requiredText;
   }
-  return base.includes("实际到账日") ? base : `${base}；${requiredText}`;
+  if (base.includes("实际到账日")) {
+    return extraNote && !base.includes("理论到账") ? `${base}；${extraNote}` : base;
+  }
+  return `${base}；${requiredText}`;
 }
 
 function openCreateIncomeDialog() {
@@ -1962,47 +1954,6 @@ function setLoading(isLoading) {
 function showMessage(type, text) {
   dom.messageArea.className = `message message-${type}`;
   dom.messageArea.textContent = text;
-}
-
-function clearCashIncomeRequestErrors() {
-  dom.cashIncomeRequestError.textContent = "";
-  dom.cashIncomeRequestError.classList.add("is-hidden");
-  for (const fieldId of ["actualAmount", "actualDate", "actualCurrency", "exchangeRate", "cashAccount", "note"]) {
-    clearCashIncomeRequestFieldInvalid(fieldId);
-  }
-}
-
-function showCashIncomeRequestError(message, fieldIds = []) {
-  dom.cashIncomeRequestError.textContent = message;
-  dom.cashIncomeRequestError.classList.remove("is-hidden");
-  for (const fieldId of fieldIds) {
-    setCashIncomeRequestFieldInvalid(fieldId, true);
-  }
-  dom.cashIncomeRequestDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
-}
-
-function setCashIncomeRequestFieldInvalid(fieldId, invalid) {
-  const field = dom.cashIncomeRequestDialog.querySelector(`[data-cash-income-field="${fieldId}"]`);
-  field?.classList.toggle("is-invalid", invalid);
-}
-
-function clearCashIncomeRequestFieldInvalid(fieldId) {
-  setCashIncomeRequestFieldInvalid(fieldId, false);
-}
-
-function hideCashIncomeRequestErrorIfClean() {
-  const hasInvalidField = Boolean(dom.cashIncomeRequestDialog.querySelector(".field.is-invalid"));
-  if (!hasInvalidField) {
-    dom.cashIncomeRequestError.textContent = "";
-    dom.cashIncomeRequestError.classList.add("is-hidden");
-  }
-}
-
-function setCashRequestSubmitting(isSubmitting) {
-  isCashRequestSubmitting = isSubmitting;
-  dom.cashIncomeRequestSubmitButton.disabled = isSubmitting;
-  dom.cashIncomeRequestCancelButton.disabled = isSubmitting;
-  dom.cashIncomeRequestSubmitButton.textContent = isSubmitting ? "提交中..." : "提交 Cash 确认";
 }
 
 function setBatchCashIncomeSubmitting(isSubmitting) {

@@ -2823,6 +2823,7 @@ h2 {
   padding-inline: 10px 24px;
 }
 
+.income-batch-cash-table .income-batch-cash-rate-row td:nth-child(1),
 .expense-batch-cash-table .expense-batch-cash-rate-row td:nth-child(1) {
   width: auto;
   min-width: 0;
@@ -2831,6 +2832,7 @@ h2 {
   padding-top: 0;
 }
 
+.income-batch-cash-rate-row .expense-rate-toolbar-card,
 .expense-batch-cash-rate-row .expense-rate-toolbar-card {
   min-height: 46px;
   margin: 0;

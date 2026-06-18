@@ -193,13 +193,48 @@ function buildCashIncomeDescription(
   studentName: string | null,
 ): string {
   const category = optionalText(body.income_category) ?? "tuition";
-  const label = optionalText(body.note) ??
-    optionalText(body.description) ??
-    INCOME_CATEGORY_LABELS[category] ??
+  const label = INCOME_CATEGORY_LABELS[category] ??
     category;
-  const detail = [studentName, label].filter(Boolean).join(" ");
+  const settlementMonth = optionalText(body.settlement_month);
+  const incomeDate = optionalText(body.actual_received_date) ??
+    optionalText(body.income_date);
+  const originalAmount = formatCashDescriptionAmount(body.amount, body.currency);
+  const actualAmount = formatCashDescriptionAmount(
+    body.actual_received_amount ?? body.amount,
+    body.actual_received_currency ?? body.currency,
+  );
+  const description = optionalText(body.description);
+  const primary = [
+    label,
+    [studentName, settlementMonth].filter(Boolean).join(" / "),
+  ].filter(Boolean).join("：");
+  const details = [
+    incomeDate ? `收款日期 ${incomeDate}` : "",
+    originalAmount ? `School 原始金额 ${originalAmount}` : "",
+    actualAmount ? `实际到账 ${actualAmount}` : "",
+    description && description !== label ? description : "",
+  ].filter(Boolean);
 
-  return `私塾收入确认：${detail || label}`;
+  return [primary || label, ...details].join("；");
+}
+
+function formatCashDescriptionAmount(
+  amountValue: unknown,
+  currencyValue: unknown,
+): string {
+  const amount = Number(amountValue);
+  const currency = optionalText(currencyValue) ?? "";
+  if (!Number.isFinite(amount) || !currency) {
+    return "";
+  }
+
+  const rounded = currency === "JPY"
+    ? Math.round(amount)
+    : Math.round(amount * 100) / 100;
+  return `${currency} ${rounded.toLocaleString("en-US", {
+    minimumFractionDigits: currency === "JPY" || Number.isInteger(rounded) ? 0 : 2,
+    maximumFractionDigits: currency === "JPY" ? 0 : 2,
+  })}`;
 }
 
 function unwrapSingleRow<T>(data: T[] | T | null, context: string): T {
@@ -443,6 +478,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
         {
           ...body,
           income_category: incomeCategory,
+          income_date: incomeDate,
+          actual_received_date: actualReceivedDate,
+          settlement_month: settlementMonth,
+          amount: schoolRequest.amount,
+          currency: schoolRequest.currency,
           description: optionalText((incomeData as { source_label?: string | null }).source_label) ??
             optionalText((incomeData as { description?: string | null }).description),
         },

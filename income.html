@@ -338,60 +338,6 @@
       </section>
     </div>
 
-    <div id="cashIncomeRequestDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="cashIncomeRequestTitle">
-        <div class="section-heading">
-          <h2 id="cashIncomeRequestTitle">提交 Cash 收入确认</h2>
-          <p class="section-note">Cash 入账以实际到账金额和币种为准；汇率仅作为本次参考记录。</p>
-        </div>
-
-        <div id="cashIncomeRequestError" class="dialog-error is-hidden"></div>
-        <div id="cashIncomeRequestSummary" class="dialog-summary"></div>
-
-        <div class="income-create-field-grid">
-          <label class="field" data-cash-income-field="actualAmount">
-            <span>实际到账金额</span>
-            <input id="cashIncomeActualAmountInput" type="number" step="0.01" min="0" inputmode="decimal">
-          </label>
-
-          <label class="field" data-cash-income-field="actualDate">
-            <span>实际到账日（Cash流水日）</span>
-            <input id="cashIncomeActualDateInput" type="date">
-          </label>
-
-          <label class="field" data-cash-income-field="actualCurrency">
-            <span>实际到账币种</span>
-            <select id="cashIncomeActualCurrencySelect">
-              <option value="JPY">JPY</option>
-              <option value="CNY">CNY</option>
-            </select>
-          </label>
-
-          <label class="field" data-cash-income-field="exchangeRate">
-            <span>参考汇率（CNY/JPY）</span>
-            <input id="cashIncomeExchangeRateInput" type="number" step="0.0000001" min="0" inputmode="decimal" readonly>
-          </label>
-
-          <label class="field" data-cash-income-field="cashAccount">
-            <span>Cash 收款账户</span>
-            <select id="cashIncomeAccountSelect"></select>
-          </label>
-
-          <label class="field income-create-wide-field" data-cash-income-field="note">
-            <span>备注</span>
-            <textarea id="cashIncomeNoteInput" rows="3"></textarea>
-          </label>
-        </div>
-
-        <p id="cashIncomeRequestPreview" class="state-text">Cash 请求预览：-</p>
-
-        <div class="dialog-actions">
-          <button class="button button-primary" id="cashIncomeRequestSubmitButton" type="button">提交 Cash 确认</button>
-          <button class="button" id="cashIncomeRequestCancelButton" type="button">取消</button>
-        </div>
-      </section>
-    </div>
-
     <script type="module" src="./js/income-app.js?v=v2.122.0-month-filter-url-preserve-20260616"></script>
   </body>
 </html>
