@@ -165,6 +165,7 @@ async function fetchIncomeReferences(settlement) {
     .eq("settlement_month", settlement.year_month)
     .eq("business_entity_id", settlement.business_entity_id)
     .eq("include_in_student_settlement", true)
+    .eq("status", "received")
     .order("income_date", { ascending: true })
     .order("created_at", { ascending: true });
 

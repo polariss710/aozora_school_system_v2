@@ -15,7 +15,7 @@ alter table public.school_income_records
 
 alter table public.school_income_records
   add constraint school_income_records_status_check
-    check (status in ('pending', 'received', 'reversed'));
+    check (status in ('pending', 'received', 'reversed', 'cancelled'));
 
 create table if not exists public.school_personal_cash_income_linkage_events (
   id uuid primary key default gen_random_uuid(),
