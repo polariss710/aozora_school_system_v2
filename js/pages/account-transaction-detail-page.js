@@ -167,15 +167,11 @@ function renderTransactionDetail(data) {
   dom.titleText.textContent = `${formatDateOnly(transaction.transaction_date)} / ${transactionTypeLabel(transaction.transaction_type)} / ${formatCurrency(transaction.amount, transaction.currency)}`;
 
   dom.basicInfo.innerHTML = renderDefinitionList([
-    ["流水 ID", shortId(transaction.id)],
     ["交易日期", formatDateOnly(transaction.transaction_date)],
     ["目标月份", formatMonth(transaction.year_month)],
     ["流水类型", transactionTypeLabel(transaction.transaction_type)],
     ["关联来源", relatedTableLabel(transaction.related_table)],
-    ["related_id", shortId(transaction.related_id)],
     ["业务归属", businessNameById(transaction.business_entity_id)],
-    ["创建时间", formatDate(transaction.created_at)],
-    ["更新时间", formatDate(transaction.updated_at)],
   ]);
 
   dom.amountInfo.innerHTML = `
@@ -541,7 +537,7 @@ function renderSource(source, transaction) {
   }
 
   if (source?.error === "unsupported") {
-    dom.source.innerHTML = `<div class="state-text">暂不支持展示来源表：${escapeHtml(transaction.related_table)}。</div>`;
+    dom.source.innerHTML = '<div class="state-text">暂不支持展示该来源对象。</div>';
     return;
   }
 
@@ -560,7 +556,7 @@ function renderSource(source, transaction) {
     <article class="detail-list-card">
       <div class="detail-list-card-header">
         <strong>${escapeHtml(relatedTableLabel(transaction.related_table))}</strong>
-        <span class="status-badge status-neutral">${escapeHtml(shortId(transaction.related_id))}</span>
+        <span class="status-badge status-neutral">已关联</span>
       </div>
       ${link ? `<p><a class="table-action-button" href="${escapeAttribute(link)}">查看来源详情</a></p>` : ""}
       ${renderDefinitionList(sourceDefinitionItems(transaction.related_table, source.row))}

@@ -128,6 +128,7 @@ function cacheDom() {
   dom.currencySelect = document.querySelector("#accountCurrencySelect");
   dom.resetButton = document.querySelector("#accountResetButton");
   dom.accountGrid = document.querySelector("#accountGrid");
+  dom.accountCount = document.querySelector("#accountCount");
   dom.accountLoadingState = document.querySelector("#accountLoadingState");
   dom.accountEmptyState = document.querySelector("#accountEmptyState");
   dom.transactionTableBody = document.querySelector("#accountTransactionTableBody");
@@ -486,6 +487,10 @@ function filterAccountsForDisplay(items, filters) {
 }
 
 function renderAccounts(items) {
+  if (dom.accountCount) {
+    dom.accountCount.textContent = `共 ${items.length} 条`;
+  }
+
   dom.accountEmptyState.classList.toggle("is-hidden", items.length > 0);
 
   if (!items.length) {
@@ -500,7 +505,7 @@ function renderAccounts(items) {
           <div class="account-name">${escapeHtml(account.name)}</div>
           <div class="account-code">${escapeHtml(account.account_code || "-")}</div>
         </div>
-        <span class="status-badge ${account.is_active ? "status-paid" : "status-cancelled"}">
+        <span class="status-badge ${account.is_active ? "status-active" : "status-inactive"}">
           ${account.is_active ? "启用" : "停用"}
         </span>
       </div>

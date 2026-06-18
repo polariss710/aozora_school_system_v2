@@ -80,6 +80,10 @@ textarea {
   max-width: 1280px;
 }
 
+.app-shell--account {
+  max-width: 1280px;
+}
+
 .page-header {
   display: flex;
   min-width: 0;
@@ -373,19 +377,22 @@ h2 {
 
 .income-filter-panel,
 .expense-filter-panel,
-.business-entity-filter-panel {
+.business-entity-filter-panel,
+.account-filter-panel {
   border-color: #cfe0f3;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
 
 .income-filter-panel .section-heading,
 .expense-filter-panel .section-heading,
-.business-entity-filter-panel .section-heading {
+.business-entity-filter-panel .section-heading,
+.account-filter-panel .section-heading {
   margin-bottom: 16px;
 }
 
 .income-filter-panel .filter-grid,
-.expense-filter-panel .filter-grid {
+.expense-filter-panel .filter-grid,
+.account-filter-panel .filter-grid {
   grid-template-columns:
     196px
     repeat(5, minmax(0, 1fr));
@@ -393,19 +400,22 @@ h2 {
 }
 
 .income-filter-panel .month-select-group,
-.expense-filter-panel .month-select-group {
+.expense-filter-panel .month-select-group,
+.account-filter-panel .month-select-group {
   grid-template-columns: 88px 88px;
 }
 
 .income-filter-panel .field select,
 .expense-filter-panel .field select,
-.business-entity-filter-panel .field select {
+.business-entity-filter-panel .field select,
+.account-filter-panel .field select {
   text-overflow: ellipsis;
 }
 
 .income-filter-panel .field span,
 .expense-filter-panel .field span,
-.business-entity-filter-panel .field span {
+.business-entity-filter-panel .field span,
+.account-filter-panel .field span {
   color: #526173;
   font-size: 12px;
   letter-spacing: 0;
@@ -416,7 +426,9 @@ h2 {
 .expense-filter-panel .field input,
 .expense-filter-panel .field select,
 .business-entity-filter-panel .field input,
-.business-entity-filter-panel .field select {
+.business-entity-filter-panel .field select,
+.account-filter-panel .field input,
+.account-filter-panel .field select {
   min-height: 42px;
   border-color: #d7e2ee;
   background: #fff;
@@ -427,7 +439,9 @@ h2 {
 .expense-filter-panel .field input:focus,
 .expense-filter-panel .field select:focus,
 .business-entity-filter-panel .field input:focus,
-.business-entity-filter-panel .field select:focus {
+.business-entity-filter-panel .field select:focus,
+.account-filter-panel .field input:focus,
+.account-filter-panel .field select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(29, 112, 214, 0.12);
   outline: none;
@@ -445,7 +459,8 @@ h2 {
 
 .income-list-panel .section-heading-row,
 .expense-list-panel .section-heading-row,
-.business-entity-list-panel .section-heading-row {
+.business-entity-list-panel .section-heading-row,
+.account-list-panel .section-heading-row {
   align-items: flex-start;
   border-bottom: 1px solid #edf2f7;
   padding-bottom: 14px;
@@ -453,7 +468,8 @@ h2 {
 
 .income-list-panel .table-actions,
 .expense-list-panel .table-actions,
-.business-entity-list-panel > .section-heading-row .table-actions {
+.business-entity-list-panel > .section-heading-row .table-actions,
+.account-list-panel > .section-heading-row .table-actions {
   align-items: center;
   border: 1px solid #e3edf8;
   border-radius: 10px;
@@ -615,8 +631,9 @@ h2 {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcfe;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   padding: 14px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
 }
 
 .account-card-header {
@@ -629,16 +646,25 @@ h2 {
 .account-name {
   font-size: 17px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .account-code {
   margin-top: 2px;
   color: var(--muted);
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.account-card > .table-actions {
+  justify-content: flex-start;
+  margin-top: 12px;
 }
 
 .account-balance {
   margin-top: 12px;
+  border-top: 1px solid #edf2f7;
+  padding-top: 12px;
   font-size: 24px;
   font-weight: 800;
   overflow-wrap: anywhere;
@@ -975,6 +1001,54 @@ h2 {
 
 .account-transaction-table {
   min-width: 1120px;
+}
+
+.account-transaction-disclosure {
+  display: block;
+}
+
+.account-transaction-summary {
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  list-style-position: inside;
+}
+
+.account-transaction-summary h2 {
+  margin: 0;
+}
+
+.account-transaction-disclosure[open] .account-transaction-summary {
+  margin-bottom: 14px;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 14px;
+}
+
+.account-transaction-panel-body {
+  display: grid;
+  gap: 10px;
+}
+
+.account-transaction-table .table-action-button {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d7e2ee;
+  border-radius: 6px;
+  background: #fff;
+  color: #12335f;
+  font-weight: 800;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.account-transaction-table .table-action-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .income-table {
@@ -2324,6 +2398,24 @@ h2 {
 
 .expense-system-disclosure[open] summary {
   margin-bottom: 12px;
+}
+
+.account-system-card {
+  padding: 0;
+}
+
+.account-system-disclosure {
+  padding: 14px;
+}
+
+.account-system-disclosure summary span {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.account-system-disclosure #accountTransactionDetailSystemInfo {
+  margin-top: 12px;
 }
 
 .expense-system-text-block {
@@ -3819,6 +3911,7 @@ h2 {
 @media (max-width: 1023px) {
   .income-filter-panel .filter-grid,
   .expense-filter-panel .filter-grid,
+  .account-filter-panel .filter-grid,
   .part-time-work-filter-panel .filter-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -3832,6 +3925,7 @@ h2 {
 @media (max-width: 767px) {
   .income-filter-panel .filter-grid,
   .expense-filter-panel .filter-grid,
+  .account-filter-panel .filter-grid,
   .part-time-work-filter-panel .filter-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3857,7 +3951,8 @@ h2 {
   }
 
   .income-list-panel .table-actions,
-  .expense-list-panel .table-actions {
+  .expense-list-panel .table-actions,
+  .account-list-panel .table-actions {
     width: 100%;
     justify-content: stretch;
   }
@@ -3865,7 +3960,9 @@ h2 {
   .income-list-panel .table-actions .button,
   .income-list-panel .table-actions .record-count,
   .expense-list-panel .table-actions .button,
-  .expense-list-panel .table-actions .record-count {
+  .expense-list-panel .table-actions .record-count,
+  .account-list-panel .table-actions .button,
+  .account-list-panel .table-actions .record-count {
     width: 100%;
   }
 }

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 账户流水详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.24.15-reimbursement-reversal-frontend-20260604">
+    <link rel="stylesheet" href="./css/app.css?v=v10.1.13-account-management-ui-polish">
   </head>
   <body>
     <div class="app-shell">
@@ -70,9 +70,14 @@
                 <h3>账户信息</h3>
                 <div id="accountTransactionDetailAccountInfo"></div>
               </article>
-              <article class="detail-card">
-                <h3>系统信息</h3>
-                <div id="accountTransactionDetailSystemInfo"></div>
+              <article class="detail-card account-system-card">
+                <details class="expense-system-disclosure account-system-disclosure">
+                  <summary>
+                    <span>系统信息</span>
+                    <small>默认折叠，展开查看 ID / related / app_type</small>
+                  </summary>
+                  <div id="accountTransactionDetailSystemInfo"></div>
+                </details>
               </article>
             </div>
           </section>
@@ -88,7 +93,7 @@
             <div class="section-heading section-heading-row">
               <div>
                 <h2 id="accountTransactionDetailSourceTitle">来源对象参考</h2>
-                <p class="section-note">以下为 related_table / related_id 指向的来源对象参考。</p>
+                <p class="section-note">以下为该流水关联的业务来源对象参考。</p>
               </div>
               <div class="table-actions">
                 <button class="button button-danger is-hidden" id="openReverseAccountAdjustmentButton" type="button">撤销账户调整</button>
@@ -165,6 +170,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-transaction-detail-app.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612"></script>
+    <script type="module" src="./js/account-transaction-detail-app.js?v=v10.1.13-account-management-ui-polish"></script>
   </body>
 </html>

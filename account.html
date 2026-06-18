@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 账户管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.109.0-account-app-type-isolation-20260613">
+    <link rel="stylesheet" href="./css/app.css?v=v10.1.13-account-management-ui-polish">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--account">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>账户管理</h1>
+          <p class="page-subtitle">管理 School 侧用于收入、支出、报销和 Cash 联动的账户信息。</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -39,7 +40,7 @@
       <main class="page-main">
         <section id="accountMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="accountFilterTitle">
+        <section class="panel filter-panel account-filter-panel" aria-labelledby="accountFilterTitle">
           <div class="section-heading">
             <h2 id="accountFilterTitle">筛选</h2>
           </div>
@@ -93,13 +94,17 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="accountListTitle">
+        <section class="panel account-list-panel" aria-labelledby="accountListTitle">
           <div class="section-heading section-heading-row">
-            <h2 id="accountListTitle">账户列表</h2>
+            <div>
+              <h2 id="accountListTitle">账户列表</h2>
+              <p class="section-note">查看账户用途、币种、余额和启用状态；账户流水仍按下方筛选结果展示。</p>
+            </div>
             <div class="table-actions">
               <button class="button button-primary" id="openAccountCreateButton" type="button">新增账户</button>
               <button class="button" id="openAccountTransferButton" type="button">账户转账/调拨</button>
               <button class="button" id="openAccountAdjustmentButton" type="button">账户调整</button>
+              <span id="accountCount" class="record-count">共 0 条</span>
             </div>
           </div>
 
@@ -108,36 +113,41 @@
           <div id="accountGrid" class="account-grid"></div>
         </section>
 
-        <section class="panel table-panel" aria-labelledby="accountTransactionTitle">
-          <div class="section-heading section-heading-row">
-            <h2 id="accountTransactionTitle">账户流水</h2>
+        <details class="panel table-panel account-transaction-disclosure" aria-labelledby="accountTransactionTitle">
+          <summary class="account-transaction-summary">
+            <div>
+              <h2 id="accountTransactionTitle">账户流水</h2>
+              <p class="section-note">展开查看当前筛选条件下的账户流水明细。</p>
+            </div>
             <span id="accountTransactionCount" class="record-count">0 条</span>
-          </div>
+          </summary>
 
-          <div id="accountTransactionLoadingState" class="state-text is-hidden">正在加载流水...</div>
-          <div id="accountTransactionEmptyState" class="state-text is-hidden">暂无符合条件的账户流水。</div>
+          <div class="account-transaction-panel-body">
+            <div id="accountTransactionLoadingState" class="state-text is-hidden">正在加载流水...</div>
+            <div id="accountTransactionEmptyState" class="state-text is-hidden">暂无符合条件的账户流水。</div>
 
-          <div class="table-scroll">
-            <table class="payment-table account-transaction-table">
-              <thead>
-                <tr>
-                  <th>详情</th>
-                  <th>日期</th>
-                  <th>账户</th>
-                  <th>业务归属</th>
-                  <th>类型</th>
-                  <th>币种</th>
-                  <th class="number-cell">金额</th>
-                  <th class="number-cell">余额</th>
-                  <th>说明</th>
-                  <th>关联来源</th>
-                  <th>创建时间</th>
-                </tr>
-              </thead>
-              <tbody id="accountTransactionTableBody"></tbody>
-            </table>
+            <div class="table-scroll">
+              <table class="payment-table account-transaction-table">
+                <thead>
+                  <tr>
+                    <th>详情</th>
+                    <th>日期</th>
+                    <th>账户</th>
+                    <th>业务归属</th>
+                    <th>类型</th>
+                    <th>币种</th>
+                    <th class="number-cell">金额</th>
+                    <th class="number-cell">余额</th>
+                    <th>说明</th>
+                    <th>关联来源</th>
+                    <th>创建时间</th>
+                  </tr>
+                </thead>
+                <tbody id="accountTransactionTableBody"></tbody>
+              </table>
+            </div>
           </div>
-        </section>
+        </details>
       </main>
     </div>
 
@@ -271,7 +281,7 @@
     </div>
 
     <div id="accountTransferDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountTransferTitle">
+      <section class="dialog-panel app-dialog--md account-transfer-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountTransferTitle">
         <div class="section-heading">
           <h2 id="accountTransferTitle">账户转账/调拨</h2>
           <p class="section-note">用于同一业务归属、同一币种的账户间资金调拨，会自动写入双边账户流水。</p>
@@ -324,7 +334,7 @@
     </div>
 
     <div id="accountAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountAdjustmentTitle">
+      <section class="dialog-panel app-dialog--md account-adjustment-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountAdjustmentTitle">
         <div class="section-heading">
           <h2 id="accountAdjustmentTitle">账户调整</h2>
           <p class="section-note">用于人工修正账户余额，会自动写入账户调整记录和账户流水。</p>
@@ -371,6 +381,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=v2.109.0-account-app-type-isolation-20260613"></script>
+    <script type="module" src="./js/account-app.js?v=v10.1.13-account-management-ui-polish"></script>
   </body>
 </html>
