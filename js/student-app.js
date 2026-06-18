@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initStudentPage } from "./pages/student-page.js?v=v2.100.0-student-dialog-field-scope-20260612";
+import { initStudentPage } from "./pages/student-page.js?v=v10.1.16-student-management-ui-polish";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

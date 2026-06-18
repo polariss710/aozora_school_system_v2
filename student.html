@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.100.0-student-dialog-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v10.1.16-student-management-ui-polish">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--student">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>学生管理</h1>
+          <p class="page-subtitle">管理学生基础信息、课程归属、收费规则和启用状态。</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
             <a href="./profit-summary.html">利润分析</a>
@@ -39,7 +40,7 @@
       <main class="page-main">
         <section id="studentMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="studentFilterTitle">
+        <section class="panel filter-panel student-filter-panel" aria-labelledby="studentFilterTitle">
           <div class="section-heading">
             <h2 id="studentFilterTitle">筛选</h2>
           </div>
@@ -78,12 +79,15 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="studentListTitle">
+        <section class="panel student-list-panel" aria-labelledby="studentListTitle">
           <div class="section-heading section-heading-row">
-            <h2 id="studentListTitle">学生列表</h2>
-            <div class="header-meta">
-              <span id="studentCount" class="record-count">0 人</span>
+            <div>
+              <h2 id="studentListTitle">学生列表</h2>
+              <p class="section-note">维护学生资料、课程方向、业务归属和默认收费信息；课时、结算和收入数据不在此处变更。</p>
+            </div>
+            <div class="table-actions">
               <button class="button button-primary" id="createStudentButton" type="button">新增学生</button>
+              <span id="studentCount" class="record-count">共 0 名</span>
             </div>
           </div>
 
@@ -216,6 +220,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v2.100.0-student-dialog-field-scope-20260612"></script>
+    <script type="module" src="./js/student-app.js?v=v10.1.16-student-management-ui-polish"></script>
   </body>
 </html>

@@ -266,7 +266,7 @@ function renderBusinessEntityOptions(items, studentRows) {
 }
 
 function renderStudents(items) {
-  dom.studentCount.textContent = `${items.length} 人`;
+  dom.studentCount.textContent = `共 ${items.length} 名`;
   dom.studentEmptyState.classList.toggle("is-hidden", items.length > 0);
 
   if (!items.length) {
