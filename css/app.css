@@ -96,6 +96,44 @@ textarea {
   max-width: 1280px;
 }
 
+.app-sidebar {
+  position: fixed;
+  top: 16px;
+  bottom: 16px;
+  left: 16px;
+  z-index: 20;
+  display: flex;
+  width: 224px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 18px 14px;
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+}
+
+.sidebar-brand {
+  display: grid;
+  gap: 3px;
+  padding: 2px 4px 8px;
+}
+
+.sidebar-brand strong {
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.sidebar-brand span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
 .page-header {
   display: flex;
   min-width: 0;
@@ -123,6 +161,13 @@ textarea {
   gap: 10px;
 }
 
+.sidebar-nav {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 12px;
+  margin-top: 0;
+}
+
 .page-nav-group {
   min-width: 112px;
   border: 1px solid var(--line);
@@ -130,10 +175,25 @@ textarea {
   background: rgba(255, 255, 255, 0.74);
 }
 
+.sidebar-nav .page-nav-group {
+  width: 100%;
+  min-width: 0;
+  border-color: transparent;
+  border-radius: 12px;
+  background: transparent;
+}
+
 .page-nav-group[open],
 .page-nav-group.is-active-group {
   border-color: rgba(37, 99, 235, 0.28);
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.sidebar-nav .page-nav-group[open],
+.sidebar-nav .page-nav-group.is-active-group {
+  border-color: rgba(37, 99, 235, 0.18);
+  background: #f8fbff;
+  box-shadow: none;
 }
 
 .page-nav-group summary {
@@ -172,6 +232,11 @@ textarea {
   padding: 0 8px 8px;
 }
 
+.sidebar-nav .page-nav-group-links {
+  gap: 4px;
+  padding: 0 6px 8px 18px;
+}
+
 .page-nav a {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -190,11 +255,30 @@ textarea {
   white-space: nowrap;
 }
 
+.sidebar-nav a {
+  border-color: transparent;
+  background: transparent;
+  padding: 7px 9px;
+  white-space: normal;
+}
+
 .page-nav a:hover,
 .page-nav a.is-active {
   border-color: var(--accent);
   background: #eef6ff;
   color: #1e40af;
+}
+
+.sidebar-nav a.is-active {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    width: calc(100% - 280px);
+    margin-right: 24px;
+    margin-left: 256px;
+  }
 }
 
 h1,
@@ -3692,7 +3776,26 @@ h2 {
 }
 
 @media (max-width: 1023px) {
+  .app-sidebar {
+    position: static;
+    width: auto;
+    margin: 12px 14px 0;
+    padding: 14px;
+  }
+
+  .sidebar-nav {
+    flex-flow: row wrap;
+    align-items: flex-start;
+  }
+
+  .sidebar-nav .page-nav-group {
+    flex: 1 1 180px;
+  }
+
   .app-shell {
+    width: 100%;
+    margin-right: auto;
+    margin-left: auto;
     padding-inline: 14px;
     padding-top: 24px;
   }
