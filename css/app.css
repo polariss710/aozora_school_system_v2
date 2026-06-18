@@ -2841,16 +2841,32 @@ h2 {
 }
 
 .income-batch-cash-rate-row .expense-rate-toolbar-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 10px 16px;
 }
 
 .income-batch-cash-rate-row .expense-rate-toolbar-card > .income-batch-cash-field-error {
-  grid-column: 1 / -1;
+  flex-basis: 100%;
 }
 
 .income-batch-cash-rate-row .expense-rate-toolbar-controls {
-  grid-template-columns: auto minmax(96px, 112px) auto auto;
+  display: flex;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.income-batch-cash-rate-row .expense-rate-toolbar-controls input {
+  flex: 0 0 108px;
+  max-width: 108px;
+}
+
+.income-batch-cash-rate-row .expense-rate-toolbar-title {
+  flex: 0 1 auto;
+  max-width: min(720px, 100%);
 }
 
 .income-batch-cash-field {
