@@ -5354,26 +5354,23 @@ function renderLessonPairCard(record, side) {
 }
 
 function renderLessonPairText(record) {
-  const content = safeText(record.lesson_content);
-  const note = safeText(record.note);
-  const hasLongText = [content, note].some((value) => value.length > 80 || value.includes("\n"));
-  const toggleHtml = hasLongText
-    ? '<button class="button table-action-button lesson-pair-text-toggle" type="button" data-lesson-pair-text-toggle aria-expanded="false">展开</button>'
-    : "";
+  const content = compactLessonPairText(record.lesson_content);
+  const note = compactLessonPairText(record.note);
+  const summary = [
+    content ? `内容：${content}` : "",
+    note ? `备注：${note}` : "",
+  ].filter(Boolean).join(" / ");
 
-  return `
-    <div class="lesson-pair-text${hasLongText ? " lesson-pair-text-collapsible" : ""}">
-      <div class="lesson-pair-text-row">
-        <span class="lesson-pair-text-label">内容</span>
-        <span class="lesson-pair-text-value">${escapeHtml(displayValue(content))}</span>
-      </div>
-      <div class="lesson-pair-text-row">
-        <span class="lesson-pair-text-label">备注</span>
-        <span class="lesson-pair-text-value">${escapeHtml(displayValue(note))}</span>
-      </div>
-      ${toggleHtml}
-    </div>
-  `;
+  if (!summary) {
+    return "";
+  }
+
+  const preview = summary.length > 96 ? `${summary.slice(0, 96)}...` : summary;
+  return `<p class="lesson-pair-summary" title="${escapeAttribute(summary)}">${escapeHtml(preview)}</p>`;
+}
+
+function compactLessonPairText(value) {
+  return safeText(value).replace(/\s+/g, " ").trim();
 }
 
 function handleLessonPairTextToggle(button) {

@@ -52,6 +52,10 @@ textarea {
   padding: 28px 16px 40px;
 }
 
+.app-shell--dense {
+  max-width: 1440px;
+}
+
 .app-shell--expense {
   --accent: #1d70d6;
   --accent-dark: #155ab0;
@@ -276,8 +280,13 @@ textarea {
 @media (min-width: 1024px) {
   .app-shell {
     width: calc(100% - 280px);
+    max-width: 1440px;
     margin-right: 24px;
     margin-left: 256px;
+  }
+
+  .app-shell--dense {
+    max-width: none;
   }
 }
 
@@ -1281,6 +1290,11 @@ h2 {
   table-layout: fixed;
 }
 
+.app-shell--dense .income-table,
+.app-shell--dense .expense-table {
+  min-width: 1080px;
+}
+
 .income-col-select,
 .expense-col-select {
   width: 34px;
@@ -1324,6 +1338,46 @@ h2 {
 .income-col-action,
 .expense-col-action {
   width: 95px;
+}
+
+.app-shell--dense .income-col-source,
+.app-shell--dense .expense-col-source {
+  width: 190px;
+}
+
+.app-shell--dense .income-col-category,
+.app-shell--dense .expense-col-category {
+  width: 75px;
+}
+
+.app-shell--dense .income-col-month,
+.app-shell--dense .expense-col-month {
+  width: 85px;
+}
+
+.app-shell--dense .income-col-date,
+.app-shell--dense .expense-col-date {
+  width: 105px;
+}
+
+.app-shell--dense .income-col-amount,
+.app-shell--dense .expense-col-amount {
+  width: 130px;
+}
+
+.app-shell--dense .income-col-cash,
+.app-shell--dense .expense-col-cash {
+  width: 150px;
+}
+
+.app-shell--dense .income-col-related,
+.app-shell--dense .expense-col-related {
+  width: 220px;
+}
+
+.app-shell--dense .income-col-action,
+.app-shell--dense .expense-col-action {
+  width: 85px;
 }
 
 .income-table-scroll,
@@ -2042,6 +2096,23 @@ h2 {
   min-width: 0;
 }
 
+.app-shell--dense .filter-panel,
+.app-shell--dense .summary-grid,
+.app-shell--dense section[aria-labelledby="lessonListTitle"] {
+  width: 100%;
+  max-width: none;
+}
+
+.app-shell--dense .lesson-stats-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.app-shell--dense .lesson-pair-view {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 6px;
+}
+
 .lesson-pair-legend {
   display: flex;
   min-width: 0;
@@ -2061,16 +2132,25 @@ h2 {
 
 .lesson-pair-list {
   display: grid;
-  min-width: 0;
+  min-width: min(100%, 1292px);
   gap: 12px;
 }
 
 .lesson-pair-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   align-items: stretch;
+}
+
+.app-shell--dense .lesson-pair-list {
+  min-width: min(1292px, 100%);
+}
+
+.app-shell--dense .lesson-pair-row {
+  min-width: 1292px;
+  grid-template-columns: repeat(2, minmax(640px, 1fr));
 }
 
 .lesson-pair-section {
@@ -2126,6 +2206,11 @@ h2 {
   align-content: start;
   gap: 10px;
   padding: 12px;
+}
+
+.app-shell--dense .lesson-pair-card {
+  gap: 7px;
+  padding: 10px;
 }
 
 .lesson-pair-column > .lesson-pair-placeholder,
@@ -2191,6 +2276,10 @@ h2 {
   margin: 0;
 }
 
+.app-shell--dense .lesson-pair-meta {
+  gap: 6px 8px;
+}
+
 .lesson-pair-meta div {
   min-width: 0;
 }
@@ -2245,6 +2334,17 @@ h2 {
   justify-self: start;
   min-height: 28px;
   padding: 4px 10px;
+}
+
+.lesson-pair-summary {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lesson-pair-reference-note {
