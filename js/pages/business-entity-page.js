@@ -188,7 +188,7 @@ function renderValueOptions(selectEl, values, labelGetter) {
 }
 
 function renderBusinessEntities(entities) {
-  dom.entityCount.textContent = `${entities.length} 个`;
+  dom.entityCount.textContent = `共 ${entities.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", entities.length > 0);
 
   if (!entities.length) {
@@ -209,7 +209,7 @@ function renderBusinessEntities(entities) {
       </div>
 
       <div class="table-actions">
-        <button class="button" type="button" data-edit-business-entity-id="${escapeAttribute(entity.id)}">编辑基础信息</button>
+        <button class="button table-action-button" type="button" data-edit-business-entity-id="${escapeAttribute(entity.id)}">编辑基础信息</button>
       </div>
 
       <dl class="business-entity-meta">

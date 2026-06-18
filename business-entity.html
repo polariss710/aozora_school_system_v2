@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 业务归属</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.102.0-business-entity-dialog-field-scope-20260612">
+    <link rel="stylesheet" href="./css/app.css?v=v10.1.9-business-owner-ui-polish">
   </head>
   <body>
-    <div class="app-shell">
+    <div class="app-shell app-shell--business-entity">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>业务归属</h1>
+          <p class="page-subtitle">用于区分收入、支出、课时、结算等记录归属的业务线。</p>
           <nav class="page-nav" aria-label="主导航">
             <a href="./index.html">老师工资支付</a>
                         <a href="./profit-summary.html">利润分析</a>
@@ -39,7 +40,7 @@
       <main class="page-main">
         <section id="businessEntityMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="businessEntityFilterTitle">
+        <section class="panel filter-panel business-entity-filter-panel" aria-labelledby="businessEntityFilterTitle">
           <div class="section-heading">
             <h2 id="businessEntityFilterTitle">筛选</h2>
           </div>
@@ -73,15 +74,15 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="businessEntityListTitle">
+        <section class="panel business-entity-list-panel" aria-labelledby="businessEntityListTitle">
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="businessEntityListTitle">业务归属列表</h2>
               <p class="section-note">本页用于新增和维护业务归属基础显示信息；不会自动创建账户、删除业务归属，也不会重算或修改历史收入、支出、账户、结算、工资、支付、账户余额或账户流水。</p>
             </div>
-            <div class="header-meta">
-              <span id="businessEntityCount" class="record-count">0 个</span>
+            <div class="table-actions">
               <button class="button button-primary" id="createBusinessEntityButton" type="button">新增业务归属</button>
+              <span id="businessEntityCount" class="record-count">共 0 条</span>
             </div>
           </div>
 
@@ -170,6 +171,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/business-entity-app.js?v=v2.102.0-business-entity-dialog-field-scope-20260612"></script>
+    <script type="module" src="./js/business-entity-app.js?v=v10.1.9-business-owner-ui-polish"></script>
   </body>
 </html>

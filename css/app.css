@@ -76,6 +76,10 @@ textarea {
   padding-inline: 0;
 }
 
+.app-shell--business-entity {
+  max-width: 1280px;
+}
+
 .page-header {
   display: flex;
   min-width: 0;
@@ -368,13 +372,15 @@ h2 {
 }
 
 .income-filter-panel,
-.expense-filter-panel {
+.expense-filter-panel,
+.business-entity-filter-panel {
   border-color: #cfe0f3;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
 
 .income-filter-panel .section-heading,
-.expense-filter-panel .section-heading {
+.expense-filter-panel .section-heading,
+.business-entity-filter-panel .section-heading {
   margin-bottom: 16px;
 }
 
@@ -392,12 +398,14 @@ h2 {
 }
 
 .income-filter-panel .field select,
-.expense-filter-panel .field select {
+.expense-filter-panel .field select,
+.business-entity-filter-panel .field select {
   text-overflow: ellipsis;
 }
 
 .income-filter-panel .field span,
-.expense-filter-panel .field span {
+.expense-filter-panel .field span,
+.business-entity-filter-panel .field span {
   color: #526173;
   font-size: 12px;
   letter-spacing: 0;
@@ -406,7 +414,9 @@ h2 {
 .income-filter-panel .field input,
 .income-filter-panel .field select,
 .expense-filter-panel .field input,
-.expense-filter-panel .field select {
+.expense-filter-panel .field select,
+.business-entity-filter-panel .field input,
+.business-entity-filter-panel .field select {
   min-height: 42px;
   border-color: #d7e2ee;
   background: #fff;
@@ -415,7 +425,9 @@ h2 {
 .income-filter-panel .field input:focus,
 .income-filter-panel .field select:focus,
 .expense-filter-panel .field input:focus,
-.expense-filter-panel .field select:focus {
+.expense-filter-panel .field select:focus,
+.business-entity-filter-panel .field input:focus,
+.business-entity-filter-panel .field select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(29, 112, 214, 0.12);
   outline: none;
@@ -432,14 +444,16 @@ h2 {
 }
 
 .income-list-panel .section-heading-row,
-.expense-list-panel .section-heading-row {
+.expense-list-panel .section-heading-row,
+.business-entity-list-panel .section-heading-row {
   align-items: flex-start;
   border-bottom: 1px solid #edf2f7;
   padding-bottom: 14px;
 }
 
 .income-list-panel .table-actions,
-.expense-list-panel .table-actions {
+.expense-list-panel .table-actions,
+.business-entity-list-panel > .section-heading-row .table-actions {
   align-items: center;
   border: 1px solid #e3edf8;
   border-radius: 10px;
@@ -821,14 +835,14 @@ h2 {
   display: grid;
   min-width: 0;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .business-entity-card {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcfe;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
   padding: 14px;
 }
 
@@ -840,8 +854,10 @@ h2 {
 }
 
 .business-entity-name {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .business-entity-code {
@@ -856,6 +872,8 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 14px 0 0;
+  border-top: 1px solid #edf2f7;
+  padding-top: 12px;
 }
 
 .business-entity-meta div {
