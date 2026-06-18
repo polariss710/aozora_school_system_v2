@@ -217,7 +217,7 @@ function renderSelectOptions(selectEl, subjects, key) {
 }
 
 function renderSubjects(subjects) {
-  dom.subjectCount.textContent = `${subjects.length} 个`;
+  dom.subjectCount.textContent = `共 ${subjects.length} 条`;
   dom.subjectEmptyState.classList.toggle("is-hidden", subjects.length > 0);
 
   if (!subjects.length) {

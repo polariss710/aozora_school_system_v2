@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initSubjectPage } from "./pages/subject-page.js";
+import { initSubjectPage } from "./pages/subject-page.js?v=v10.1.14-subject-management-ui-polish";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
