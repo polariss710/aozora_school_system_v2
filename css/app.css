@@ -2842,8 +2842,9 @@ h2 {
 
 .income-batch-cash-rate-row .expense-rate-toolbar-card {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 10px 16px;
 }
 
@@ -2852,11 +2853,17 @@ h2 {
 }
 
 .income-batch-cash-rate-row .expense-rate-toolbar-controls {
-  display: flex;
+  position: sticky;
+  right: 14px;
+  z-index: 1;
+  display: inline-flex;
   max-width: 100%;
+  flex: 0 0 auto;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   justify-content: flex-end;
+  margin-left: auto;
 }
 
 .income-batch-cash-rate-row .expense-rate-toolbar-controls input {
@@ -2865,7 +2872,8 @@ h2 {
 }
 
 .income-batch-cash-rate-row .expense-rate-toolbar-title {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  min-width: 0;
   max-width: min(720px, 100%);
 }
 
