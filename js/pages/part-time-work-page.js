@@ -72,6 +72,11 @@ let isSubmitting = false;
 const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
 let initialMonth = "";
+const appliedFilters = {
+  yearMonth: "",
+  workplaceName: "",
+  classDescription: "",
+};
 
 export async function initPartTimeWorkPage() {
   cacheDom();
@@ -79,9 +84,11 @@ export async function initPartTimeWorkPage() {
   populateMonthSelect(dom.monthFilter);
   initialMonth = initialYearMonthFromUrl();
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, initialMonth);
+  appliedFilters.yearMonth = initialMonth;
   updateMonthScopedNavigation(initialMonth);
   renderOptionSelect(dom.workplaceFilter, WORKPLACE_OPTIONS, { includeAll: true });
   renderOptionSelect(dom.classDescriptionFilter, [], { includeAll: true });
+  renderClassDescriptionOptions([], "", "");
   renderOptionSelect(dom.workplaceNameInput, WORKPLACE_OPTIONS);
   renderOptionSelect(dom.subjectNameInput, SUBJECT_OPTIONS);
   bindEvents();
@@ -140,6 +147,7 @@ function cacheDom() {
 function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    applyDraftFilters();
     loadPageData({ expandSelectedWorkplace: true });
   });
   dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
@@ -152,11 +160,13 @@ function bindEvents() {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
     dom.workplaceFilter.value = "";
     dom.classDescriptionFilter.value = "";
+    renderClassDescriptionOptions(wageLessons, "", "");
+    applyDraftFilters();
     loadPageData();
   });
 
   dom.classDescriptionFilter.addEventListener("change", () => {
-    renderVisibleLessons(readFilters());
+    // Draft-only change. The list is updated only when the filter form is submitted.
   });
 
   dom.openCreateButton.addEventListener("click", openCreatePlannedDialog);
@@ -199,7 +209,7 @@ async function loadPageData(options = {}) {
     return;
   }
 
-  const filters = readFilters();
+  const filters = readAppliedFilters();
   updateUrlMonthParams(filters.yearMonth);
   updateMonthScopedNavigation(filters.yearMonth);
   setLoading(true);
@@ -217,11 +227,8 @@ async function loadPageData(options = {}) {
     lessons = lessonRows || [];
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
-    const classDescription = renderClassDescriptionOptions(
-      wageLessons,
-      filters.classDescription,
-      filters.workplaceName
-    );
+    const classDescription = normalizedAppliedClassDescription(filters);
+    renderClassDescriptionOptions(wageLessons, dom.classDescriptionFilter.value, dom.workplaceFilter.value);
     if (options.expandSelectedWorkplace && filters.workplaceName) {
       expandedWorkplaces.add(filters.workplaceName);
     }
@@ -240,11 +247,27 @@ async function loadPageData(options = {}) {
   }
 }
 
-function readFilters() {
+function readDraftFilters() {
   return {
     yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
     workplaceName: dom.workplaceFilter.value,
     classDescription: dom.classDescriptionFilter.value,
+  };
+}
+
+function applyDraftFilters() {
+  const draft = readDraftFilters();
+  appliedFilters.yearMonth = draft.yearMonth;
+  appliedFilters.workplaceName = draft.workplaceName;
+  appliedFilters.classDescription = draft.workplaceName ? draft.classDescription : "";
+  return readAppliedFilters();
+}
+
+function readAppliedFilters() {
+  return {
+    yearMonth: appliedFilters.yearMonth,
+    workplaceName: appliedFilters.workplaceName,
+    classDescription: appliedFilters.classDescription,
   };
 }
 
@@ -262,20 +285,44 @@ function renderLessons(rows) {
   dom.lessonColumns.innerHTML = renderWorkflowColumns(rows);
 }
 
-function renderVisibleLessons(filters = readFilters()) {
+function renderVisibleLessons(filters = readAppliedFilters()) {
   renderLessons(filterLessonsByClassDescription(lessons, filters.classDescription));
 }
 
 function renderClassDescriptionOptions(rows, selectedValue = "", workplaceName = "") {
+  const normalizedWorkplace = safeText(workplaceName).trim();
+  if (!normalizedWorkplace) {
+    dom.classDescriptionFilter.innerHTML = '<option value="">请先选择私塾</option>';
+    dom.classDescriptionFilter.value = "";
+    dom.classDescriptionFilter.disabled = true;
+    return "";
+  }
+
   const normalizedSelected = safeText(selectedValue).trim();
   const options = distinctClassDescriptions(rows, workplaceName);
   const nextSelected = normalizedSelected && options.includes(normalizedSelected)
     ? normalizedSelected
     : "";
 
+  dom.classDescriptionFilter.disabled = false;
   renderOptionSelect(dom.classDescriptionFilter, options, { includeAll: true });
   dom.classDescriptionFilter.value = nextSelected;
   return nextSelected;
+}
+
+function normalizedAppliedClassDescription(filters) {
+  if (!filters.workplaceName || !filters.classDescription) {
+    appliedFilters.classDescription = "";
+    return "";
+  }
+
+  const options = distinctClassDescriptions(wageLessons, filters.workplaceName);
+  if (!options.includes(filters.classDescription)) {
+    appliedFilters.classDescription = "";
+    return "";
+  }
+
+  return filters.classDescription;
 }
 
 function distinctClassDescriptions(rows, workplaceName = "") {
