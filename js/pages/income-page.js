@@ -632,6 +632,7 @@ async function openBatchCashIncomeDialog(rows) {
     theoreticalAmount: "",
     roundingMode: "",
     rateStatus: "",
+    errors: {},
     result: "",
   }));
   clearBatchCashIncomeError();
@@ -659,19 +660,19 @@ function renderBatchCashIncomeRows() {
       <tr data-batch-income-row-id="${escapeAttribute(income.id)}">
         <td>${escapeHtml(incomeObjectName(income))}</td>
         <td class="income-nowrap">${escapeHtml(formatMonth(income.year_month))}</td>
-        <td><input data-batch-income-date="${escapeAttribute(income.id)}" type="date" value="${escapeAttribute(state.receivedDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td>${renderBatchCashIncomeField(state, "date", `<input data-batch-income-date="${escapeAttribute(income.id)}" type="date" value="${escapeAttribute(state.receivedDate)}" ${isBatchCashSubmitting ? "disabled" : ""}>`)}</td>
         <td class="number-cell income-nowrap">${escapeHtml(formatCurrency(income.amount, income.currency))}</td>
-        <td><input data-batch-income-amount="${escapeAttribute(income.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td>${renderBatchCashIncomeField(state, "amount", `<input data-batch-income-amount="${escapeAttribute(income.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}>`)}</td>
         <td>
-          <select data-batch-income-currency="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+          ${renderBatchCashIncomeField(state, "currency", `<select data-batch-income-currency="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
             ${CASH_INCOME_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
-          </select>
+          </select>`)}
         </td>
         <td>${renderBatchCashIncomeRateReference(state)}</td>
         <td>
-          <select data-batch-income-account="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+          ${renderBatchCashIncomeField(state, "account", `<select data-batch-income-account="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
             ${renderBatchCashIncomeAccountOptions(state)}
-          </select>
+          </select>`)}
         </td>
         <td><input data-batch-income-note="${escapeAttribute(income.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td>${escapeHtml(state.result || "-")}</td>
@@ -682,11 +683,21 @@ function renderBatchCashIncomeRows() {
   updateBatchCashIncomeTotal();
 }
 
+function renderBatchCashIncomeField(state, fieldId, controlHtml) {
+  const error = state.errors?.[fieldId] || "";
+  return `
+    <div class="income-batch-cash-field${error ? " is-invalid" : ""}" data-batch-income-field="${escapeAttribute(fieldId)}">
+      ${controlHtml}
+      ${error ? `<div class="income-batch-cash-field-error">${escapeHtml(error)}</div>` : ""}
+    </div>
+  `;
+}
+
 function renderBatchCashIncomeRateReference(state) {
-  if (state.currency !== "CNY") {
+  if (!requiresCashIncomeExchangeRate(state)) {
     return `
       <div class="expense-rate-assist expense-rate-assist--muted">
-        <span>JPY 到账不需要汇率</span>
+        <span>同币种到账不需要汇率</span>
       </div>
     `;
   }
@@ -695,7 +706,7 @@ function renderBatchCashIncomeRateReference(state) {
     <div class="expense-rate-assist expense-rate-assist--compact">
       <div class="expense-rate-assist-theory">
         <span>理论金额</span>
-        <span class="expense-rate-assist-value">${escapeHtml(formatTheoreticalCnyAmount(state.theoreticalAmount))}</span>
+        <span class="expense-rate-assist-value">${escapeHtml(formatTheoreticalCashIncomeAmount(state))}</span>
       </div>
       <div class="expense-rounding-buttons" aria-label="取整方式">
         <button class="button compact-button" title="四舍五入" data-batch-income-round="${escapeAttribute(state.income.id)}" data-rounding-mode="round" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>≈</button>
@@ -708,7 +719,7 @@ function renderBatchCashIncomeRateReference(state) {
 }
 
 function renderBatchCashIncomeRateRow(state) {
-  if (state.currency !== "CNY") {
+  if (!requiresCashIncomeExchangeRate(state)) {
     return "";
   }
 
@@ -716,7 +727,7 @@ function renderBatchCashIncomeRateRow(state) {
   return `
     <tr class="expense-batch-cash-rate-row income-batch-cash-rate-row" data-batch-income-row-id="${escapeAttribute(incomeId)}">
       <td colspan="10">
-        <div class="expense-rate-toolbar-card">
+        <div class="expense-rate-toolbar-card${state.errors?.exchangeRate ? " is-invalid" : ""}" data-batch-income-field="exchangeRate">
           <div class="expense-rate-toolbar-title">
             <strong>CNY / JPY 汇率辅助</strong>
             <span>${escapeHtml(`${incomeObjectName(state.income)} / School 原始金额 ${formatCurrency(state.income.amount, state.income.currency)}`)}</span>
@@ -727,6 +738,7 @@ function renderBatchCashIncomeRateRow(state) {
             <span>CNY</span>
             <button class="button compact-button" data-batch-income-rate-fetch="${escapeAttribute(incomeId)}" type="button" ${isBatchCashSubmitting ? "disabled" : ""}>获取今日汇率</button>
           </div>
+          ${state.errors?.exchangeRate ? `<div class="income-batch-cash-field-error">${escapeHtml(state.errors.exchangeRate)}</div>` : ""}
         </div>
       </td>
     </tr>
@@ -758,6 +770,7 @@ function handleBatchCashIncomeInput(event) {
     || event.target.closest("[data-batch-income-amount]")
   );
   syncBatchCashIncomeRowsFromDom();
+  clearBatchCashIncomeFieldError(event.target);
   updateBatchCashIncomeDerivedValues();
   if (shouldRerender) {
     for (const state of batchCashIncomeRows) {
@@ -786,7 +799,7 @@ async function handleBatchCashIncomeClick(event) {
 
   const incomeId = fetchButton?.dataset.batchIncomeRateFetch || roundButton?.dataset.batchIncomeRound;
   const state = batchCashIncomeRows.find((row) => row.income.id === incomeId);
-  if (!state || state.currency !== "CNY") {
+  if (!state || !requiresCashIncomeExchangeRate(state)) {
     return;
   }
 
@@ -854,47 +867,47 @@ function readBatchCashIncomePayloads() {
   syncBatchCashIncomeRowsFromDom();
   clearBatchCashIncomeError();
   let hasError = false;
+  let errorRowCount = 0;
   const payloads = [];
 
   for (const state of batchCashIncomeRows) {
     const income = state.income;
     state.result = "";
+    state.errors = {};
     if (!canRequestCashIncome(income)) {
       state.result = "当前状态不可提交";
       hasError = true;
-      continue;
-    }
-
-    const actualReceivedAmount = parseNumberInput(state.amount);
-    if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
-      state.result = "请输入大于 0 的金额";
-      hasError = true;
+      errorRowCount += 1;
       continue;
     }
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(state.receivedDate || "")) {
-      state.result = "请选择实际到账日";
-      hasError = true;
-      continue;
+      state.errors.date = "请选择实际到账日";
+    }
+
+    const actualReceivedAmount = parseNumberInput(state.amount);
+    if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
+      state.errors.amount = "请输入实际到账金额";
     }
 
     if (!CASH_INCOME_CURRENCIES.includes(state.currency)) {
-      state.result = "币种无效";
-      hasError = true;
-      continue;
+      state.errors.currency = "请选择实际到账币种";
     }
 
     const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
     if (!cashAccount || cashAccount.currency !== state.currency) {
-      state.result = "请选择同币种 Cash 账户";
-      hasError = true;
-      continue;
+      state.errors.account = "请选择 Cash 收款账户";
     }
 
-    const exchangeRate = calculatedCashIncomeExchangeRate(income, actualReceivedAmount, state.currency);
-    if (state.currency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-      state.result = "CNY 请求缺少有效参考汇率";
+    const exchangeRate = calculatedCashIncomeExchangeRate(income, actualReceivedAmount, state.currency, state.exchangeRate);
+    if (requiresCashIncomeExchangeRate(state) && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      state.errors.exchangeRate = "原始币种与到账币种不一致，请填写参考汇率";
+    }
+
+    if (Object.keys(state.errors).length > 0) {
+      state.result = "请修正标红字段";
       hasError = true;
+      errorRowCount += 1;
       continue;
     }
 
@@ -906,7 +919,7 @@ function readBatchCashIncomePayloads() {
         actualReceivedAmount,
         actualReceivedCurrency: state.currency,
         actualReceivedDate: state.receivedDate,
-        exchangeRate: state.currency === "JPY" ? 1 : exchangeRate,
+        exchangeRate,
         note: buildCashIncomeRequestNoteFromBase(
           income,
           actualReceivedAmount,
@@ -922,7 +935,7 @@ function readBatchCashIncomePayloads() {
 
   renderBatchCashIncomeRows();
   if (hasError) {
-    showBatchCashIncomeError("部分记录缺少必要信息，未提交任何请求。");
+    showBatchCashIncomeError(`请修正 ${errorRowCount} 条记录的标红字段，未提交任何请求。`);
     return null;
   }
 
@@ -934,17 +947,21 @@ function readBatchCashIncomePayloads() {
   return payloads;
 }
 
-function calculatedCashIncomeExchangeRate(income, actualAmount, actualCurrency) {
-  if (actualCurrency === "JPY") {
+function calculatedCashIncomeExchangeRate(income, actualAmount, actualCurrency, referenceRate = "") {
+  if (!requiresCashIncomeExchangeRate({ income, currency: actualCurrency })) {
     return 1;
   }
 
-  const originalJpy = Number(income.amount_jpy || (income.currency === "JPY" ? income.amount : 0));
-  if (!Number.isFinite(actualAmount) || actualAmount <= 0 || !Number.isFinite(originalJpy) || originalJpy <= 0) {
+  const rate = parseNumberInput(referenceRate);
+  if (requiresCashIncomeExchangeRate({ income, currency: actualCurrency }) && Number.isFinite(rate) && rate > 0) {
+    return roundDecimal(rate, 7);
+  }
+
+  if (!Number.isFinite(actualAmount) || actualAmount <= 0) {
     return NaN;
   }
 
-  return roundDecimal(actualAmount / originalJpy, 7);
+  return NaN;
 }
 
 function updateBatchCashIncomeDerivedValues() {
@@ -954,7 +971,7 @@ function updateBatchCashIncomeDerivedValues() {
 }
 
 function updateBatchCashIncomeDerivedValue(state) {
-  if (state.currency !== "CNY") {
+  if (!requiresCashIncomeExchangeRate(state)) {
     state.theoreticalAmount = "";
     state.roundingMode = "";
     state.rateStatus = "";
@@ -962,13 +979,15 @@ function updateBatchCashIncomeDerivedValue(state) {
   }
 
   const rate = parseNumberInput(state.exchangeRate);
-  const jpyAmount = originalIncomeJpyAmount(state.income);
-  if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(jpyAmount) || jpyAmount <= 0) {
+  const sourceAmount = originalIncomeAmount(state.income);
+  if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(sourceAmount) || sourceAmount <= 0) {
     state.theoreticalAmount = "";
     return;
   }
 
-  state.theoreticalAmount = formatDecimal(jpyAmount * rate, 2);
+  state.theoreticalAmount = state.currency === "CNY"
+    ? formatDecimal(sourceAmount * rate, 2)
+    : formatDecimal(sourceAmount / rate, 0);
 }
 
 async function fetchTodayJpyCnyRateForIncomeState(state) {
@@ -977,6 +996,7 @@ async function fetchTodayJpyCnyRateForIncomeState(state) {
     state.exchangeRate = formatRateValue(rate);
     updateBatchCashIncomeDerivedValue(state);
     state.rateStatus = "已获取今日参考汇率，可取整或手动修改金额。";
+    delete state.errors?.exchangeRate;
     clearBatchCashIncomeError();
   } catch (error) {
     state.rateStatus = "汇率获取失败，可手动输入参考汇率。";
@@ -1031,35 +1051,43 @@ function roundCnyIncomeAmount(amount, mode) {
   return Math.round(amount);
 }
 
-function originalIncomeJpyAmount(income) {
-  const amountJpy = Number(income?.amount_jpy);
-  if (Number.isFinite(amountJpy) && amountJpy > 0) {
-    return amountJpy;
-  }
-
+function originalIncomeAmount(income) {
   const amount = Number(income?.amount);
-  if (income?.currency === "JPY" && Number.isFinite(amount) && amount > 0) {
-    return amount;
-  }
-
-  return NaN;
+  return Number.isFinite(amount) && amount > 0 ? amount : NaN;
 }
 
-function formatTheoreticalCnyAmount(value) {
-  const amount = parseNumberInput(value);
-  return Number.isFinite(amount) && amount > 0 ? `${formatDecimal(amount, 2)} CNY` : "-";
+function incomeOriginalCurrency(income) {
+  return CASH_INCOME_CURRENCIES.includes(income?.currency) ? income.currency : "";
+}
+
+function requiresCashIncomeExchangeRate(state) {
+  const originalCurrency = incomeOriginalCurrency(state.income);
+  return Boolean(originalCurrency && CASH_INCOME_CURRENCIES.includes(state.currency) && originalCurrency !== state.currency);
+}
+
+function formatTheoreticalCashIncomeAmount(state) {
+  const amount = parseNumberInput(state.theoreticalAmount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "-";
+  }
+
+  return state.currency === "JPY" ? `${formatDecimal(amount, 0)} JPY` : `${formatDecimal(amount, 2)} CNY`;
 }
 
 function incomeRateAssistHint(state) {
-  if (!Number.isFinite(originalIncomeJpyAmount(state.income))) {
-    return "缺少 JPY 原始金额，可手动输入实际到账金额。";
+  if (!requiresCashIncomeExchangeRate(state)) {
+    return "同币种到账不需要汇率。";
+  }
+
+  if (!Number.isFinite(originalIncomeAmount(state.income))) {
+    return "缺少 School 原始金额，可手动输入实际到账金额。";
   }
 
   return "获取或输入汇率后可计算理论到账金额。";
 }
 
 function incomeRateAssistNote(state) {
-  if (state.currency !== "CNY") {
+  if (!requiresCashIncomeExchangeRate(state)) {
     return "";
   }
 
@@ -1070,13 +1098,31 @@ function incomeRateAssistNote(state) {
     parts.push(`参考汇率 CNY/JPY ${formatRateValue(rate)}`);
   }
   if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
-    parts.push(`理论到账 ${formatDecimal(theoreticalAmount, 2)} CNY`);
+    parts.push(`理论到账 ${state.currency === "JPY" ? formatDecimal(theoreticalAmount, 0) : formatDecimal(theoreticalAmount, 2)} ${state.currency}`);
   }
   if (ROUNDING_MODE_LABELS[state.roundingMode]) {
     parts.push(`取整方式 ${ROUNDING_MODE_LABELS[state.roundingMode]}`);
   }
 
   return parts.join("，");
+}
+
+function clearBatchCashIncomeFieldError(target) {
+  const field = target.closest("[data-batch-income-field]");
+  const row = target.closest("[data-batch-income-row-id]");
+  const incomeId = row?.dataset.batchIncomeRowId;
+  const fieldId = field?.dataset.batchIncomeField;
+  const state = batchCashIncomeRows.find((item) => item.income.id === incomeId);
+  if (!state?.errors || !fieldId) {
+    return;
+  }
+
+  delete state.errors[fieldId];
+  field.classList.remove("is-invalid");
+  field.querySelector(".income-batch-cash-field-error")?.remove();
+  if (!Object.keys(state.errors).length && state.result === "请修正标红字段") {
+    state.result = "";
+  }
 }
 
 function formatRateValue(value) {
