@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=v10.1.10-parttime-work-content-filter";
+import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=v10.1.11-parttime-filter-module-expand";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

@@ -140,10 +140,13 @@ function cacheDom() {
 function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    loadPageData();
+    loadPageData({ expandSelectedWorkplace: true });
   });
   dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
   dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
+  dom.workplaceFilter.addEventListener("change", () => {
+    renderClassDescriptionOptions(wageLessons, dom.classDescriptionFilter.value, dom.workplaceFilter.value);
+  });
 
   dom.resetButton.addEventListener("click", () => {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
@@ -188,7 +191,7 @@ function bindEvents() {
 
 }
 
-async function loadPageData() {
+async function loadPageData(options = {}) {
   if (!isLoggedIn()) {
     renderLessons([]);
     renderWageCalculation([], []);
@@ -204,15 +207,25 @@ async function loadPageData() {
 
   try {
     const [lessonRows, wageLessonRows, settlementRows] = await Promise.all([
-      fetchPartTimeWorkLessons(filters),
+      fetchPartTimeWorkLessons({
+        yearMonth: filters.yearMonth,
+        workplaceName: filters.workplaceName,
+      }),
       fetchPartTimeWorkLessons({ yearMonth: filters.yearMonth }),
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
     ]);
     lessons = lessonRows || [];
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
-    renderClassDescriptionOptions(lessons, filters.classDescription);
-    renderVisibleLessons(filters);
+    const classDescription = renderClassDescriptionOptions(
+      wageLessons,
+      filters.classDescription,
+      filters.workplaceName
+    );
+    if (options.expandSelectedWorkplace && filters.workplaceName) {
+      expandedWorkplaces.add(filters.workplaceName);
+    }
+    renderVisibleLessons({ ...filters, classDescription });
     renderWageCalculation(wageLessons, settlements);
   } catch (error) {
     lessons = [];
@@ -253,21 +266,24 @@ function renderVisibleLessons(filters = readFilters()) {
   renderLessons(filterLessonsByClassDescription(lessons, filters.classDescription));
 }
 
-function renderClassDescriptionOptions(rows, selectedValue = "") {
+function renderClassDescriptionOptions(rows, selectedValue = "", workplaceName = "") {
   const normalizedSelected = safeText(selectedValue).trim();
-  const options = distinctClassDescriptions(rows);
-  if (normalizedSelected && !options.includes(normalizedSelected)) {
-    options.unshift(normalizedSelected);
-  }
+  const options = distinctClassDescriptions(rows, workplaceName);
+  const nextSelected = normalizedSelected && options.includes(normalizedSelected)
+    ? normalizedSelected
+    : "";
 
   renderOptionSelect(dom.classDescriptionFilter, options, { includeAll: true });
-  dom.classDescriptionFilter.value = normalizedSelected;
+  dom.classDescriptionFilter.value = nextSelected;
+  return nextSelected;
 }
 
-function distinctClassDescriptions(rows) {
+function distinctClassDescriptions(rows, workplaceName = "") {
+  const normalizedWorkplace = safeText(workplaceName).trim();
   return Array.from(
     new Set(
       rows
+        .filter((row) => !normalizedWorkplace || row.workplace_name === normalizedWorkplace)
         .map((row) => safeText(row.class_description).trim())
         .filter(Boolean)
     )
