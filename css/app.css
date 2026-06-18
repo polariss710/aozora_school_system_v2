@@ -2182,6 +2182,21 @@ h2 {
   overflow-wrap: anywhere;
 }
 
+.income-cash-summary-list {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.income-cash-summary-list dd {
+  display: -webkit-box;
+  max-width: 100%;
+  max-height: 3em;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .readonly-text-block {
   min-height: 44px;
   border: 1px solid var(--line);

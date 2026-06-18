@@ -351,12 +351,20 @@ function renderSystemInfo(data, cashLinkageEvent) {
       <h3>Cash 链路</h3>
       ${renderDefinitionList([
         ["Cash linkage", cashLinkageEvent ? cashIncomeLinkageSummary(cashLinkageEvent) : "-"],
+        ["linkage_event_id", shortId(cashLinkageEvent?.id)],
+        ["sync_status", displayValue(cashLinkageEvent?.sync_status)],
         ["cash_request_id", shortId(cashLinkageEvent?.cash_request_id)],
         ["cash_request_status", displayValue(cashLinkageEvent?.cash_request_status)],
         ["cash_transaction_id", shortId(cashLinkageEvent?.cash_transaction_id)],
-        ["Cash account", cashLinkageEvent ? cashAccountSnapshotLabel(cashLinkageEvent) : "-"],
+        ["cash_account_id", shortId(cashLinkageEvent?.cash_account_id)],
+        ["cash_account_name_snapshot", displayValue(cashLinkageEvent?.cash_account_name_snapshot)],
+        ["cash_account_type_snapshot", displayValue(cashLinkageEvent?.cash_account_type_snapshot)],
         ["实际到账", cashLinkageEvent ? formatCurrency(cashLinkageEvent.payment_amount, cashLinkageEvent.payment_currency) : "-"],
         ["本次汇率", displayValue(cashLinkageEvent?.payment_exchange_rate)],
+        ["synced_at", formatDate(cashLinkageEvent?.synced_at)],
+        ["retry_count", displayValue(cashLinkageEvent?.retry_count)],
+        ["idempotency_key", displayValue(cashLinkageEvent?.idempotency_key)],
+        ["Cash 请求备注", displayValue(cashLinkageEvent?.note)],
         ["last_error", displayValue(cashLinkageEvent?.last_error)],
       ])}
     </article>
@@ -458,22 +466,18 @@ function renderCashSyncInfo(event) {
 
   const statusClassName = cashLinkageStatusClass(event.sync_status);
   dom.cashSyncInfo.innerHTML = `
-    <dl class="detail-definition-list">
+    <dl class="detail-definition-list income-cash-summary-list">
       <div>
         <dt>同步状态</dt>
         <dd><span class="status-badge ${escapeAttribute(statusClassName)}">${escapeHtml(cashLinkageStatusText(event.sync_status))}</span></dd>
       </div>
       <div>
-        <dt>Cash transaction</dt>
-        <dd>${escapeHtml(shortId(event.cash_transaction_id))}</dd>
+        <dt>Cash 确认状态</dt>
+        <dd>${escapeHtml(cashRequestStatusText(event.cash_request_status))}</dd>
       </div>
       <div>
-        <dt>Cash request</dt>
-        <dd>${escapeHtml(shortId(event.cash_request_id))} / ${escapeHtml(displayValue(event.cash_request_status))}</dd>
-      </div>
-      <div>
-        <dt>Cash account</dt>
-        <dd>${escapeHtml(cashAccountSnapshotLabel(event))}</dd>
+        <dt>Cash 账户</dt>
+        <dd title="${escapeAttribute(cashAccountSnapshotLabel(event))}">${escapeHtml(cashAccountBusinessLabel(event))}</dd>
       </div>
       <div>
         <dt>School 原始金额</dt>
@@ -484,29 +488,19 @@ function renderCashSyncInfo(event) {
         <dd>${escapeHtml(formatCurrency(event.payment_amount, event.payment_currency))}</dd>
       </div>
       <div>
-        <dt>Cash 请求备注</dt>
-        <dd>${escapeHtml(displayValue(event.note))}</dd>
-      </div>
-      <div>
         <dt>本次汇率</dt>
         <dd>${escapeHtml(displayValue(event.payment_exchange_rate))}</dd>
       </div>
       <div>
-        <dt>synced_at</dt>
+        <dt>Cash 同步时间</dt>
         <dd>${escapeHtml(formatDate(event.synced_at))}</dd>
       </div>
-      <div>
-        <dt>retry_count</dt>
-        <dd>${escapeHtml(displayValue(event.retry_count))}</dd>
-      </div>
-      <div>
-        <dt>last_error</dt>
-        <dd>${escapeHtml(displayValue(event.last_error))}</dd>
-      </div>
-      <div>
-        <dt>idempotency_key</dt>
-        <dd class="income-note-cell">${escapeHtml(displayValue(event.idempotency_key))}</dd>
-      </div>
+      ${event.last_error ? `
+        <div>
+          <dt>错误提示</dt>
+          <dd title="${escapeAttribute(event.last_error)}">${escapeHtml(shortCashErrorText(event.last_error))}</dd>
+        </div>
+      ` : ""}
     </dl>
     ${event.sync_status === "failed" ? `
       <div class="income-detail-actions">
@@ -1220,6 +1214,14 @@ function cashLinkageStatusText(value) {
   return cashLinkageStatusLabel(value);
 }
 
+function cashRequestStatusText(value) {
+  if (value === "pending") return "Cash 待确认";
+  if (value === "approved" || value === "synced") return "Cash 已确认";
+  if (value === "rejected" || value === "cash_rejected") return "Cash 已拒绝";
+  if (!value) return "-";
+  return displayValue(value);
+}
+
 function cashLinkageStatusClass(value) {
   if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "status-pending";
   if (value === "synced") return "status-paid";
@@ -1227,11 +1229,29 @@ function cashLinkageStatusClass(value) {
   return "status-neutral";
 }
 
+function cashAccountBusinessLabel(event) {
+  const name = safeText(event?.cash_account_name_snapshot);
+  if (name) {
+    return name;
+  }
+
+  return shortId(event?.cash_account_id);
+}
+
 function cashAccountSnapshotLabel(event) {
   return [
     event.cash_account_name_snapshot,
     shortId(event.cash_account_id),
   ].filter((value) => safeText(value) && value !== "-").join(" / ") || "-";
+}
+
+function shortCashErrorText(value) {
+  const text = safeText(value).replace(/\s+/g, " ").trim();
+  if (!text) {
+    return "-";
+  }
+
+  return text.length > 72 ? `${text.slice(0, 72)}...` : text;
 }
 
 function setEditSubmitting(isSubmitting) {
