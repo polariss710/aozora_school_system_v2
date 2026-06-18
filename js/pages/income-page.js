@@ -33,6 +33,7 @@ const INCOME_STATUS_LABELS = {
   pending: "待确认",
   received: "已收款",
   reversed: "已冲销",
+  cancelled: "已作废",
 };
 
 const INCOME_CATEGORY_LABELS = {
@@ -1718,7 +1719,7 @@ function filterIncomeRecords(rows, filters) {
 }
 
 function canRequestCashIncome(row) {
-  if (!row || row.status !== "pending") {
+  if (!row || row.status !== "pending" || row.status === "cancelled") {
     return false;
   }
 
@@ -1732,6 +1733,7 @@ function canRequestCashIncome(row) {
 
 function cashIncomeRequestNotAllowedMessage(row) {
   if (!row) return "收入记录不存在，请刷新后重试。";
+  if (row.status === "cancelled") return "已作废收入不能提交 Cash。";
   if (row.status !== "pending") return "只有待确认收入记录可以提交 Cash 收入确认。";
   const event = row.cashIncomeLinkageEvent;
   if (!event) return "";
@@ -1879,6 +1881,10 @@ function statusClass(status) {
 
   if (status === "received") {
     return "status-paid";
+  }
+
+  if (status === "cancelled" || status === "reversed") {
+    return "status-cancelled";
   }
 
   return "status-neutral";

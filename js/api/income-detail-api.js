@@ -21,6 +21,9 @@ const INCOME_DETAIL_COLUMNS = [
   "payment_currency",
   "payment_method",
   "status",
+  "cancelled_at",
+  "cancelled_reason",
+  "cancelled_by",
   "reversed_at",
   "reversal_reason",
   "reversal_account_transaction_id",
@@ -173,6 +176,25 @@ export async function reverseIncomeRecord(payload) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
     throw new Error("收入撤销失败。");
+  }
+
+  return result;
+}
+
+export async function cancelPendingIncomeRecord(payload) {
+  const { data, error } = await supabase.rpc("school_cancel_pending_income_record", {
+    p_income_id: payload.incomeId,
+    p_cancel_reason: payload.reason,
+    p_operator: null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("收入作废失败。");
   }
 
   return result;

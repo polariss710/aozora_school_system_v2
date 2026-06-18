@@ -52,6 +52,7 @@
               <button class="button button-primary is-hidden" id="openCashIncomeRequestButton" type="button">提交 Cash 确认</button>
               <button class="button button-primary is-hidden" id="openEditIncomeButton" type="button">编辑收入</button>
               <button class="button button-danger is-hidden" id="openReverseIncomeButton" type="button">撤销收入</button>
+              <button class="button button-danger is-hidden" id="openCancelIncomeButton" type="button">作废收入</button>
               <a class="button" href="./income.html">返回收入记录</a>
             </div>
           </div>
@@ -85,6 +86,10 @@
               <article id="incomeDetailReversalCard" class="detail-card is-hidden">
                 <h3>撤销信息</h3>
                 <div id="incomeDetailReversalInfo"></div>
+              </article>
+              <article id="incomeDetailCancellationCard" class="detail-card is-hidden">
+                <h3>作废信息</h3>
+                <div id="incomeDetailCancellationInfo"></div>
               </article>
             </div>
           </section>
@@ -331,6 +336,38 @@
         <div class="dialog-actions">
           <button class="button button-danger" id="reverseIncomeSubmitButton" type="button">确认撤销</button>
           <button class="button" id="reverseIncomeCancelButton" type="button">取消</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="cancelIncomeDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="cancelIncomeTitle">
+        <div class="section-heading">
+          <h2 id="cancelIncomeTitle">作废收入</h2>
+          <p class="section-note">仅用于未入账、Cash 已拒绝或未进入 Cash 请求的待确认收入。作废后不会删除记录，不会删除 Cash linkage，也不会生成账户流水。</p>
+        </div>
+
+        <div id="cancelIncomeSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning reimbursement-reverse-warning">
+          作废后该收入会标记为已作废，不能再次提交 Cash。请确认这条待确认收入确实不应继续处理。
+        </div>
+
+        <div id="cancelIncomeError" class="dialog-error is-hidden"></div>
+
+        <label class="field" data-cancel-income-field="reason">
+          <span>作废理由 <b class="required-mark">必填</b></span>
+          <textarea id="cancelIncomeReasonInput" rows="3"></textarea>
+        </label>
+
+        <label class="field confirm-check" data-cancel-income-field="confirmCheck">
+          <input id="cancelIncomeConfirmCheck" type="checkbox">
+          <span>我确认要作废这条待确认收入记录，并理解系统不会删除原记录或 Cash linkage。</span>
+        </label>
+
+        <div class="dialog-actions">
+          <button class="button button-danger" id="cancelIncomeSubmitButton" type="button">确认作废</button>
+          <button class="button" id="cancelIncomeCancelButton" type="button">取消</button>
         </div>
       </section>
     </div>

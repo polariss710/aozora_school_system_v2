@@ -1,5 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  cancelPendingIncomeRecord,
   fetchIncomeDetailPage,
   requestCashIncomeConfirmationForRecord,
   retryPersonalCashIncomeLinkageEvent,
@@ -18,6 +19,7 @@ const INCOME_STATUS_LABELS = {
   pending: "待确认",
   received: "已收款",
   reversed: "已撤销",
+  cancelled: "已作废",
 };
 
 const INCOME_CATEGORY_LABELS = {
@@ -60,12 +62,14 @@ const TRANSACTION_TYPE_LABELS = {
 const dom = {};
 let detailData = null;
 let isReverseSubmitting = false;
+let isCancelSubmitting = false;
 let isEditSubmitting = false;
 let isRetrySubmitting = false;
 let isCashRequestSubmitting = false;
 let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
 const REVERSE_INCOME_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
+const CANCEL_INCOME_FIELD_IDS = ["reason", "confirmCheck"];
 const EDIT_INCOME_FIELD_IDS = [
   "incomeDate",
   "settlementMonth",
@@ -108,6 +112,7 @@ function cacheDom() {
   dom.actionReason = document.querySelector("#incomeDetailActionReason");
   dom.openEditIncomeButton = document.querySelector("#openEditIncomeButton");
   dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
+  dom.openCancelIncomeButton = document.querySelector("#openCancelIncomeButton");
   dom.openCashIncomeRequestButton = document.querySelector("#openCashIncomeRequestButton");
   dom.returnLink = document.querySelector('.income-detail-actions a[href="./income.html"]');
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
@@ -119,6 +124,8 @@ function cacheDom() {
   dom.systemInfo = document.querySelector("#incomeDetailSystemInfo");
   dom.reversalCard = document.querySelector("#incomeDetailReversalCard");
   dom.reversalInfo = document.querySelector("#incomeDetailReversalInfo");
+  dom.cancellationCard = document.querySelector("#incomeDetailCancellationCard");
+  dom.cancellationInfo = document.querySelector("#incomeDetailCancellationInfo");
   dom.cashSyncCard = document.querySelector("#incomeDetailCashSyncCard");
   dom.cashSyncInfo = document.querySelector("#incomeDetailCashSyncInfo");
   dom.noteBlock = document.querySelector("#incomeDetailNoteBlock");
@@ -145,6 +152,13 @@ function cacheDom() {
   dom.reverseConfirmCheck = document.querySelector("#reverseIncomeConfirmCheck");
   dom.reverseSubmitButton = document.querySelector("#reverseIncomeSubmitButton");
   dom.reverseCancelButton = document.querySelector("#reverseIncomeCancelButton");
+  dom.cancelDialog = document.querySelector("#cancelIncomeDialog");
+  dom.cancelSummary = document.querySelector("#cancelIncomeSummary");
+  dom.cancelError = document.querySelector("#cancelIncomeError");
+  dom.cancelReasonInput = document.querySelector("#cancelIncomeReasonInput");
+  dom.cancelConfirmCheck = document.querySelector("#cancelIncomeConfirmCheck");
+  dom.cancelSubmitButton = document.querySelector("#cancelIncomeSubmitButton");
+  dom.cancelCancelButton = document.querySelector("#cancelIncomeCancelButton");
   dom.editDialog = document.querySelector("#editIncomeDialog");
   dom.editError = document.querySelector("#editIncomeError");
   dom.editIncomeDateInput = document.querySelector("#editIncomeDateInput");
@@ -168,6 +182,7 @@ function cacheDom() {
 function bindEvents() {
   dom.openEditIncomeButton.addEventListener("click", openEditDialog);
   dom.openReverseIncomeButton.addEventListener("click", openReverseDialog);
+  dom.openCancelIncomeButton.addEventListener("click", openCancelDialog);
   dom.openCashIncomeRequestButton.addEventListener("click", openCashIncomeRequestDialog);
   dom.cashIncomeRequestCancelButton.addEventListener("click", closeCashIncomeRequestDialog);
   dom.cashIncomeRequestSubmitButton.addEventListener("click", submitCashIncomeRequest);
@@ -233,6 +248,16 @@ function bindEvents() {
   dom.reverseConfirmCheck.addEventListener("change", () => {
     setReverseFieldInvalid("confirmCheck", false);
     hideReverseErrorIfClean();
+  });
+  dom.cancelCancelButton.addEventListener("click", closeCancelDialog);
+  dom.cancelSubmitButton.addEventListener("click", submitCancelIncome);
+  dom.cancelReasonInput.addEventListener("input", () => {
+    setCancelFieldInvalid("reason", false);
+    hideCancelErrorIfClean();
+  });
+  dom.cancelConfirmCheck.addEventListener("change", () => {
+    setCancelFieldInvalid("confirmCheck", false);
+    hideCancelErrorIfClean();
   });
 }
 
@@ -302,6 +327,7 @@ function renderIncomeDetail(data) {
   ]);
 
   renderReversalInfo(income);
+  renderCancellationInfo(income);
   renderCashSyncInfo(cashLinkageEvent);
   renderSystemInfo(data, cashLinkageEvent);
   dom.noteBlock.textContent = displayValue(income.note);
@@ -375,6 +401,7 @@ function renderActionArea(data) {
   const { income } = data;
   const status = income?.status || "";
   const canReverse = canReverseIncome(data);
+  const canCancel = canCancelPendingIncome(data);
   const canEdit = canEditIncome(data);
   const canRequestCash = canRequestCashIncome(data);
   const actionReason = cashIncomeLinkageNotAllowedMessage(data);
@@ -388,6 +415,8 @@ function renderActionArea(data) {
   dom.openEditIncomeButton.disabled = !canEdit;
   dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseIncomeButton.disabled = !canReverse;
+  dom.openCancelIncomeButton.classList.toggle("is-hidden", !canCancel);
+  dom.openCancelIncomeButton.disabled = !canCancel;
 }
 
 function canRequestCashIncome(data) {
@@ -402,6 +431,40 @@ function canRequestCashIncome(data) {
   }
 
   return event.sync_status === "cash_rejected";
+}
+
+function canCancelPendingIncome(data) {
+  const income = data?.income;
+  if (!income || income.status !== "pending") {
+    return false;
+  }
+  if (income.account_id || income.student_payment_id) {
+    return false;
+  }
+  if (income.cancelled_at || income.reversed_at || income.reversal_account_transaction_id) {
+    return false;
+  }
+  if ((data.transactions || []).length > 0) {
+    return false;
+  }
+
+  const event = cashIncomeLinkageEvent(data);
+  if (!event) {
+    return true;
+  }
+  if (event.cash_transaction_id) {
+    return false;
+  }
+  if (
+    ["pending", "pending_cash_request", "awaiting_cash_confirmation", "synced"].includes(event.sync_status || "") ||
+    ["pending", "approved", "synced"].includes(event.cash_request_status || "")
+  ) {
+    return false;
+  }
+  if (["failed", "blocked"].includes(event.sync_status || "")) {
+    return false;
+  }
+  return event.sync_status === "cash_rejected" || event.cash_request_status === "rejected";
 }
 
 function canEditIncome(data) {
@@ -1069,6 +1132,106 @@ function openReverseDialog() {
   dom.reverseDialog.setAttribute("aria-hidden", "false");
 }
 
+function openCancelDialog() {
+  if (isCancelSubmitting) {
+    return;
+  }
+
+  if (!detailData?.income) {
+    showMessage("error", "作废对象不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!canCancelPendingIncome(detailData)) {
+    showMessage("error", cancelNotAllowedMessage(detailData));
+    return;
+  }
+
+  clearCancelErrors();
+  dom.cancelSummary.innerHTML = renderCancelSummary(detailData.income);
+  dom.cancelReasonInput.value = "";
+  dom.cancelConfirmCheck.checked = false;
+  setCancelSubmitting(false);
+  dom.cancelDialog.classList.remove("is-hidden");
+  dom.cancelDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeCancelDialog() {
+  if (isCancelSubmitting) {
+    return;
+  }
+
+  dom.cancelDialog.classList.add("is-hidden");
+  dom.cancelDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitCancelIncome() {
+  if (isCancelSubmitting) {
+    return;
+  }
+
+  clearCancelErrors();
+  const payload = readCancelPayload();
+  if (!payload) {
+    return;
+  }
+
+  setCancelSubmitting(true);
+
+  try {
+    await cancelPendingIncomeRecord(payload);
+    setCancelSubmitting(false);
+    closeCancelDialog();
+    await loadIncomeDetail(payload.incomeId);
+    showMessage("success", "收入已作废。");
+  } catch (error) {
+    console.error(error);
+    showCancelError(`作废收入失败：${error.message || error}`, cancelFieldIdsForError(error.message || ""));
+  } finally {
+    setCancelSubmitting(false);
+  }
+}
+
+function readCancelPayload() {
+  const income = detailData?.income;
+  if (!income?.id) {
+    showCancelError("作废对象不存在，请关闭后重试。");
+    return null;
+  }
+
+  if (!canCancelPendingIncome(detailData)) {
+    showCancelError(cancelNotAllowedMessage(detailData));
+    return null;
+  }
+
+  const reason = dom.cancelReasonInput.value.trim();
+  if (!reason) {
+    showCancelError("请填写作废理由。", ["reason"]);
+    return null;
+  }
+
+  if (!dom.cancelConfirmCheck.checked) {
+    showCancelError("请勾选确认作废说明。", ["confirmCheck"]);
+    return null;
+  }
+
+  return {
+    incomeId: income.id,
+    reason,
+  };
+}
+
+function renderCancelSummary(income) {
+  return renderDefinitionList([
+    ["收入日期", formatDateOnly(income.income_date)],
+    ["结算月份", formatMonth(income.settlement_month)],
+    ["分类", incomeCategoryLabel(income.income_category)],
+    ["描述", displayValue(income.description || income.source_label)],
+    ["金额", formatCurrency(income.amount, income.currency)],
+    ["Cash 状态", cashLinkageStatusText(cashIncomeLinkageEvent(detailData)?.sync_status)],
+  ]);
+}
+
 function closeReverseDialog() {
   if (isReverseSubmitting) {
     return;
@@ -1160,6 +1323,46 @@ function reverseNotAllowedMessage(data) {
     return "目标学生月度结算已锁定，不能撤销收入。";
   }
   return "当前收入不能撤销。";
+}
+
+function cancelNotAllowedMessage(data) {
+  const income = data?.income;
+  if (!income) return "作废对象不存在，请刷新后重试。";
+  if (income.status === "cancelled" || income.cancelled_at) return "该收入已作废，不能重复作废。";
+  if (income.status !== "pending") return "只能作废待确认收入。";
+  if (income.account_id) return "已有入账账户的收入不能作废。";
+  if (income.student_payment_id) return "关联学生收款链路的收入不能通过普通 pending 作废处理。";
+  if (income.reversed_at || income.reversal_account_transaction_id) return "已撤销收入不能作废。";
+  if ((data.transactions || []).length > 0) return "已有账户流水的收入不能作废。";
+
+  const event = cashIncomeLinkageEvent(data);
+  if (!event) return "";
+  if (event.cash_transaction_id) return "已有 Cash transaction 的收入不能作废。";
+  if (
+    ["pending", "pending_cash_request", "awaiting_cash_confirmation", "synced"].includes(event.sync_status || "") ||
+    ["pending", "approved", "synced"].includes(event.cash_request_status || "")
+  ) {
+    return "该收入存在待确认或已确认 Cash 请求，不能作废。";
+  }
+  if (["failed", "blocked"].includes(event.sync_status || "")) return "Cash failed / blocked 的收入暂不允许作废。";
+  if (event.sync_status === "cash_rejected" || event.cash_request_status === "rejected") return "";
+  return "只有 Cash 已拒绝或没有 Cash linkage 的待确认收入可以作废。";
+}
+
+function renderCancellationInfo(income) {
+  const isCancelled = income.status === "cancelled" || Boolean(income.cancelled_at);
+  dom.cancellationCard.classList.toggle("is-hidden", !isCancelled);
+
+  if (!isCancelled) {
+    dom.cancellationInfo.innerHTML = "";
+    return;
+  }
+
+  dom.cancellationInfo.innerHTML = renderDefinitionList([
+    ["作废时间", formatDate(income.cancelled_at)],
+    ["作废原因", displayValue(income.cancelled_reason)],
+    ["作废操作人", displayValue(income.cancelled_by)],
+  ]);
 }
 
 function editNotAllowedMessage(data) {
@@ -1356,6 +1559,52 @@ function setReverseSubmitting(isSubmitting) {
   dom.reverseSubmitButton.textContent = isSubmitting ? "撤销中..." : "确认撤销";
 }
 
+function setCancelSubmitting(isSubmitting) {
+  isCancelSubmitting = isSubmitting;
+  dom.cancelSubmitButton.disabled = isSubmitting;
+  dom.cancelCancelButton.disabled = isSubmitting;
+  dom.cancelSubmitButton.textContent = isSubmitting ? "作废中..." : "确认作废";
+}
+
+function clearCancelErrors() {
+  dom.cancelError.textContent = "";
+  dom.cancelError.classList.add("is-hidden");
+  for (const fieldId of CANCEL_INCOME_FIELD_IDS) {
+    setCancelFieldInvalid(fieldId, false);
+  }
+}
+
+function showCancelError(message, fieldIds = []) {
+  dom.cancelError.textContent = message;
+  dom.cancelError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setCancelFieldInvalid(fieldId, true);
+  }
+  dom.cancelDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function cancelFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("理由")) fields.push("reason");
+  return fields;
+}
+
+function setCancelFieldInvalid(fieldId, invalid) {
+  const field = dom.cancelDialog.querySelector(`[data-cancel-income-field="${fieldId}"]`);
+  if (field) {
+    field.classList.toggle("is-invalid", invalid);
+  }
+}
+
+function hideCancelErrorIfClean() {
+  const hasInvalidField = Boolean(dom.cancelDialog.querySelector(".field.is-invalid"));
+  if (!hasInvalidField) {
+    dom.cancelError.textContent = "";
+    dom.cancelError.classList.add("is-hidden");
+  }
+}
+
 function clearReverseErrors() {
   dom.reverseError.textContent = "";
   dom.reverseError.classList.add("is-hidden");
@@ -1516,7 +1765,7 @@ function statusClass(value) {
     return "status-paid";
   }
 
-  if (value === "reversed") {
+  if (value === "reversed" || value === "cancelled") {
     return "status-cancelled";
   }
 
