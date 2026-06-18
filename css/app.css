@@ -65,15 +65,15 @@ textarea {
 }
 
 .app-shell--expense-list {
-  width: min(1680px, calc(100vw - clamp(24px, 5vw, 80px)));
-  max-width: none;
-  padding-inline: 0;
+  width: auto;
+  max-width: 1280px;
+  padding-inline: 16px;
 }
 
 .app-shell--income-list {
-  width: min(1680px, calc(100vw - clamp(24px, 5vw, 80px)));
-  max-width: none;
-  padding-inline: 0;
+  width: auto;
+  max-width: 1280px;
+  padding-inline: 16px;
 }
 
 .app-shell--business-entity {
@@ -1125,59 +1125,59 @@ h2 {
 
 .income-table {
   width: 100%;
-  min-width: 1348px;
+  min-width: 1200px;
   table-layout: fixed;
 }
 
 .expense-table {
   width: 100%;
-  min-width: 1348px;
+  min-width: 1200px;
   table-layout: fixed;
 }
 
 .income-col-select,
 .expense-col-select {
-  width: 36px;
+  width: 34px;
 }
 
 .income-col-source,
 .expense-col-source {
-  width: 285px;
+  width: 235px;
 }
 
 .income-col-category,
 .expense-col-category {
-  width: 86px;
+  width: 80px;
 }
 
 .income-col-month,
 .expense-col-month {
-  width: 102px;
+  width: 92px;
 }
 
 .income-col-date,
 .expense-col-date {
-  width: 110px;
+  width: 100px;
 }
 
 .income-col-amount,
 .expense-col-amount {
-  width: 168px;
+  width: 145px;
 }
 
 .income-col-cash,
 .expense-col-cash {
-  width: 194px;
+  width: 174px;
 }
 
 .income-col-related,
 .expense-col-related {
-  width: 265px;
+  width: 245px;
 }
 
 .income-col-action,
 .expense-col-action {
-  width: 102px;
+  width: 95px;
 }
 
 .income-table-scroll,
