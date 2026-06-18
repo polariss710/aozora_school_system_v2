@@ -633,7 +633,6 @@ async function openBatchCashIncomeDialog(rows) {
     roundingMode: "",
     rateStatus: "",
     errors: {},
-    result: "",
   }));
   clearBatchCashIncomeError();
   setBatchCashIncomeSubmitting(false);
@@ -675,7 +674,6 @@ function renderBatchCashIncomeRows() {
           </select>`)}
         </td>
         <td><input data-batch-income-note="${escapeAttribute(income.id)}" type="text" value="${escapeAttribute(state.note)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
-        <td>${escapeHtml(state.result || "-")}</td>
       </tr>
       ${renderBatchCashIncomeRateRow(state)}
     `;
@@ -726,7 +724,7 @@ function renderBatchCashIncomeRateRow(state) {
   const incomeId = state.income.id;
   return `
     <tr class="expense-batch-cash-rate-row income-batch-cash-rate-row" data-batch-income-row-id="${escapeAttribute(incomeId)}">
-      <td colspan="10">
+      <td colspan="9">
         <div class="expense-rate-toolbar-card${state.errors?.exchangeRate ? " is-invalid" : ""}" data-batch-income-field="exchangeRate">
           <div class="expense-rate-toolbar-title">
             <strong>CNY / JPY 汇率辅助</strong>
@@ -843,11 +841,10 @@ async function submitBatchCashIncomeRequests() {
   for (const item of payloads) {
     try {
       await requestCashIncomeConfirmationForRecord(item.payload);
-      item.state.result = "已提交";
       selectedIncomeIds.delete(item.state.income.id);
       successCount += 1;
     } catch (error) {
-      item.state.result = `失败：${error.message || error}`;
+      console.error(error);
     }
     renderBatchCashIncomeRows();
   }
@@ -872,10 +869,8 @@ function readBatchCashIncomePayloads() {
 
   for (const state of batchCashIncomeRows) {
     const income = state.income;
-    state.result = "";
     state.errors = {};
     if (!canRequestCashIncome(income)) {
-      state.result = "当前状态不可提交";
       hasError = true;
       errorRowCount += 1;
       continue;
@@ -905,7 +900,6 @@ function readBatchCashIncomePayloads() {
     }
 
     if (Object.keys(state.errors).length > 0) {
-      state.result = "请修正标红字段";
       hasError = true;
       errorRowCount += 1;
       continue;
@@ -1120,9 +1114,6 @@ function clearBatchCashIncomeFieldError(target) {
   delete state.errors[fieldId];
   field.classList.remove("is-invalid");
   field.querySelector(".income-batch-cash-field-error")?.remove();
-  if (!Object.keys(state.errors).length && state.result === "请修正标红字段") {
-    state.result = "";
-  }
 }
 
 function formatRateValue(value) {
