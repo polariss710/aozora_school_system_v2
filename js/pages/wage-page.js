@@ -418,7 +418,7 @@ function renderWageLocks(rows) {
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td class="wage-nowrap"><a class="table-action-button" href="${escapeAttribute(buildWageDetailHref(row.id))}">详情</a></td>
+      <td class="wage-nowrap"><a class="button table-action-button" href="${escapeAttribute(buildWageDetailHref(row.id))}">详情</a></td>
       <td class="wage-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
       <td>${escapeHtml(displayTeacherName(row))}</td>
       <td>${escapeHtml(displayBusinessName(row))}</td>
@@ -463,7 +463,7 @@ function renderWageCandidates(rows) {
 
   dom.candidateTableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td class="wage-nowrap"><a class="table-action-button" href="${escapeAttribute(buildLessonDetailHref(row.id))}">查看</a></td>
+      <td class="wage-nowrap"><a class="button table-action-button" href="${escapeAttribute(buildLessonDetailHref(row.id))}">查看</a></td>
       <td class="wage-nowrap">${escapeHtml(formatDateOnly(row.lesson_date))}</td>
       <td class="wage-nowrap">${escapeHtml(formatLessonTime(row))}</td>
       <td>${escapeHtml(teacherNameById(row.teacher_id))}</td>

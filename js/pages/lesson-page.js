@@ -5060,7 +5060,7 @@ function renderLessonRecords(records) {
 
   dom.tableBody.innerHTML = records.map((record) => `
     <tr>
-      <td class="lesson-nowrap"><a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "list"))}">查看详情</a></td>
+      <td class="lesson-nowrap"><a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "list"))}">查看详情</a></td>
       <td class="lesson-nowrap">${renderLessonActions(record)}</td>
       <td class="lesson-nowrap">${escapeHtml(formatDateOnly(record.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatWeekday(record.lesson_date))}</td>
@@ -5206,7 +5206,7 @@ function renderCrossMonthMakeupCompletedReferenceCard(actual) {
     <article class="lesson-pair-card lesson-pair-card-makeup lesson-pair-card-reference">
       <div class="lesson-pair-card-header">
         <div>
-          <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(actual.id, actual.year_month, "pair"))}">查看详情</a>
+          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(actual.id, actual.year_month, "pair"))}">查看详情</a>
           <span class="lesson-pair-id">${escapeHtml(shortId(actual.id))}</span>
         </div>
         <span class="status-badge ${escapeAttribute(statusClass(actual.status))}">已于 ${escapeHtml(formatMonth(actual.year_month))} 完成</span>
@@ -5232,7 +5232,7 @@ function renderCrossMonthMakeupSourceReferenceCard(sourcePlanned) {
     <article class="lesson-pair-card lesson-pair-card-reference">
       <div class="lesson-pair-card-header">
         <div>
-          <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(sourcePlanned.id, sourcePlanned.year_month, "pair"))}">查看详情</a>
+          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(sourcePlanned.id, sourcePlanned.year_month, "pair"))}">查看详情</a>
           <span class="lesson-pair-id">${escapeHtml(shortId(sourcePlanned.id))}</span>
         </div>
         <span class="status-badge ${escapeAttribute(statusClass(sourcePlanned.status))}">来源：${escapeHtml(formatMonth(sourcePlanned.year_month))} 待补课</span>
@@ -5327,7 +5327,7 @@ function renderLessonPairCard(record, side) {
     <article class="lesson-pair-card ${escapeAttribute(modifierClass)}">
       <div class="lesson-pair-card-header">
         <div>
-          <a class="table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "pair"))}">查看详情</a>
+          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "pair"))}">查看详情</a>
           ${renderLessonActions(record)}
           <span class="lesson-pair-id">${escapeHtml(shortId(record.id))}</span>
         </div>

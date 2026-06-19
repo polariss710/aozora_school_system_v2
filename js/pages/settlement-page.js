@@ -405,7 +405,7 @@ function renderSettlementDetailAction(row) {
   const actionButton = renderSettlementStatusAction(row);
   return `
     <div class="table-action-group">
-      <a class="table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>
+      <a class="button table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>
       ${actionButton}
     </div>
   `;

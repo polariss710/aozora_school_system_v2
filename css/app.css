@@ -3117,6 +3117,14 @@ h2 {
   white-space: nowrap;
 }
 
+.button.table-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
 .income-row-actions {
   display: flex;
   flex-direction: column;

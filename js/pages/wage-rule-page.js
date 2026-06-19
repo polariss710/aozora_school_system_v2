@@ -315,7 +315,7 @@ function renderWageRules(rows) {
 
     return `
       <tr>
-        <td class="wage-rule-nowrap"><a class="table-action-button" href="./wage-rule-detail.html?id=${encodeURIComponent(rule.id)}">详情</a></td>
+        <td class="wage-rule-nowrap"><a class="button table-action-button" href="./wage-rule-detail.html?id=${encodeURIComponent(rule.id)}">详情</a></td>
         <td class="wage-rule-nowrap"><button class="button table-action-button" type="button" data-edit-wage-rule-id="${escapeAttribute(rule.id)}">编辑</button></td>
         <td class="wage-rule-nowrap">${renderActiveStateAction(rule)}</td>
         <td>${escapeHtml(teacherNameById(rule.teacher_id))}</td>
