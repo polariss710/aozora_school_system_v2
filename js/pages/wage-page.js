@@ -97,7 +97,6 @@ function cacheDom() {
   dom.wageCount = document.querySelector("#wageCount");
   dom.candidateSection = document.querySelector("#wageCandidateSection");
   dom.candidateCount = document.querySelector("#wageCandidateCount");
-  dom.candidateStatusNote = document.querySelector("#wageCandidateStatusNote");
   dom.candidateSummary = document.querySelector("#wageCandidateSummary");
   dom.candidateEmptyState = document.querySelector("#wageCandidateEmptyState");
   dom.candidateTableBody = document.querySelector("#wageCandidateTableBody");
@@ -447,7 +446,6 @@ function renderWageCandidates(rows) {
 
   if (!shouldShowCandidates) {
     if (dom.candidateCount) dom.candidateCount.textContent = "0 条";
-    if (dom.candidateStatusNote) dom.candidateStatusNote.innerHTML = "";
     if (dom.candidateSummary) dom.candidateSummary.innerHTML = "";
     if (dom.candidateTableBody) dom.candidateTableBody.innerHTML = "";
     dom.candidateEmptyState?.classList.add("is-hidden");
@@ -455,7 +453,6 @@ function renderWageCandidates(rows) {
   }
 
   dom.candidateCount.textContent = `${rows.length} 条`;
-  dom.candidateStatusNote.innerHTML = renderCandidateStatusNote(rows);
   dom.candidateSummary.innerHTML = renderCandidateSummaryCards(rows);
   dom.candidateEmptyState.classList.toggle("is-hidden", rows.length > 0);
 
@@ -562,29 +559,6 @@ function candidateStudentSettlementState(row) {
     className: "status-cancelled",
     title: `未找到已完成学生月度结算。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
   };
-}
-
-function renderCandidateStatusNote(rows) {
-  const allGroups = candidateGenerationGroups(rows);
-  const generationGroups = candidateGenerationGroups(generationScopeCandidateLessons());
-  const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessons());
-  const displaySummary = formatCandidateGroupSummary(allGroups);
-  const generationSummary = formatCandidateGroupSummary(generationGroups);
-  const parts = [
-    "生成前核对：候选课时按 teacher + business_entity + month 分组展示；已生成快照或已作废快照关联的课时会保留在这里显示状态。生成老师工资前，候选 actual 对应学生月度结算必须已完成。",
-    `当前显示范围：${displaySummary}`,
-    `点击“生成老师工资”时，当前 RPC 实际按月份${activeFilters?.teacherId ? " + 老师" : ""}生成，不按业务归属筛选生成；预计生成范围：${generationSummary}`,
-  ];
-
-  if (unsettledGroups.length) {
-    parts.push(`学生结算未完成：${formatUnsettledStudentSettlementGroups(unsettledGroups)}。请先到学生月度结算完成后再生成老师工资。`);
-  }
-
-  if (activeFilters?.businessEntityId) {
-    parts.push("注意：业务归属筛选当前只影响页面显示，不限制本次生成 RPC 的业务归属范围。");
-  }
-
-  return parts.map((part) => `<p>${escapeHtml(part)}</p>`).join("");
 }
 
 function candidateWageState(row) {
