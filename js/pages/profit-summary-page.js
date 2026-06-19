@@ -12,15 +12,6 @@ import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
 
 const CURRENCIES = ["JPY", "CNY"];
 
-const PROFIT_POLICY_ROWS = [
-  ["收入", "计入经营收入", "使用 received 收入记录；reversed / void / cancelled 不计入。"],
-  ["支出", "计入经营支出", "使用 paid 支出记录；老师工资支出单列展示但仍属于支出。"],
-  ["报销", "不重复计入利润", "报销只是账户间资金流，原始支出已计入经营支出。"],
-  ["老师工资支付请求", "不重复计入利润", "已支付工资通过 paid expense / teacher_wage 支出体现，支付请求只做状态参考。"],
-  ["账户调整", "不计入经营利润", "属于账户余额校正，单列为非经营调整。"],
-  ["账户转账/调拨", "不计入经营利润", "属于账户间资金移动，只做账户审计。"],
-];
-
 const NON_OPERATING_TRANSACTION_TYPES = new Set([
   "account_adjustment",
   "account_adjustment_reversal",
@@ -33,13 +24,30 @@ const NON_OPERATING_TRANSACTION_TYPES = new Set([
 const dom = {};
 let pageData = null;
 
+const REQUIRED_DOM_SELECTORS = {
+  messageArea: "#profitSummaryMessageArea",
+  filterForm: "#profitSummaryFilterForm",
+  yearFilter: "#profitSummaryYearFilter",
+  monthFilter: "#profitSummaryMonthFilter",
+  businessEntitySelect: "#profitSummaryBusinessEntitySelect",
+  currencySelect: "#profitSummaryCurrencySelect",
+  resetButton: "#profitSummaryResetButton",
+  loadingState: "#profitSummaryLoadingState",
+  summaryGrid: "#profitSummaryGrid",
+  currencyTableBody: "#profitSummaryCurrencyTableBody",
+  auditTableBody: "#profitSummaryAuditTableBody",
+  incomeDetailCount: "#profitSummaryIncomeDetailCount",
+  incomeDetailTableBody: "#profitSummaryIncomeDetailTableBody",
+  expenseDetailCount: "#profitSummaryExpenseDetailCount",
+  expenseDetailTableBody: "#profitSummaryExpenseDetailTableBody",
+};
+
 export function initProfitSummaryPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
   bindEvents();
-  renderPolicyTable();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -55,22 +63,18 @@ export function initProfitSummaryPage() {
 }
 
 function cacheDom() {
-  dom.messageArea = document.querySelector("#profitSummaryMessageArea");
-  dom.filterForm = document.querySelector("#profitSummaryFilterForm");
-  dom.yearFilter = document.querySelector("#profitSummaryYearFilter");
-  dom.monthFilter = document.querySelector("#profitSummaryMonthFilter");
-  dom.businessEntitySelect = document.querySelector("#profitSummaryBusinessEntitySelect");
-  dom.currencySelect = document.querySelector("#profitSummaryCurrencySelect");
-  dom.resetButton = document.querySelector("#profitSummaryResetButton");
-  dom.loadingState = document.querySelector("#profitSummaryLoadingState");
-  dom.summaryGrid = document.querySelector("#profitSummaryGrid");
-  dom.policyTableBody = document.querySelector("#profitSummaryPolicyTableBody");
-  dom.currencyTableBody = document.querySelector("#profitSummaryCurrencyTableBody");
-  dom.auditTableBody = document.querySelector("#profitSummaryAuditTableBody");
-  dom.incomeDetailCount = document.querySelector("#profitSummaryIncomeDetailCount");
-  dom.incomeDetailTableBody = document.querySelector("#profitSummaryIncomeDetailTableBody");
-  dom.expenseDetailCount = document.querySelector("#profitSummaryExpenseDetailCount");
-  dom.expenseDetailTableBody = document.querySelector("#profitSummaryExpenseDetailTableBody");
+  const missingSelectors = [];
+
+  Object.entries(REQUIRED_DOM_SELECTORS).forEach(([key, selector]) => {
+    dom[key] = document.querySelector(selector);
+    if (!dom[key]) {
+      missingSelectors.push(selector);
+    }
+  });
+
+  if (missingSelectors.length) {
+    throw new Error(`利润分析页面缺少 DOM 容器：${missingSelectors.join(", ")}`);
+  }
 }
 
 function bindEvents() {
@@ -281,17 +285,17 @@ function renderIncomeDetails(rows) {
   dom.incomeDetailTableBody.innerHTML = rows
     .map((row) => `
       <tr>
-        <td><a class="table-action-button" href="./income-detail.html?id=${escapeAttribute(row.id)}">查看</a></td>
+        <td><a class="button table-action-button" href="./income-detail.html?id=${escapeAttribute(row.id)}">查看</a></td>
         <td>${escapeHtml(formatDateOnly(row.income_date))}</td>
         <td>${escapeHtml(businessEntityLabel(row.business_entity_id))}</td>
         <td>${escapeHtml(displayValue(row.income_category))}</td>
-        <td>${escapeHtml(displayValue(row.description))}</td>
+        <td class="profit-detail-text-cell" title="${escapeAttribute(displayValue(row.description))}"><span class="table-cell-summary">${escapeHtml(displayValue(row.description))}</span></td>
         <td>${escapeHtml(displayValue(row.currency))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount_jpy, "JPY"))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount_cny, "CNY"))}</td>
         <td>${escapeHtml(displayValue(row.status))}</td>
-        <td>${escapeHtml(displayValue(row.note))}</td>
+        <td class="profit-detail-text-cell" title="${escapeAttribute(displayValue(row.note))}"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
       </tr>
     `)
     .join("");
@@ -308,18 +312,18 @@ function renderExpenseDetails(rows) {
   dom.expenseDetailTableBody.innerHTML = rows
     .map((row) => `
       <tr>
-        <td><a class="table-action-button" href="./expense-detail.html?id=${escapeAttribute(row.id)}">查看</a></td>
+        <td><a class="button table-action-button" href="./expense-detail.html?id=${escapeAttribute(row.id)}">查看</a></td>
         <td>${escapeHtml(formatDateOnly(row.expense_date))}</td>
         <td>${escapeHtml(businessEntityLabel(row.business_entity_id))}</td>
         <td>${escapeHtml(expenseCategoryLabel(row.expense_category))}</td>
-        <td>${escapeHtml(displayValue(row.description))}</td>
+        <td class="profit-detail-text-cell" title="${escapeAttribute(displayValue(row.description))}"><span class="table-cell-summary">${escapeHtml(displayValue(row.description))}</span></td>
         <td>${escapeHtml(displayValue(row.currency))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount_jpy, "JPY"))}</td>
         <td class="number-cell">${escapeHtml(formatCurrency(row.amount_cny, "CNY"))}</td>
         <td>${escapeHtml(displayValue(row.status))}</td>
         <td>${escapeHtml(reimbursementStatusLabel(row.reimbursement_status, row.expense_category))}</td>
-        <td>${escapeHtml(displayValue(row.note))}</td>
+        <td class="profit-detail-text-cell" title="${escapeAttribute(displayValue(row.note))}"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
       </tr>
     `)
     .join("");
@@ -348,18 +352,6 @@ function sumAmount(rows, currency) {
 
     return sum + Number(row.amount || 0);
   }, 0);
-}
-
-function renderPolicyTable() {
-  dom.policyTableBody.innerHTML = PROFIT_POLICY_ROWS
-    .map(([item, policy, note]) => `
-      <tr>
-        <td>${escapeHtml(item)}</td>
-        <td>${escapeHtml(policy)}</td>
-        <td>${escapeHtml(note)}</td>
-      </tr>
-    `)
-    .join("");
 }
 
 function renderSummaryCard(title, value) {

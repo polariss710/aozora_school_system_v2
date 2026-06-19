@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 利润分析</title>
-    <link rel="stylesheet" href="./css/app.css?v=v2.35.0-profit-summary-readonly-full-autopilot-trial-20260607">
+    <link rel="stylesheet" href="./css/app.css?v=v10.2.7-fix4-profit-detail-table-css-priority">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -56,7 +56,7 @@
                   </details>
                 </nav>
     </aside>
-    <div class="app-shell">
+    <div class="app-shell app-shell--dense app-shell--profit-summary">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
@@ -115,7 +115,7 @@
             <h2 id="profitSummaryOverviewTitle">经营利润摘要</h2>
             <p class="section-note">第一版按原币种分别汇总，不做跨币种折算。经营利润 = received 收入 - paid 支出。</p>
           </div>
-          <div id="profitSummaryGrid" class="summary-grid"></div>
+          <div id="profitSummaryGrid" class="summary-grid profit-summary-grid"></div>
         </section>
 
         <section class="panel table-panel" aria-labelledby="profitSummaryCurrencyTitle">
@@ -171,7 +171,7 @@
             <span id="profitSummaryIncomeDetailCount" class="record-count">0 条</span>
           </div>
           <div class="table-scroll">
-            <table class="payment-table">
+            <table class="payment-table profit-detail-table profit-income-table">
               <thead>
                 <tr>
                   <th>详情</th>
@@ -201,7 +201,7 @@
             <span id="profitSummaryExpenseDetailCount" class="record-count">0 条</span>
           </div>
           <div class="table-scroll">
-            <table class="payment-table">
+            <table class="payment-table profit-detail-table profit-expense-table">
               <thead>
                 <tr>
                   <th>详情</th>
@@ -223,26 +223,9 @@
           </div>
         </section>
 
-        <section class="panel table-panel" aria-labelledby="profitSummaryPolicyTitle">
-          <div class="section-heading">
-            <h2 id="profitSummaryPolicyTitle">统计口径</h2>
-          </div>
-          <div class="table-scroll">
-            <table class="payment-table">
-              <thead>
-                <tr>
-                  <th>数据</th>
-                  <th>是否计入利润</th>
-                  <th>说明</th>
-                </tr>
-              </thead>
-              <tbody id="profitSummaryPolicyTableBody"></tbody>
-            </table>
-          </div>
-        </section>
       </main>
     </div>
 
-    <script type="module" src="./js/profit-summary-app.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612"></script>
+    <script type="module" src="./js/profit-summary-app.js?v=v10.2.7-fix4-profit-detail-table-css-priority"></script>
   </body>
 </html>

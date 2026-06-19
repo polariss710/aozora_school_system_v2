@@ -903,6 +903,93 @@ h2 {
   word-break: break-word;
 }
 
+.profit-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.profit-detail-table {
+  width: 100%;
+  min-width: 1500px;
+  table-layout: fixed;
+}
+
+.profit-detail-table td {
+  vertical-align: middle;
+}
+
+.profit-detail-table .table-action-button {
+  min-width: 64px;
+  justify-content: center;
+}
+
+.profit-detail-table .profit-detail-text-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profit-detail-table .profit-detail-text-cell .table-cell-summary {
+  display: block;
+  max-width: 100%;
+  max-height: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profit-income-table th:nth-child(1),
+.profit-expense-table th:nth-child(1) {
+  width: 78px;
+}
+
+.profit-income-table th:nth-child(2),
+.profit-expense-table th:nth-child(2) {
+  width: 104px;
+}
+
+.profit-income-table th:nth-child(3),
+.profit-expense-table th:nth-child(3) {
+  width: 144px;
+}
+
+.profit-income-table th:nth-child(4),
+.profit-expense-table th:nth-child(4) {
+  width: 128px;
+}
+
+.profit-income-table th:nth-child(5),
+.profit-expense-table th:nth-child(5) {
+  width: 230px;
+}
+
+.profit-income-table th:nth-child(6),
+.profit-expense-table th:nth-child(6) {
+  width: 72px;
+}
+
+.profit-income-table th:nth-child(7),
+.profit-income-table th:nth-child(8),
+.profit-income-table th:nth-child(9),
+.profit-expense-table th:nth-child(7),
+.profit-expense-table th:nth-child(8),
+.profit-expense-table th:nth-child(9) {
+  width: 104px;
+}
+
+.profit-income-table th:nth-child(10),
+.profit-expense-table th:nth-child(10) {
+  width: 100px;
+}
+
+.profit-expense-table th:nth-child(11) {
+  width: 124px;
+}
+
+.profit-income-table th:nth-child(11),
+.profit-expense-table th:nth-child(12) {
+  width: 230px;
+}
+
 .account-grid {
   display: grid;
   min-width: 0;
@@ -2535,6 +2622,79 @@ h2 {
   min-width: 1480px;
 }
 
+.wage-candidate-panel .wage-table {
+  width: 100%;
+  min-width: 1560px;
+  table-layout: fixed;
+}
+
+.wage-candidate-panel .wage-table td {
+  vertical-align: middle;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(1) {
+  width: 86px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(2) {
+  width: 104px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(3) {
+  width: 124px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(4),
+.wage-candidate-panel .wage-table th:nth-child(5) {
+  width: 116px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(6) {
+  width: 110px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(7) {
+  width: 144px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(8) {
+  width: 96px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(9),
+.wage-candidate-panel .wage-table th:nth-child(11) {
+  width: 78px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(10) {
+  width: 96px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(12),
+.wage-candidate-panel .wage-table th:nth-child(13) {
+  width: 116px;
+}
+
+.wage-candidate-panel .wage-table th:nth-child(14) {
+  width: 236px;
+}
+
+.wage-candidate-panel .wage-table .wage-candidate-note-cell {
+  max-width: 236px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wage-candidate-note-cell .table-cell-summary {
+  display: block;
+  max-width: 100%;
+  max-height: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wage-detail-table {
   min-width: 2180px;
 }
@@ -2570,6 +2730,34 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+  white-space: nowrap;
+}
+
+.app-shell--profit-summary .profit-detail-table.payment-table {
+  width: 100%;
+  min-width: 1500px;
+  table-layout: fixed;
+}
+
+.app-shell--profit-summary .profit-detail-table.payment-table th,
+.app-shell--profit-summary .profit-detail-table.payment-table td {
+  vertical-align: middle;
+}
+
+.app-shell--profit-summary .profit-detail-table .profit-detail-text-cell {
+  width: 230px;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-shell--profit-summary .profit-detail-table .profit-detail-text-cell .table-cell-summary {
+  display: block;
+  max-width: 100%;
+  max-height: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -3123,6 +3311,27 @@ h2 {
   justify-content: center;
   line-height: 1.2;
   text-decoration: none;
+}
+
+.settlement-action-cell {
+  min-width: 248px;
+}
+
+.settlement-action-cell .table-action-group {
+  display: flex;
+  max-width: 248px;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.settlement-action-cell .button.table-action-button,
+.settlement-action-cell .status-badge {
+  min-width: 76px;
+  min-height: 30px;
+  justify-content: center;
+  padding: 4px 8px;
+  text-align: center;
 }
 
 .income-row-actions {
@@ -4283,6 +4492,10 @@ h2 {
   }
 
   .summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profit-summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

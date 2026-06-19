@@ -476,7 +476,7 @@ function renderWageCandidates(rows) {
       <td class="wage-nowrap">${escapeHtml(booleanLabel(row.is_billable))}</td>
       <td>${renderCandidateStudentSettlementState(row)}</td>
       <td>${renderCandidateLockState(row)}</td>
-      <td>${escapeHtml(candidateNote(row))}</td>
+      <td class="wage-candidate-note-cell" title="${escapeAttribute(candidateNote(row))}"><span class="table-cell-summary">${escapeHtml(candidateNote(row))}</span></td>
     </tr>
   `).join("");
 }
