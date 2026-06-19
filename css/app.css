@@ -544,6 +544,11 @@ h2 {
 
 .income-filter-panel,
 .expense-filter-panel,
+.lesson-filter-panel,
+.settlement-filter-panel,
+.wage-filter-panel,
+.reimbursement-filter-panel,
+.part-time-work-filter-panel,
 .business-entity-filter-panel,
 .account-filter-panel,
 .subject-filter-panel,
@@ -555,6 +560,11 @@ h2 {
 
 .income-filter-panel .section-heading,
 .expense-filter-panel .section-heading,
+.lesson-filter-panel .section-heading,
+.settlement-filter-panel .section-heading,
+.wage-filter-panel .section-heading,
+.reimbursement-filter-panel .section-heading,
+.part-time-work-filter-panel .section-heading,
 .business-entity-filter-panel .section-heading,
 .account-filter-panel .section-heading,
 .subject-filter-panel .section-heading,
@@ -565,6 +575,8 @@ h2 {
 
 .income-filter-panel .filter-grid,
 .expense-filter-panel .filter-grid,
+.settlement-filter-panel .filter-grid,
+.wage-filter-panel .filter-grid,
 .account-filter-panel .filter-grid,
 .subject-filter-panel .filter-grid,
 .teacher-filter-panel .filter-grid,
@@ -581,14 +593,31 @@ h2 {
     repeat(4, minmax(0, 1fr));
 }
 
+.lesson-filter-panel .filter-grid,
+.reimbursement-filter-panel .filter-grid {
+  grid-template-columns:
+    196px
+    repeat(4, minmax(0, 1fr));
+  align-items: end;
+}
+
 .income-filter-panel .month-select-group,
 .expense-filter-panel .month-select-group,
+.lesson-filter-panel .month-select-group,
+.settlement-filter-panel .month-select-group,
+.wage-filter-panel .month-select-group,
+.reimbursement-filter-panel .month-select-group,
 .account-filter-panel .month-select-group {
   grid-template-columns: 88px 88px;
 }
 
 .income-filter-panel .field select,
 .expense-filter-panel .field select,
+.lesson-filter-panel .field select,
+.settlement-filter-panel .field select,
+.wage-filter-panel .field select,
+.reimbursement-filter-panel .field select,
+.part-time-work-filter-panel .field select,
 .business-entity-filter-panel .field select,
 .account-filter-panel .field select,
 .subject-filter-panel .field select,
@@ -599,6 +628,11 @@ h2 {
 
 .income-filter-panel .field span,
 .expense-filter-panel .field span,
+.lesson-filter-panel .field span,
+.settlement-filter-panel .field span,
+.wage-filter-panel .field span,
+.reimbursement-filter-panel .field span,
+.part-time-work-filter-panel .field span,
 .business-entity-filter-panel .field span,
 .account-filter-panel .field span,
 .subject-filter-panel .field span,
@@ -613,6 +647,16 @@ h2 {
 .income-filter-panel .field select,
 .expense-filter-panel .field input,
 .expense-filter-panel .field select,
+.lesson-filter-panel .field input,
+.lesson-filter-panel .field select,
+.settlement-filter-panel .field input,
+.settlement-filter-panel .field select,
+.wage-filter-panel .field input,
+.wage-filter-panel .field select,
+.reimbursement-filter-panel .field input,
+.reimbursement-filter-panel .field select,
+.part-time-work-filter-panel .field input,
+.part-time-work-filter-panel .field select,
 .business-entity-filter-panel .field input,
 .business-entity-filter-panel .field select,
 .account-filter-panel .field input,
@@ -632,6 +676,16 @@ h2 {
 .income-filter-panel .field select:focus,
 .expense-filter-panel .field input:focus,
 .expense-filter-panel .field select:focus,
+.lesson-filter-panel .field input:focus,
+.lesson-filter-panel .field select:focus,
+.settlement-filter-panel .field input:focus,
+.settlement-filter-panel .field select:focus,
+.wage-filter-panel .field input:focus,
+.wage-filter-panel .field select:focus,
+.reimbursement-filter-panel .field input:focus,
+.reimbursement-filter-panel .field select:focus,
+.part-time-work-filter-panel .field input:focus,
+.part-time-work-filter-panel .field select:focus,
 .business-entity-filter-panel .field input:focus,
 .business-entity-filter-panel .field select:focus,
 .account-filter-panel .field input:focus,
@@ -648,17 +702,33 @@ h2 {
 }
 
 .income-filter-actions,
-.expense-filter-actions {
+.expense-filter-actions,
+.lesson-filter-actions,
+.settlement-filter-actions,
+.wage-filter-actions,
+.reimbursement-filter-actions {
   align-items: center;
 }
 
 .income-filter-actions .button,
-.expense-filter-actions .button {
+.expense-filter-actions .button,
+.lesson-filter-actions .button,
+.settlement-filter-actions .button,
+.wage-filter-actions .button,
+.reimbursement-filter-actions .button {
   min-width: 96px;
 }
 
 .income-list-panel .section-heading-row,
 .expense-list-panel .section-heading-row,
+.lesson-list-panel .section-heading-row,
+.settlement-list-panel .section-heading-row,
+.wage-list-panel .section-heading-row,
+.wage-candidate-panel .section-heading-row,
+.reimbursement-candidate-list-panel .section-heading-row,
+.reimbursement-list-panel .section-heading-row,
+.part-time-work-lessons-panel .section-heading-row,
+.part-time-work-wage-panel .section-heading,
 .business-entity-list-panel .section-heading-row,
 .account-list-panel .section-heading-row,
 .subject-list-panel .section-heading-row,
@@ -671,6 +741,13 @@ h2 {
 
 .income-list-panel .table-actions,
 .expense-list-panel .table-actions,
+.lesson-list-panel > .section-heading-row .table-actions,
+.settlement-list-panel > .section-heading-row .table-actions,
+.wage-list-panel > .section-heading-row .table-actions,
+.wage-candidate-panel > .section-heading-row .table-actions,
+.reimbursement-candidate-list-panel > .section-heading-row .table-actions,
+.reimbursement-list-panel > .section-heading-row .table-actions,
+.part-time-work-lessons-panel > .section-heading-row .table-actions,
 .business-entity-list-panel > .section-heading-row .table-actions,
 .account-list-panel > .section-heading-row .table-actions,
 .subject-list-panel > .section-heading-row .table-actions,
@@ -4451,6 +4528,10 @@ h2 {
 @media (max-width: 1023px) {
   .income-filter-panel .filter-grid,
   .expense-filter-panel .filter-grid,
+  .lesson-filter-panel .filter-grid,
+  .settlement-filter-panel .filter-grid,
+  .wage-filter-panel .filter-grid,
+  .reimbursement-filter-panel .filter-grid,
   .account-filter-panel .filter-grid,
   .subject-filter-panel .filter-grid,
   .teacher-filter-panel .filter-grid,
@@ -4468,6 +4549,10 @@ h2 {
 @media (max-width: 767px) {
   .income-filter-panel .filter-grid,
   .expense-filter-panel .filter-grid,
+  .lesson-filter-panel .filter-grid,
+  .settlement-filter-panel .filter-grid,
+  .wage-filter-panel .filter-grid,
+  .reimbursement-filter-panel .filter-grid,
   .account-filter-panel .filter-grid,
   .subject-filter-panel .filter-grid,
   .teacher-filter-panel .filter-grid,
