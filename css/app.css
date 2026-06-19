@@ -575,6 +575,12 @@ h2 {
   align-items: end;
 }
 
+.income-filter-panel .filter-grid {
+  grid-template-columns:
+    196px
+    repeat(4, minmax(0, 1fr));
+}
+
 .income-filter-panel .month-select-group,
 .expense-filter-panel .month-select-group,
 .account-filter-panel .month-select-group {
@@ -1295,6 +1301,11 @@ h2 {
   min-width: 1080px;
 }
 
+.app-shell--income-list .income-table,
+.app-shell--expense-list .expense-table {
+  min-width: 1280px;
+}
+
 .income-col-select,
 .expense-col-select {
   width: 34px;
@@ -1378,6 +1389,51 @@ h2 {
 .app-shell--dense .income-col-action,
 .app-shell--dense .expense-col-action {
   width: 85px;
+}
+
+.app-shell--income-list .income-col-select,
+.app-shell--expense-list .expense-col-select {
+  width: 38px;
+}
+
+.app-shell--income-list .income-col-source,
+.app-shell--expense-list .expense-col-source {
+  width: 245px;
+}
+
+.app-shell--income-list .income-col-category,
+.app-shell--expense-list .expense-col-category {
+  width: 92px;
+}
+
+.app-shell--income-list .income-col-month,
+.app-shell--expense-list .expense-col-month {
+  width: 104px;
+}
+
+.app-shell--income-list .income-col-date,
+.app-shell--expense-list .expense-col-date {
+  width: 124px;
+}
+
+.app-shell--income-list .income-col-amount,
+.app-shell--expense-list .expense-col-amount {
+  width: 145px;
+}
+
+.app-shell--income-list .income-col-cash,
+.app-shell--expense-list .expense-col-cash {
+  width: 185px;
+}
+
+.app-shell--income-list .income-col-related,
+.app-shell--expense-list .expense-col-related {
+  width: 250px;
+}
+
+.app-shell--income-list .income-col-action,
+.app-shell--expense-list .expense-col-action {
+  width: 97px;
 }
 
 .income-table-scroll,
@@ -2957,6 +3013,26 @@ h2 {
   white-space: nowrap;
 }
 
+.app-shell--income .income-detail-actions,
+.app-shell--expense .reimbursement-detail-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-shell--income .income-detail-actions .button,
+.app-shell--income .income-detail-actions .status-badge,
+.app-shell--expense .reimbursement-detail-actions .button,
+.app-shell--expense .reimbursement-detail-actions .status-badge {
+  min-width: 132px;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .table-action-button {
   min-height: 36px;
   padding: 5px 10px;
@@ -3626,6 +3702,124 @@ h2 {
   outline: none;
 }
 
+#cashIncomeRequestDialog .dialog-panel,
+#editIncomeDialog .dialog-panel,
+#cashExpenseRequestDialog .dialog-panel,
+#editExpenseDialog .dialog-panel,
+#expenseAttachmentDialog .dialog-panel {
+  width: min(820px, calc(100vw - 32px));
+  border-radius: 12px;
+  padding: 20px 22px;
+}
+
+#cashIncomeRequestDialog .section-heading,
+#editIncomeDialog .section-heading,
+#cashExpenseRequestDialog .dialog-header,
+#editExpenseDialog .section-heading,
+#expenseAttachmentDialog .section-heading {
+  margin-bottom: 14px;
+  border-bottom: 1px solid #edf2f7;
+  padding-bottom: 12px;
+}
+
+#cashExpenseRequestDialog .dialog-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+#cashIncomeRequestDialog .income-create-field-grid,
+#editIncomeDialog .income-create-field-grid,
+#cashExpenseRequestDialog .expense-create-field-grid,
+#editExpenseDialog .expense-create-field-grid,
+#expenseAttachmentDialog .expense-create-field-grid {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 12px 14px;
+}
+
+#cashIncomeRequestDialog .field,
+#editIncomeDialog .field,
+#cashExpenseRequestDialog .field,
+#editExpenseDialog .field,
+#expenseAttachmentDialog .field {
+  margin-top: 0;
+}
+
+#cashIncomeRequestDialog .field > span,
+#editIncomeDialog .field > span,
+#cashExpenseRequestDialog .field > span,
+#editExpenseDialog .field > span,
+#expenseAttachmentDialog .field > span {
+  color: #526173;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+#cashIncomeRequestDialog .field input,
+#cashIncomeRequestDialog .field select,
+#cashIncomeRequestDialog .field textarea,
+#editIncomeDialog .field input,
+#editIncomeDialog .field select,
+#editIncomeDialog .field textarea,
+#cashExpenseRequestDialog .field input,
+#cashExpenseRequestDialog .field select,
+#cashExpenseRequestDialog .field textarea,
+#editExpenseDialog .field input,
+#editExpenseDialog .field select,
+#editExpenseDialog .field textarea,
+#expenseAttachmentDialog .field input,
+#expenseAttachmentDialog .field select,
+#expenseAttachmentDialog .field textarea {
+  box-sizing: border-box;
+  min-height: 42px;
+  border-color: #d7e2ee;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.35;
+  padding: 8px 10px;
+}
+
+#cashIncomeRequestDialog .field input,
+#cashIncomeRequestDialog .field select,
+#editIncomeDialog .field input,
+#editIncomeDialog .field select,
+#cashExpenseRequestDialog .field input,
+#cashExpenseRequestDialog .field select,
+#editExpenseDialog .field input,
+#editExpenseDialog .field select,
+#expenseAttachmentDialog .field input,
+#expenseAttachmentDialog .field select {
+  height: 42px;
+}
+
+#cashIncomeRequestDialog .field textarea,
+#editIncomeDialog .field textarea,
+#cashExpenseRequestDialog .field textarea,
+#editExpenseDialog .field textarea,
+#expenseAttachmentDialog .field textarea {
+  min-height: 76px;
+}
+
+#cashIncomeRequestDialog .field input:focus,
+#cashIncomeRequestDialog .field select:focus,
+#cashIncomeRequestDialog .field textarea:focus,
+#editIncomeDialog .field input:focus,
+#editIncomeDialog .field select:focus,
+#editIncomeDialog .field textarea:focus,
+#cashExpenseRequestDialog .field input:focus,
+#cashExpenseRequestDialog .field select:focus,
+#cashExpenseRequestDialog .field textarea:focus,
+#editExpenseDialog .field input:focus,
+#editExpenseDialog .field select:focus,
+#editExpenseDialog .field textarea:focus,
+#expenseAttachmentDialog .field input:focus,
+#expenseAttachmentDialog .field select:focus,
+#expenseAttachmentDialog .field textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(29, 112, 214, 0.12);
+  outline: none;
+}
+
 .required-mark {
   color: #b91c1c;
   font-size: 11px;
@@ -4115,6 +4309,14 @@ h2 {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  #cashIncomeRequestDialog .income-create-field-grid,
+  #editIncomeDialog .income-create-field-grid,
+  #cashExpenseRequestDialog .expense-create-field-grid,
+  #editExpenseDialog .expense-create-field-grid,
+  #expenseAttachmentDialog .expense-create-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   #createIncomeDialog .income-create-dialog-panel,
   #createExpenseDialog .expense-create-dialog-panel {
     width: calc(100vw - 24px);
@@ -4201,6 +4403,7 @@ h2 {
   }
 
   .income-detail-actions {
+    display: grid;
     flex: 1 1 100%;
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
