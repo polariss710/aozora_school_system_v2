@@ -1,4 +1,4 @@
-import { hasSupabaseConfig, supabase } from "./supabase-client.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { hasSupabaseConfig, supabase } from "./supabase-client.js";
 
 const authDom = {};
 let currentSession = null;

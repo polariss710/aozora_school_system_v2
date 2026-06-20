@@ -1,7 +1,7 @@
 import { APP_VERSION } from "./config.js";
 import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=v2.122.0-month-filter-url-preserve-20260616";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = APP_VERSION;
@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.info("[aozora-school-v2]", APP_VERSION);
 
   try {
-    initExpenseDetailPage();
+    await initExpenseDetailPage();
   } catch (error) {
     const messageArea = document.querySelector("#expenseDetailMessageArea");
     if (messageArea) {

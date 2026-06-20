@@ -1,3 +1,4 @@
+import { initSchoolAuth, isLoggedIn } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createExpenseAttachmentMetadata,
@@ -105,8 +106,9 @@ const EDIT_EXPENSE_FIELD_IDS = [
   "note",
 ];
 
-export function initExpenseDetailPage() {
+export async function initExpenseDetailPage() {
   cacheDom();
+  await initSchoolAuth();
   bindEvents();
   configureMonthScopedLinks();
 
@@ -1180,6 +1182,11 @@ function closeCashExpenseRequestDialog() {
 async function voidUnsubmittedTeacherWageExpenseFromDetail() {
   if (!canVoidUnsubmittedTeacherWageExpense(detailData)) {
     showMessage("error", voidTeacherWageExpenseNotAllowedMessage(detailData));
+    return;
+  }
+
+  if (!isLoggedIn()) {
+    showMessage("error", "请先重新登录后再作废支出记录。");
     return;
   }
 

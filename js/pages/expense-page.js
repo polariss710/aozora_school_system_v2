@@ -1,4 +1,5 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
+import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createExpenseRecord,
@@ -132,8 +133,9 @@ let batchCashExpenseRows = [];
 let isBatchCashSubmitting = false;
 let initialMonth = "";
 
-export function initExpensePage() {
+export async function initExpensePage() {
   cacheDom();
+  await initSchoolAuth();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   initialMonth = initialYearMonthFromUrl();
@@ -801,6 +803,14 @@ async function openBatchCashExpenseDialog(rows) {
   const targets = (rows || []).filter(canRequestCashExpense);
   if (!targets.length) {
     showMessage("error", "请选择可提交 Cash 支付确认的支出记录。");
+    return;
+  }
+
+  if (
+    !requireLoginForCashConfirmation((_type, message) => {
+      showMessage("error", message);
+    })
+  ) {
     return;
   }
 
