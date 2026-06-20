@@ -105,10 +105,6 @@
                 <h3>计费信息</h3>
                 <div id="lessonDetailBillingInfo"></div>
               </article>
-              <article class="detail-card">
-                <h3>导入 / 系统信息</h3>
-                <div id="lessonDetailSystemInfo"></div>
-              </article>
             </div>
           </section>
 
@@ -122,8 +118,8 @@
           <section class="panel" aria-labelledby="lessonDetailChainTitle">
             <div class="section-heading section-heading-row">
               <div>
-                <h2 id="lessonDetailChainTitle">planned / actual / makeup 来源链</h2>
-                <p class="section-note">以下为 planned / actual / makeup 来源链参考，不用于重新判断补课归属或结算状态。表格可横向滚动查看更多列。</p>
+                <h2 id="lessonDetailChainTitle">课时来源链</h2>
+                <p class="section-note">以下为课时来源链参考，不用于重新判断补课归属或结算状态。</p>
               </div>
               <span id="lessonDetailChainCount" class="record-count">0 条</span>
             </div>
@@ -132,19 +128,15 @@
               <table class="payment-table lesson-detail-chain-table">
                 <thead>
                   <tr>
-                    <th>详情</th>
                     <th>关系</th>
-                    <th>短 ID</th>
                     <th>类型</th>
                     <th>状态</th>
                     <th>日期</th>
                     <th>时间</th>
                     <th>时长</th>
-                    <th>实际分钟</th>
                     <th>计费</th>
                     <th>课时费</th>
-                    <th>planned ID</th>
-                    <th>内容</th>
+                    <th>内容摘要</th>
                   </tr>
                 </thead>
                 <tbody id="lessonDetailChainRows"></tbody>
@@ -178,7 +170,6 @@
                 <thead>
                   <tr>
                     <th>工资详情</th>
-                    <th>wage lock</th>
                     <th>锁定状态</th>
                     <th>结算月</th>
                     <th>老师</th>
@@ -205,11 +196,10 @@
         <section class="dialog-panel lesson-create-dialog-panel app-dialog--xl lesson-edit-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editLessonTitle">
           <div class="section-heading">
             <h2 id="editLessonTitle">编辑课时</h2>
-            <p class="section-note">V1 只编辑单条课时记录，不修改 lesson_type / planned_lesson_id，不生成结算、工资、收入、支出或账户流水。</p>
+            <p class="section-note">可修改当前课时允许编辑的业务信息；保存时会进行保护校验。</p>
           </div>
 
           <div id="editLessonSummary" class="dialog-summary"></div>
-          <div id="editLessonWarning" class="dialog-warning is-hidden"></div>
           <div id="editLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
 
           <div class="lesson-create-field-grid">
@@ -223,9 +213,9 @@
               <select id="editLessonStatusSelect">
                 <option value="planned">待上课</option>
                 <option value="pending_makeup">待补课</option>
-                <option value="completed">已完成</option>
+                <option value="completed">已上课</option>
                 <option value="cancelled">已取消</option>
-                <option value="makeup_completed">补课完成</option>
+                <option value="makeup_completed">已补课</option>
               </select>
             </label>
 
@@ -292,12 +282,12 @@
               <input id="editLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
             </label>
 
-            <label class="field">
+            <label class="field is-hidden">
               <span>关联预定ID</span>
               <input id="editLessonPlannedIdInput" type="text" readonly>
             </label>
 
-            <label class="field">
+            <label class="field is-hidden">
               <span>导入来源</span>
               <input id="editLessonImportSourceInput" type="text" readonly>
             </label>

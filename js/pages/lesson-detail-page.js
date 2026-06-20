@@ -5,15 +5,15 @@ import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../c
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const LESSON_TYPE_LABELS = {
-  planned: "计划",
+  planned: "预定",
   actual: "实际",
 };
 
 const LESSON_STATUS_LABELS = {
   planned: "待上课",
-  completed: "已完成",
+  completed: "已上课",
   pending_makeup: "待补课",
-  makeup_completed: "补课完成",
+  makeup_completed: "已补课",
   cancelled: "已取消",
 };
 
@@ -27,8 +27,8 @@ const WAGE_STATUS_LABELS = {
 };
 
 const WAGE_DETAIL_STATUS_LABELS = {
-  completed: "已完成",
-  makeup_completed: "补课完成",
+  completed: "已上课",
+  makeup_completed: "已补课",
 };
 
 const SETTLEMENT_TYPE_LABELS = {
@@ -85,7 +85,6 @@ function cacheDom() {
   dom.basicInfo = document.querySelector("#lessonDetailBasicInfo");
   dom.objectInfo = document.querySelector("#lessonDetailObjectInfo");
   dom.billingInfo = document.querySelector("#lessonDetailBillingInfo");
-  dom.systemInfo = document.querySelector("#lessonDetailSystemInfo");
   dom.textBlock = document.querySelector("#lessonDetailTextBlock");
   dom.chainCount = document.querySelector("#lessonDetailChainCount");
   dom.chainEmpty = document.querySelector("#lessonDetailChainEmpty");
@@ -355,7 +354,6 @@ function renderLessonDetail(data) {
   renderEditAction(lesson);
   dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}${isVoidedPlanned(lesson) ? " / 已作废" : ""}`;
   dom.basicInfo.innerHTML = renderDefinitionList([
-    ["lesson id", shortId(lesson.id)],
     ["课时类型", lessonTypeLabel(lesson.lesson_type)],
     ["状态", isVoidedPlanned(lesson) ? `${lessonStatusLabel(lesson.status)} / 已作废` : lessonStatusLabel(lesson.status)],
     ["作废时间", formatDate(lesson.voided_at)],
@@ -380,21 +378,10 @@ function renderLessonDetail(data) {
   ]);
 
   dom.billingInfo.innerHTML = renderDefinitionList([
-    ["计费", booleanLabel(lesson.is_billable)],
+    ["是否计费", booleanLabel(lesson.is_billable)],
     ["单价", formatCurrency(lesson.unit_price, "JPY")],
     ["课时费", formatCurrency(lesson.lesson_fee, "JPY")],
     ["老师结算月", formatMonth(lesson.teacher_settlement_month)],
-    ["planned_lesson_id", shortId(lesson.planned_lesson_id)],
-  ]);
-
-  dom.systemInfo.innerHTML = renderDefinitionList([
-    ["import_batch_id", displayValue(lesson.import_batch_id)],
-    ["import_source", displayValue(lesson.import_source)],
-    ["imported_at", formatDate(lesson.imported_at)],
-    ["void_reason", displayValue(lesson.void_reason)],
-    ["app_type", displayValue(lesson.app_type)],
-    ["created_at", formatDate(lesson.created_at)],
-    ["updated_at", formatDate(lesson.updated_at)],
   ]);
 
   dom.textBlock.textContent = [
@@ -463,21 +450,39 @@ function renderSourceChain(rows) {
 
   dom.chainRows.innerHTML = rows.map(({ relation, lesson }) => `
     <tr>
-      <td class="lesson-nowrap"><a class="table-action-button" href="./lesson-detail.html?id=${encodeURIComponent(lesson.id)}">详情</a></td>
-      <td class="lesson-nowrap">${escapeHtml(displayValue(relation))}</td>
-      <td class="lesson-nowrap">${escapeHtml(shortId(lesson.id))}</td>
+      <td class="lesson-nowrap">${renderChainRelation(relation, lesson)}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(lessonTypeLabel(lesson.lesson_type))}</span></td>
       <td>${renderLessonStatusBadges(lesson)}</td>
       <td class="lesson-nowrap">${escapeHtml(formatDateOnly(lesson.lesson_date))}</td>
       <td class="lesson-nowrap">${escapeHtml(timeRange(lesson.start_time, lesson.end_time))}</td>
       <td class="number-cell">${escapeHtml(displayValue(lesson.duration_hours))}</td>
-      <td class="number-cell">${escapeHtml(displayValue(lesson.actual_minutes))}</td>
       <td class="lesson-nowrap">${escapeHtml(booleanLabel(lesson.is_billable))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(lesson.lesson_fee, "JPY"))}</td>
-      <td class="lesson-nowrap">${escapeHtml(shortId(lesson.planned_lesson_id))}</td>
       <td class="lesson-content-cell"><span class="table-cell-summary">${escapeHtml(displayValue(lesson.lesson_content))}</span></td>
     </tr>
   `).join("");
+}
+
+function renderChainRelation(relation, lesson) {
+  const label = chainRelationLabel(relation);
+  if (lesson?.id === currentLessonId) {
+    return escapeHtml(label);
+  }
+  return `<a class="table-action-button" href="./lesson-detail.html?id=${encodeURIComponent(lesson.id)}">${escapeHtml(label)}</a>`;
+}
+
+function chainRelationLabel(value) {
+  const text = displayValue(value);
+  const labels = {
+    "当前课时": "当前课时",
+    "原 planned 课时": "来源预定课时",
+    "引用当前课时": "后续关联课时",
+    "同 planned 链路": "同一预定关联课时",
+  };
+  return labels[text] || text
+    .replaceAll("planned", "预定")
+    .replaceAll("actual", "实际")
+    .replaceAll("makeup", "补课");
 }
 
 function renderSettlementReferences(rows) {
@@ -492,7 +497,7 @@ function renderSettlementReferences(rows) {
   dom.settlementCards.innerHTML = rows.map((settlement) => `
     <article class="detail-list-card">
       <div class="detail-list-card-header">
-        <strong>${escapeHtml(shortId(settlement.id))}</strong>
+        <strong>学生月度结算</strong>
         <span class="status-badge ${escapeAttribute(settlementStatusClass(settlement.settlement_status))}">${escapeHtml(settlementStatusLabel(settlement.settlement_status))}</span>
       </div>
       ${renderDefinitionList([
@@ -524,7 +529,6 @@ function renderWageReferences(rows) {
   dom.wageRows.innerHTML = rows.map(({ detail, wageLock }) => `
     <tr>
       <td class="lesson-nowrap">${wageLock?.id ? `<a class="table-action-button" href="./wage-detail.html?id=${encodeURIComponent(wageLock.id)}">详情</a>` : "-"}</td>
-      <td class="lesson-nowrap">${escapeHtml(shortId(detail.lock_id))}</td>
       <td>${wageLock?.status ? `<span class="status-badge ${escapeAttribute(wageStatusClass(wageLock.status))}">${escapeHtml(wageStatusLabel(wageLock.status))}</span>` : "-"}</td>
       <td class="lesson-nowrap">${escapeHtml(formatMonth(wageLock?.settlement_month))}</td>
       <td>${escapeHtml(displayValue(wageLock?.teacher_name))}</td>

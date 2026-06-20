@@ -769,7 +769,7 @@
         <section class="dialog-panel lesson-create-dialog-panel app-dialog--xl lesson-edit-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="editLessonTitle">
           <div class="section-heading">
             <h2 id="editLessonTitle">编辑课时</h2>
-            <p class="section-note">V1 只编辑单条课时记录，不修改 lesson_type / planned_lesson_id，不生成结算、工资、收入、支出或账户流水。</p>
+            <p class="section-note">可修改当前课时允许编辑的业务信息；保存时会进行保护校验。</p>
           </div>
 
           <div id="editLessonSummary" class="dialog-summary"></div>
@@ -786,9 +786,9 @@
               <select id="editLessonStatusSelect">
                 <option value="planned">待上课</option>
                 <option value="pending_makeup">待补课</option>
-                <option value="completed">已完成</option>
+                <option value="completed">已上课</option>
                 <option value="cancelled">已取消</option>
-                <option value="makeup_completed">补课完成</option>
+                <option value="makeup_completed">已补课</option>
               </select>
             </label>
 
@@ -855,12 +855,12 @@
               <input id="editLessonCountInput" type="number" min="1" step="1" inputmode="numeric">
             </label>
 
-            <label class="field">
+            <label class="field is-hidden">
               <span>关联预定ID</span>
               <input id="editLessonPlannedIdInput" type="text" readonly>
             </label>
 
-            <label class="field">
+            <label class="field is-hidden">
               <span>导入来源</span>
               <input id="editLessonImportSourceInput" type="text" readonly>
             </label>

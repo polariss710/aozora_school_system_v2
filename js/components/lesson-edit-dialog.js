@@ -2,15 +2,15 @@ import { updateLessonRecordGuarded } from "../api/lesson-api.js";
 import { formatMonth, safeText } from "../utils/format.js";
 
 const LESSON_TYPE_LABELS = {
-  planned: "计划",
+  planned: "预定",
   actual: "实际",
 };
 
 const LESSON_STATUS_LABELS = {
   planned: "待上课",
-  completed: "已完成",
+  completed: "已上课",
   pending_makeup: "待补课",
-  makeup_completed: "补课完成",
+  makeup_completed: "已补课",
   cancelled: "已取消",
 };
 
@@ -35,7 +35,6 @@ export function cacheLessonEditDialogDom(root = document) {
   return {
     dialog: root.querySelector("#editLessonDialog"),
     summary: root.querySelector("#editLessonSummary"),
-    warning: root.querySelector("#editLessonWarning"),
     error: root.querySelector("#editLessonError"),
     typeInput: root.querySelector("#editLessonTypeInput"),
     statusSelect: root.querySelector("#editLessonStatusSelect"),
@@ -208,17 +207,17 @@ export function createLessonEditDialogController(options) {
         return "该预定课时已作废，不能编辑。";
       }
       if (!["planned", "pending_makeup"].includes(record.status)) {
-        return `当前 planned 状态不允许编辑：${lessonStatusLabel(record.status)}。`;
+        return `当前预定课时状态不允许编辑：${lessonStatusLabel(record.status)}。`;
       }
       if (hasLinkedActual(record.id)) {
-        return "该 planned 已有关联 actual，V1 不允许编辑。";
+        return "该预定课时已有关联实际课时，不能在此编辑。";
       }
       return "";
     }
 
     if (record.lesson_type === "actual") {
       if (!["completed", "cancelled", "makeup_completed"].includes(record.status)) {
-        return `当前 actual 状态不允许编辑：${lessonStatusLabel(record.status)}。`;
+        return `当前实际课时状态不允许编辑：${lessonStatusLabel(record.status)}。`;
       }
       return "";
     }
@@ -304,13 +303,9 @@ export function createLessonEditDialogController(options) {
     const isActual = lesson.lesson_type === "actual";
     const isLinkedActual = isActual && Boolean(lesson.planned_lesson_id);
     const isCancelledActual = isActual && lesson.status === "cancelled";
-    const actualStatusReason = "actual 状态由生成链路决定，V1 编辑保持只读；如需改成取消、已上课或补课完成，需要走独立 guarded 流程。";
-    const linkedMasterReason = "该 actual 已关联 planned，学生、老师、科目、业务归属必须保持与来源 planned 一致，V1 不允许在编辑中修改。";
-    const plannedReadonlyReason = "课时类型、planned_lesson_id 和导入信息只读；planned 只允许调整日期、对象、时间、金额、内容、备注和 planned/pending_makeup 状态。";
-    const importReadonlyReason = "导入元数据只作为来源审计信息保留，编辑课时时不可修改。";
 
     dom.statusSelect.disabled = isActual;
-    dom.statusSelect.title = isActual ? actualStatusReason : "";
+    dom.statusSelect.title = isActual ? "实际课时状态不可在此修改。" : "";
     [...dom.statusSelect.options].forEach((option) => {
       option.disabled = isPlanned
         ? !["planned", "pending_makeup"].includes(option.value)
@@ -319,7 +314,7 @@ export function createLessonEditDialogController(options) {
 
     [dom.studentSelect, dom.teacherSelect, dom.subjectSelect, dom.businessEntitySelect].forEach((element) => {
       element.disabled = isLinkedActual;
-      element.title = isLinkedActual ? linkedMasterReason : "";
+      element.title = isLinkedActual ? "已关联来源课时，对象信息不可在此修改。" : "";
     });
 
     dom.billableSelect.disabled = isPlanned || isCancelledActual;
@@ -327,9 +322,9 @@ export function createLessonEditDialogController(options) {
       ? "planned 课时固定按计费课时处理；是否实际收费由 actual 和后续结算口径决定。"
       : "";
     dom.feeInput.readOnly = isCancelledActual || (isActual && dom.billableSelect.value === "false");
-    dom.typeInput.title = "课时类型由创建链路决定，编辑时不可修改。";
-    dom.plannedIdInput.title = "关联预定ID由 actual 生成链路决定，编辑时不可修改。";
-    dom.importSourceInput.title = importReadonlyReason;
+    dom.typeInput.title = "课时类型不可在此修改。";
+    dom.plannedIdInput.title = "关联来源不可在此修改。";
+    dom.importSourceInput.title = "导入来源不可在此修改。";
     if (isPlanned) {
       dom.billableSelect.value = "true";
     }
@@ -340,50 +335,23 @@ export function createLessonEditDialogController(options) {
     if (isActual && dom.billableSelect.value === "false") {
       dom.feeInput.value = "0";
     }
-
-    const warnings = [];
-    if (isActual) {
-      warnings.push(actualStatusReason);
-    }
-    if (isLinkedActual) {
-      warnings.push(linkedMasterReason);
-    }
-    if (isPlanned) {
-      warnings.push(`${plannedReadonlyReason} 如已有关联 actual，RPC 会拒绝编辑。`);
-    } else {
-      warnings.push("课时类型、planned_lesson_id 和导入信息只读。");
-    }
-    renderWarning(warnings);
   }
 
   function renderSummary(lesson) {
     dom.summary.innerHTML = [
-      ["课时 ID", shortId(lesson.id)],
+      ["课时类型", lessonTypeLabel(lesson.lesson_type)],
       ["当前状态", lessonStatusLabel(lesson.status)],
+      ["课时日期", safeText(lesson.lesson_date)],
+      ["学生", selectedOptionText(dom.studentSelect)],
+      ["老师", selectedOptionText(dom.teacherSelect)],
       ["学生结算月", formatMonth(lesson.year_month)],
       ["老师结算月", formatMonth(lesson.teacher_settlement_month)],
-      ["版本", safeText(lesson.updated_at) ? "updated_at 已记录" : "缺少 updated_at"],
     ].map(([label, value]) => `
       <div class="dialog-summary-row">
         <span class="dialog-summary-label">${escapeHtml(label)}</span>
         <span>${escapeHtml(displayValue(value))}</span>
       </div>
     `).join("");
-  }
-
-  function renderWarning(warnings) {
-    if (!dom.warning) {
-      return;
-    }
-
-    if (!warnings.length) {
-      dom.warning.textContent = "";
-      dom.warning.classList.add("is-hidden");
-      return;
-    }
-
-    dom.warning.textContent = warnings.join(" ");
-    dom.warning.classList.remove("is-hidden");
   }
 
   async function handleSubmit() {
@@ -481,7 +449,7 @@ export function createLessonEditDialogController(options) {
 
     if (invalidFields.length) {
       const message = isActual && status !== lesson.status
-        ? "actual 课时 V1 不允许修改状态。"
+        ? "实际课时状态不可在此修改。"
         : validationMessage
           || (requiresActualRequiredFields ? "已完成 / 补课完成 actual 必须填写开始时间、结束时间和课程内容。" : "")
           || "请检查编辑课时表单中的必填项和数字格式。";
@@ -698,6 +666,13 @@ function subjectName(subject) {
 
 function businessEntityName(entity) {
   return safeText(entity.name) || "未设置";
+}
+
+function selectedOptionText(selectEl) {
+  const text = safeText(selectEl?.selectedOptions?.[0]?.textContent);
+  return text === "请选择学生" || text === "请选择老师" || text === "请选择科目" || text === "请选择业务归属"
+    ? ""
+    : text;
 }
 
 function lessonTypeLabel(value) {

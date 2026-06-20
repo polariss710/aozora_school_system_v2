@@ -465,7 +465,6 @@ function cacheDom() {
   dom.createCrossMonthMakeupActualCancelButton = document.querySelector("#createCrossMonthMakeupActualCancelButton");
   dom.editLessonDialog = document.querySelector("#editLessonDialog");
   dom.editLessonSummary = document.querySelector("#editLessonSummary");
-  dom.editLessonWarning = document.querySelector("#editLessonWarning");
   dom.editLessonError = document.querySelector("#editLessonError");
   dom.editLessonTypeInput = document.querySelector("#editLessonTypeInput");
   dom.editLessonStatusSelect = document.querySelector("#editLessonStatusSelect");
