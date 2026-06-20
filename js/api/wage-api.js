@@ -358,6 +358,22 @@ export async function generateTeacherMonthlyWage({ yearMonth, teacherId = null }
   return data || [];
 }
 
+export async function createTeacherWageExpenseRecord({
+  wageLockId,
+  note = null,
+}) {
+  const { data, error } = await supabase.rpc("school_create_teacher_wage_expense_record", {
+    p_wage_lock_id: wageLockId,
+    p_note: note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.[0] || null;
+}
+
 function sortCandidateLessons(left, right) {
   const dateCompare = String(left.lesson_date || "").localeCompare(String(right.lesson_date || ""));
   if (dateCompare !== 0) return dateCompare;

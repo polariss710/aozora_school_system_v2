@@ -1,7 +1,7 @@
 import { APP_VERSION } from "./config.js";
 import { initWagePage } from "./pages/wage-page.js?v=v10.2.7-fix2-wage-row-height-and-profit-init";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = APP_VERSION;
@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.info("[aozora-school-v2]", APP_VERSION);
 
   try {
-    initWagePage();
+    await initWagePage();
   } catch (error) {
     const messageArea = document.querySelector("#wageMessageArea");
     if (messageArea) {

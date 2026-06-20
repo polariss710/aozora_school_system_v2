@@ -1,3 +1,4 @@
+import { initSchoolAuth, isLoggedIn } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   adjustTeacherWageDetail,
@@ -71,8 +72,9 @@ const dom = {};
 let detailData = null;
 let activeAdjustWageDetail = null;
 
-export function initWageDetailPage() {
+export async function initWageDetailPage() {
   cacheDom();
+  await initSchoolAuth();
   configureReturnLink();
   bindEvents();
 
@@ -390,6 +392,11 @@ function blockVoidWageLockDirectDismiss() {
 }
 
 async function submitVoidWageLock() {
+  if (!isLoggedIn()) {
+    showVoidWageLockError("请先重新登录后再撤销工资快照。");
+    return;
+  }
+
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
   const expenseRecords = detailData?.expenseRecords || [];
@@ -457,6 +464,8 @@ function renderCreatePaymentRequestAction(wageLock, paymentRequests, expenseReco
   const canCreate = wageLock.status === "locked"
     && !wageLock.voided_at
     && Number(wageLock.total_jpy || 0) > 0
+    && Boolean(wageLock.teacher_id)
+    && Boolean(wageLock.business_entity_id)
     && activePaymentRequests.length === 0
     && activeExpenseRecords.length === 0;
 
@@ -495,6 +504,11 @@ function openCreatePaymentRequestDialog() {
     return;
   }
 
+  if (!wageLock.teacher_id || !wageLock.business_entity_id) {
+    showMessage("error", "工资快照缺少老师或业务归属，不能生成支出记录。");
+    return;
+  }
+
   hideCreatePaymentRequestError();
   setCreatePaymentRequestFieldInvalid("confirm", false);
   dom.createPaymentRequestConfirmCheckbox.checked = false;
@@ -516,6 +530,11 @@ function closeCreatePaymentRequestDialog(force = false) {
 }
 
 async function submitCreatePaymentRequest() {
+  if (!isLoggedIn()) {
+    showCreatePaymentRequestError("请先重新登录后再生成支出记录。");
+    return;
+  }
+
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
   const expenseRecords = detailData?.expenseRecords || [];
@@ -533,6 +552,11 @@ async function submitCreatePaymentRequest() {
 
   if (activeExpenseRecords.length > 0) {
     showCreatePaymentRequestError("该工资快照记录已生成有效支出记录，不能重复生成。");
+    return;
+  }
+
+  if (!wageLock.teacher_id || !wageLock.business_entity_id) {
+    showCreatePaymentRequestError("工资快照缺少老师或业务归属，不能生成支出记录。");
     return;
   }
 
@@ -907,6 +931,11 @@ function closeAdjustWageDetailDialog(force = false) {
 }
 
 async function submitAdjustWageDetail() {
+  if (!isLoggedIn()) {
+    showAdjustWageDetailError("请先重新登录后再调整工资明细。");
+    return;
+  }
+
   const wageLock = detailData?.wageLock;
   const detail = activeAdjustWageDetail;
   const readonlyReason = wageAdjustmentReadonlyReason(

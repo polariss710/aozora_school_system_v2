@@ -1,6 +1,8 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
+import { initSchoolAuth, isLoggedIn } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  createTeacherWageExpenseRecord,
   fetchWageBusinessEntities,
   fetchWageCandidateLessons,
   fetchWageDetailFeeSummaries,
@@ -75,9 +77,13 @@ let wageCandidateLessons = [];
 let loadedMonth = "";
 let activeFilters = null;
 let startupFilters = null;
+let renderedWageLockRows = [];
+let selectedWageLockIds = new Set();
+let isPaymentRequestSubmitting = false;
 
-export function initWagePage() {
+export async function initWagePage() {
   cacheDom();
+  await initSchoolAuth();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   startupFilters = readFiltersFromUrl();
@@ -111,6 +117,8 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#wageLoadingState");
   dom.emptyState = document.querySelector("#wageEmptyState");
   dom.wageCount = document.querySelector("#wageCount");
+  dom.openBatchPaymentRequestButton = document.querySelector("#openBatchWagePaymentRequestButton");
+  dom.selectAllPaymentRequests = document.querySelector("#wageSelectAllPaymentRequests");
   dom.candidateSection = document.querySelector("#wageCandidateSection");
   dom.candidateCount = document.querySelector("#wageCandidateCount");
   dom.candidateSummary = document.querySelector("#wageCandidateSummary");
@@ -140,6 +148,10 @@ function bindEvents() {
   });
 
   dom.openGenerateDialogButton?.addEventListener("click", openGenerateDialog);
+  dom.openBatchPaymentRequestButton?.addEventListener("click", handleBatchCreatePaymentRequests);
+  dom.selectAllPaymentRequests?.addEventListener("change", handleSelectAllPaymentRequests);
+  dom.tableBody?.addEventListener("click", handleWageTableClick);
+  dom.tableBody?.addEventListener("change", handleWageTableChange);
   dom.exportMonthlySummaryButton?.addEventListener("click", handleMonthlySummaryExport);
   dom.generateCancelButton?.addEventListener("click", closeGenerateDialog);
   dom.generateSubmitButton?.addEventListener("click", handleGenerateSubmit);
@@ -273,6 +285,11 @@ function closeGenerateDialog(force = false) {
 }
 
 async function handleGenerateSubmit() {
+  if (!isLoggedIn()) {
+    showGenerateError("请先重新登录后再生成老师工资。");
+    return;
+  }
+
   const filters = readFilters();
   if (!filters) {
     return;
@@ -425,18 +442,22 @@ function renderWageStatusOptions(values) {
 }
 
 function renderWageLocks(rows) {
+  renderedWageLockRows = rows;
+  pruneSelectedWageLockIds();
   dom.wageCount.textContent = `${rows.length} 条`;
   dom.emptyState.classList.toggle("is-hidden", rows.length > 0);
   dom.emptyState.textContent = buildWageEmptyStateText(rows);
 
   if (!rows.length) {
     dom.tableBody.innerHTML = "";
+    updatePaymentRequestBatchControls();
     return;
   }
 
   dom.tableBody.innerHTML = rows.map((row) => `
     <tr>
-      <td class="wage-nowrap"><a class="button table-action-button" href="${escapeAttribute(buildWageDetailHref(row.id))}">详情</a></td>
+      <td class="wage-nowrap">${renderPaymentRequestCheckbox(row)}</td>
+      <td class="wage-nowrap">${renderWageRowActions(row)}</td>
       <td class="wage-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
       <td>${escapeHtml(displayTeacherName(row))}</td>
       <td>${escapeHtml(displayBusinessName(row))}</td>
@@ -456,6 +477,236 @@ function renderWageLocks(rows) {
       <td class="wage-nowrap">${escapeHtml(formatDate(row.voided_at))}</td>
     </tr>
   `).join("");
+  updatePaymentRequestBatchControls();
+}
+
+function renderPaymentRequestCheckbox(row) {
+  const disabledReason = wagePaymentRequestCreateBlocker(row);
+  const selectable = !disabledReason;
+  return `
+    <input
+      type="checkbox"
+      data-wage-select-id="${escapeAttribute(row.id)}"
+      aria-label="选择工资快照 ${escapeAttribute(displayTeacherName(row))} ${escapeAttribute(displayBusinessName(row))}"
+      ${disabledReason ? `title="${escapeAttribute(disabledReason)}"` : ""}
+      ${selectable ? "" : "disabled"}
+      ${selectedWageLockIds.has(row.id) ? "checked" : ""}
+    >
+  `;
+}
+
+function renderWageRowActions(row) {
+  const canCreate = canCreatePaymentRequestForWageLock(row);
+  const createButton = canCreate
+    ? `<button class="table-action-button" type="button" data-wage-create-payment-request-id="${escapeAttribute(row.id)}">生成支付请求</button>`
+    : "";
+  return `
+    <div class="income-row-actions">
+      <a class="button table-action-button" href="${escapeAttribute(buildWageDetailHref(row.id))}">详情</a>
+      ${createButton}
+    </div>
+  `;
+}
+
+function handleWageTableClick(event) {
+  const button = event.target.closest("[data-wage-create-payment-request-id]");
+  if (!button) {
+    return;
+  }
+
+  const wageLockId = button.getAttribute("data-wage-create-payment-request-id");
+  const wageLock = wageLocks.find((row) => row.id === wageLockId);
+  if (!wageLock) {
+    showMessage("error", "工资快照不存在，请刷新后重试。");
+    return;
+  }
+
+  createPaymentRequestForWageLock(wageLock);
+}
+
+function handleWageTableChange(event) {
+  const checkbox = event.target.closest("[data-wage-select-id]");
+  if (!checkbox) {
+    return;
+  }
+
+  const wageLockId = checkbox.getAttribute("data-wage-select-id");
+  const wageLock = renderedWageLockRows.find((row) => row.id === wageLockId);
+  if (!wageLock || !canCreatePaymentRequestForWageLock(wageLock)) {
+    checkbox.checked = false;
+    selectedWageLockIds.delete(wageLockId);
+    updatePaymentRequestBatchControls();
+    return;
+  }
+
+  if (checkbox.checked) {
+    selectedWageLockIds.add(wageLockId);
+  } else {
+    selectedWageLockIds.delete(wageLockId);
+  }
+
+  updatePaymentRequestBatchControls();
+}
+
+function handleSelectAllPaymentRequests(event) {
+  const shouldSelect = event.target.checked;
+  const selectableIds = renderedWageLockRows.filter(canCreatePaymentRequestForWageLock).map((row) => row.id);
+  if (shouldSelect) {
+    for (const id of selectableIds) {
+      selectedWageLockIds.add(id);
+    }
+  } else {
+    for (const id of selectableIds) {
+      selectedWageLockIds.delete(id);
+    }
+  }
+
+  renderWageLocks(renderedWageLockRows);
+}
+
+function selectedPaymentRequestRows() {
+  return renderedWageLockRows.filter((row) => selectedWageLockIds.has(row.id) && canCreatePaymentRequestForWageLock(row));
+}
+
+function pruneSelectedWageLockIds() {
+  const selectableIds = new Set(renderedWageLockRows.filter(canCreatePaymentRequestForWageLock).map((row) => row.id));
+  for (const id of Array.from(selectedWageLockIds)) {
+    if (!selectableIds.has(id)) {
+      selectedWageLockIds.delete(id);
+    }
+  }
+}
+
+function updatePaymentRequestBatchControls() {
+  const selectableRows = renderedWageLockRows.filter(canCreatePaymentRequestForWageLock);
+  const selectedRows = selectedPaymentRequestRows();
+  if (dom.openBatchPaymentRequestButton) {
+    dom.openBatchPaymentRequestButton.disabled = isPaymentRequestSubmitting || selectedRows.length === 0;
+    dom.openBatchPaymentRequestButton.textContent = selectedRows.length > 0
+      ? `批量生成支付请求（已选 ${selectedRows.length} 条）`
+      : "批量生成支付请求";
+  }
+
+  if (dom.selectAllPaymentRequests) {
+    dom.selectAllPaymentRequests.disabled = isPaymentRequestSubmitting || selectableRows.length === 0;
+    dom.selectAllPaymentRequests.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
+    dom.selectAllPaymentRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
+  }
+}
+
+async function createPaymentRequestForWageLock(wageLock) {
+  if (isPaymentRequestSubmitting) {
+    return;
+  }
+
+  if (!isLoggedIn()) {
+    showMessage("error", "请先重新登录后再生成支付请求。");
+    return;
+  }
+
+  const blocker = wagePaymentRequestCreateBlocker(wageLock);
+  if (blocker) {
+    showMessage("error", blocker);
+    return;
+  }
+
+  if (!window.confirm(`确认为 ${displayTeacherName(wageLock)} / ${displayBusinessName(wageLock)} / ${formatMonth(wageLock.settlement_month)} 生成支付请求？`)) {
+    return;
+  }
+
+  setPaymentRequestSubmitting(true);
+  showMessage("info", "正在生成支付请求...");
+  try {
+    const result = await createTeacherWageExpenseRecord({
+      wageLockId: wageLock.id,
+      note: "wage_list_single_create_payment_request",
+    });
+    selectedWageLockIds.delete(wageLock.id);
+    await refreshCurrentWageList();
+    showMessage(
+      "success",
+      `支付请求已生成：${shortId(result?.expense_id)} / ${formatCurrency(result?.amount, result?.currency || "JPY")}。请到支出记录详情页提交 Cash 支付确认。`
+    );
+  } catch (error) {
+    showMessage("error", `生成支付请求失败：${formatCreatePaymentRequestError(error)}`);
+  } finally {
+    setPaymentRequestSubmitting(false);
+  }
+}
+
+async function handleBatchCreatePaymentRequests() {
+  if (isPaymentRequestSubmitting) {
+    return;
+  }
+
+  if (!isLoggedIn()) {
+    showMessage("error", "请先重新登录后再批量生成支付请求。");
+    return;
+  }
+
+  const targets = selectedPaymentRequestRows();
+  if (!targets.length) {
+    showMessage("error", "请选择可生成支付请求的工资快照。");
+    return;
+  }
+
+  if (!window.confirm(`确认批量生成 ${targets.length} 条支付请求？生成后请到支出记录详情页提交 Cash 支付确认。`)) {
+    return;
+  }
+
+  setPaymentRequestSubmitting(true);
+  showMessage("info", `正在批量生成 ${targets.length} 条支付请求...`);
+
+  const failures = [];
+  let successCount = 0;
+  for (const wageLock of targets) {
+    try {
+      await createTeacherWageExpenseRecord({
+        wageLockId: wageLock.id,
+        note: "wage_list_batch_create_payment_request",
+      });
+      selectedWageLockIds.delete(wageLock.id);
+      successCount += 1;
+    } catch (error) {
+      failures.push(`${displayTeacherName(wageLock)} / ${displayBusinessName(wageLock)}：${formatCreatePaymentRequestError(error)}`);
+    }
+  }
+
+  await refreshCurrentWageList();
+  setPaymentRequestSubmitting(false);
+
+  if (failures.length) {
+    showMessage("error", `支付请求生成完成：成功 ${successCount} 条，失败 ${failures.length} 条。${failures.slice(0, 2).join("；")}`);
+  } else {
+    showMessage("success", `支付请求生成完成：成功 ${successCount} 条。请到支出记录详情页提交 Cash 支付确认。`);
+  }
+}
+
+async function refreshCurrentWageList() {
+  const filters = activeFilters || readFilters();
+  if (!filters) {
+    return;
+  }
+
+  await loadWageMonth(filters.month);
+  restoreFilterSelections(filters);
+  applyCurrentFilters();
+}
+
+function setPaymentRequestSubmitting(isSubmitting) {
+  isPaymentRequestSubmitting = isSubmitting;
+  if (dom.openBatchPaymentRequestButton) {
+    dom.openBatchPaymentRequestButton.disabled = isSubmitting;
+  }
+  for (const button of dom.tableBody.querySelectorAll("[data-wage-create-payment-request-id]")) {
+    button.disabled = isSubmitting;
+  }
+  for (const checkbox of dom.tableBody.querySelectorAll("[data-wage-select-id]")) {
+    checkbox.disabled = isSubmitting || Boolean(wagePaymentRequestCreateBlocker(
+      renderedWageLockRows.find((row) => row.id === checkbox.getAttribute("data-wage-select-id"))
+    ));
+  }
+  updatePaymentRequestBatchControls();
 }
 
 function renderWageCandidates(rows) {
@@ -815,15 +1066,31 @@ function wageProcessState(row) {
     return {
       label: "可调整 / 无可支付金额",
       className: "status-neutral",
-      title: "未生成支付请求，可调整明细；当前合计为 0，详情页不会显示生成支付请求入口。",
+      title: "未生成支付请求，可调整明细；当前合计为 0，不显示生成支付请求入口。",
     };
   }
 
   return {
     label: "可调整 / 可生成支付",
     className: "status-paid",
-    title: "未生成支付请求，可在详情页调整明细或生成支付请求。",
+    title: "未生成支付请求，可在一览页或详情页生成支付请求。",
   };
+}
+
+function canCreatePaymentRequestForWageLock(row) {
+  return !wagePaymentRequestCreateBlocker(row);
+}
+
+function wagePaymentRequestCreateBlocker(row) {
+  if (!row?.id) return "工资快照不存在，请刷新后重试。";
+  if (row.voided_at || row.status === "void") return "已作废的工资快照不能生成支付请求。";
+  if (row.status !== "locked") return "只有已生成且未作废的工资快照可以生成支付请求。";
+  if (Number(row.total_jpy || 0) <= 0) return "工资结算金额为 0，不能生成支付请求。";
+  if (!row.teacher_id) return "工资快照缺少老师，不能生成支付请求。";
+  if (!row.business_entity_id) return "工资快照缺少业务归属，不能生成支付请求。";
+  if (activeExpenseRecordsForWageLock(row.id).length > 0) return "该工资快照已生成有效支出记录，不能重复生成支付请求。";
+  if (activePaymentRequestsForWageLock(row.id).length > 0) return "该工资快照已生成有效旧支付请求，不能重复生成支付请求。";
+  return "";
 }
 
 function paymentRequestsForWageLock(wageLockId) {
@@ -1067,7 +1334,7 @@ function monthlySummaryNote(row, paymentStatus) {
   }
 
   if (!paymentStatus) {
-    return "未生成有效支出记录；发工资前仍可在详情页受控调整或生成支出记录。";
+    return "未生成有效支出记录；发工资前仍可在详情页受控调整，或在一览页/详情页生成支付请求。";
   }
 
   if (paymentStatus === "pending") {
@@ -1285,6 +1552,7 @@ function setMonthlyExportSubmitting(isSubmitting) {
   if (dom.openGenerateDialogButton) {
     dom.openGenerateDialogButton.disabled = isSubmitting;
   }
+  updatePaymentRequestBatchControls();
 }
 
 function appendFilterParam(params, key, value) {
@@ -1475,6 +1743,11 @@ function displayValue(value) {
   return safeText(value) || "-";
 }
 
+function shortId(value) {
+  const text = safeText(value);
+  return text ? text.slice(0, 8) : "-";
+}
+
 function formatDateOnly(value) {
   const text = safeText(value);
   if (!text) {
@@ -1594,6 +1867,24 @@ function formatGenerateError(error) {
   return `生成失败：${message}`;
 }
 
+function formatCreatePaymentRequestError(error) {
+  const message = error?.message || String(error || "");
+
+  if (message.includes("已生成支出记录")) {
+    return "该工资快照已生成支出记录，不能重复生成。";
+  }
+
+  if (message.includes("已生成支付请求")) {
+    return "该工资快照已生成旧支付请求，不能重复生成。";
+  }
+
+  if (message.includes("作废")) {
+    return "已作废的工资快照不能生成支付请求。";
+  }
+
+  return message || "未知错误";
+}
+
 function buildWageEmptyStateText(rows) {
   if (rows.length > 0) {
     return "";
@@ -1652,6 +1943,12 @@ function setLoading(isLoading) {
   dom.loadingState.classList.toggle("is-hidden", !isLoading);
   if (dom.exportMonthlySummaryButton) {
     dom.exportMonthlySummaryButton.disabled = isLoading;
+  }
+  if (dom.openBatchPaymentRequestButton) {
+    dom.openBatchPaymentRequestButton.disabled = isLoading || isPaymentRequestSubmitting;
+  }
+  if (dom.selectAllPaymentRequests) {
+    dom.selectAllPaymentRequests.disabled = isLoading || isPaymentRequestSubmitting;
   }
 }
 

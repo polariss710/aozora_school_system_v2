@@ -1,7 +1,7 @@
 import { APP_VERSION } from "./config.js";
 import { initWageDetailPage } from "./pages/wage-detail-page.js?v=v2.122.0-month-filter-url-preserve-20260616";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = APP_VERSION;
@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.info("[aozora-school-v2]", APP_VERSION);
 
   try {
-    initWageDetailPage();
+    await initWageDetailPage();
   } catch (error) {
     const messageArea = document.querySelector("#wageDetailMessageArea");
     if (messageArea) {
