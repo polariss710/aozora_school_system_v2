@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.9 allow void unsubmitted teacher wage expense, 2026-06-21:
+   老师工资 canonical 支出链路新增“未提交 Cash 前作废”能力。执行 `sql/current/school_teacher_wage_expense_void_and_regenerate.sql`，为 `school_expense_records` 增加 `cancelled_at/cancelled_reason/cancelled_by` 审计字段，新增 RPC `school_void_unsubmitted_teacher_wage_expense_record(...)`，并把 `school_expense_records_teacher_wage_source_uniq` 调整为 active-only 唯一索引：同一 `teacher_wage` `source_id` 只能有一条未作废 active 支出记录，已取消历史记录不阻止重新生成。`school_create_teacher_wage_expense_record(...)` 已更新为只返回 active 支出；只有历史 cancelled 记录时会创建新的 pending 支出。支出一览页和支出详情页对 `source_type = teacher_wage`、`status = pending`、尚无 Cash 状态/request/transaction 的记录显示“作废”入口；工资详情页保留已作废历史展示，但重新生成按钮只受 active 支出记录阻止。禁止作废 Cash pending / approved / rejected / paid、有 `cash_request_id` 或 `cash_transaction_id`、非 teacher_wage 记录。Rollback 测试和白名单 commit 测试通过；commit 测试只写入 `codex-test-v10.3.9` 标记数据：wage lock `8d4d9082-048c-4056-bd79-09500341e4a9`，作废支出 `f7fe3483-effa-41fb-b5f6-4179e4eae749`，新 active 支出 `cb38f314-cc69-466f-ab8f-ea01d30955be`。吴峰 2026-05 两条真实支出 `22e5ffcd-18ab-4d08-907c-f4a1e1f107e8`、`e83d7945-505f-468e-8a82-8a6bab1c7eed` 只读复核仍为 pending + Cash 未提交，未被写入测试修改。
+
 1. v10.3.7 adjust settlement table column width, 2026-06-21:
    学生月度结算一览表在列精简后补齐专用布局样式：`settlement-table` 改为 `width: 100%`、`table-layout: fixed`、`min-width: 1920px`，并通过专用 `colgroup` 为操作、年月、学生、业务归属、状态、后续锁定、金额和锁定时间分配列宽；表头允许换行，金额列继续右对齐并保持可读，操作列保留足够宽度避免按钮严重换行。样式仅作用于学生月度结算一览表，不影响课时管理、老师工资、学生结算详情表格或其他 `payment-table`。本阶段不修改列字段、结算计算、差额调整、锁定/重新锁定、Cash、DB/RPC/SQL 或 `js/legacy-core.js`。
 

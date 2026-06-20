@@ -20,6 +20,9 @@ const EXPENSE_COLUMNS = [
   "exchange_rate",
   "payment_method",
   "status",
+  "cancelled_at",
+  "cancelled_reason",
+  "cancelled_by",
   "reversed_at",
   "reversal_account_transaction_id",
   "receipt_status",
@@ -183,6 +186,25 @@ export async function requestCashExpenseConfirmation(payload) {
   }
 
   return data;
+}
+
+export async function voidUnsubmittedTeacherWageExpenseRecord(payload) {
+  const expenseId = requireUuid(payload.expenseId, "expense_record_id");
+  const { data, error } = await supabase.rpc("school_void_unsubmitted_teacher_wage_expense_record", {
+    p_expense_record_id: expenseId,
+    p_void_reason: payload.reason || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("老师工资支出记录作废失败。");
+  }
+
+  return result;
 }
 
 export async function fetchExpenseLookups() {

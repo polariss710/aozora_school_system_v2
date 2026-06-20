@@ -450,11 +450,12 @@ function renderVoidWageLockSummary(wageLock) {
 }
 
 function renderCreatePaymentRequestAction(wageLock, paymentRequests, expenseRecords = []) {
+  const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
   const canCreate = wageLock.status === "locked"
     && !wageLock.voided_at
     && Number(wageLock.total_jpy || 0) > 0
     && paymentRequests.length === 0
-    && expenseRecords.length === 0;
+    && activeExpenseRecords.length === 0;
 
   dom.openCreatePaymentRequestButton.classList.toggle("is-hidden", !canCreate);
 }
@@ -463,6 +464,7 @@ function openCreatePaymentRequestDialog() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
   const expenseRecords = detailData?.expenseRecords || [];
+  const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
 
   if (!wageLock) {
     showMessage("error", "工资快照记录尚未加载。");
@@ -474,8 +476,8 @@ function openCreatePaymentRequestDialog() {
     return;
   }
 
-  if (expenseRecords.length > 0) {
-    showMessage("error", "该工资快照记录已生成支出记录，不能重复生成。");
+  if (activeExpenseRecords.length > 0) {
+    showMessage("error", "该工资快照记录已生成有效支出记录，不能重复生成。");
     return;
   }
 
@@ -513,6 +515,7 @@ async function submitCreatePaymentRequest() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
   const expenseRecords = detailData?.expenseRecords || [];
+  const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
   if (!wageLock) {
     showCreatePaymentRequestError("工资快照记录尚未加载。");
     return;
@@ -523,8 +526,8 @@ async function submitCreatePaymentRequest() {
     return;
   }
 
-  if (expenseRecords.length > 0) {
-    showCreatePaymentRequestError("该工资快照记录已生成支出记录，不能重复生成。");
+  if (activeExpenseRecords.length > 0) {
+    showCreatePaymentRequestError("该工资快照记录已生成有效支出记录，不能重复生成。");
     return;
   }
 
@@ -631,6 +634,14 @@ function renderCreatePaymentRequestSummary(wageLock) {
     renderDialogSummaryRow("支出金额", formatCurrency(wageLock.total_jpy, "JPY")),
     renderDialogSummaryRow("来源", `工资快照 ${shortId(wageLock.id)}`),
   ].join("");
+}
+
+function activeTeacherWageExpenseRecords(records = []) {
+  return (records || []).filter((record) => (
+    record
+    && record.cancelled_at == null
+    && !["cancelled", "void", "voided"].includes(record.status || "")
+  ));
 }
 
 function renderDialogSummaryRow(label, value) {

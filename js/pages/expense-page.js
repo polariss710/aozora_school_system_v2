@@ -7,6 +7,7 @@ import {
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
   requestCashExpenseConfirmation,
+  voidUnsubmittedTeacherWageExpenseRecord,
 } from "../api/expense-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
@@ -36,6 +37,7 @@ const EXPENSE_STATUS_LABELS = {
   reversed: "已撤销",
   void: "已作废",
   cancelled: "已取消",
+  voided: "已作废",
 };
 
 const EXPENSE_CATEGORY_LABELS = {
@@ -510,15 +512,27 @@ function renderExpenseRowActions(row) {
   const cashButton = canRequestCashExpense(row)
     ? `<button class="table-action-button" type="button" data-expense-cash-request-id="${escapeAttribute(row.id)}">提交Cash</button>`
     : "";
+  const voidButton = canVoidUnsubmittedTeacherWageExpense(row)
+    ? `<button class="table-action-button button-danger" type="button" data-expense-void-teacher-wage-id="${escapeAttribute(row.id)}">作废</button>`
+    : "";
   return `
     <div class="income-row-actions">
       <a class="button table-action-button" href="${escapeAttribute(expenseDetailUrl(row.id))}">详情</a>
       ${cashButton}
+      ${voidButton}
     </div>
   `;
 }
 
 function handleExpenseTableClick(event) {
+  const voidButton = event.target.closest("[data-expense-void-teacher-wage-id]");
+  if (voidButton) {
+    const expenseId = voidButton.getAttribute("data-expense-void-teacher-wage-id");
+    const expense = expenseRecords.find((row) => row.id === expenseId);
+    voidUnsubmittedTeacherWageExpenseFromList(expense);
+    return;
+  }
+
   const button = event.target.closest("[data-expense-cash-request-id]");
   if (!button) {
     return;
@@ -532,6 +546,42 @@ function handleExpenseTableClick(event) {
   }
 
   openBatchCashExpenseDialog([expense]);
+}
+
+async function voidUnsubmittedTeacherWageExpenseFromList(expense) {
+  if (!expense) {
+    showMessage("error", "支出记录不存在，请刷新后重试。");
+    return;
+  }
+
+  if (!canVoidUnsubmittedTeacherWageExpense(expense)) {
+    showMessage("error", voidTeacherWageExpenseNotAllowedMessage(expense));
+    return;
+  }
+
+  const reason = window.prompt(
+    "作废老师工资支出记录\n\n此操作只适用于尚未提交 Cash 的老师工资支出记录。作废后可从老师工资快照重新生成支出记录。已提交 Cash 或已支付的支出记录不能作废。\n\n作废理由（可选）：",
+    ""
+  );
+  if (reason === null) {
+    return;
+  }
+
+  if (!window.confirm("确认作废这条未提交 Cash 的老师工资支出记录？原记录会保留为已取消，不会删除数据。")) {
+    return;
+  }
+
+  try {
+    const result = await voidUnsubmittedTeacherWageExpenseRecord({
+      expenseId: expense.id,
+      reason: reason.trim(),
+    });
+    selectedExpenseIds.delete(expense.id);
+    await refreshCurrentExpenseList();
+    showMessage("success", `老师工资支出记录已作废：${shortId(result.expense_id)}。可回到老师工资详情重新生成。`);
+  } catch (error) {
+    showMessage("error", `作废老师工资支出记录失败：${error.message || error}`);
+  }
 }
 
 function handleExpenseTableChange(event) {
@@ -1270,6 +1320,29 @@ function isTeacherWageExpense(row) {
   return row?.source_type === "teacher_wage" || row?.expense_category === "teacher_wage";
 }
 
+function canVoidUnsubmittedTeacherWageExpense(row) {
+  return Boolean(row?.id)
+    && row.app_type === "school"
+    && row.source_type === "teacher_wage"
+    && row.status === "pending"
+    && !row.cancelled_at
+    && !row.cash_request_status
+    && !row.cash_request_id
+    && !row.cash_transaction_id;
+}
+
+function voidTeacherWageExpenseNotAllowedMessage(row) {
+  if (!row) return "支出记录不存在，请刷新后重试。";
+  if (row.app_type !== "school") return "只能作废 School 支出记录。";
+  if (row.source_type !== "teacher_wage") return "本流程只允许作废老师工资支出记录。";
+  if (row.status === "cancelled" || row.cancelled_at) return "该老师工资支出记录已作废。";
+  if (row.status !== "pending") return "只有待支付且未提交 Cash 的老师工资支出记录可以作废。";
+  if (row.cash_request_status === "rejected") return "Cash 已拒绝的老师工资支出记录本版先保持重新提交 Cash，不作废。";
+  if (row.cash_request_status || row.cash_request_id) return "该支出记录已提交 Cash，不能在 School 侧直接作废。";
+  if (row.cash_transaction_id) return "该支出记录已有 Cash transaction，不能作废。";
+  return "该支出记录当前状态不能作废。";
+}
+
 function canRequestCashExpense(row) {
   if (!row?.id) return false;
   if (row.app_type !== "school") return false;
@@ -1559,7 +1632,7 @@ function statusClass(status) {
     return "status-paid";
   }
 
-  if (status === "reversed" || status === "void" || status === "cancelled") {
+  if (status === "reversed" || status === "void" || status === "voided" || status === "cancelled") {
     return "status-cancelled";
   }
 

@@ -5,6 +5,7 @@ import {
   requestCashExpenseConfirmation,
   reverseExpenseRecord,
   updateExpenseRecord,
+  voidUnsubmittedTeacherWageExpenseRecord,
 } from "../api/expense-detail-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
@@ -18,6 +19,9 @@ const EXPENSE_STATUS_LABELS = {
   paid: "已支付",
   pending: "待支付",
   reversed: "已撤销",
+  cancelled: "已取消",
+  void: "已作废",
+  voided: "已作废",
 };
 
 const EXPENSE_CATEGORY_LABELS = {
@@ -130,6 +134,7 @@ function cacheDom() {
   dom.actionStatus = document.querySelector("#expenseDetailActionStatus");
   dom.openEditExpenseButton = document.querySelector("#openEditExpenseButton");
   dom.openCashExpenseRequestButton = document.querySelector("#openCashExpenseRequestButton");
+  dom.voidTeacherWageExpenseButton = document.querySelector("#voidTeacherWageExpenseButton");
   dom.returnLink = document.querySelector('.reimbursement-detail-actions a[href="./expense.html"]');
   dom.openReverseExpenseButton = document.querySelector("#openReverseExpenseButton");
   dom.loadingState = document.querySelector("#expenseDetailLoadingState");
@@ -196,6 +201,7 @@ function cacheDom() {
 function bindEvents() {
   dom.openEditExpenseButton.addEventListener("click", openEditDialog);
   dom.openCashExpenseRequestButton.addEventListener("click", openCashExpenseRequestDialog);
+  dom.voidTeacherWageExpenseButton.addEventListener("click", voidUnsubmittedTeacherWageExpenseFromDetail);
   dom.openReverseExpenseButton.addEventListener("click", openReverseDialog);
   dom.openAttachmentDialogButton.addEventListener("click", openAttachmentDialog);
   dom.editCancelButton.addEventListener("click", closeEditDialog);
@@ -464,6 +470,7 @@ function renderActionArea(data) {
   const status = expense?.status || "";
   const canEdit = canEditExpense(data);
   const canRequestCash = canRequestCashExpense(data);
+  const canVoidTeacherWageExpense = canVoidUnsubmittedTeacherWageExpense(data);
   const canReverse = canReverseExpense(data);
   const canCreateAttachment = canCreateAttachmentMetadata(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
@@ -472,6 +479,8 @@ function renderActionArea(data) {
   dom.openEditExpenseButton.disabled = !canEdit;
   dom.openCashExpenseRequestButton.classList.toggle("is-hidden", !canRequestCash);
   dom.openCashExpenseRequestButton.disabled = !canRequestCash;
+  dom.voidTeacherWageExpenseButton.classList.toggle("is-hidden", !canVoidTeacherWageExpense);
+  dom.voidTeacherWageExpenseButton.disabled = !canVoidTeacherWageExpense;
   dom.openReverseExpenseButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseExpenseButton.disabled = !canReverse;
   dom.openAttachmentDialogButton.classList.toggle("is-hidden", !canCreateAttachment);
@@ -532,6 +541,31 @@ function canRequestCashExpense(data) {
   if (expense.reversed_at || expense.reversal_account_transaction_id) return false;
   if (expense.cash_transaction_id) return false;
   return !["pending", "approved", "synced"].includes(expense.cash_request_status || "");
+}
+
+function canVoidUnsubmittedTeacherWageExpense(data) {
+  const expense = data?.expense;
+  return Boolean(expense?.id)
+    && expense.app_type === "school"
+    && expense.source_type === "teacher_wage"
+    && expense.status === "pending"
+    && !expense.cancelled_at
+    && !expense.cash_request_status
+    && !expense.cash_request_id
+    && !expense.cash_transaction_id;
+}
+
+function voidTeacherWageExpenseNotAllowedMessage(data) {
+  const expense = data?.expense;
+  if (!expense) return "支出记录不存在，请刷新后重试。";
+  if (expense.app_type !== "school") return "只能作废 School 支出记录。";
+  if (expense.source_type !== "teacher_wage") return "本流程只允许作废老师工资支出记录。";
+  if (expense.status === "cancelled" || expense.cancelled_at) return "该老师工资支出记录已作废。";
+  if (expense.status !== "pending") return "只有待支付且未提交 Cash 的老师工资支出记录可以作废。";
+  if (expense.cash_request_status === "rejected") return "Cash 已拒绝的老师工资支出记录本版先保持重新提交 Cash，不作废。";
+  if (expense.cash_request_status || expense.cash_request_id) return "该支出记录已提交 Cash，不能在 School 侧直接作废。";
+  if (expense.cash_transaction_id) return "该支出记录已有 Cash transaction，不能作废。";
+  return "该支出记录当前状态不能作废。";
 }
 
 function cashRequestNotAllowedMessage(data) {
@@ -1141,6 +1175,37 @@ function closeCashExpenseRequestDialog() {
 
   dom.cashExpenseRequestDialog.classList.add("is-hidden");
   dom.cashExpenseRequestDialog.setAttribute("aria-hidden", "true");
+}
+
+async function voidUnsubmittedTeacherWageExpenseFromDetail() {
+  if (!canVoidUnsubmittedTeacherWageExpense(detailData)) {
+    showMessage("error", voidTeacherWageExpenseNotAllowedMessage(detailData));
+    return;
+  }
+
+  const expense = detailData.expense;
+  const reason = window.prompt(
+    "作废老师工资支出记录\n\n此操作只适用于尚未提交 Cash 的老师工资支出记录。作废后可从老师工资快照重新生成支出记录。已提交 Cash 或已支付的支出记录不能作废。\n\n作废理由（可选）：",
+    ""
+  );
+  if (reason === null) {
+    return;
+  }
+
+  if (!window.confirm("确认作废这条未提交 Cash 的老师工资支出记录？原记录会保留为已取消，不会删除数据。")) {
+    return;
+  }
+
+  try {
+    const result = await voidUnsubmittedTeacherWageExpenseRecord({
+      expenseId: expense.id,
+      reason: reason.trim(),
+    });
+    await loadExpenseDetail(expense.id);
+    showMessage("success", `老师工资支出记录已作废：${shortId(result.expense_id)}。可回到老师工资详情重新生成。`);
+  } catch (error) {
+    showMessage("error", `作废老师工资支出记录失败：${error.message || error}`);
+  }
 }
 
 async function ensureCashEligibleAccounts() {

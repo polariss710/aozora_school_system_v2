@@ -82,6 +82,9 @@ const PAYMENT_REQUEST_COLUMNS = [
 const EXPENSE_RECORD_COLUMNS = [
   "id",
   "status",
+  "cancelled_at",
+  "cancelled_reason",
+  "cancelled_by",
   "expense_category",
   "source_type",
   "source_id",
