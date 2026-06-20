@@ -369,20 +369,16 @@ function renderSettlements(rows) {
       <td>${escapeHtml(nameById(businessEntities, row.business_entity_id, businessEntityName))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.settlement_status))}">${escapeHtml(settlementStatusLabel(row.settlement_status))}</span></td>
       <td>${renderTeacherWageBlocker(row)}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.preset_exchange_rate))}</td>
+      <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.previous_balance_cny, "CNY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.planned_lesson_fee_jpy, "JPY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.planned_lesson_fee_cny, "CNY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.actual_lesson_fee_jpy, "JPY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.actual_lesson_fee_cny, "CNY"))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.previous_balance_cny, "CNY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.received_jpy, "JPY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.received_cny, "CNY"))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.received_equivalent_cny, "CNY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.system_difference_cny, "CNY"))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.adjustment_amount_cny, "CNY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.carryover_amount_cny, "CNY"))}</td>
       <td class="settlement-nowrap">${escapeHtml(formatDate(row.locked_at))}</td>
-      <td class="settlement-note-cell">${escapeHtml(noteText(row))}</td>
     </tr>
   `).join("");
 }

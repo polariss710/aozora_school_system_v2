@@ -107,7 +107,7 @@
 
             <label class="field">
               <span>关键字</span>
-              <input id="settlementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 业务归属 / 状态 / 备注">
+              <input id="settlementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 业务归属 / 状态">
             </label>
 
             <div class="filter-actions settlement-filter-actions">
@@ -138,20 +138,16 @@
                   <th>业务归属</th>
                   <th>结算状态</th>
                   <th>后续锁定</th>
-                  <th>汇率</th>
+                  <th>上月结余 CNY</th>
                   <th>预定课时费 JPY</th>
                   <th>预定课时费 CNY</th>
                   <th>实际课时费 JPY</th>
                   <th>实际课时费 CNY</th>
-                  <th>前月余额 CNY</th>
-                  <th>已收 JPY</th>
-                  <th>已收 CNY</th>
-                  <th>已收折算 CNY</th>
-                  <th>系统差额 CNY</th>
-                  <th>调整金额 CNY</th>
-                  <th>结转金额 CNY</th>
+                  <th>已收学费 JPY</th>
+                  <th>已收学费 CNY</th>
+                  <th>实际差额 CNY</th>
+                  <th>本月结转 CNY</th>
                   <th>锁定时间</th>
-                  <th>备注</th>
                 </tr>
               </thead>
               <tbody id="settlementTableBody"></tbody>
@@ -274,6 +270,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=v10.3.5-improve-settlement-adjustment-dialog"></script>
+    <script type="module" src="./js/settlement-app.js?v=v10.3.6-simplify-student-settlement-list-columns"></script>
   </body>
 </html>

@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initSettlementPage } from "./pages/settlement-page.js?v=v10.3.5-improve-settlement-adjustment-dialog";
+import { initSettlementPage } from "./pages/settlement-page.js?v=v10.3.6-simplify-student-settlement-list-columns";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

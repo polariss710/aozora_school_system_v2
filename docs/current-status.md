@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.6 simplify student settlement list columns, 2026-06-21:
+   学生月度结算一览表已按业务查看顺序精简为基础信息、月初预定、月末实际、锁定信息四段：操作、年月、学生、业务归属、结算状态、后续锁定、上月结余 CNY、预定课时费 JPY/CNY、实际课时费 JPY/CNY、已收学费 JPY/CNY、实际差额 CNY、本月结转 CNY、锁定时间。主表不再显示汇率、备注、已收折算 CNY、调整金额 CNY 等中间/系统化列；API 返回和详情/弹窗使用字段不变。字段映射保持现有结算口径：`previous_balance_cny` 显示为上月结余 CNY，`system_difference_cny` 显示为实际差额 CNY，`carryover_amount_cny` 显示为本月结转 CNY。不修改 DB/RPC/SQL、结算计算、差额调整保存、锁定/重新锁定、Cash、课时、老师工资、收入或 `js/legacy-core.js`。
+
 1. v10.3.5 improve settlement adjustment dialog, 2026-06-21:
    学生月度结算“保存锁定前差额调整”弹窗已从自由文本 `调整来源` 改为业务下拉 `调整方式`，选项为 `按最终差额结转`、`抹平差额`、`手动调整`。前端继续通过现有 `setStudentMonthlySettlementDraftAdjustment(...)` API 调用已安装 RPC `school_set_student_monthly_settlement_draft_adjustment(...)`，不改 DB schema、不改锁定/结转核心算法；金额按现有公式 `当前结转 = 系统差额 + 调整金额` 计算：按最终差额结转写入调整金额 `0`，抹平差额写入 `-系统差额`，手动调整允许用户编辑金额。该弹窗已移除遮罩点击关闭，只能通过取消或保存关闭；结算详情的差额调整来源显示同步映射为中文业务名，避免展示内部 source 值。未修改 Cash、课时、老师工资、收入、锁定核心逻辑或 `js/legacy-core.js`。
 
