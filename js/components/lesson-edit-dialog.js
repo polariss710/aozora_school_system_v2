@@ -372,6 +372,10 @@ export function createLessonEditDialogController(options) {
   }
 
   function renderWarning(warnings) {
+    if (!dom.warning) {
+      return;
+    }
+
     if (!warnings.length) {
       dom.warning.textContent = "";
       dom.warning.classList.add("is-hidden");
