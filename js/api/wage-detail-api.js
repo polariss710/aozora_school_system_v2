@@ -88,6 +88,7 @@ const EXPENSE_RECORD_COLUMNS = [
   "expense_category",
   "source_type",
   "source_id",
+  "app_type",
   "teacher_id",
   "payee_name_snapshot",
   "business_entity_id",

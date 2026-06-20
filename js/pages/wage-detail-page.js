@@ -338,11 +338,13 @@ function renderVoidWageLockAction(wageLock, paymentRequests, expenseRecords = []
 }
 
 function wageVoidReadonlyReason(wageLock, paymentRequests = [], expenseRecords = []) {
+  const activePaymentRequests = activeLegacyPaymentRequests(paymentRequests);
+  const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
   if (!wageLock) return "工资快照尚未加载。";
   if (wageLock.status === "void" || wageLock.voided_at) return "该工资快照已作废，不能重复撤销。";
   if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以撤销。";
-  if (paymentRequests.length > 0) return "该工资快照已生成旧支付请求，不能撤销。";
-  if (expenseRecords.length > 0) return "该工资快照已生成支出记录，不能撤销。";
+  if (activePaymentRequests.length > 0) return "该工资快照已生成有效旧支付请求，不能撤销。";
+  if (activeExpenseRecords.length > 0) return "该工资快照已生成有效支出记录，不能撤销。";
   return "";
 }
 
@@ -450,11 +452,12 @@ function renderVoidWageLockSummary(wageLock) {
 }
 
 function renderCreatePaymentRequestAction(wageLock, paymentRequests, expenseRecords = []) {
+  const activePaymentRequests = activeLegacyPaymentRequests(paymentRequests);
   const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
   const canCreate = wageLock.status === "locked"
     && !wageLock.voided_at
     && Number(wageLock.total_jpy || 0) > 0
-    && paymentRequests.length === 0
+    && activePaymentRequests.length === 0
     && activeExpenseRecords.length === 0;
 
   dom.openCreatePaymentRequestButton.classList.toggle("is-hidden", !canCreate);
@@ -464,6 +467,7 @@ function openCreatePaymentRequestDialog() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
   const expenseRecords = detailData?.expenseRecords || [];
+  const activePaymentRequests = activeLegacyPaymentRequests(paymentRequests);
   const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
 
   if (!wageLock) {
@@ -471,8 +475,8 @@ function openCreatePaymentRequestDialog() {
     return;
   }
 
-  if (paymentRequests.length > 0) {
-    showMessage("error", "该工资快照记录已有关联旧支付请求，不能重复生成支出记录。");
+  if (activePaymentRequests.length > 0) {
+    showMessage("error", "该工资快照记录已有关联有效旧支付请求，不能重复生成支出记录。");
     return;
   }
 
@@ -515,14 +519,15 @@ async function submitCreatePaymentRequest() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
   const expenseRecords = detailData?.expenseRecords || [];
+  const activePaymentRequests = activeLegacyPaymentRequests(paymentRequests);
   const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
   if (!wageLock) {
     showCreatePaymentRequestError("工资快照记录尚未加载。");
     return;
   }
 
-  if (paymentRequests.length > 0) {
-    showCreatePaymentRequestError("该工资快照记录已有关联旧支付请求，不能重复生成支出记录。");
+  if (activePaymentRequests.length > 0) {
+    showCreatePaymentRequestError("该工资快照记录已有关联有效旧支付请求，不能重复生成支出记录。");
     return;
   }
 
@@ -573,7 +578,7 @@ function renderPaymentRequests(requests) {
         <span class="status-badge ${escapeAttribute(paymentRequestStatusClass(request.status))}">${escapeHtml(paymentRequestStatusLabel(request.status))}</span>
       </div>
       <p><a class="table-action-button" href="./payment-detail.html?id=${encodeURIComponent(request.id)}">旧支付请求详情</a></p>
-      ${request.status === "reversed" || request.status === "void" ? '<p class="section-note">该支付请求已撤销或作废；本页仅展示工资支付状态链，不提供任何支付操作。</p>' : ""}
+      ${request.status === "reversed" || request.status === "void" || request.status === "cancelled" ? '<p class="section-note">该支付请求已撤销、取消或作废；本页仅展示工资支付状态链，不提供任何支付操作。</p>' : ""}
       ${renderDefinitionList([
         ["请求月份", formatMonth(request.request_month)],
         ["收款方", displayValue(request.payee_name)],
@@ -639,8 +644,18 @@ function renderCreatePaymentRequestSummary(wageLock) {
 function activeTeacherWageExpenseRecords(records = []) {
   return (records || []).filter((record) => (
     record
+    && record.app_type === "school"
+    && record.source_type === "teacher_wage"
     && record.cancelled_at == null
     && !["cancelled", "void", "voided"].includes(record.status || "")
+  ));
+}
+
+function activeLegacyPaymentRequests(requests = []) {
+  return (requests || []).filter((request) => (
+    request
+    && !request.reversed_at
+    && !["cancelled", "void", "voided", "reversed"].includes(request.status || "")
   ));
 }
 
@@ -824,11 +839,13 @@ function handleWageDetailRowActionClick(event) {
 }
 
 function wageAdjustmentReadonlyReason(wageLock, paymentRequests = [], expenseRecords = []) {
+  const activePaymentRequests = activeLegacyPaymentRequests(paymentRequests);
+  const activeExpenseRecords = activeTeacherWageExpenseRecords(expenseRecords);
   if (!wageLock) return "工资快照尚未加载。";
   if (wageLock.status !== "locked") return "只有已生成且未作废的工资快照可以调整。";
   if (wageLock.voided_at) return "已作废的工资快照不能调整。";
-  if (paymentRequests.length > 0) return "该工资快照已生成旧支付请求，不能直接调整。";
-  if (expenseRecords.length > 0) return "该工资快照已生成支出记录，不能直接调整。";
+  if (activePaymentRequests.length > 0) return "该工资快照已生成有效旧支付请求，不能直接调整。";
+  if (activeExpenseRecords.length > 0) return "该工资快照已生成有效支出记录，不能直接调整。";
   return "";
 }
 

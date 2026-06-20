@@ -37,6 +37,20 @@ const PAYMENT_REQUEST_COLUMNS = [
   "updated_at",
 ].join(",");
 
+const EXPENSE_RECORD_COLUMNS = [
+  "id",
+  "status",
+  "cancelled_at",
+  "source_type",
+  "source_id",
+  "app_type",
+  "cash_request_id",
+  "cash_request_status",
+  "cash_transaction_id",
+  "created_at",
+  "updated_at",
+].join(",");
+
 const WAGE_DETAIL_FEE_COLUMNS = [
   "lock_id",
   "transport_fee_jpy",
@@ -250,6 +264,22 @@ export async function fetchWagePaymentRequests(month) {
     .select(PAYMENT_REQUEST_COLUMNS)
     .eq("source_type", "teacher_wage")
     .eq("request_month", month)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function fetchWageExpenseRecords(month) {
+  const { data, error } = await supabase
+    .from("school_expense_records")
+    .select(EXPENSE_RECORD_COLUMNS)
+    .eq("app_type", "school")
+    .eq("source_type", "teacher_wage")
+    .eq("year_month", month)
     .order("created_at", { ascending: true });
 
   if (error) {

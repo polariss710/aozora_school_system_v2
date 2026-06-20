@@ -4,6 +4,7 @@ import {
   fetchWageBusinessEntities,
   fetchWageCandidateLessons,
   fetchWageDetailFeeSummaries,
+  fetchWageExpenseRecords,
   fetchWageLocks,
   fetchWagePaymentRequests,
   fetchWageStudents,
@@ -41,6 +42,20 @@ const PAYMENT_REQUEST_STATUS_LABELS = {
   reversed: "已撤销",
   void: "已作废",
   cancelled: "已取消",
+  approved: "Cash已确认",
+  cash_pending: "Cash待确认",
+  cash_rejected: "Cash已拒绝",
+};
+
+const EXPENSE_STATUS_LABELS = {
+  pending: "支出待支付",
+  paid: "支出已支付",
+  approved: "Cash已确认",
+  cash_pending: "Cash待确认",
+  cash_rejected: "Cash已拒绝",
+  cancelled: "支出已取消",
+  void: "支出已作废",
+  voided: "支出已作废",
 };
 
 const SETTLEMENT_TYPE_LABELS = {
@@ -55,6 +70,7 @@ let subjects = [];
 let businessEntities = [];
 let wageLocks = [];
 let wagePaymentRequests = [];
+let wageExpenseRecords = [];
 let wageCandidateLessons = [];
 let loadedMonth = "";
 let activeFilters = null;
@@ -295,14 +311,16 @@ async function handleGenerateSubmit() {
 }
 
 async function loadWageMonth(month) {
-  const [locks, paymentRequests, candidateLessons] = await Promise.all([
+  const [locks, paymentRequests, expenseRecords, candidateLessons] = await Promise.all([
     fetchWageLocks(month),
     fetchWagePaymentRequests(month),
+    fetchWageExpenseRecords(month),
     fetchWageCandidateLessons(month),
   ]);
 
   wageLocks = sortWageLocks(locks);
   wagePaymentRequests = paymentRequests;
+  wageExpenseRecords = expenseRecords;
   wageCandidateLessons = candidateLessons;
   loadedMonth = month;
   renderDataOptions(wageLocks);
@@ -773,13 +791,23 @@ function wageProcessState(row) {
     };
   }
 
-  const requests = paymentRequestsForWageLock(row.id);
-  if (requests.length > 0) {
-    const status = effectivePaymentRequestStatus(requests);
+  const activeExpenses = activeExpenseRecordsForWageLock(row.id);
+  if (activeExpenses.length > 0) {
+    const status = effectiveExpenseStatus(activeExpenses);
+    return {
+      label: `只读 / ${expenseStatusLabel(status)}`,
+      className: expenseStatusClass(status),
+      title: "该工资快照已有有效支出记录，明细调整和重复生成入口会在详情页关闭。",
+    };
+  }
+
+  const activeRequests = activePaymentRequestsForWageLock(row.id);
+  if (activeRequests.length > 0) {
+    const status = effectivePaymentRequestStatus(activeRequests);
     return {
       label: `只读 / ${paymentRequestStatusLabel(status)}`,
       className: paymentRequestStatusClass(status),
-      title: "该工资快照已生成支付请求，明细调整和重复生成支付请求入口会在详情页关闭。",
+      title: "该工资快照已生成有效旧支付请求，明细调整和重复生成入口会在详情页关闭。",
     };
   }
 
@@ -802,6 +830,34 @@ function paymentRequestsForWageLock(wageLockId) {
   return wagePaymentRequests.filter((request) => request.source_id === wageLockId);
 }
 
+function activePaymentRequestsForWageLock(wageLockId) {
+  return paymentRequestsForWageLock(wageLockId).filter(isActiveLegacyPaymentRequest);
+}
+
+function expenseRecordsForWageLock(wageLockId) {
+  return wageExpenseRecords.filter((record) => record.source_id === wageLockId);
+}
+
+function activeExpenseRecordsForWageLock(wageLockId) {
+  return expenseRecordsForWageLock(wageLockId).filter(isActiveTeacherWageExpenseRecord);
+}
+
+function isActiveLegacyPaymentRequest(request) {
+  if (!request) return false;
+  if (request.reversed_at) return false;
+  return !["cancelled", "void", "voided", "reversed"].includes(request.status || "");
+}
+
+function isActiveTeacherWageExpenseRecord(record) {
+  return Boolean(
+    record
+    && record.app_type === "school"
+    && record.source_type === "teacher_wage"
+    && record.cancelled_at == null
+    && !["cancelled", "void", "voided"].includes(record.status || "")
+  );
+}
+
 function effectivePaymentRequestStatus(requests) {
   if (requests.some((request) => request.status === "paid")) return "paid";
   if (requests.some((request) => request.status === "pending")) return "pending";
@@ -809,6 +865,15 @@ function effectivePaymentRequestStatus(requests) {
   if (requests.some((request) => request.status === "cancelled")) return "cancelled";
   if (requests.some((request) => request.status === "void")) return "void";
   return requests[requests.length - 1]?.status || "";
+}
+
+function effectiveExpenseStatus(records) {
+  if (records.some((record) => record.status === "paid")) return "paid";
+  if (records.some((record) => record.cash_request_status === "approved")) return "approved";
+  if (records.some((record) => record.cash_request_status === "pending")) return "cash_pending";
+  if (records.some((record) => record.cash_request_status === "rejected")) return "cash_rejected";
+  if (records.some((record) => record.status === "pending")) return "pending";
+  return records[records.length - 1]?.status || "";
 }
 
 async function handleMonthlySummaryExport() {
@@ -953,9 +1018,12 @@ function buildMonthlySummaryReport({ month, rows, feeSummaries }) {
 }
 
 function buildMonthlySummaryRow(row, index, feeSummaries) {
-  const paymentRequests = paymentRequestsForWageLock(row.id);
-  const paymentStatus = effectivePaymentRequestStatus(paymentRequests);
-  const paymentRequest = effectivePaymentRequest(paymentRequests);
+  const activeExpenses = activeExpenseRecordsForWageLock(row.id);
+  const activePaymentRequests = activePaymentRequestsForWageLock(row.id);
+  const paymentStatus = activeExpenses.length
+    ? effectiveExpenseStatus(activeExpenses)
+    : effectivePaymentRequestStatus(activePaymentRequests);
+  const paymentRequest = effectivePaymentRequest(activePaymentRequests);
   const processState = wageProcessState(row);
   const feeSummary = feeSummaries.get(row.id) || {
     transportFeeJpy: 0,
@@ -977,7 +1045,7 @@ function buildMonthlySummaryRow(row, index, feeSummaries) {
     feeTotalJpy,
     roundNumber(row.total_jpy),
     processState.label,
-    paymentStatus ? paymentRequestStatusLabel(paymentStatus) : "未生成支付请求",
+    paymentStatus ? wagePaymentStateLabel(paymentStatus, activeExpenses.length > 0) : "未生成支出记录",
     dateOnly(paymentRequest?.paid_at),
     monthlySummaryNote(row, paymentStatus),
   ];
@@ -999,11 +1067,11 @@ function monthlySummaryNote(row, paymentStatus) {
   }
 
   if (!paymentStatus) {
-    return "未生成支付请求；发工资前仍可在详情页受控调整。";
+    return "未生成有效支出记录；发工资前仍可在详情页受控调整或生成支出记录。";
   }
 
   if (paymentStatus === "pending") {
-    return "已生成支付请求，工资明细只读；请到老师工资支付模块确认。";
+    return "已生成有效待支付记录，工资明细只读；请到支出记录或旧支付请求详情处理。";
   }
 
   if (paymentStatus === "paid") {
@@ -1363,6 +1431,14 @@ function paymentRequestStatusLabel(value) {
   return PAYMENT_REQUEST_STATUS_LABELS[value] || displayValue(value);
 }
 
+function expenseStatusLabel(value) {
+  return EXPENSE_STATUS_LABELS[value] || displayValue(value);
+}
+
+function wagePaymentStateLabel(value, isExpense) {
+  return isExpense ? expenseStatusLabel(value) : paymentRequestStatusLabel(value);
+}
+
 function actualStatusLabel(value) {
   if (value === "completed") return "已完成";
   if (value === "makeup_completed") return "补课完成";
@@ -1371,8 +1447,15 @@ function actualStatusLabel(value) {
 
 function paymentRequestStatusClass(value) {
   if (value === "paid") return "status-paid";
-  if (value === "pending") return "status-pending";
+  if (value === "pending" || value === "cash_pending") return "status-pending";
   if (value === "reversed" || value === "cancelled" || value === "void") return "status-cancelled";
+  return "status-neutral";
+}
+
+function expenseStatusClass(value) {
+  if (value === "paid" || value === "approved") return "status-paid";
+  if (value === "pending" || value === "cash_pending") return "status-pending";
+  if (value === "cash_rejected" || value === "cancelled" || value === "void" || value === "voided") return "status-cancelled";
   return "status-neutral";
 }
 
