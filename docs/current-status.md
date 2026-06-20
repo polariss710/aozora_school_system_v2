@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-16
+Status date: 2026-06-20
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -29,6 +29,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.0 lesson stats cards cross-month makeup, 2026-06-20:
+   课时管理顶部统计第二行已改为 DB/RPC 来源的 `完成跨月补课次数`、`完成跨月补课课时`、`已上课数量`、`未上课数量`。新增并执行 `sql/current/school_get_lesson_management_stats_filtered_cross_month_cards.sql`，替换只读 RPC `school_get_lesson_management_stats_filtered(...)`，保留旧返回字段并追加 `cross_month_makeup_completed_count`、`cross_month_makeup_completed_hours`、`completed_lesson_count`、`planned_uncompleted_count`，不新增表/字段，不修改老师工资、学生结算、跨月补课创建、工资结算月或前端补丁统计。2026-06 执行后只读验证：当前全量跨月补课完成为 4 次 / 6.25 小时，旧实际课时 `88.25`、旧实际课时费 `877,375 JPY` 保持原收费口径；用户指定的 1.5 小时、`is_billable=false`、费用 0 的 2026-05 来源待补课记录在学生+老师+科目+业务归属过滤下返回 1 次 / 1.5 小时。状态过滤验证确认 `cancelled` 不进入普通已上课，`makeup_completed` 不进入普通已上课，`pending_makeup` 不进入普通未上课，`billable=true` 不计入非计费跨月补课卡片。
 
 1. Teacher wage test detail cleanup, 2026-06-16:
    受控删除一条人工确认的历史测试老师工资明细 `school_teacher_wage_lock_details.id = f9d36502-7c80-492d-92ba-db31942a7170`，所属工资锁 `2aa849e9-4898-425d-b861-843a0dbd8001`。执行 SQL `sql/current/repair_delete_test_teacher_wage_detail_202602.sql` 前确认该 detail 无 adjustment、无 `teacher_wage` 支出记录、无旧 payment request、无 Cash linkage。由于 detail 表没有 `deleted_at`，本次物理删除目标 detail，并按剩余 2 条明细重算工资锁汇总：`lesson_count 3 -> 2`、`total_minutes 360 -> 240`、`pay_hours 6 -> 4`、`lesson_wage_jpy/total_jpy 30000 -> 20000`、`lesson_wage_cny/total_cny 1284.54 -> 856.36`、`fee_jpy = 0`。独立只读验证确认目标 detail 剩余 0，下游支出/payment/Cash/adjustment 关联仍为 0。

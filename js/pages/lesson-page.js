@@ -357,10 +357,10 @@ function cacheDom() {
   dom.statsActualHours = document.querySelector("#lessonStatsActualHours");
   dom.statsPlannedFee = document.querySelector("#lessonStatsPlannedFee");
   dom.statsActualFee = document.querySelector("#lessonStatsActualFee");
-  dom.statsCompletedCount = document.querySelector("#lessonStatsCompletedCount");
-  dom.statsCancelledCount = document.querySelector("#lessonStatsCancelledCount");
-  dom.statsPendingMakeupCount = document.querySelector("#lessonStatsPendingMakeupCount");
-  dom.statsRecordCount = document.querySelector("#lessonStatsRecordCount");
+  dom.statsCrossMonthMakeupCompletedCount = document.querySelector("#lessonStatsCrossMonthMakeupCompletedCount");
+  dom.statsCrossMonthMakeupCompletedHours = document.querySelector("#lessonStatsCrossMonthMakeupCompletedHours");
+  dom.statsCompletedLessonCount = document.querySelector("#lessonStatsCompletedLessonCount");
+  dom.statsPlannedUncompletedCount = document.querySelector("#lessonStatsPlannedUncompletedCount");
   dom.lessonPdfExportDialog = document.querySelector("#lessonPdfExportDialog");
   dom.lessonPdfExportError = document.querySelector("#lessonPdfExportError");
   dom.lessonPdfExportStudentSelect = document.querySelector("#lessonPdfExportStudentSelect");
@@ -1050,10 +1050,10 @@ function renderLessonStats(stats, options = {}) {
   setText(dom.statsActualHours, stats ? displayValue(values.actual_hours) : loadingText);
   setText(dom.statsPlannedFee, stats ? formatCurrency(values.planned_fee_jpy, "JPY") : loadingText);
   setText(dom.statsActualFee, stats ? formatCurrency(values.actual_fee_jpy, "JPY") : loadingText);
-  setText(dom.statsCompletedCount, stats ? displayValue(values.completed_count) : loadingText);
-  setText(dom.statsCancelledCount, stats ? displayValue(values.cancelled_count) : loadingText);
-  setText(dom.statsPendingMakeupCount, stats ? displayValue(values.pending_makeup_count) : loadingText);
-  setText(dom.statsRecordCount, stats ? displayValue(values.record_count) : loadingText);
+  setText(dom.statsCrossMonthMakeupCompletedCount, stats ? displayValue(values.cross_month_makeup_completed_count) : loadingText);
+  setText(dom.statsCrossMonthMakeupCompletedHours, stats ? displayValue(values.cross_month_makeup_completed_hours) : loadingText);
+  setText(dom.statsCompletedLessonCount, stats ? displayValue(values.completed_lesson_count) : loadingText);
+  setText(dom.statsPlannedUncompletedCount, stats ? displayValue(values.planned_uncompleted_count) : loadingText);
 }
 
 function setText(element, value) {
