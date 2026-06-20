@@ -2,8 +2,8 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
-  createCashSystemIncome,
   createIncomeRecord,
+  createPendingCashIncomeRecord,
   fetchIncomeLookups,
   fetchIncomeRecords,
   requestCashIncomeConfirmationForRecord,
@@ -182,28 +182,9 @@ function bindEvents() {
   dom.batchCashIncomeTableBody.addEventListener("click", handleBatchCashIncomeClick);
   dom.createIncomeCancelButton.addEventListener("click", closeCreateIncomeDialog);
   dom.createIncomeSubmitButton.addEventListener("click", submitCreateIncome);
-  dom.createIncomeModeSelect.addEventListener("change", async () => {
+  dom.createIncomeModeSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("createMode");
     hideCreateErrorIfClean();
-
-    if (isCashIncomeCreateMode()) {
-      if (
-        !requireLoginForCashConfirmation((_type, message) => {
-          showCreateError(message, ["createMode"]);
-        })
-      ) {
-        updateCreateModeUi({ preserveBusinessEntity: true });
-        return;
-      }
-
-      try {
-        await ensureCashEligibleAccountsLoaded();
-      } catch (error) {
-        showCreateError(`读取 Cash System 账户失败：${error.message || error}`, ["createMode"]);
-        updateCreateModeUi({ preserveBusinessEntity: true });
-        return;
-      }
-    }
 
     updateCreateModeUi({ preserveBusinessEntity: true });
   });
@@ -1287,7 +1268,7 @@ async function submitCreateIncome() {
 
   try {
     const result = isCashIncomeCreateModeValue(payload.createMode)
-      ? await createCashSystemIncome(payload)
+      ? await createPendingCashIncomeRecord(payload)
       : await createIncomeRecord(payload);
     setCreateSubmitting(false);
     closeCreateIncomeDialog();
@@ -1354,27 +1335,12 @@ function readCreateIncomePayload() {
       return null;
     }
 
-    const cashAccountId = dom.createIncomeCashMappingSelect.value;
-    if (!cashAccountId) {
-      showCreateError("请选择 Cash System 账户。", ["cashMapping"]);
-      return null;
-    }
-
-    const cashAccount = filteredCreateCashAccounts().find((item) => item.id === cashAccountId);
-    if (!cashAccount) {
-      showCreateError("Cash System 账户无效、未在白名单内，或币种与收入币种不一致。", ["cashMapping"]);
-      return null;
-    }
-
     return {
       createMode,
       incomeDate,
       settlementMonth,
       businessEntityId,
       studentId,
-      cashAccountId,
-      cashAccountName: cashAccount.name || cashAccount.id,
-      cashAccountType: cashAccount.account_type || null,
       amount,
       incomeCategory,
       currency,
@@ -1384,7 +1350,7 @@ function readCreateIncomePayload() {
       description: dom.createIncomeDescriptionInput.value.trim(),
       isTaxableIncome: dom.createIncomeTaxableSelect.value === "true",
       taxCategory: dom.createIncomeTaxCategoryInput.value.trim(),
-      receiptStatus: dom.createIncomeReceiptStatusInput.value.trim(),
+      receiptStatus: "Cash待提交",
       note: dom.createIncomeNoteInput.value.trim(),
     };
   }
@@ -1453,7 +1419,7 @@ function showIncomeCreateSuccess(result, createMode) {
   const incomeId = result?.income_id;
   dom.messageArea.className = "message message-success";
   const message = isCashIncomeCreateModeValue(createMode)
-    ? "已提交 Cash System 待确认。"
+    ? "Cash 收入记录已保存，尚未提交 Cash。"
     : "收入已新增并自动入账。";
   if (incomeId) {
     dom.messageArea.innerHTML = `${escapeHtml(message)}<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看详情</a>`;
@@ -1592,13 +1558,13 @@ function updateCreateModeUi(options = {}) {
   const cashMode = isCashIncomeCreateMode();
   setCreateFieldHidden("account", cashMode);
   setCreateFieldHidden("cashCurrency", !cashMode);
-  setCreateFieldHidden("cashMapping", !cashMode);
+  setCreateFieldHidden("cashMapping", true);
   setCreateFieldHidden("paymentMethod", cashMode);
   setCreateFieldHidden("exchangeRate", cashMode);
 
   dom.createIncomeAccountSelect.disabled = cashMode;
   dom.createIncomeCurrencySelect.disabled = !cashMode;
-  dom.createIncomeCashMappingSelect.disabled = !cashMode;
+  dom.createIncomeCashMappingSelect.disabled = true;
   dom.createIncomePaymentMethodSelect.disabled = cashMode;
   dom.createIncomeExchangeRateInput.disabled = cashMode;
   dom.createIncomeCategorySelect.disabled = false;
@@ -1819,7 +1785,7 @@ function incomeAccountDisplayName(row) {
   }
 
   if (!row?.account_id && isCashIncomeRow(row)) {
-    return row?.status === "pending" ? "Cash待确认" : "Cash账户未取得";
+    return row?.status === "pending" ? "未提交 Cash" : "Cash账户未取得";
   }
 
   return accountNameById(row?.account_id);
