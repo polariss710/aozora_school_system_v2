@@ -192,7 +192,7 @@
           <div class="section-heading section-heading-row lesson-list-heading">
             <div>
               <h2 id="lessonListTitle">课时记录</h2>
-              <p class="section-note">默认按 planned / actual 左右对应查看原始课时记录；普通列表作为辅助视图，可横向滚动查看更多列。</p>
+              <p class="section-note">默认按预定课时 / 实际课时左右对应查看原始课时记录；普通列表作为辅助视图，可横向滚动查看更多列。</p>
             </div>
             <div class="lesson-list-tools">
               <div class="view-toggle" role="group" aria-label="课时视图">
@@ -231,7 +231,6 @@
                   <th>内容</th>
                   <th>备注</th>
                   <th>老师结算月</th>
-                  <th>导入来源</th>
                 </tr>
               </thead>
               <tbody id="lessonTableBody"></tbody>
@@ -239,8 +238,8 @@
           </div>
           <div id="lessonPairView" class="lesson-pair-view" aria-live="polite">
             <div class="lesson-pair-legend">
-              <span><strong>planned</strong>：待上课 / 待补课</span>
-              <span><strong>actual</strong>：已完成 / 已取消 / 补课完成</span>
+              <span><strong>预定课时</strong>：待上课 / 待补课</span>
+              <span><strong>实际课时</strong>：已上课 / 已取消 / 已补课</span>
             </div>
             <div id="lessonPairRows" class="lesson-pair-list"></div>
           </div>

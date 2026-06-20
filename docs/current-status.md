@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.3 clean lesson list system fields, 2026-06-21:
+   课时管理一览页继续清理开发阶段字段，仅改 UI 展示，不改 DB/RPC/SQL/API/业务写入逻辑。左右对照视图中 planned/actual 栏位改为中文 `预定课时` / `实际课时`，卡片头部不再显示短 ID，正文不再显示 `planned ID` / `planned_lesson_id` / UUID 截断，缺失 actual 占位不再显示 `planned xxxxxxxx`；对应关系改为业务说明 `有对应实际课时`、`无对应实际课时`、`对应预定课时`、`无对应预定课时`、`跨月补课`。跨月补课参考卡也删除实际课时和来源预定课时短 ID，说明文案改为中文业务口径。普通列表移除 `导入来源` 列，类型/状态标签改为 `预定课时`、`实际课时`、`已上课`、`已补课`。验证使用 2026-06 课时管理真实 DOM：`lessonPairRows` 与 `lessonTableBody` 均无短 ID、planned ID、`planned_lesson_id`、UUID、`student_id`、`teacher_id`、`subject_id`、`business_entity_id`、`app_type`、`created_at`、`updated_at`、`导入来源`；查看详情、编辑、左右对应/普通列表、顶部统计和筛选 UI 仍存在。`node --check js/pages/lesson-page.js` 与 `git diff --check` 通过。
+
 1. v10.3.2 clean lesson detail system fields, 2026-06-21:
    课时详情页默认业务 UI 已清理开发阶段字段：课时摘要不再显示 `lesson id`、`planned_lesson_id`、`app_type`、`created_at`、`updated_at`、导入元数据或英文数据库字段名；课时来源链改为业务列 `关系 / 类型 / 状态 / 日期 / 时间 / 时长 / 计费 / 课时费 / 内容摘要`，不再显示短 ID、planned ID 或 UUID，关系文案改为 `当前课时`、`来源预定课时`、`后续关联课时`、`同一预定关联课时`。详情页参考区也去掉学生结算短 ID 和老师工资 `wage lock` 短码列。列表页和详情页共享编辑弹窗均删除棕色技术说明框，顶部说明改为业务化短句，并默认隐藏关联预定ID / 导入来源字段；保存 payload、只读字段、guarded 校验、课时创建/取消/补课/工资/收入逻辑均未改变。本阶段无 SQL 修改、无 RPC/DB 写入。验证使用真实 2026-06 课时详情 DOM：目标系统字段和棕色说明框不可见，来源链业务列正常显示；静态断言确认 `lesson.html` 与 `lesson-detail.html` 均无 `editLessonWarning/dialog-warning`，隐藏字段 class 生效；`node --check` 与 `git diff --check` 通过。
 

@@ -2472,13 +2472,6 @@ h2 {
   min-width: 0;
 }
 
-.lesson-pair-id {
-  margin-left: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
 .lesson-pair-main {
   justify-content: flex-start;
   color: var(--text);
@@ -2583,12 +2576,6 @@ h2 {
   padding: 14px;
   color: var(--muted);
   font-size: 13px;
-}
-
-.lesson-pair-placeholder-id {
-  color: #94a3b8;
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .lesson-pair-placeholder-actions {

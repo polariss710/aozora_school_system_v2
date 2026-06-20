@@ -46,15 +46,15 @@ const DEFAULT_LESSON_VIEW = "pair";
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
 const LESSON_TYPE_LABELS = {
-  planned: "计划",
-  actual: "实际",
+  planned: "预定课时",
+  actual: "实际课时",
 };
 
 const LESSON_STATUS_LABELS = {
   planned: "待上课",
-  completed: "已完成",
+  completed: "已上课",
   pending_makeup: "待补课",
-  makeup_completed: "补课完成",
+  makeup_completed: "已补课",
   cancelled: "已取消",
 };
 
@@ -5077,7 +5077,6 @@ function renderLessonRecords(records) {
       <td class="lesson-content-cell">${escapeHtml(displayValue(record.lesson_content))}</td>
       <td class="lesson-note-cell">${escapeHtml(displayValue(record.note))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatMonth(record.teacher_settlement_month))}</td>
-      <td class="lesson-content-cell">${escapeHtml(displayValue(record.import_source))}</td>
     </tr>
   `).join("");
 
@@ -5157,11 +5156,11 @@ function renderLessonPairRow(pair) {
   return `
     <article class="lesson-pair-row">
       <div class="lesson-pair-column lesson-pair-column-planned">
-        <div class="lesson-pair-column-title">planned</div>
+        <div class="lesson-pair-column-title">预定课时</div>
         ${renderLessonPairCard(pair.planned, "planned")}
       </div>
       <div class="lesson-pair-column lesson-pair-column-actual">
-        <div class="lesson-pair-column-title">actual</div>
+        <div class="lesson-pair-column-title">实际课时</div>
         <div class="lesson-pair-actual-stack">${actualHtml}</div>
       </div>
     </article>
@@ -5183,16 +5182,16 @@ function renderUnlinkedActualRow(actual) {
     : null;
   const plannedHtml = sourcePlanned
     ? renderCrossMonthMakeupSourceReferenceCard(sourcePlanned)
-    : '<div class="lesson-pair-placeholder">未找到对应 planned 记录</div>';
+    : '<div class="lesson-pair-placeholder">关联：无对应预定课时</div>';
 
   return `
     <article class="lesson-pair-row lesson-pair-row-unlinked">
       <div class="lesson-pair-column lesson-pair-column-empty">
-        <div class="lesson-pair-column-title">planned</div>
+        <div class="lesson-pair-column-title">预定课时</div>
         ${plannedHtml}
       </div>
       <div class="lesson-pair-column lesson-pair-column-actual">
-        <div class="lesson-pair-column-title">actual</div>
+        <div class="lesson-pair-column-title">实际课时</div>
         ${renderLessonPairCard(actual, "actual")}
       </div>
     </article>
@@ -5205,7 +5204,6 @@ function renderCrossMonthMakeupCompletedReferenceCard(actual) {
       <div class="lesson-pair-card-header">
         <div>
           <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(actual.id, actual.year_month, "pair"))}">查看详情</a>
-          <span class="lesson-pair-id">${escapeHtml(shortId(actual.id))}</span>
         </div>
         <span class="status-badge ${escapeAttribute(statusClass(actual.status))}">已于 ${escapeHtml(formatMonth(actual.year_month))} 完成</span>
       </div>
@@ -5220,7 +5218,7 @@ function renderCrossMonthMakeupCompletedReferenceCard(actual) {
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(actual.lesson_fee, "JPY"))}</dd></div>
         <div><dt>老师结算月</dt><dd>${escapeHtml(formatMonth(actual.teacher_settlement_month))}</dd></div>
       </dl>
-      <div class="lesson-pair-reference-note">已于 ${escapeHtml(formatMonth(actual.year_month))} 完成；来源 planned 不会在原月份被修改。</div>
+      <div class="lesson-pair-reference-note">来源：跨月补课；原月份预定课时保持不变。</div>
     </article>
   `;
 }
@@ -5231,7 +5229,6 @@ function renderCrossMonthMakeupSourceReferenceCard(sourcePlanned) {
       <div class="lesson-pair-card-header">
         <div>
           <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(sourcePlanned.id, sourcePlanned.year_month, "pair"))}">查看详情</a>
-          <span class="lesson-pair-id">${escapeHtml(shortId(sourcePlanned.id))}</span>
         </div>
         <span class="status-badge ${escapeAttribute(statusClass(sourcePlanned.status))}">来源：${escapeHtml(formatMonth(sourcePlanned.year_month))} 待补课</span>
       </div>
@@ -5246,7 +5243,7 @@ function renderCrossMonthMakeupSourceReferenceCard(sourcePlanned) {
         <div><dt>科目</dt><dd>${escapeHtml(nameById(subjects, sourcePlanned.subject_id, subjectName))}</dd></div>
         <div><dt>业务归属</dt><dd>${escapeHtml(nameById(businessEntities, sourcePlanned.business_entity_id, businessEntityName))}</dd></div>
       </dl>
-      <div class="lesson-pair-reference-note">来源：${escapeHtml(formatMonth(sourcePlanned.year_month))} 待补课；当前月份只保存补课完成 actual。</div>
+      <div class="lesson-pair-reference-note">来源：跨月补课；当前月份只保存已补课记录。</div>
     </article>
   `;
 }
@@ -5255,7 +5252,7 @@ function renderOtherLessonRow(record) {
   return `
     <article class="lesson-pair-row lesson-pair-row-unlinked">
       <div class="lesson-pair-column lesson-pair-column-empty">
-        <div class="lesson-pair-column-title">planned</div>
+        <div class="lesson-pair-column-title">预定课时</div>
         <div class="lesson-pair-placeholder">当前类型无法配对</div>
       </div>
       <div class="lesson-pair-column">
@@ -5267,10 +5264,10 @@ function renderOtherLessonRow(record) {
 }
 
 function renderMissingActualCard(planned) {
-  const statusText = planned.status === "pending_makeup" ? "待补课，尚无 actual 记录" : "尚无 actual 记录";
+  const statusText = planned.status === "pending_makeup" ? "待补课，尚无实际课时" : "尚无实际课时";
   const actionHtml = canGenerateActualFromPlanned(planned)
     ? [
-        `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成 actual</button>`,
+        `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成实际</button>`,
         `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">标记取消</button>`,
         `<button class="button table-action-button" type="button" data-generate-makeup-actual-id="${escapeAttribute(planned.id)}">补课完成</button>`,
       ].join("")
@@ -5278,7 +5275,7 @@ function renderMissingActualCard(planned) {
   return `
     <div class="lesson-pair-placeholder">
       <span>${escapeHtml(statusText)}</span>
-      <span class="lesson-pair-placeholder-id">planned ${escapeHtml(shortId(planned.id))}</span>
+      <span>关联：无对应实际课时</span>
       ${actionHtml ? `<div class="lesson-pair-placeholder-actions">${actionHtml}</div>` : ""}
     </div>
   `;
@@ -5327,7 +5324,6 @@ function renderLessonPairCard(record, side) {
         <div>
           <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(record.id, loadedMonth, "pair"))}">查看详情</a>
           ${renderLessonActions(record)}
-          <span class="lesson-pair-id">${escapeHtml(shortId(record.id))}</span>
         </div>
         <span class="status-badge ${escapeAttribute(statusClass(record.status))}">${escapeHtml(lessonStatusLabel(record.status))}</span>
       </div>
@@ -5344,11 +5340,38 @@ function renderLessonPairCard(record, side) {
         <div><dt>计费</dt><dd>${escapeHtml(billableText)}</dd></div>
         <div><dt>时长</dt><dd>${escapeHtml(displayValue(record.duration_hours))}</dd></div>
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>
-        <div><dt>planned ID</dt><dd>${escapeHtml(shortId(record.planned_lesson_id))}</dd></div>
+        <div><dt>关联</dt><dd>${escapeHtml(lessonPairRelationLabel(record))}</dd></div>
       </dl>
       ${renderLessonPairText(record)}
     </article>
   `;
+}
+
+function lessonPairRelationLabel(record) {
+  if (!record) {
+    return "-";
+  }
+
+  if (record.lesson_type === "planned") {
+    const hasSameMonthActual = hasLinkedActualLesson(record.id);
+    const hasCrossMonthActual = (crossMonthMakeupReferences.actualsBySourcePlannedId.get(record.id) || []).length > 0;
+    if (hasSameMonthActual || hasCrossMonthActual) {
+      return "有对应实际课时";
+    }
+    return "无对应实际课时";
+  }
+
+  if (record.lesson_type === "actual") {
+    if (!record.planned_lesson_id) {
+      return "无对应预定课时";
+    }
+    if (crossMonthMakeupReferences.sourcePlannedById.has(record.planned_lesson_id)) {
+      return "跨月补课";
+    }
+    return "对应预定课时";
+  }
+
+  return "-";
 }
 
 function renderLessonPairText(record) {
@@ -5389,7 +5412,7 @@ function actualBillableSummary(record) {
   }
 
   if (record.status === "makeup_completed") {
-    return record.is_billable ? "计费（补课完成）" : "不计费（补课完成）";
+    return record.is_billable ? "计费（已补课）" : "不计费（已补课）";
   }
 
   return billableLabel(record.is_billable);
