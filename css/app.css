@@ -3849,6 +3849,24 @@ h2 {
   gap: 0 14px;
 }
 
+.lesson-cross-month-makeup-dialog-panel .section-heading {
+  margin-bottom: 8px;
+}
+
+.lesson-cross-month-makeup-dialog-panel .dialog-summary {
+  gap: 6px 12px;
+  padding: 10px 12px;
+}
+
+.lesson-cross-month-makeup-dialog-panel .field {
+  margin-top: 8px;
+}
+
+.lesson-cross-month-makeup-dialog-panel #createCrossMonthMakeupActualContentInput,
+.lesson-cross-month-makeup-dialog-panel #createCrossMonthMakeupActualNoteInput {
+  min-height: 58px;
+}
+
 .income-create-wide-field,
 .expense-create-wide-field,
 .reimbursement-create-wide-field,

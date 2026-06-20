@@ -2428,8 +2428,6 @@ function renderCreateCrossMonthMakeupActualSummary() {
     ["补课月份", formatMonth(targetMonth)],
     ["写入结果", "只在当前月份生成一条补课完成 actual"],
     ["计费", "默认不计费；课时费固定 0"],
-    ["planned", "不会复制 planned"],
-    ["来源 planned", "不会修改来源 planned"],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -2438,6 +2436,7 @@ function renderCreateCrossMonthMakeupActualSummary() {
   `).join("");
 
   const source = currentCrossMonthMakeupSourceLesson;
+  dom.createCrossMonthMakeupActualSourceSummary.classList.toggle("is-hidden", !source);
   dom.createCrossMonthMakeupActualSourceSummary.innerHTML = source ? [
     ["来源月份", formatMonth(source.year_month)],
     ["来源日期", formatDateOnly(source.lesson_date)],
@@ -2451,7 +2450,7 @@ function renderCreateCrossMonthMakeupActualSummary() {
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
       <span>${escapeHtml(displayValue(value))}</span>
     </div>
-  `).join("") : '<div class="state-text">请选择一个原月份待补课 planned。</div>';
+  `).join("") : "";
 }
 
 async function handleCreateCrossMonthMakeupActualSubmit() {

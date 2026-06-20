@@ -590,10 +590,9 @@
       </div>
 
       <div class="dialog-backdrop is-hidden" id="createCrossMonthMakeupActualDialog" aria-hidden="true">
-        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createCrossMonthMakeupActualTitle">
+        <section class="dialog-panel lesson-create-dialog-panel lesson-cross-month-makeup-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createCrossMonthMakeupActualTitle">
           <div class="section-heading">
             <h2 id="createCrossMonthMakeupActualTitle">登记跨月补课完成</h2>
-            <p class="section-note">选择以前月份的待补课 planned，只在当前页面月份生成一条 makeup_completed actual。</p>
           </div>
 
           <div id="createCrossMonthMakeupActualSummary" class="dialog-summary"></div>
@@ -672,29 +671,14 @@
               <input id="createCrossMonthMakeupActualCountInput" type="number" min="1" step="1" inputmode="numeric">
             </label>
 
-            <div class="dialog-summary lesson-create-wide-field">
-              <div class="dialog-summary-row">
-                <span class="dialog-summary-label">planned</span>
-                <span>不会复制 planned</span>
-              </div>
-              <div class="dialog-summary-row">
-                <span class="dialog-summary-label">来源 planned</span>
-                <span>不会修改来源 planned</span>
-              </div>
-              <div class="dialog-summary-row">
-                <span class="dialog-summary-label">写入</span>
-                <span>只在当前月份生成一条补课完成 actual</span>
-              </div>
-            </div>
-
             <label class="field lesson-create-wide-field" data-create-cross-month-makeup-field="lessonContent">
               <span>内容</span>
-              <textarea id="createCrossMonthMakeupActualContentInput" rows="3"></textarea>
+              <textarea id="createCrossMonthMakeupActualContentInput" rows="2"></textarea>
             </label>
 
             <label class="field lesson-create-wide-field">
               <span>备注</span>
-              <textarea id="createCrossMonthMakeupActualNoteInput" rows="3"></textarea>
+              <textarea id="createCrossMonthMakeupActualNoteInput" rows="2"></textarea>
             </label>
           </div>
 
