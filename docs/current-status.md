@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.4 remove lesson card residual ids, 2026-06-21:
+   针对课时管理一览页截图中仍显示 `PLANNED` / `ACTUAL`、卡片首行短 ID 和卡片内 `planned ID` 的最后残留，确认 `v10.3.3` 的渲染源码已经移除这些字段，但 `lesson.html` / `js/lesson-app.js` 仍使用旧 query cache-buster，部署后可能继续加载旧 `lesson-page.js`；本阶段将 `lesson.html` 的 `app.css` 和 `lesson-app.js` query、`js/lesson-app.js` 的 `lesson-page.js` query 更新为 `v10.3.4-remove-lesson-card-residual-ids`，并移除 `.lesson-pair-column-title` 的 `text-transform: uppercase`，避免栏目标题被样式强制大写。未修改 DB/RPC/SQL/API/业务逻辑，未修改课时创建、编辑、取消、补课、工资、收入或统计逻辑。验证确认 `lesson-page.js` pair 渲染模板不输出 `lesson-pair-id`、`lesson-pair-placeholder-id`、`planned ID`、短 ID 或 `shortId(record.id)`；`lesson.html` 和 `js/lesson-app.js` 均引用 v10.3.4 query；`node --check` 与 `git diff --check` 通过。
+
 1. v10.3.3 clean lesson list system fields, 2026-06-21:
    课时管理一览页继续清理开发阶段字段，仅改 UI 展示，不改 DB/RPC/SQL/API/业务写入逻辑。左右对照视图中 planned/actual 栏位改为中文 `预定课时` / `实际课时`，卡片头部不再显示短 ID，正文不再显示 `planned ID` / `planned_lesson_id` / UUID 截断，缺失 actual 占位不再显示 `planned xxxxxxxx`；对应关系改为业务说明 `有对应实际课时`、`无对应实际课时`、`对应预定课时`、`无对应预定课时`、`跨月补课`。跨月补课参考卡也删除实际课时和来源预定课时短 ID，说明文案改为中文业务口径。普通列表移除 `导入来源` 列，类型/状态标签改为 `预定课时`、`实际课时`、`已上课`、`已补课`。验证使用 2026-06 课时管理真实 DOM：`lessonPairRows` 与 `lessonTableBody` 均无短 ID、planned ID、`planned_lesson_id`、UUID、`student_id`、`teacher_id`、`subject_id`、`business_entity_id`、`app_type`、`created_at`、`updated_at`、`导入来源`；查看详情、编辑、左右对应/普通列表、顶部统计和筛选 UI 仍存在。`node --check js/pages/lesson-page.js` 与 `git diff --check` 通过。
 

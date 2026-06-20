@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.4-remove-lesson-card-residual-ids";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
