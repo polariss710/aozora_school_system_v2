@@ -2585,7 +2585,56 @@ h2 {
 }
 
 .settlement-table {
-  min-width: 1700px;
+  width: 100%;
+  min-width: 1920px;
+  table-layout: fixed;
+}
+
+.settlement-table th {
+  white-space: normal;
+  line-height: 1.25;
+  vertical-align: middle;
+}
+
+.settlement-table td {
+  vertical-align: middle;
+}
+
+.settlement-table .number-cell {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.settlement-table .settlement-col-action {
+  width: 11%;
+}
+
+.settlement-table .settlement-col-month {
+  width: 5%;
+}
+
+.settlement-table .settlement-col-student {
+  width: 6.8%;
+}
+
+.settlement-table .settlement-col-entity {
+  width: 7.2%;
+}
+
+.settlement-table .settlement-col-status {
+  width: 5.3%;
+}
+
+.settlement-table .settlement-col-lock-state {
+  width: 7.8%;
+}
+
+.settlement-table .settlement-col-amount {
+  width: 5.72%;
+}
+
+.settlement-table .settlement-col-locked-at {
+  width: 5.42%;
 }
 
 .lesson-detail-chain-table {

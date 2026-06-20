@@ -30,6 +30,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.7 adjust settlement table column width, 2026-06-21:
+   学生月度结算一览表在列精简后补齐专用布局样式：`settlement-table` 改为 `width: 100%`、`table-layout: fixed`、`min-width: 1920px`，并通过专用 `colgroup` 为操作、年月、学生、业务归属、状态、后续锁定、金额和锁定时间分配列宽；表头允许换行，金额列继续右对齐并保持可读，操作列保留足够宽度避免按钮严重换行。样式仅作用于学生月度结算一览表，不影响课时管理、老师工资、学生结算详情表格或其他 `payment-table`。本阶段不修改列字段、结算计算、差额调整、锁定/重新锁定、Cash、DB/RPC/SQL 或 `js/legacy-core.js`。
+
 1. v10.3.6 simplify student settlement list columns, 2026-06-21:
    学生月度结算一览表已按业务查看顺序精简为基础信息、月初预定、月末实际、锁定信息四段：操作、年月、学生、业务归属、结算状态、后续锁定、上月结余 CNY、预定课时费 JPY/CNY、实际课时费 JPY/CNY、已收学费 JPY/CNY、实际差额 CNY、本月结转 CNY、锁定时间。主表不再显示汇率、备注、已收折算 CNY、调整金额 CNY 等中间/系统化列；API 返回和详情/弹窗使用字段不变。字段映射保持现有结算口径：`previous_balance_cny` 显示为上月结余 CNY，`system_difference_cny` 显示为实际差额 CNY，`carryover_amount_cny` 显示为本月结转 CNY。不修改 DB/RPC/SQL、结算计算、差额调整保存、锁定/重新锁定、Cash、课时、老师工资、收入或 `js/legacy-core.js`。
 
