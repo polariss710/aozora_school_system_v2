@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-20
+Status date: 2026-06-21
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -29,6 +29,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.5 improve settlement adjustment dialog, 2026-06-21:
+   学生月度结算“保存锁定前差额调整”弹窗已从自由文本 `调整来源` 改为业务下拉 `调整方式`，选项为 `按最终差额结转`、`抹平差额`、`手动调整`。前端继续通过现有 `setStudentMonthlySettlementDraftAdjustment(...)` API 调用已安装 RPC `school_set_student_monthly_settlement_draft_adjustment(...)`，不改 DB schema、不改锁定/结转核心算法；金额按现有公式 `当前结转 = 系统差额 + 调整金额` 计算：按最终差额结转写入调整金额 `0`，抹平差额写入 `-系统差额`，手动调整允许用户编辑金额。该弹窗已移除遮罩点击关闭，只能通过取消或保存关闭；结算详情的差额调整来源显示同步映射为中文业务名，避免展示内部 source 值。未修改 Cash、课时、老师工资、收入、锁定核心逻辑或 `js/legacy-core.js`。
 
 1. v10.3.4 remove lesson card residual ids, 2026-06-21:
    针对课时管理一览页截图中仍显示 `PLANNED` / `ACTUAL`、卡片首行短 ID 和卡片内 `planned ID` 的最后残留，确认 `v10.3.3` 的渲染源码已经移除这些字段，但 `lesson.html` / `js/lesson-app.js` 仍使用旧 query cache-buster，部署后可能继续加载旧 `lesson-page.js`；本阶段将 `lesson.html` 的 `app.css` 和 `lesson-app.js` query、`js/lesson-app.js` 的 `lesson-page.js` query 更新为 `v10.3.4-remove-lesson-card-residual-ids`，并移除 `.lesson-pair-column-title` 的 `text-transform: uppercase`，避免栏目标题被样式强制大写。未修改 DB/RPC/SQL/API/业务逻辑，未修改课时创建、编辑、取消、补课、工资、收入或统计逻辑。验证确认 `lesson-page.js` pair 渲染模板不输出 `lesson-pair-id`、`lesson-pair-placeholder-id`、`planned ID`、短 ID 或 `shortId(record.id)`；`lesson.html` 和 `js/lesson-app.js` 均引用 v10.3.4 query；`node --check` 与 `git diff --check` 通过。

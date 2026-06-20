@@ -40,6 +40,13 @@ const PAYMENT_METHOD_LABELS = {
   wechat: "微信",
 };
 
+const ADJUSTMENT_SOURCE_LABELS = {
+  carry_final_balance: "按最终差额结转",
+  clear_balance: "抹平差额",
+  manual_adjustment: "手动调整",
+  manual: "手动调整",
+};
+
 const dom = {};
 let detailData = null;
 let currentStatusAction = "";
@@ -247,7 +254,7 @@ function renderAdjustmentReferences(rows) {
     <tr>
       <td class="settlement-nowrap">${escapeHtml(formatDate(row.created_at))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.adjustment_amount_cny, "CNY"))}</td>
-      <td>${escapeHtml(displayValue(row.adjustment_source))}</td>
+      <td>${escapeHtml(adjustmentSourceLabel(row.adjustment_source))}</td>
       <td class="settlement-detail-text-cell">${escapeHtml(displayValue(row.adjustment_reason))}</td>
       <td class="settlement-detail-text-cell">${escapeHtml(displayValue(row.note))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(displayValue(row.status))}</span></td>
@@ -610,6 +617,11 @@ function incomeCategoryLabel(value) {
 
 function paymentMethodLabel(value) {
   return PAYMENT_METHOD_LABELS[value] || displayValue(value);
+}
+
+function adjustmentSourceLabel(value) {
+  const source = safeText(value).trim();
+  return ADJUSTMENT_SOURCE_LABELS[source] || displayValue(source);
 }
 
 function statusClass(value) {

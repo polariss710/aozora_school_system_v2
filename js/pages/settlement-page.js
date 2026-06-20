@@ -31,6 +31,12 @@ const SETTLEMENT_STATUS_LABELS = {
   preview: "未锁定 / 预览",
 };
 
+const ADJUSTMENT_MODES = {
+  CARRY_FINAL_BALANCE: "carry_final_balance",
+  CLEAR_BALANCE: "clear_balance",
+  MANUAL_ADJUSTMENT: "manual_adjustment",
+};
+
 const dom = {};
 let students = [];
 let businessEntities = [];
@@ -174,21 +180,23 @@ function bindEvents() {
 
   dom.adjustmentCancelButton?.addEventListener("click", () => closeAdjustmentDialog());
   dom.adjustmentSubmitButton?.addEventListener("click", handleAdjustmentSubmit);
-  dom.adjustmentDialog?.addEventListener("click", (event) => {
-    if (event.target === dom.adjustmentDialog) {
-      closeAdjustmentDialog();
-    }
-  });
   [
     ["amount", dom.adjustmentAmountInput],
-    ["source", dom.adjustmentSourceInput],
     ["reason", dom.adjustmentReasonInput],
     ["note", dom.adjustmentNoteInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
       clearAdjustmentFieldInvalid(fieldId);
+      if (fieldId === "amount") {
+        renderAdjustmentSummary(currentAdjustmentSettlement);
+      }
       hideAdjustmentErrorIfClean();
     });
+  });
+  dom.adjustmentSourceInput?.addEventListener("change", () => {
+    clearAdjustmentFieldInvalid("source");
+    applyAdjustmentMode();
+    hideAdjustmentErrorIfClean();
   });
   dom.adjustmentConfirmCheckbox?.addEventListener("change", () => {
     clearAdjustmentFieldInvalid("confirm");
@@ -840,18 +848,18 @@ function openAdjustmentDialog(settlementId) {
 
   currentAdjustmentSettlement = row;
   dom.adjustmentAmountInput.value = Number.isFinite(Number(row.adjustment_amount_cny))
-    ? String(row.adjustment_amount_cny)
+    ? formatCnyInput(row.adjustment_amount_cny)
     : "";
-  dom.adjustmentSourceInput.value = row.adjustment_source || "manual";
+  dom.adjustmentSourceInput.value = adjustmentModeForRow(row);
   dom.adjustmentReasonInput.value = row.adjustment_reason || "";
   dom.adjustmentNoteInput.value = row.adjustment_note || "";
   dom.adjustmentConfirmCheckbox.checked = false;
   clearAdjustmentErrors();
-  renderAdjustmentSummary(row);
+  applyAdjustmentMode({ preserveManualAmount: true });
   setAdjustmentSubmitting(false);
   dom.adjustmentDialog.classList.remove("is-hidden");
   dom.adjustmentDialog.setAttribute("aria-hidden", "false");
-  dom.adjustmentAmountInput.focus();
+  dom.adjustmentSourceInput.focus();
 }
 
 function closeAdjustmentDialog(force = false) {
@@ -866,19 +874,49 @@ function closeAdjustmentDialog(force = false) {
 }
 
 function renderAdjustmentSummary(row) {
+  if (!row) {
+    dom.adjustmentSummary.innerHTML = "";
+    return;
+  }
+
+  const adjustmentAmount = Number.isFinite(Number(dom.adjustmentAmountInput?.value))
+    ? Number(dom.adjustmentAmountInput.value)
+    : numberOrZero(row.adjustment_amount_cny);
+  const carryoverAmount = numberOrZero(row.system_difference_cny) + adjustmentAmount;
   dom.adjustmentSummary.innerHTML = [
     ["学生", nameById(students, row.student_id, studentName)],
     ["结算月份", formatMonth(row.year_month)],
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
-    ["当前调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
-    ["当前结转", formatCurrency(row.carryover_amount_cny, "CNY")],
+    ["当前调整", formatCurrency(adjustmentAmount, "CNY")],
+    ["当前结转", formatCurrency(carryoverAmount, "CNY")],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
       <span>${escapeHtml(displayValue(value))}</span>
     </div>
   `).join("");
+}
+
+function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
+  if (!currentAdjustmentSettlement) {
+    return;
+  }
+
+  const mode = dom.adjustmentSourceInput.value || ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
+  const systemDifference = numberOrZero(currentAdjustmentSettlement.system_difference_cny);
+  const isManual = mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
+  dom.adjustmentAmountInput.readOnly = !isManual;
+
+  if (mode === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE) {
+    dom.adjustmentAmountInput.value = formatCnyInput(0);
+  } else if (mode === ADJUSTMENT_MODES.CLEAR_BALANCE) {
+    dom.adjustmentAmountInput.value = formatCnyInput(-systemDifference);
+  } else if (!preserveManualAmount && !dom.adjustmentAmountInput.value) {
+    dom.adjustmentAmountInput.value = formatCnyInput(0);
+  }
+
+  renderAdjustmentSummary(currentAdjustmentSettlement);
 }
 
 async function handleAdjustmentSubmit() {
@@ -904,7 +942,7 @@ async function handleAdjustmentSubmit() {
 
   if (invalidFields.length) {
     invalidFields.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
-    showAdjustmentError("请填写差额调整金额、来源、理由，并勾选确认。");
+    showAdjustmentError("请选择调整方式，填写差额调整金额、理由，并勾选确认。");
     return;
   }
 
@@ -967,6 +1005,27 @@ function setAdjustmentFieldInvalid(fieldId, invalid) {
 
 function clearAdjustmentFieldInvalid(fieldId) {
   setAdjustmentFieldInvalid(fieldId, false);
+}
+
+function adjustmentModeForRow(row) {
+  const source = safeText(row?.adjustment_source).trim();
+  if (Object.values(ADJUSTMENT_MODES).includes(source)) {
+    return source;
+  }
+  if (!source && numberOrZero(row?.adjustment_amount_cny) === 0) {
+    return ADJUSTMENT_MODES.CARRY_FINAL_BALANCE;
+  }
+  return ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
+}
+
+function numberOrZero(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
+}
+
+function formatCnyInput(value) {
+  const rounded = Math.round(numberOrZero(value) * 100) / 100;
+  return String(Object.is(rounded, -0) ? 0 : rounded);
 }
 
 function filterSettlements(rows, filters) {

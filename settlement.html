@@ -244,8 +244,12 @@
         </label>
 
         <label class="field" data-settlement-adjustment-field="source">
-          <span>调整来源</span>
-          <input id="settlementAdjustmentSourceInput" type="text" placeholder="例如：实际收款差额 / 手工调整">
+          <span>调整方式</span>
+          <select id="settlementAdjustmentSourceInput">
+            <option value="carry_final_balance">按最终差额结转</option>
+            <option value="clear_balance">抹平差额</option>
+            <option value="manual_adjustment">手动调整</option>
+          </select>
         </label>
 
         <label class="field" data-settlement-adjustment-field="reason">
@@ -270,6 +274,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=v10.2.7-business-table-layout-polish"></script>
+    <script type="module" src="./js/settlement-app.js?v=v10.3.5-improve-settlement-adjustment-dialog"></script>
   </body>
 </html>
