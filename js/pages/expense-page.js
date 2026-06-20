@@ -572,13 +572,13 @@ async function voidUnsubmittedTeacherWageExpenseFromList(expense) {
   }
 
   try {
-    const result = await voidUnsubmittedTeacherWageExpenseRecord({
+    await voidUnsubmittedTeacherWageExpenseRecord({
       expenseId: expense.id,
       reason: reason.trim(),
     });
     selectedExpenseIds.delete(expense.id);
     await refreshCurrentExpenseList();
-    showMessage("success", `老师工资支出记录已作废：${shortId(result.expense_id)}。可回到老师工资详情重新生成。`);
+    showMessage("success", "老师工资支出记录已作废。可回到老师工资详情重新生成支出记录。");
   } catch (error) {
     showMessage("error", `作废老师工资支出记录失败：${error.message || error}`);
   }
