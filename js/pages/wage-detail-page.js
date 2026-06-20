@@ -38,6 +38,9 @@ const EXPENSE_STATUS_LABELS = {
   pending: "待支付",
   paid: "已支付",
   reversed: "已撤销",
+  cancelled: "已取消",
+  void: "已作废",
+  voided: "已作废",
 };
 
 const CASH_REQUEST_STATUS_LABELS = {
@@ -387,7 +390,8 @@ function blockVoidWageLockDirectDismiss() {
 async function submitVoidWageLock() {
   const wageLock = detailData?.wageLock;
   const paymentRequests = detailData?.paymentRequests || [];
-  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests);
+  const expenseRecords = detailData?.expenseRecords || [];
+  const readonlyReason = wageVoidReadonlyReason(wageLock, paymentRequests, expenseRecords);
   if (readonlyReason) {
     showVoidWageLockError(readonlyReason);
     return;
@@ -1494,10 +1498,25 @@ function paymentRequestStatusLabel(value) {
   return PAYMENT_REQUEST_STATUS_LABELS[value] || displayValue(value);
 }
 
+function expenseStatusLabel(value) {
+  return EXPENSE_STATUS_LABELS[value] || displayValue(value);
+}
+
+function cashRequestStatusLabel(value) {
+  return CASH_REQUEST_STATUS_LABELS[value] || (safeText(value) ? displayValue(value) : "Cash未提交");
+}
+
 function paymentRequestStatusClass(value) {
   if (value === "paid") return "status-paid";
   if (value === "pending") return "status-pending";
   if (value === "reversed" || value === "void" || value === "cancelled") return "status-cancelled";
+  return "status-neutral";
+}
+
+function expenseStatusClass(value) {
+  if (value === "paid") return "status-paid";
+  if (value === "pending" || value === "pending_cash_request") return "status-pending";
+  if (value === "reversed" || value === "void" || value === "voided" || value === "cancelled") return "status-cancelled";
   return "status-neutral";
 }
 
