@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initWagePage } from "./pages/wage-page.js?v=v10.2.7-fix2-wage-row-height-and-profit-init";
+import { initWagePage } from "./pages/wage-page.js?v=v10.3.18-zero-wage-label";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

@@ -1064,7 +1064,7 @@ function wageProcessState(row) {
 
   if (Number(row.total_jpy || 0) <= 0) {
     return {
-      label: "可调整 / 无可支付金额",
+      label: "无需支付",
       className: "status-neutral",
       title: "未生成支付请求，可调整明细；当前合计为 0，不显示生成支付请求入口。",
     };
