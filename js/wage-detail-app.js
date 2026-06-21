@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initWageDetailPage } from "./pages/wage-detail-page.js?v=v10.3.17-guard-wage-adjustment-dialog";
+import { initWageDetailPage } from "./pages/wage-detail-page.js?v=v10.3.17-remove-wage-adjustment-warning";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");
