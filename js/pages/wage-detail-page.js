@@ -164,7 +164,7 @@ function bindEvents() {
   dom.adjustWageDetailSubmitButton?.addEventListener("click", submitAdjustWageDetail);
   dom.adjustWageDetailDialog?.addEventListener("click", (event) => {
     if (event.target === dom.adjustWageDetailDialog) {
-      closeAdjustWageDetailDialog();
+      blockAdjustWageDetailDirectDismiss();
     }
   });
   dom.voidWageLockCancelButton?.addEventListener("click", closeVoidWageLockDialog);
@@ -928,6 +928,14 @@ function closeAdjustWageDetailDialog(force = false) {
   dom.adjustWageDetailDialog.setAttribute("aria-hidden", "true");
   hideAdjustWageDetailError();
   clearAdjustWageDetailInvalidFields();
+}
+
+function blockAdjustWageDetailDirectDismiss() {
+  if (!dom.adjustWageDetailDialog || dom.adjustWageDetailDialog.classList.contains("is-hidden")) {
+    return;
+  }
+
+  showAdjustWageDetailError("请使用取消或保存调整关闭窗口，避免误点外部导致输入丢失。");
 }
 
 async function submitAdjustWageDetail() {
