@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-21
+Status date: 2026-06-23
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -29,6 +29,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.19 allow regenerate part-time income after cancelled record, 2026-06-23:
+   外部授课结算 canonical 收入生成已改为区分 active/blocking 与 terminal 历史记录。执行 `sql/current/school_part_time_work_income_record_route.sql`，`school_create_part_time_work_income_record(...)` 不再把 `cancelled/voided/rejected/cash_rejected/reversed` 且无 School account transaction、无 Cash transaction、无 active/approved Cash request 的旧收入记录当作阻塞；active 状态 `pending/pending_cash_request/cash_pending/cash_submitted/awaiting_cash_confirmation/approved/received/settled/synced` 以及任何正式流水或 active Cash 链路仍阻止重复生成。`school_list_part_time_work_monthly_settlements(...)` 返回 `income_record_is_blocking` / `income_request_is_blocking` 供页面判断，外部授课结算页在 cancelled 可重建场景显示“已作废，可重新生成收入记录”，并允许点击“生成收入记录”。只读验证确认 2026-06 致远教育 settlement `453ea8f2-90dd-4f67-9f94-1f652f6c7687` 的旧收入 `f356d15a-02d3-4753-9b26-ca4245801c6b` 为 `cancelled`，School account transaction / Cash linkage / Cash transaction 均为 0，列表返回 blocking=false。Rollback 测试中 RPC 生成新 pending income `b9ef5156-8c8a-4103-8e52-57a641d0dd16` 并更新 settlement 指向，随后 rollback，最终 DB 仍指向原 cancelled 记录；未做持久业务数据修复。
 
 1. v10.3.11 allow regenerate wage expense after void, 2026-06-21:
    老师工资快照详情页和一览页的支付/支出状态判断改为区分 active 与历史记录：active teacher_wage 支出必须是 `source_type = teacher_wage`、`app_type = school`、`cancelled_at is null` 且 `status` 不在 `cancelled/void/voided`；legacy `school_payment_requests` 只有非 `cancelled/void/voided/reversed` 且未 `reversed_at` 的记录才阻止重新生成。详情页保留已作废支出和旧支付请求历史展示，但它们不再阻止同一工资快照重新生成支出记录；一览页新增读取 canonical `school_expense_records`，优先以 active 支出记录判断只读/可生成状态。未修改 SQL/RPC/Edge Function/收入逻辑。Rollback 测试使用白名单 wage lock `8d4d9082-048c-4056-bd79-09500341e4a9`：事务内作废 active 测试支出 `cb38f314-cc69-466f-ab8f-ea01d30955be` 后成功生成新 pending 支出 `c76a1444-59e8-4244-ae61-732f65b8febf`，随后 rollback，最终仍只有已作废历史 `f7fe3483-effa-41fb-b5f6-4179e4eae749` 和 active pending `cb38f314-cc69-466f-ab8f-ea01d30955be`。吴峰真实支出 `22e5ffcd-18ab-4d08-907c-f4a1e1f107e8`、`e83d7945-505f-468e-8a82-8a6bab1c7eed` 只读复核仍为 pending + Cash 未提交，未被写入测试修改。

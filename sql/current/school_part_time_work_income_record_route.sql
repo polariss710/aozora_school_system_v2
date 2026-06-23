@@ -57,6 +57,9 @@ declare
   v_note text;
   v_snapshot jsonb;
   v_now timestamptz := now();
+  v_income_account_transaction_count integer := 0;
+  v_income_cash_blocker_count integer := 0;
+  v_old_income_request_blocker_count integer := 0;
 begin
   if p_settlement_id is null then
     raise exception 'settlement id is required';
@@ -81,6 +84,44 @@ begin
     raise exception '工资总额必须大于 0，才能生成收入记录。';
   end if;
 
+  select count(*)::integer
+    into v_old_income_request_blocker_count
+    from public.school_part_time_work_income_requests ir
+   where ir.settlement_id = v_settlement.id
+     and ir.deleted_at is null
+     and (
+       ir.cash_transaction_id is not null
+       or coalesce(ir.cash_request_status, '') in (
+         'pending',
+         'approved',
+         'synced',
+         'cash_pending',
+         'cash_submitted',
+         'awaiting_cash_confirmation'
+       )
+       or (
+         ir.cash_request_id is not null
+         and coalesce(ir.cash_request_status, '') not in (
+           'cancelled',
+           'voided',
+           'rejected',
+           'cash_rejected',
+           'reversed'
+         )
+       )
+       or coalesce(ir.status, '') not in (
+         'cancelled',
+         'voided',
+         'rejected',
+         'cash_rejected',
+         'reversed'
+       )
+     );
+
+  if v_old_income_request_blocker_count > 0 then
+    raise exception '该结算存在有效或待处理的旧收入请求，不能重复生成收入记录。';
+  end if;
+
   if v_settlement.income_record_id is not null then
     select *
       into v_income
@@ -89,16 +130,74 @@ begin
        and coalesce(i.app_type, '') = 'school';
 
     if found then
-      return query
-      select
-        v_settlement.id,
-        v_income.id,
-        v_settlement.year_month,
-        v_settlement.workplace_name,
-        v_income.status,
-        v_income.amount_jpy,
-        'Part-time work income record already exists'::text;
-      return;
+      select count(*)::integer
+        into v_income_account_transaction_count
+        from public.school_account_transactions t
+       where t.related_table = 'school_income_records'
+         and t.related_id = v_income.id
+         and coalesce(t.app_type, '') = 'school';
+
+      select count(*)::integer
+        into v_income_cash_blocker_count
+        from public.school_personal_cash_income_linkage_events e
+       where e.source_table = 'school_income_records'
+         and (
+           e.income_record_id = v_income.id
+           or e.source_id = v_income.id
+         )
+         and (
+           e.cash_transaction_id is not null
+           or coalesce(e.sync_status, '') in (
+             'pending',
+             'pending_cash_request',
+             'cash_pending',
+             'cash_submitted',
+             'awaiting_cash_confirmation',
+             'approved',
+             'received',
+             'settled',
+             'synced'
+           )
+           or coalesce(e.cash_request_status, '') in (
+             'pending',
+             'approved',
+             'synced',
+             'cash_pending',
+             'cash_submitted',
+             'awaiting_cash_confirmation'
+           )
+           or (
+             e.cash_request_id is not null
+             and coalesce(e.cash_request_status, '') not in (
+               'cancelled',
+               'voided',
+               'rejected',
+               'cash_rejected',
+               'reversed'
+             )
+           )
+         );
+
+      if v_income_account_transaction_count > 0
+        or v_income_cash_blocker_count > 0
+        or coalesce(v_income.status, '') not in (
+          'cancelled',
+          'voided',
+          'rejected',
+          'cash_rejected',
+          'reversed'
+        ) then
+        return query
+        select
+          v_settlement.id,
+          v_income.id,
+          v_settlement.year_month,
+          v_settlement.workplace_name,
+          v_income.status,
+          v_income.amount_jpy,
+          'Part-time work income record already exists'::text;
+        return;
+      end if;
     end if;
   end if;
 
@@ -108,7 +207,63 @@ begin
    where i.source_type = 'part_time_work'
      and i.source_id = v_settlement.id
      and coalesce(i.app_type, '') = 'school'
-     and coalesce(i.status, '') <> 'reversed'
+     and (
+       coalesce(i.status, '') not in (
+         'cancelled',
+         'voided',
+         'rejected',
+         'cash_rejected',
+         'reversed'
+       )
+       or exists (
+         select 1
+         from public.school_account_transactions t
+         where t.related_table = 'school_income_records'
+           and t.related_id = i.id
+           and coalesce(t.app_type, '') = 'school'
+       )
+       or exists (
+         select 1
+         from public.school_personal_cash_income_linkage_events e
+         where e.source_table = 'school_income_records'
+           and (
+             e.income_record_id = i.id
+             or e.source_id = i.id
+           )
+           and (
+             e.cash_transaction_id is not null
+             or coalesce(e.sync_status, '') in (
+               'pending',
+               'pending_cash_request',
+               'cash_pending',
+               'cash_submitted',
+               'awaiting_cash_confirmation',
+               'approved',
+               'received',
+               'settled',
+               'synced'
+             )
+             or coalesce(e.cash_request_status, '') in (
+               'pending',
+               'approved',
+               'synced',
+               'cash_pending',
+               'cash_submitted',
+               'awaiting_cash_confirmation'
+             )
+             or (
+               e.cash_request_id is not null
+               and coalesce(e.cash_request_status, '') not in (
+                 'cancelled',
+                 'voided',
+                 'rejected',
+                 'cash_rejected',
+                 'reversed'
+               )
+             )
+           )
+       )
+     )
    order by i.created_at desc
    limit 1
    for update;
@@ -533,6 +688,8 @@ returns table (
   income_record_id uuid,
   income_record_status text,
   income_record_cash_status text,
+  income_record_is_blocking boolean,
+  income_request_is_blocking boolean,
   memo text,
   updated_at timestamptz
 )
@@ -594,6 +751,93 @@ as $$
     s.income_record_id,
     i.status as income_record_status,
     l.sync_status as income_record_cash_status,
+    case
+      when i.id is null then false
+      when exists (
+        select 1
+        from public.school_account_transactions t
+        where t.related_table = 'school_income_records'
+          and t.related_id = i.id
+          and coalesce(t.app_type, '') = 'school'
+      ) then true
+      when exists (
+        select 1
+        from public.school_personal_cash_income_linkage_events e
+        where e.source_table = 'school_income_records'
+          and (
+            e.income_record_id = i.id
+            or e.source_id = i.id
+          )
+          and (
+            e.cash_transaction_id is not null
+            or coalesce(e.sync_status, '') in (
+              'pending',
+              'pending_cash_request',
+              'cash_pending',
+              'cash_submitted',
+              'awaiting_cash_confirmation',
+              'approved',
+              'received',
+              'settled',
+              'synced'
+            )
+            or coalesce(e.cash_request_status, '') in (
+              'pending',
+              'approved',
+              'synced',
+              'cash_pending',
+              'cash_submitted',
+              'awaiting_cash_confirmation'
+            )
+            or (
+              e.cash_request_id is not null
+              and coalesce(e.cash_request_status, '') not in (
+                'cancelled',
+                'voided',
+                'rejected',
+                'cash_rejected',
+                'reversed'
+              )
+            )
+          )
+      ) then true
+      when coalesce(i.status, '') in (
+        'cancelled',
+        'voided',
+        'rejected',
+        'cash_rejected',
+        'reversed'
+      ) then false
+      else true
+    end as income_record_is_blocking,
+    case
+      when ir.id is null then false
+      when ir.cash_transaction_id is not null then true
+      when coalesce(ir.cash_request_status, '') in (
+        'pending',
+        'approved',
+        'synced',
+        'cash_pending',
+        'cash_submitted',
+        'awaiting_cash_confirmation'
+      ) then true
+      when ir.cash_request_id is not null
+        and coalesce(ir.cash_request_status, '') not in (
+          'cancelled',
+          'voided',
+          'rejected',
+          'cash_rejected',
+          'reversed'
+        ) then true
+      when coalesce(ir.status, '') in (
+        'cancelled',
+        'voided',
+        'rejected',
+        'cash_rejected',
+        'reversed'
+      ) then false
+      else true
+    end as income_request_is_blocking,
     s.memo,
     s.updated_at
   from target_workplaces w
@@ -639,6 +883,8 @@ returns table (
   income_record_id uuid,
   income_record_status text,
   income_record_cash_status text,
+  income_record_is_blocking boolean,
+  income_request_is_blocking boolean,
   memo text,
   updated_at timestamptz
 )
@@ -820,6 +1066,8 @@ returns table (
   income_record_id uuid,
   income_record_status text,
   income_record_cash_status text,
+  income_record_is_blocking boolean,
+  income_request_is_blocking boolean,
   memo text,
   updated_at timestamptz
 )

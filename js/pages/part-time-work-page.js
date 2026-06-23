@@ -54,10 +54,19 @@ const SETTLEMENT_STATUS_LABELS = {
 const INCOME_REQUEST_STATUS_LABELS = {
   pending: "收入记录待提交 Cash",
   pending_cash_request: "待提交 Cash 请求",
+  cash_pending: "Cash 待提交",
+  cash_submitted: "Cash 已提交",
   awaiting_cash_confirmation: "Cash 待确认",
+  approved: "Cash 已批准",
   received: "收入已确认",
+  settled: "已结算",
   synced: "已同步",
+  cancelled: "已作废",
+  cancelled_regenerable: "已作废，可重新生成收入记录",
+  voided: "已作废",
+  rejected: "已拒绝",
   cash_rejected: "Cash 已拒绝",
+  reversed: "已撤销",
   failed: "失败",
   blocked: "阻塞",
 };
@@ -526,19 +535,24 @@ function buildEmptySettlementRow(workplaceName) {
     income_record_id: "",
     income_record_status: "",
     income_record_cash_status: "",
+    income_record_is_blocking: false,
+    income_request_is_blocking: false,
     memo: "",
   };
 }
 
 function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const isLocked = row.status === "locked" || row.status === "income_request_created";
+  const hasBlockingIncomeRecord = isBlockingIncomeRecord(row);
+  const hasBlockingIncomeRequest = isBlockingIncomeRequest(row);
+  const hasBlockingIncome = hasBlockingIncomeRecord || hasBlockingIncomeRequest;
   const canLock = row.status === "draft";
   const canUnlock = row.status === "locked" && !row.income_record_id && !row.income_request_id;
-  const canCreateRequest = isLocked && !row.income_record_id;
+  const canCreateRequest = isLocked && !hasBlockingIncome;
   const canExport = Boolean(row.id) && isLocked;
   const saveDisabled = isLocked ? "disabled" : "";
   const isCollapsed = collapsedWageWorkplaces.has(workplaceName);
-  const incomeStatus = row.income_record_cash_status || row.income_record_status || row.income_request_status || "";
+  const incomeStatus = incomeStatusForSettlement(row);
 
   return `
     <section class="part-time-work-wage-section" data-settlement-row data-settlement-workplace="${escapeAttribute(workplaceName)}" data-settlement-id="${escapeAttribute(row.id || "")}">
@@ -627,6 +641,58 @@ function renderStatusBadge(label, className) {
 function renderOptionalStatusBadge(status, label, className) {
   if (!status) return "-";
   return renderStatusBadge(label, className);
+}
+
+function isBlockingIncomeRecord(row) {
+  if (typeof row.income_record_is_blocking === "boolean") {
+    return row.income_record_is_blocking;
+  }
+  const status = row.income_record_cash_status || row.income_record_status || "";
+  return Boolean(row.income_record_id) && isBlockingIncomeStatus(status);
+}
+
+function isBlockingIncomeRequest(row) {
+  if (typeof row.income_request_is_blocking === "boolean") {
+    return row.income_request_is_blocking;
+  }
+  return Boolean(row.income_request_id) && isBlockingIncomeStatus(row.income_request_status || "");
+}
+
+function incomeStatusForSettlement(row) {
+  if (isRegenerableIncomeRecord(row)) {
+    return "cancelled_regenerable";
+  }
+  return row.income_record_cash_status || row.income_record_status || row.income_request_status || "";
+}
+
+function isRegenerableIncomeRecord(row) {
+  return Boolean(row.income_record_id)
+    && isNonBlockingIncomeStatus(row.income_record_status)
+    && !isBlockingIncomeRecord(row);
+}
+
+function isBlockingIncomeStatus(status) {
+  return [
+    "pending",
+    "pending_cash_request",
+    "cash_pending",
+    "cash_submitted",
+    "awaiting_cash_confirmation",
+    "approved",
+    "received",
+    "settled",
+    "synced",
+  ].includes(String(status || ""));
+}
+
+function isNonBlockingIncomeStatus(status) {
+  return [
+    "cancelled",
+    "voided",
+    "rejected",
+    "cash_rejected",
+    "reversed",
+  ].includes(String(status || ""));
 }
 
 function openCreatePlannedDialog() {
@@ -1349,9 +1415,9 @@ function incomeRequestStatusLabel(status) {
 }
 
 function incomeRequestStatusClass(status) {
-  if (status === "synced" || status === "received") return "status-paid";
-  if (status === "pending" || status === "pending_cash_request" || status === "awaiting_cash_confirmation") return "status-reversed";
-  if (status === "cash_rejected" || status === "failed" || status === "blocked") return "status-cancelled";
+  if (["approved", "received", "settled", "synced"].includes(status)) return "status-paid";
+  if (["pending", "pending_cash_request", "cash_pending", "cash_submitted", "awaiting_cash_confirmation"].includes(status)) return "status-reversed";
+  if (["cancelled", "cancelled_regenerable", "voided", "rejected", "cash_rejected", "reversed", "failed", "blocked"].includes(status)) return "status-cancelled";
   return "status-neutral";
 }
 
