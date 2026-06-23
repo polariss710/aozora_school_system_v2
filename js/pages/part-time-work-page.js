@@ -76,8 +76,10 @@ let lessons = [];
 let wageLessons = [];
 let settlements = [];
 let editingLesson = null;
+let pendingIncomeGenerationSettlement = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
 let isSubmitting = false;
+let isIncomeGenerationSubmitting = false;
 const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
 let initialMonth = "";
@@ -159,6 +161,11 @@ function cacheDom() {
   dom.preview = document.querySelector("#partTimeWorkPreview");
   dom.cancelButton = document.querySelector("#partTimeWorkCancelButton");
   dom.submitButton = document.querySelector("#partTimeWorkSubmitButton");
+  dom.incomeConfirmDialog = document.querySelector("#partTimeWorkIncomeConfirmDialog");
+  dom.incomeConfirmSummary = document.querySelector("#partTimeWorkIncomeConfirmSummary");
+  dom.incomeConfirmError = document.querySelector("#partTimeWorkIncomeConfirmError");
+  dom.incomeConfirmCancelButton = document.querySelector("#partTimeWorkIncomeConfirmCancelButton");
+  dom.incomeConfirmSubmitButton = document.querySelector("#partTimeWorkIncomeConfirmSubmitButton");
 }
 
 function bindEvents() {
@@ -194,6 +201,13 @@ function bindEvents() {
   dom.wageCalculationContainer.addEventListener("click", handleWageToggleClick);
   dom.wageCalculationContainer.addEventListener("click", handleSettlementActionClick);
   dom.wageCalculationContainer.addEventListener("input", handleSettlementInputChange);
+  dom.incomeConfirmCancelButton.addEventListener("click", closeIncomeGenerationConfirmDialog);
+  dom.incomeConfirmSubmitButton.addEventListener("click", submitIncomeGenerationConfirmDialog);
+  dom.incomeConfirmDialog.addEventListener("click", (event) => {
+    if (event.target === dom.incomeConfirmDialog) {
+      closeIncomeGenerationConfirmDialog();
+    }
+  });
 
   for (const input of [
     dom.workDateInput,
@@ -961,11 +975,8 @@ async function handleSettlementActionClick(event) {
       await unlockPartTimeWorkMonthlySettlement(settlementId);
       showMessage("success", `${workplaceName} 月度工资结算已撤销锁定。`);
     } else if (action === "request") {
-      if (!window.confirm(`确认为 ${workplaceName} 生成 School 收入记录？Cash 请求需要到收入记录详情页提交。`)) {
-        return;
-      }
-      await createPartTimeWorkIncomeRequest(settlementId);
-      showMessage("success", `${workplaceName} 收入记录已生成。`);
+      openIncomeGenerationConfirmDialog(settlementId, workplaceName);
+      return;
     } else if (action === "export") {
       await handleSettlementExport(settlementId, workplaceName);
       return;
@@ -974,6 +985,101 @@ async function handleSettlementActionClick(event) {
   } catch (error) {
     showMessage("error", `月度工资结算操作失败：${error.message || error}`);
   }
+}
+
+function openIncomeGenerationConfirmDialog(settlementId, workplaceName) {
+  const settlement = settlements.find((item) => item.id === settlementId);
+  if (!settlement) {
+    showMessage("error", "请刷新页面后重新选择要生成收入记录的结算。");
+    return;
+  }
+
+  pendingIncomeGenerationSettlement = settlement;
+  hideIncomeGenerationConfirmError();
+  dom.incomeConfirmSummary.innerHTML = renderIncomeGenerationConfirmSummary(settlement, workplaceName);
+  setIncomeGenerationConfirmSubmitting(false);
+  dom.incomeConfirmDialog.classList.remove("is-hidden");
+  dom.incomeConfirmDialog.setAttribute("aria-hidden", "false");
+  dom.incomeConfirmCancelButton.focus();
+}
+
+function closeIncomeGenerationConfirmDialog() {
+  if (isIncomeGenerationSubmitting) {
+    return;
+  }
+  pendingIncomeGenerationSettlement = null;
+  hideIncomeGenerationConfirmError();
+  dom.incomeConfirmDialog.classList.add("is-hidden");
+  dom.incomeConfirmDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitIncomeGenerationConfirmDialog() {
+  if (isIncomeGenerationSubmitting) {
+    return;
+  }
+
+  const settlement = pendingIncomeGenerationSettlement;
+  if (!settlement?.id) {
+    showIncomeGenerationConfirmError("请刷新页面后重新选择要生成收入记录的结算。");
+    return;
+  }
+
+  setIncomeGenerationConfirmSubmitting(true);
+  try {
+    await createPartTimeWorkIncomeRequest(settlement.id);
+    const workplaceName = settlement.workplace_name || "该机构";
+    closeIncomeGenerationConfirmDialogAfterSubmit();
+    showMessage("success", `${workplaceName} 收入记录已生成。`);
+    await loadPageData();
+  } catch (error) {
+    showIncomeGenerationConfirmError(`收入记录生成失败：${error.message || error}`);
+    showMessage("error", `月度工资结算操作失败：${error.message || error}`);
+    setIncomeGenerationConfirmSubmitting(false);
+  }
+}
+
+function renderIncomeGenerationConfirmSummary(settlement, workplaceName) {
+  const summaryRows = [
+    ["结算月", settlement.year_month || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter)],
+    ["业务归属 / 机构名称", workplaceName || settlement.workplace_name || "-"],
+    ["实际课时", `${formatHours(settlement.actual_hours_total)} h`],
+    ["课时工资", formatCurrency(settlement.lesson_wage_jpy, "JPY")],
+    ["交通费", formatCurrency(settlement.transportation_fee_jpy, "JPY")],
+    ["调整额", formatCurrency(settlement.adjustment_jpy, "JPY")],
+    ["生成金额 / 合计金额", formatCurrency(settlement.total_wage_jpy, "JPY")],
+  ];
+
+  return summaryRows.map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `).join("");
+}
+
+function closeIncomeGenerationConfirmDialogAfterSubmit() {
+  pendingIncomeGenerationSettlement = null;
+  hideIncomeGenerationConfirmError();
+  dom.incomeConfirmDialog.classList.add("is-hidden");
+  dom.incomeConfirmDialog.setAttribute("aria-hidden", "true");
+  setIncomeGenerationConfirmSubmitting(false);
+}
+
+function setIncomeGenerationConfirmSubmitting(nextValue) {
+  isIncomeGenerationSubmitting = nextValue;
+  dom.incomeConfirmSubmitButton.disabled = nextValue;
+  dom.incomeConfirmCancelButton.disabled = nextValue;
+  dom.incomeConfirmSubmitButton.textContent = nextValue ? "生成中..." : "确认生成";
+}
+
+function showIncomeGenerationConfirmError(text) {
+  dom.incomeConfirmError.textContent = text;
+  dom.incomeConfirmError.classList.remove("is-hidden");
+}
+
+function hideIncomeGenerationConfirmError() {
+  dom.incomeConfirmError.textContent = "";
+  dom.incomeConfirmError.classList.add("is-hidden");
 }
 
 async function handleSettlementExport(settlementId, workplaceName) {

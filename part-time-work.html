@@ -232,7 +232,28 @@
       </section>
     </div>
 
+    <div id="partTimeWorkIncomeConfirmDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="partTimeWorkIncomeConfirmTitle">
+        <div class="section-heading">
+          <h2 id="partTimeWorkIncomeConfirmTitle">确认生成收入记录</h2>
+        </div>
+
+        <div id="partTimeWorkIncomeConfirmSummary" class="dialog-summary"></div>
+
+        <div class="dialog-warning">
+          生成收入记录后，本工资快照将不可撤销锁定。请确认金额无误后再继续。
+        </div>
+
+        <div id="partTimeWorkIncomeConfirmError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <div class="dialog-actions">
+          <button class="button" id="partTimeWorkIncomeConfirmCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="partTimeWorkIncomeConfirmSubmitButton" type="button">确认生成</button>
+        </div>
+      </section>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v10.3.19-allow-parttime-income-regenerate"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v10.3.20-confirm-part-time-income-generation"></script>
   </body>
 </html>

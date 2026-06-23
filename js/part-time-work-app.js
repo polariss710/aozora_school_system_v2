@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=v10.3.19-allow-parttime-income-regenerate";
+import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=v10.3.20-confirm-part-time-income-generation";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");
