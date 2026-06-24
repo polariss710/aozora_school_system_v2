@@ -38,7 +38,7 @@ const DIALOG_MODES = {
   CREATE_PLANNED: "create_planned",
   EDIT_LESSON: "edit_lesson",
   GENERATE_ACTUAL: "generate_actual",
-  VIEW_ACTUAL_DETAIL: "view_actual_detail",
+  VIEW_LESSON_DETAIL: "view_lesson_detail",
 };
 
 const LESSON_KIND_LABELS = {
@@ -484,11 +484,15 @@ function renderLessonCard(row, options = {}) {
   const isActual = row.record_kind === "actual";
   const hours = isActual ? row.actual_hours : row.planned_hours;
   const count = lessonCount(row);
-  const isLocked = row.settlement_status === "locked" || row.settlement_status === "income_request_created";
+  const settlementStatus = isActual
+    ? row.settlement_status
+    : options.pairedActual?.settlement_status || row.settlement_status;
+  const isLocked = settlementStatus === "locked" || settlementStatus === "income_request_created";
   const hasActual = row.record_kind === "planned" && Boolean(options.pairedActual || row.generated_actual_id);
-  const canEdit = !isActual || !isLocked;
+  const canEdit = !isLocked;
   const canDelete = row.record_kind === "planned" && !isLocked;
-  const canCopy = row.record_kind === "planned";
+  const canCopy = row.record_kind === "planned" && !isLocked;
+  const canViewDetail = isActual || (row.record_kind === "planned" && isLocked);
   const editConfirm = hasActual || isActual ? "true" : "false";
   const deleteConfirm = hasActual ? "true" : "false";
 
@@ -497,7 +501,7 @@ function renderLessonCard(row, options = {}) {
       <div class="lesson-pair-card-header">
         <div class="action-buttons">
           ${canCopy ? `<button class="button table-action-button" type="button" data-part-time-work-copy-id="${escapeAttribute(row.id)}">复制</button>` : ""}
-          ${isActual ? `<button class="button table-action-button" type="button" data-part-time-work-detail-id="${escapeAttribute(row.id)}">查看详情</button>` : ""}
+          ${canViewDetail ? `<button class="button table-action-button" type="button" data-part-time-work-detail-id="${escapeAttribute(row.id)}">查看详情</button>` : ""}
           ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${editConfirm}">编辑</button>` : ""}
           ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${deleteConfirm}">删除</button>` : ""}
         </div>
@@ -516,7 +520,7 @@ function renderLessonCard(row, options = {}) {
         <div><dt>时给</dt><dd>${escapeHtml(formatCurrency(row.hourly_rate_jpy, "JPY"))}</dd></div>
         <div><dt>交通费</dt><dd>${escapeHtml(formatCurrency(row.transportation_fee_jpy, "JPY"))}</dd></div>
         <div><dt>课时工资</dt><dd>${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</dd></div>
-        <div><dt>结算</dt><dd>${escapeHtml(settlementStatusLabel(row.settlement_status))}</dd></div>
+        <div><dt>结算</dt><dd>${escapeHtml(settlementStatusLabel(settlementStatus))}</dd></div>
       </dl>
       <div class="lesson-pair-text">
         <div class="lesson-pair-text-row">
@@ -762,14 +766,15 @@ function openEditDialog(lesson) {
   showDialog();
 }
 
-function openActualDetailDialog(lesson) {
-  dialogMode = DIALOG_MODES.VIEW_ACTUAL_DETAIL;
+function openLessonDetailDialog(lesson) {
+  dialogMode = DIALOG_MODES.VIEW_LESSON_DETAIL;
   editingLesson = lesson;
-  dom.dialogTitle.textContent = "查看实际打工课时";
-  dom.dialogKindText.textContent = "实际课时";
-  dom.hoursLabel.textContent = "实际课时";
+  const isActual = lesson.record_kind === "actual";
+  dom.dialogTitle.textContent = isActual ? "查看实际打工课时" : "查看预定打工课时";
+  dom.dialogKindText.textContent = isActual ? "实际课时" : "预定课时";
+  dom.hoursLabel.textContent = isActual ? "实际课时" : "预定课时";
   clearDialog();
-  fillDialogFromLesson(lesson, lesson.actual_hours);
+  fillDialogFromLesson(lesson, isActual ? lesson.actual_hours : lesson.planned_hours);
   setLessonFieldsReadonly(false);
   setDialogReadonly(true);
   renderReadonlyDetail(lesson);
@@ -821,7 +826,7 @@ function showDialog() {
 }
 
 async function submitDialog() {
-  if (dialogMode === DIALOG_MODES.VIEW_ACTUAL_DETAIL) {
+  if (dialogMode === DIALOG_MODES.VIEW_LESSON_DETAIL) {
     return;
   }
 
@@ -903,7 +908,7 @@ async function handleLessonActionClick(event) {
   if (detailButton) {
     const lesson = lessons.find((item) => item.id === detailButton.dataset.partTimeWorkDetailId);
     if (lesson) {
-      openActualDetailDialog(lesson);
+      openLessonDetailDialog(lesson);
     }
     return;
   }
@@ -1412,18 +1417,22 @@ function setDialogReadonly(readonly) {
 }
 
 function renderReadonlyDetail(lesson) {
+  const isActual = lesson.record_kind === "actual";
+  const hoursLabel = isActual ? "实际课时" : "预定课时";
+  const hours = isActual ? lesson.actual_hours : lesson.planned_hours;
+  const settlementStatus = settlementStatusForLesson(lesson);
   const rows = [
     ["课时日期", formatDateOnly(lesson.work_date)],
     ["时间", timeRange(lesson.start_time, lesson.end_time)],
     ["学生", lesson.student_name || lesson.student || "-"],
     ["科目", lesson.subject_name || "-"],
     ["业务归属", lesson.business_entity_name || lesson.workplace_name || "-"],
-    ["实际课时", `${formatHours(lesson.actual_hours)} h`],
+    [hoursLabel, `${formatHours(hours)} h`],
     ["回数", formatLessonCount(lessonCount(lesson))],
     ["交通费", formatCurrency(lesson.transportation_fee_jpy, "JPY")],
     ["课时工资", formatCurrency(lesson.lesson_wage_jpy, "JPY")],
     ["时给", formatCurrency(lesson.hourly_rate_jpy, "JPY")],
-    ["结算状态", settlementStatusLabel(lesson.settlement_status)],
+    ["结算状态", settlementStatusLabel(settlementStatus)],
     ["备注", lesson.memo || "-"],
   ];
 
@@ -1434,6 +1443,14 @@ function renderReadonlyDetail(lesson) {
     </div>
   `).join("");
   dom.readonlyDetail.classList.remove("is-hidden");
+}
+
+function settlementStatusForLesson(lesson) {
+  if (lesson.record_kind === "actual") {
+    return lesson.settlement_status;
+  }
+  const pairedActual = lessons.find((item) => item.record_kind === "actual" && item.planned_lesson_id === lesson.id);
+  return pairedActual?.settlement_status || lesson.settlement_status;
 }
 
 function setLoading(isLoading) {
