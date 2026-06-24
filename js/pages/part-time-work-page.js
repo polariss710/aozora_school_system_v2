@@ -38,6 +38,7 @@ const DIALOG_MODES = {
   CREATE_PLANNED: "create_planned",
   EDIT_LESSON: "edit_lesson",
   GENERATE_ACTUAL: "generate_actual",
+  VIEW_ACTUAL_DETAIL: "view_actual_detail",
 };
 
 const LESSON_KIND_LABELS = {
@@ -145,6 +146,7 @@ function cacheDom() {
   dom.dialogTitle = document.querySelector("#partTimeWorkDialogTitle");
   dom.dialogKindText = document.querySelector("#partTimeWorkDialogKindText");
   dom.dialogError = document.querySelector("#partTimeWorkDialogError");
+  dom.readonlyDetail = document.querySelector("#partTimeWorkReadonlyDetail");
   dom.workDateInput = document.querySelector("#partTimeWorkDateInput");
   dom.workplaceNameInput = document.querySelector("#partTimeWorkWorkplaceInput");
   dom.subjectNameInput = document.querySelector("#partTimeWorkSubjectInput");
@@ -495,6 +497,7 @@ function renderLessonCard(row, options = {}) {
       <div class="lesson-pair-card-header">
         <div class="action-buttons">
           ${canCopy ? `<button class="button table-action-button" type="button" data-part-time-work-copy-id="${escapeAttribute(row.id)}">复制</button>` : ""}
+          ${isActual ? `<button class="button table-action-button" type="button" data-part-time-work-detail-id="${escapeAttribute(row.id)}">查看详情</button>` : ""}
           ${canEdit ? `<button class="button table-action-button" type="button" data-part-time-work-edit-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-edit="${editConfirm}">编辑</button>` : ""}
           ${canDelete ? `<button class="button button-danger table-action-button" type="button" data-part-time-work-delete-id="${escapeAttribute(row.id)}" data-part-time-work-confirm-delete="${deleteConfirm}">删除</button>` : ""}
         </div>
@@ -759,6 +762,21 @@ function openEditDialog(lesson) {
   showDialog();
 }
 
+function openActualDetailDialog(lesson) {
+  dialogMode = DIALOG_MODES.VIEW_ACTUAL_DETAIL;
+  editingLesson = lesson;
+  dom.dialogTitle.textContent = "查看实际打工课时";
+  dom.dialogKindText.textContent = "实际课时";
+  dom.hoursLabel.textContent = "实际课时";
+  clearDialog();
+  fillDialogFromLesson(lesson, lesson.actual_hours);
+  setLessonFieldsReadonly(false);
+  setDialogReadonly(true);
+  renderReadonlyDetail(lesson);
+  updatePreview();
+  showDialog();
+}
+
 function openGenerateActualDialog(lesson) {
   dialogMode = DIALOG_MODES.GENERATE_ACTUAL;
   editingLesson = lesson;
@@ -793,6 +811,7 @@ function closeDialog() {
   }
   dom.dialog.classList.add("is-hidden");
   dom.dialog.setAttribute("aria-hidden", "true");
+  setDialogReadonly(false);
 }
 
 function showDialog() {
@@ -802,6 +821,10 @@ function showDialog() {
 }
 
 async function submitDialog() {
+  if (dialogMode === DIALOG_MODES.VIEW_ACTUAL_DETAIL) {
+    return;
+  }
+
   if (!isLoggedIn()) {
     showDialogError("请先登录后保存私塾打工课时。");
     return;
@@ -872,6 +895,15 @@ async function handleLessonActionClick(event) {
         return;
       }
       openEditDialog(lesson);
+    }
+    return;
+  }
+
+  const detailButton = event.target.closest("[data-part-time-work-detail-id]");
+  if (detailButton) {
+    const lesson = lessons.find((item) => item.id === detailButton.dataset.partTimeWorkDetailId);
+    if (lesson) {
+      openActualDetailDialog(lesson);
     }
     return;
   }
@@ -1335,6 +1367,10 @@ function clearDialog() {
   dom.transportationFeeInput.value = "0";
   dom.workplaceNameInput.value = WORKPLACE_OPTIONS[0];
   dom.subjectNameInput.value = SUBJECT_OPTIONS[0];
+  dom.readonlyDetail.innerHTML = "";
+  dom.readonlyDetail.classList.add("is-hidden");
+  dom.submitButton.classList.remove("is-hidden");
+  dom.cancelButton.textContent = "取消";
   hideDialogError();
   clearInvalidFields();
 }
@@ -1348,6 +1384,56 @@ function setLessonFieldsReadonly(readonly) {
   for (const input of [dom.workplaceNameInput, dom.subjectNameInput, dom.classDescriptionInput]) {
     input.disabled = readonly;
   }
+}
+
+function setDialogReadonly(readonly) {
+  for (const input of [
+    dom.workDateInput,
+    dom.workplaceNameInput,
+    dom.subjectNameInput,
+    dom.classDescriptionInput,
+    dom.startTimeInput,
+    dom.endTimeInput,
+    dom.hoursInput,
+    dom.lessonCountInput,
+    dom.cumulativeHoursInput,
+    dom.hourlyRateInput,
+    dom.transportationFeeInput,
+    dom.memoInput,
+  ]) {
+    input.disabled = readonly;
+  }
+  dom.submitButton.classList.toggle("is-hidden", readonly);
+  dom.submitButton.disabled = readonly;
+  dom.cancelButton.textContent = readonly ? "关闭" : "取消";
+  if (!readonly) {
+    dom.submitButton.textContent = "保存";
+  }
+}
+
+function renderReadonlyDetail(lesson) {
+  const rows = [
+    ["课时日期", formatDateOnly(lesson.work_date)],
+    ["时间", timeRange(lesson.start_time, lesson.end_time)],
+    ["学生", lesson.student_name || lesson.student || "-"],
+    ["科目", lesson.subject_name || "-"],
+    ["业务归属", lesson.business_entity_name || lesson.workplace_name || "-"],
+    ["实际课时", `${formatHours(lesson.actual_hours)} h`],
+    ["回数", formatLessonCount(lessonCount(lesson))],
+    ["交通费", formatCurrency(lesson.transportation_fee_jpy, "JPY")],
+    ["课时工资", formatCurrency(lesson.lesson_wage_jpy, "JPY")],
+    ["时给", formatCurrency(lesson.hourly_rate_jpy, "JPY")],
+    ["结算状态", settlementStatusLabel(lesson.settlement_status)],
+    ["备注", lesson.memo || "-"],
+  ];
+
+  dom.readonlyDetail.innerHTML = rows.map(([label, value]) => `
+    <div class="dialog-summary-row">
+      <span class="dialog-summary-label">${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </div>
+  `).join("");
+  dom.readonlyDetail.classList.remove("is-hidden");
 }
 
 function setLoading(isLoading) {
