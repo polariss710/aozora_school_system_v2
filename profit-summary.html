@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 利润分析</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.2.7-fix4-profit-detail-table-css-priority">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.25-beta-tools-nav">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -13,7 +13,13 @@
         <span>管理后台</span>
       </div>
                 <nav class="page-nav page-nav--grouped sidebar-nav" aria-label="主导航">
-                    <a class="quote-plan-standalone-nav" href="./quote-plan.html">报价单生成</a>
+                  <details class="page-nav-group page-nav-group--beta">
+                    <summary>Beta功能</summary>
+                    <div class="page-nav-group-links">
+                      <a href="./quote-plan.html">报价单生成</a>
+                      <span class="page-nav-disabled">周课表图片（准备中）</span>
+                    </div>
+                  </details>
                   <details class="page-nav-group">
                     <summary>学生</summary>
                     <div class="page-nav-group-links">

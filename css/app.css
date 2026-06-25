@@ -4887,12 +4887,35 @@ h2 {
   max-width: none;
 }
 
-.sidebar-nav .quote-plan-standalone-nav {
+.sidebar-nav .page-nav-group--beta {
   border: 1px solid rgba(15, 118, 110, 0.28);
   border-radius: 10px;
   background: #f0fdfa;
+}
+
+.sidebar-nav .page-nav-group--beta[open],
+.sidebar-nav .page-nav-group--beta.is-active-group {
+  border-color: rgba(15, 118, 110, 0.42);
+  background: #f0fdfa;
+}
+
+.sidebar-nav .page-nav-group--beta summary {
   color: #115e59;
+}
+
+.sidebar-nav .page-nav-group--beta a.is-active {
   box-shadow: inset 3px 0 0 #0f766e;
+}
+
+.page-nav-disabled {
+  display: block;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #78909c;
+  padding: 7px 9px;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .quote-plan-editor-panel {
