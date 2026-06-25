@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-23
+Status date: 2026-06-26
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -29,6 +29,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.23 add quote plan generator, 2026-06-26:
+   新增独立报价单生成页面 `quote-plan.html`，用于手动输入学生姓名、报价周期、课程目录、每次时长、每周次数、内部单价和内部汇率，并生成可打印 / 保存 PDF 的月度课程报价表。报价表按月份拆分，月内按课程分组，组内按周一日期排列；每门课程独立累计回数，跨月周的归属月份以该周周一日期为准。单价和汇率只用于计算，不显示在打印内容中。该实现不读取系统学生/科目/老师/业务归属，不写 DB，不进课时、结算、收入、工资或 Cash 链路；这只是 v2 当前最小实现边界，不作为 v3 长期规则沉淀。详细记录见 `docs/quote-plan-generator-notes-2026-06-26.md`。
 
 1. v10.3.19 allow regenerate part-time income after cancelled record, 2026-06-23:
    外部授课结算 canonical 收入生成已改为区分 active/blocking 与 terminal 历史记录。执行 `sql/current/school_part_time_work_income_record_route.sql`，`school_create_part_time_work_income_record(...)` 不再把 `cancelled/voided/rejected/cash_rejected/reversed` 且无 School account transaction、无 Cash transaction、无 active/approved Cash request 的旧收入记录当作阻塞；active 状态 `pending/pending_cash_request/cash_pending/cash_submitted/awaiting_cash_confirmation/approved/received/settled/synced` 以及任何正式流水或 active Cash 链路仍阻止重复生成。`school_list_part_time_work_monthly_settlements(...)` 返回 `income_record_is_blocking` / `income_request_is_blocking` 供页面判断，外部授课结算页在 cancelled 可重建场景显示“已作废，可重新生成收入记录”，并允许点击“生成收入记录”。只读验证确认 2026-06 致远教育 settlement `453ea8f2-90dd-4f67-9f94-1f652f6c7687` 的旧收入 `f356d15a-02d3-4753-9b26-ca4245801c6b` 为 `cancelled`，School account transaction / Cash linkage / Cash transaction 均为 0，列表返回 blocking=false。Rollback 测试中 RPC 生成新 pending income `b9ef5156-8c8a-4103-8e52-57a641d0dd16` 并更新 settlement 指向，随后 rollback，最终 DB 仍指向原 cancelled 记录；未做持久业务数据修复。
