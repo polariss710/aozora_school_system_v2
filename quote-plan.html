@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 报价单生成</title>
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.23-quote-plan-generator">
+  </head>
+  <body>
+    <aside class="app-sidebar" aria-label="主导航侧边栏">
+      <div class="sidebar-brand">
+        <strong>青空进学塾</strong>
+        <span>管理后台</span>
+      </div>
+      <nav class="page-nav page-nav--grouped sidebar-nav" aria-label="主导航">
+        <a class="is-active quote-plan-standalone-nav" href="./quote-plan.html">报价单生成</a>
+        <details class="page-nav-group">
+          <summary>学生</summary>
+          <div class="page-nav-group-links">
+            <a href="./student.html">学生管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">月度结算</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>老师</summary>
+          <div class="page-nav-group-links">
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage.html">工资结算</a>
+            <a href="./wage-rule.html">工资规则</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>外部授课</summary>
+          <div class="page-nav-group-links">
+            <a href="./part-time-work.html?view=lessons" data-part-time-work-nav-view="lessons">授课记录</a>
+            <a href="./part-time-work.html?view=settlement" data-part-time-work-nav-view="settlement">授课结算</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>财务</summary>
+          <div class="page-nav-group-links">
+            <a href="./profit-summary.html">利润分析</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>设置</summary>
+          <div class="page-nav-group-links">
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./account.html">账户</a>
+            <a href="./subject.html">科目</a>
+          </div>
+        </details>
+      </nav>
+    </aside>
+
+    <div class="app-shell app-shell--dense app-shell--quote-plan">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>报价单生成</h1>
+          <p class="page-subtitle">独立生成课程报价 PDF，不读取学生、课时、结算或 Cash 数据。</p>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">本地生成</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="quotePlanMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel quote-plan-editor-panel" aria-labelledby="quotePlanEditorTitle">
+          <div class="section-heading">
+            <h2 id="quotePlanEditorTitle">报价条件</h2>
+            <p class="section-note">单价与汇率只用于计算，不会显示在打印版报价单中。</p>
+          </div>
+
+          <form id="quotePlanForm">
+            <div class="quote-plan-base-grid">
+              <label class="field">
+                <span>学生姓名</span>
+                <input id="quoteStudentName" type="text" autocomplete="off" placeholder="手动输入">
+              </label>
+              <label class="field">
+                <span>文件标题</span>
+                <input id="quoteTitle" type="text" value="课程计划">
+              </label>
+              <label class="field">
+                <span>开始日期</span>
+                <input id="quoteStartDate" type="date">
+              </label>
+              <label class="field">
+                <span>结束日期</span>
+                <input id="quoteEndDate" type="date">
+              </label>
+              <label class="field">
+                <span>内部汇率：1 CNY = JPY</span>
+                <input id="quoteExchangeRate" type="number" min="1" step="0.01" value="20">
+              </label>
+              <label class="field quote-note-field">
+                <span>备注</span>
+                <input id="quoteNote" type="text" placeholder="可选，会显示在报价单底部">
+              </label>
+            </div>
+
+            <div class="quote-course-heading">
+              <h3>课程目录</h3>
+              <button id="addQuoteCourseButton" class="button" type="button">新增课程</button>
+            </div>
+            <div id="quoteCourseList" class="quote-course-list"></div>
+
+            <div class="quote-plan-form-actions">
+              <button class="button button-primary" type="submit">更新预览</button>
+              <button id="resetQuotePlanButton" class="button" type="button">恢复默认</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="summary-grid quote-plan-summary-grid" id="quotePlanSummary" aria-label="报价汇总"></section>
+
+        <section class="panel quote-plan-preview-panel" aria-labelledby="quotePlanPreviewTitle">
+          <div class="section-heading-row">
+            <div>
+              <h2 id="quotePlanPreviewTitle">报价单预览</h2>
+              <p class="section-note">打印时只输出下方报价单，不输出输入区。</p>
+            </div>
+            <div class="table-actions quote-plan-preview-actions">
+              <button id="printQuotePlanButton" class="button button-primary" type="button">打印 / 保存 PDF</button>
+            </div>
+          </div>
+
+          <div id="quotePlanPreview" class="quote-plan-preview"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/quote-plan-app.js?v=v10.3.23-quote-plan-generator"></script>
+  </body>
+</html>
