@@ -4887,6 +4887,12 @@ h2 {
   max-width: none;
 }
 
+.app-shell--weekly-schedule {
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  max-width: none;
+}
+
 .sidebar-nav .page-nav-group--beta {
   border: 1px solid rgba(15, 118, 110, 0.28);
   border-radius: 10px;
@@ -4921,6 +4927,69 @@ h2 {
 .quote-plan-editor-panel {
   border-color: #cfe0f3;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.weekly-schedule-filter-panel {
+  border-color: #cfe0f3;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.weekly-schedule-filter-grid {
+  display: grid;
+  grid-template-columns: 220px minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.weekly-schedule-filter-actions {
+  align-items: center;
+}
+
+.weekly-schedule-preview-panel {
+  background: #f8fafc;
+}
+
+.weekly-schedule-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.weekly-schedule-card {
+  min-width: 0;
+  border: 1px solid #d8e2ee;
+  border-radius: 8px;
+  background: #fff;
+  padding: 14px;
+}
+
+.weekly-schedule-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.weekly-schedule-card-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.weekly-schedule-card-header p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.weekly-schedule-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .quote-plan-base-grid {
@@ -5136,7 +5205,8 @@ h2 {
 
 @media (max-width: 1023px) {
   .quote-plan-base-grid,
-  .quote-course-row {
+  .quote-course-row,
+  .weekly-schedule-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -5153,6 +5223,7 @@ h2 {
 @media (max-width: 720px) {
   .quote-plan-base-grid,
   .quote-course-row,
+  .weekly-schedule-filter-grid,
   .quote-print-footer {
     grid-template-columns: 1fr;
   }

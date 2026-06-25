@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 周课表图片</title>
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.26-weekly-schedule-image">
+  </head>
+  <body>
+    <aside class="app-sidebar" aria-label="主导航侧边栏">
+      <div class="sidebar-brand">
+        <strong>青空进学塾</strong>
+        <span>管理后台</span>
+      </div>
+      <nav class="page-nav page-nav--grouped sidebar-nav" aria-label="主导航">
+        <details class="page-nav-group page-nav-group--beta is-active-group" open>
+          <summary>Beta功能</summary>
+          <div class="page-nav-group-links">
+            <a href="./quote-plan.html">报价单生成</a>
+            <a class="is-active" href="./weekly-schedule-image.html">周课表图片</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>学生</summary>
+          <div class="page-nav-group-links">
+            <a href="./student.html">学生管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">月度结算</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>老师</summary>
+          <div class="page-nav-group-links">
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage.html">工资结算</a>
+            <a href="./wage-rule.html">工资规则</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>外部授课</summary>
+          <div class="page-nav-group-links">
+            <a href="./part-time-work.html?view=lessons" data-part-time-work-nav-view="lessons">授课记录</a>
+            <a href="./part-time-work.html?view=settlement" data-part-time-work-nav-view="settlement">授课结算</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>财务</summary>
+          <div class="page-nav-group-links">
+            <a href="./profit-summary.html">利润分析</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>设置</summary>
+          <div class="page-nav-group-links">
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./account.html">账户</a>
+            <a href="./subject.html">科目</a>
+          </div>
+        </details>
+      </nav>
+    </aside>
+
+    <div class="app-shell app-shell--dense app-shell--weekly-schedule">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>周课表图片</h1>
+          <p class="page-subtitle">从正式预定课时生成学生群可直接查看的 PNG 图片。</p>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">Beta</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="weeklyScheduleMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel weekly-schedule-filter-panel" aria-labelledby="weeklyScheduleFilterTitle">
+          <div class="section-heading">
+            <h2 id="weeklyScheduleFilterTitle">生成条件</h2>
+            <p class="section-note">只读取待上课的预定课时，不保存、不发布、不进入结算或 Cash 链路。</p>
+          </div>
+
+          <form id="weeklyScheduleForm" class="weekly-schedule-filter-grid">
+            <label class="field">
+              <span>周一日期</span>
+              <input id="weeklyScheduleWeekStart" type="date" required>
+            </label>
+            <label class="field">
+              <span>学生</span>
+              <select id="weeklyScheduleStudentSelect">
+                <option value="">全部有课学生</option>
+              </select>
+            </label>
+            <div class="filter-actions weekly-schedule-filter-actions">
+              <button id="weeklyScheduleLoadButton" class="button button-primary" type="submit">生成预览</button>
+              <button id="weeklyScheduleDownloadAllButton" class="button" type="button" disabled>下载全部 PNG</button>
+              <span id="weeklyScheduleCount" class="record-count">0 张</span>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel weekly-schedule-preview-panel" aria-labelledby="weeklySchedulePreviewTitle">
+          <div class="section-heading">
+            <h2 id="weeklySchedulePreviewTitle">图片预览</h2>
+            <p class="section-note">每个学生一张图，适合直接发送到联络群。</p>
+          </div>
+          <div id="weeklyScheduleLoadingState" class="state-text is-hidden">正在读取预定课时...</div>
+          <div id="weeklyScheduleEmptyState" class="state-text">暂无可生成的周课表图片。</div>
+          <div id="weeklySchedulePreview" class="weekly-schedule-preview-grid"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/weekly-schedule-image-app.js?v=v10.3.26-weekly-schedule-image"></script>
+  </body>
+</html>
