@@ -65,8 +65,7 @@ function bindEvents() {
   dom.preview?.addEventListener("click", handlePreviewClick);
 
   dom.printButton?.addEventListener("click", () => {
-    renderQuote();
-    window.print();
+    printQuotePlan();
   });
 
   dom.resetButton?.addEventListener("click", resetDraft);
@@ -240,6 +239,45 @@ function getDraftFromForm() {
     note: dom.noteInput?.value.trim() || "",
     courses: state.courses.map(normalizeCourse),
   };
+}
+
+function printQuotePlan() {
+  const draft = getDraftFromForm();
+  renderQuote();
+
+  const previousTitle = document.title;
+  const printTitle = buildQuoteDocumentTitle(draft);
+  let restored = false;
+
+  const restoreTitle = () => {
+    if (restored) return;
+    restored = true;
+    document.title = previousTitle;
+  };
+
+  document.title = printTitle;
+  window.addEventListener("afterprint", restoreTitle, { once: true });
+  window.setTimeout(restoreTitle, 30000);
+  window.print();
+}
+
+function buildQuoteDocumentTitle(draft) {
+  const studentName = normalizePdfTitlePart(draft.studentName);
+  const title = normalizePdfTitlePart(draft.title) || "课程计划";
+
+  if (!studentName) {
+    return title;
+  }
+
+  const studentLabel = studentName.endsWith("同学") ? studentName : `${studentName}同学`;
+  return `${studentLabel}${title}`;
+}
+
+function normalizePdfTitlePart(value) {
+  return String(value || "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "");
 }
 
 function buildPlanSignature(draft) {

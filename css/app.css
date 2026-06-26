@@ -5291,7 +5291,12 @@ h2 {
 @media print {
   @page {
     size: A4;
-    margin: 14mm;
+    margin: 9mm;
+  }
+
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
 
   body {
@@ -5331,6 +5336,7 @@ h2 {
 
   .quote-print-page {
     break-after: page;
+    break-inside: avoid;
     border: 0;
     border-radius: 0;
     padding: 0;
@@ -5341,7 +5347,25 @@ h2 {
   }
 
   .quote-print-header {
-    margin-bottom: 14px;
+    border-bottom-color: #0f766e;
+    margin-bottom: 8pt;
+    padding-bottom: 7pt;
+  }
+
+  .quote-print-header h2 {
+    font-size: 15pt;
+    line-height: 1.2;
+    margin: 1pt 0 2pt;
+  }
+
+  .quote-print-header p {
+    font-size: 8.5pt;
+    line-height: 1.25;
+  }
+
+  .quote-print-kicker {
+    color: #0f766e !important;
+    font-size: 8.5pt;
   }
 
   .quote-print-page-number {
@@ -5353,15 +5377,65 @@ h2 {
   }
 
   .quote-plan-table {
-    font-size: 11pt;
+    border-color: #1f2937;
+    font-size: 8.2pt;
+    line-height: 1.16;
   }
 
   .quote-plan-table th,
   .quote-plan-table td {
-    padding: 6px 8px;
+    border-color: #1f2937;
+    padding: 2.2pt 4pt;
+  }
+
+  .quote-plan-table th {
+    background: #e7f0fb !important;
+    color: #172033;
+  }
+
+  .quote-course-group-row td {
+    background: #e7f7f2 !important;
+    color: #0f5f56;
+    padding: 2.5pt 4pt;
+  }
+
+  .quote-row-hours {
+    gap: 0;
   }
 
   .quote-print-footer {
     break-inside: avoid;
+    gap: 5pt;
+    margin-top: 7pt;
+  }
+
+  .quote-print-footer div {
+    border-color: #b9d3e6;
+    background: #f3f8ff !important;
+    border-radius: 5pt;
+    padding: 4pt 5pt;
+  }
+
+  .quote-print-footer span {
+    color: #475569;
+    font-size: 7.5pt;
+    line-height: 1.15;
+  }
+
+  .quote-print-footer strong {
+    color: #0f172a;
+    font-size: 10.5pt;
+    line-height: 1.15;
+    margin-top: 1pt;
+  }
+
+  .quote-print-note {
+    background: #e7f7f2 !important;
+    border-left-color: #0f766e;
+    color: #134e4a;
+    font-size: 8.5pt;
+    line-height: 1.25;
+    margin-top: 6pt;
+    padding: 4pt 6pt;
   }
 }
