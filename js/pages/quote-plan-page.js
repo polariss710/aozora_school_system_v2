@@ -1,4 +1,5 @@
-const DEFAULT_EXCHANGE_RATE = 20;
+const DEFAULT_EXCHANGE_RATE = 0.05;
+const JPY_CNY_RATE_API_URL = "https://api.frankfurter.dev/v2/rate/JPY/CNY";
 
 const DEFAULT_COURSES = [
   { name: "EJU日语", content: "EJU日语", hoursPerSession: 2, weeklyFrequency: 1, unitPriceJpy: 13000 },
@@ -31,6 +32,8 @@ function cacheDom() {
   dom.startDateInput = document.querySelector("#quoteStartDate");
   dom.endDateInput = document.querySelector("#quoteEndDate");
   dom.exchangeRateInput = document.querySelector("#quoteExchangeRate");
+  dom.exchangeRateFetchButton = document.querySelector("#quoteExchangeRateFetchButton");
+  dom.exchangeRateStatus = document.querySelector("#quoteExchangeRateStatus");
   dom.noteInput = document.querySelector("#quoteNote");
   dom.courseList = document.querySelector("#quoteCourseList");
   dom.addCourseButton = document.querySelector("#addQuoteCourseButton");
@@ -54,6 +57,8 @@ function bindEvents() {
     renderCourseRows();
     renderQuote();
   });
+
+  dom.exchangeRateFetchButton?.addEventListener("click", fetchTodayExchangeRate);
 
   dom.courseList?.addEventListener("input", handleCourseInput);
   dom.courseList?.addEventListener("click", handleCourseClick);
@@ -324,12 +329,12 @@ function buildQuotePlan(draft) {
 
   const months = Array.from(monthMap.values()).map((month) => ({
     ...month,
-    totalCny: month.totalJpy / exchangeRate,
+    totalCny: month.totalJpy * exchangeRate,
   }));
 
   const grandTotalHours = months.reduce((sum, month) => sum + month.totalHours, 0);
   const grandTotalJpy = months.reduce((sum, month) => sum + month.totalJpy, 0);
-  const grandTotalCny = grandTotalJpy / exchangeRate;
+  const grandTotalCny = grandTotalJpy * exchangeRate;
 
   return { warnings, months, grandTotalHours, grandTotalJpy, grandTotalCny };
 }
@@ -343,6 +348,55 @@ function renderSummary(result) {
     <div class="summary-card"><span>报价合计</span><strong>${formatCurrency(result.grandTotalJpy, "JPY")}</strong></div>
     <div class="summary-card"><span>人民币参考</span><strong>${formatCurrency(result.grandTotalCny, "CNY")}</strong></div>
   `;
+}
+
+async function fetchTodayExchangeRate() {
+  setExchangeRateFetching(true);
+  setExchangeRateStatus("正在获取今日参考汇率...");
+
+  try {
+    const rate = await fetchLatestJpyCnyRate();
+    dom.exchangeRateInput.value = formatRateValue(rate);
+    renderQuote({
+      message: "已获取今日参考汇率，可继续手动调整。",
+      preserveManualAdjustments: true,
+    });
+    setExchangeRateStatus("已获取今日参考汇率，可手动调整。");
+  } catch (error) {
+    setExchangeRateStatus("汇率获取失败，可手动输入。");
+    showMessage(`今日汇率获取失败：${error.message || error}。可手动输入汇率继续。`, "error");
+  } finally {
+    setExchangeRateFetching(false);
+  }
+}
+
+async function fetchLatestJpyCnyRate() {
+  const response = await fetch(JPY_CNY_RATE_API_URL, {
+    headers: { accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Frankfurter API HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const rate = Number(data?.rate ?? data?.rates?.CNY);
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error("Frankfurter API 未返回有效 CNY/JPY 汇率");
+  }
+
+  return rate;
+}
+
+function setExchangeRateFetching(isFetching) {
+  if (dom.exchangeRateFetchButton) {
+    dom.exchangeRateFetchButton.disabled = isFetching;
+    dom.exchangeRateFetchButton.textContent = isFetching ? "获取中..." : "获取今日汇率";
+  }
+}
+
+function setExchangeRateStatus(message) {
+  if (!dom.exchangeRateStatus) return;
+  dom.exchangeRateStatus.textContent = message || "";
 }
 
 function renderPreview(draft, result) {
@@ -527,6 +581,12 @@ function formatHours(value) {
 function formatCurrency(value, currency) {
   const number = Math.round(Number(value) || 0);
   return `${number.toLocaleString("ja-JP")} ${currency}`;
+}
+
+function formatRateValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "";
+  return number.toFixed(7).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function formatNumber(value) {

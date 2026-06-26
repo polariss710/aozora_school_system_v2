@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initQuotePlanPage } from "./pages/quote-plan-page.js?v=v10.3.27-quote-plan-row-delete";
+import { initQuotePlanPage } from "./pages/quote-plan-page.js?v=v10.3.28-quote-plan-jpy-cny-rate";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

@@ -5016,6 +5016,25 @@ h2 {
   font-size: 15px;
 }
 
+.quote-exchange-rate-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.quote-exchange-rate-control .button {
+  min-height: 40px;
+  white-space: nowrap;
+}
+
+.quote-exchange-rate-status {
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .quote-course-list {
   display: grid;
   gap: 10px;
@@ -5247,6 +5266,7 @@ h2 {
 @media (max-width: 720px) {
   .quote-plan-base-grid,
   .quote-course-row,
+  .quote-exchange-rate-control,
   .weekly-schedule-filter-grid,
   .quote-print-footer {
     grid-template-columns: 1fr;

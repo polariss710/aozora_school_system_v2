@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 报价单生成</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.27-quote-plan-row-delete">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.28-quote-plan-jpy-cny-rate">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -104,8 +104,12 @@
                 <input id="quoteEndDate" type="date">
               </label>
               <label class="field">
-                <span>内部汇率：1 CNY = JPY</span>
-                <input id="quoteExchangeRate" type="number" min="1" step="0.01" value="20">
+                <span>内部汇率：1 JPY = CNY</span>
+                <div class="quote-exchange-rate-control">
+                  <input id="quoteExchangeRate" type="number" min="0" step="0.0000001" value="0.05" inputmode="decimal">
+                  <button id="quoteExchangeRateFetchButton" class="button" type="button">获取今日汇率</button>
+                </div>
+                <small id="quoteExchangeRateStatus" class="quote-exchange-rate-status"></small>
               </label>
               <label class="field quote-note-field">
                 <span>备注</span>
@@ -144,6 +148,6 @@
       </main>
     </div>
 
-    <script type="module" src="./js/quote-plan-app.js?v=v10.3.27-quote-plan-row-delete"></script>
+    <script type="module" src="./js/quote-plan-app.js?v=v10.3.28-quote-plan-jpy-cny-rate"></script>
   </body>
 </html>
