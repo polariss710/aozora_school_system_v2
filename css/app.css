@@ -4994,13 +4994,15 @@ h2 {
 
 .quote-plan-base-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
   gap: 12px;
   align-items: end;
 }
 
+.quote-exchange-rate-field,
 .quote-note-field {
   grid-column: span 2;
+  align-self: start;
 }
 
 .quote-course-heading {
