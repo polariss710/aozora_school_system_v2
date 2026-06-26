@@ -9,6 +9,8 @@ const DEFAULT_COURSES = [
 
 const state = {
   courses: [],
+  removedRowKeys: new Set(),
+  planSignature: "",
 };
 
 const dom = {};
@@ -55,6 +57,7 @@ function bindEvents() {
 
   dom.courseList?.addEventListener("input", handleCourseInput);
   dom.courseList?.addEventListener("click", handleCourseClick);
+  dom.preview?.addEventListener("click", handlePreviewClick);
 
   dom.printButton?.addEventListener("click", () => {
     renderQuote();
@@ -84,6 +87,8 @@ function resetDraft() {
   dom.exchangeRateInput.value = draft.exchangeRate;
   dom.noteInput.value = draft.note;
   state.courses = draft.courses.map(normalizeCourse);
+  state.removedRowKeys.clear();
+  state.planSignature = "";
   renderCourseRows();
   renderQuote({ message: "已恢复默认报价模板。" });
 }
@@ -183,8 +188,28 @@ function handleCourseClick(event) {
   renderQuote();
 }
 
+function handlePreviewClick(event) {
+  const button = event.target.closest("[data-quote-delete-row-key]");
+  if (!button) return;
+
+  const key = button.dataset.quoteDeleteRowKey;
+  if (!key) return;
+
+  state.removedRowKeys.add(key);
+  renderQuote({
+    message: "已从报价单中移除该课时，打印 / 保存 PDF 将按当前预览输出。",
+    preserveManualAdjustments: true,
+  });
+}
+
 function renderQuote(options = {}) {
   const draft = getDraftFromForm();
+  const signature = buildPlanSignature(draft);
+  if (!options.preserveManualAdjustments && state.planSignature && signature !== state.planSignature) {
+    state.removedRowKeys.clear();
+  }
+  state.planSignature = signature;
+
   const result = buildQuotePlan(draft);
   renderSummary(result);
   renderPreview(draft, result);
@@ -212,6 +237,18 @@ function getDraftFromForm() {
   };
 }
 
+function buildPlanSignature(draft) {
+  return JSON.stringify({
+    startDate: draft.startDate,
+    endDate: draft.endDate,
+    courses: draft.courses.map((course) => ({
+      name: course.name,
+      hoursPerSession: course.hoursPerSession,
+      weeklyFrequency: course.weeklyFrequency,
+    })),
+  });
+}
+
 function buildQuotePlan(draft) {
   const warnings = [];
   const startDate = parseDateValue(draft.startDate);
@@ -225,7 +262,10 @@ function buildQuotePlan(draft) {
   }
 
   const validCourses = draft.courses
-    .map(normalizeCourse)
+    .map((course, index) => ({
+      ...normalizeCourse(course),
+      courseIndex: index,
+    }))
     .filter((course) => course.name.trim() && course.hoursPerSession > 0 && course.weeklyFrequency > 0);
 
   if (!validCourses.length) {
@@ -241,34 +281,45 @@ function buildQuotePlan(draft) {
     warnings.push("所选日期范围内没有周一，请扩大日期范围。");
   }
 
-  const counters = new Map(validCourses.map((course) => [course.name, 0]));
-  const monthMap = new Map();
+  const allRows = [];
 
   mondays.forEach((monday) => {
     validCourses.forEach((course) => {
       for (let count = 0; count < course.weeklyFrequency; count += 1) {
-        const currentCount = (counters.get(course.name) || 0) + 1;
-        counters.set(course.name, currentCount);
-
-        const monthKey = getMonthKey(monday);
-        if (!monthMap.has(monthKey)) {
-          monthMap.set(monthKey, { key: monthKey, label: formatMonthLabel(monday), rows: [], totalHours: 0, totalJpy: 0 });
-        }
-
-        const amountJpy = course.hoursPerSession * course.unitPriceJpy;
-        const month = monthMap.get(monthKey);
-        month.rows.push({
+        allRows.push({
+          rowKey: buildQuoteRowKey(course.courseIndex, monday, count),
+          courseIndex: course.courseIndex,
           courseName: course.name,
+          monthKey: getMonthKey(monday),
+          monthLabel: formatMonthLabel(monday),
           weekLabel: formatWeekLabel(monday),
-          lessonNumber: currentCount,
           content: course.content || course.name,
           hours: course.hoursPerSession,
-          amountJpy,
+          amountJpy: course.hoursPerSession * course.unitPriceJpy,
         });
-        month.totalHours += course.hoursPerSession;
-        month.totalJpy += amountJpy;
       }
     });
+  });
+
+  const visibleRows = allRows.filter((row) => !state.removedRowKeys.has(row.rowKey));
+  const counters = new Map(validCourses.map((course) => [course.courseIndex, 0]));
+  const monthMap = new Map();
+
+  visibleRows.forEach((row) => {
+    const currentCount = (counters.get(row.courseIndex) || 0) + 1;
+    counters.set(row.courseIndex, currentCount);
+
+    if (!monthMap.has(row.monthKey)) {
+      monthMap.set(row.monthKey, { key: row.monthKey, label: row.monthLabel, rows: [], totalHours: 0, totalJpy: 0 });
+    }
+
+    const month = monthMap.get(row.monthKey);
+    month.rows.push({
+      ...row,
+      lessonNumber: currentCount,
+    });
+    month.totalHours += row.hours;
+    month.totalJpy += row.amountJpy;
   });
 
   const months = Array.from(monthMap.values()).map((month) => ({
@@ -298,7 +349,7 @@ function renderPreview(draft, result) {
   if (!dom.preview) return;
 
   if (!result.months.length) {
-    dom.preview.innerHTML = `<div class="quote-empty-preview"><p>请输入报价条件后生成预览。</p></div>`;
+    dom.preview.innerHTML = `<div class="quote-empty-preview"><p>当前没有可显示课程，请调整报价条件或恢复默认模板。</p></div>`;
     return;
   }
 
@@ -351,10 +402,26 @@ function renderGroupedMonthRows(rows) {
         <td>${escapeHtml(row.weekLabel)}</td>
         <td>第${formatNumber(row.lessonNumber)}回</td>
         <td>${escapeHtml(row.content)}</td>
-        <td>${formatHours(row.hours)}</td>
+        <td>
+          <span class="quote-row-hours">
+            <span>${formatHours(row.hours)}</span>
+            <button class="quote-plan-row-delete-button" type="button" data-quote-delete-row-key="${escapeAttribute(row.rowKey)}">删除</button>
+          </span>
+        </td>
       </tr>
     `).join("")}
   `).join("");
+}
+
+function buildQuoteRowKey(courseIndex, monday, occurrenceIndex) {
+  return [
+    "course",
+    courseIndex,
+    "date",
+    toDateInputValue(monday),
+    "slot",
+    occurrenceIndex,
+  ].join(":");
 }
 
 function groupRowsByCourse(rows) {
@@ -485,4 +552,8 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
 }

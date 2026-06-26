@@ -5152,6 +5152,30 @@ h2 {
   text-align: left !important;
 }
 
+.quote-row-hours {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.quote-plan-row-delete-button {
+  min-height: 28px;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  background: #fff7f7;
+  color: #b91c1c;
+  cursor: pointer;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quote-plan-row-delete-button:hover {
+  border-color: #f87171;
+  background: #fee2e2;
+}
+
 .quote-plan-table th:nth-child(1),
 .quote-plan-table th:nth-child(2),
 .quote-plan-table th:nth-child(3),
@@ -5300,6 +5324,10 @@ h2 {
 
   .quote-print-page-number {
     display: none;
+  }
+
+  .quote-plan-row-delete-button {
+    display: none !important;
   }
 
   .quote-plan-table {
