@@ -4893,6 +4893,12 @@ h2 {
   max-width: none;
 }
 
+.app-shell--contract-generator {
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  max-width: none;
+}
+
 .sidebar-nav .page-nav-group--beta {
   border: 1px solid rgba(15, 118, 110, 0.28);
   border-radius: 10px;
@@ -4929,9 +4935,148 @@ h2 {
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
 }
 
+.contract-editor-panel {
+  border-color: #cfe0f3;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
 .weekly-schedule-filter-panel {
   border-color: #cfe0f3;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.contract-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.contract-start-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 22px 0 12px;
+}
+
+.contract-start-heading h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.contract-start-row-list {
+  display: grid;
+  gap: 10px;
+}
+
+.contract-start-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) 180px auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.contract-start-remove-button {
+  min-height: 39px;
+}
+
+.contract-preview-panel {
+  border-color: #cfe0f3;
+}
+
+.contract-preview {
+  display: grid;
+  gap: 18px;
+}
+
+.contract-document {
+  width: min(100%, 820px);
+  margin: 0 auto;
+  border: 1px solid #d8e2ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  padding: 34px 42px;
+  font-family: "Meiryo UI", Meiryo, "Yu Gothic", "Hiragino Sans", sans-serif;
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.contract-document-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.contract-document-header p {
+  margin: 0 0 4px;
+  color: #475569;
+  font-family: "Meiryo UI", Meiryo, "Yu Gothic", "Hiragino Sans", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.contract-document-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+.contract-clause {
+  margin: 0 0 12px;
+}
+
+.contract-clause h3 {
+  margin: 0 0 12px;
+  text-align: center;
+  font-size: 18px;
+}
+
+.contract-clause p,
+.contract-signature p {
+  margin: 0;
+}
+
+.contract-fill,
+.contract-underline {
+  border-bottom: 1px solid currentColor;
+  padding: 0 2px;
+}
+
+.contract-fill {
+  color: #c00000;
+}
+
+.contract-fill-line {
+  color: #c00000;
+  font-weight: 700;
+}
+
+.contract-dynamic-lines {
+  margin: 2px 0;
+}
+
+.contract-signature {
+  margin-top: 28px;
+}
+
+.contract-date-line {
+  margin-top: 26px !important;
+}
+
+.contract-party-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 48px;
+  margin-top: 28px;
+}
+
+.contract-party-grid span {
+  display: inline-block;
+  min-width: 220px;
+  border-bottom: 1px solid #111827;
 }
 
 .weekly-schedule-filter-grid {
@@ -5250,6 +5395,7 @@ h2 {
 
 @media (max-width: 1023px) {
   .quote-plan-base-grid,
+  .contract-form-grid,
   .quote-course-row,
   .weekly-schedule-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5267,6 +5413,8 @@ h2 {
 
 @media (max-width: 720px) {
   .quote-plan-base-grid,
+  .contract-form-grid,
+  .contract-start-row,
   .quote-course-row,
   .quote-exchange-rate-control,
   .weekly-schedule-filter-grid,
@@ -5285,6 +5433,14 @@ h2 {
   .quote-plan-table th,
   .quote-plan-table td {
     padding: 6px;
+  }
+
+  .contract-document {
+    padding: 22px;
+  }
+
+  .contract-party-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -5306,15 +5462,19 @@ h2 {
   .app-sidebar,
   .page-header,
   #quotePlanMessageArea,
+  #contractGeneratorMessageArea,
   .quote-plan-editor-panel,
   .quote-plan-summary-grid,
-  .quote-plan-preview-panel > .section-heading-row {
+  .quote-plan-preview-panel > .section-heading-row,
+  .contract-editor-panel,
+  .contract-preview-panel > .section-heading-row {
     display: none !important;
   }
 
   .app-shell,
   .app-shell--dense,
-  .app-shell--quote-plan {
+  .app-shell--quote-plan,
+  .app-shell--contract-generator {
     width: 100%;
     max-width: none;
     margin: 0;
@@ -5322,7 +5482,8 @@ h2 {
   }
 
   .page-main,
-  .quote-plan-preview {
+  .quote-plan-preview,
+  .contract-preview {
     display: block;
   }
 
@@ -5332,6 +5493,71 @@ h2 {
     box-shadow: none;
     padding: 0;
     background: #fff;
+  }
+
+  .contract-preview-panel {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    background: #fff;
+  }
+
+  .contract-document {
+    width: auto;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    color: #000;
+    font-family: "Meiryo UI", Meiryo, "Yu Gothic", "Hiragino Sans", sans-serif;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+
+  .contract-document-header {
+    margin-bottom: 10pt;
+  }
+
+  .contract-document-header p {
+    color: #000;
+    font-size: 8.5pt;
+  }
+
+  .contract-document-header h2 {
+    color: #000;
+    font-size: 15pt;
+  }
+
+  .contract-fill,
+  .contract-fill-line {
+    color: #000 !important;
+  }
+
+  .contract-clause {
+    break-inside: avoid;
+    margin-bottom: 7pt;
+  }
+
+  .contract-clause h3 {
+    font-size: 13pt;
+    margin-bottom: 8pt;
+  }
+
+  .contract-signature {
+    break-inside: avoid;
+    margin-top: 18pt;
+  }
+
+  .contract-date-line {
+    margin-top: 18pt !important;
+  }
+
+  .contract-party-grid {
+    gap: 28pt;
+    margin-top: 18pt;
+  }
+
+  .contract-party-grid span {
+    min-width: 170pt;
   }
 
   .quote-print-page {

@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 合同生成</title>
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.31-contract-generator-beta">
+  </head>
+  <body>
+    <aside class="app-sidebar" aria-label="主导航侧边栏">
+      <div class="sidebar-brand">
+        <strong>青空进学塾</strong>
+        <span>管理后台</span>
+      </div>
+      <nav class="page-nav page-nav--grouped sidebar-nav" aria-label="主导航">
+        <details class="page-nav-group page-nav-group--beta is-active-group" open>
+          <summary>Beta功能</summary>
+          <div class="page-nav-group-links">
+            <a href="./quote-plan.html">报价单生成</a>
+            <a class="is-active" href="./contract-generator.html">合同生成</a>
+            <a href="./weekly-schedule-image.html">周课表图片</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>学生</summary>
+          <div class="page-nav-group-links">
+            <a href="./student.html">学生管理</a>
+            <a href="./lesson.html">课时管理</a>
+            <a href="./settlement.html">月度结算</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>老师</summary>
+          <div class="page-nav-group-links">
+            <a href="./teacher.html">老师管理</a>
+            <a href="./wage.html">工资结算</a>
+            <a href="./wage-rule.html">工资规则</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>外部授课</summary>
+          <div class="page-nav-group-links">
+            <a href="./part-time-work.html?view=lessons" data-part-time-work-nav-view="lessons">授课记录</a>
+            <a href="./part-time-work.html?view=settlement" data-part-time-work-nav-view="settlement">授课结算</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>财务</summary>
+          <div class="page-nav-group-links">
+            <a href="./profit-summary.html">利润分析</a>
+            <a href="./income.html">收入记录</a>
+            <a href="./expense.html">支出记录</a>
+            <a href="./reimbursement.html">报销管理</a>
+          </div>
+        </details>
+        <details class="page-nav-group">
+          <summary>设置</summary>
+          <div class="page-nav-group-links">
+            <a href="./business-entity.html">业务归属</a>
+            <a href="./account.html">账户</a>
+            <a href="./subject.html">科目</a>
+          </div>
+        </details>
+      </nav>
+    </aside>
+
+    <div class="app-shell app-shell--dense app-shell--contract-generator">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>合同生成</h1>
+          <p class="page-subtitle">独立生成学習指導契約書 PDF，不读取学生、课时、结算或 Cash 数据。</p>
+        </div>
+        <div class="header-meta">
+          <span class="readonly-pill">本地生成</span>
+          <span id="appVersion" class="app-version"></span>
+        </div>
+      </header>
+
+      <main class="page-main">
+        <section id="contractGeneratorMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel contract-editor-panel" aria-labelledby="contractEditorTitle">
+          <div class="section-heading">
+            <h2 id="contractEditorTitle">合同条件</h2>
+            <p class="section-note">仅替换模板中的契約者、開始日、指導期間、授業料和払い方，不保存、不进入业务链路。</p>
+          </div>
+
+          <form id="contractGeneratorForm">
+            <div class="contract-form-grid">
+              <label class="field">
+                <span>契约者 / 学生姓名</span>
+                <input id="contractStudentName" type="text" autocomplete="off" placeholder="手动输入">
+              </label>
+              <label class="field">
+                <span>指导期间开始日</span>
+                <input id="contractPeriodStart" type="date">
+              </label>
+              <label class="field">
+                <span>指导期间结束日</span>
+                <input id="contractPeriodEnd" type="date">
+              </label>
+              <label class="field">
+                <span>授業料</span>
+                <input id="contractTuition" type="text" placeholder="例：一万円/時間（￥10000/H）">
+              </label>
+              <label class="field">
+                <span>教室料</span>
+                <select id="contractClassroomFeeMode">
+                  <option value="none">无</option>
+                  <option value="enabled">有</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>教室料金額</span>
+                <input id="contractClassroomFee" type="text" placeholder="例：二千円/時間（￥2000/H）">
+              </label>
+              <label class="field">
+                <span>支払い方</span>
+                <select id="contractPaymentMethod">
+                  <option value="monthly">按月支付</option>
+                  <option value="bimonthly">每2个月支付</option>
+                  <option value="half">半额支付</option>
+                  <option value="full">全额支付</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>文理区分</span>
+                <select id="contractCourseTrack">
+                  <option value="science">理科</option>
+                  <option value="humanities">文科</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="contract-start-heading">
+              <div>
+                <h3>指导开始日</h3>
+                <p class="section-note">科目开始日不一致时，可以增加多行。</p>
+              </div>
+              <button id="addContractStartRowButton" class="button" type="button">增加行</button>
+            </div>
+            <div id="contractStartRows" class="contract-start-row-list"></div>
+
+            <div class="quote-plan-form-actions">
+              <button class="button button-primary" type="submit">更新预览</button>
+              <button id="resetContractGeneratorButton" class="button" type="button">恢复默认</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel contract-preview-panel" aria-labelledby="contractPreviewTitle">
+          <div class="section-heading-row">
+            <div>
+              <h2 id="contractPreviewTitle">合同预览</h2>
+              <p class="section-note">打印时只输出下方合同，不输出输入区。</p>
+            </div>
+            <div class="table-actions">
+              <button id="printContractButton" class="button button-primary" type="button">打印 / 保存 PDF</button>
+            </div>
+          </div>
+
+          <div id="contractPreview" class="contract-preview"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/contract-generator-app.js?v=v10.3.31-contract-generator-beta"></script>
+  </body>
+</html>
