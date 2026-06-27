@@ -1,6 +1,6 @@
 # v2 System Map
 
-Status date: 2026-06-16
+Status date: 2026-06-28
 
 Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority. For a visual static overview, open `docs/module-status-dashboard.html` locally.
 
@@ -12,6 +12,7 @@ Reference baseline:
 
 ## Global Boundaries
 
+- P0 highest-priority business-calculation boundary: frontend/page JavaScript must not decide, derive, round, or otherwise compute business-result values that will be saved or sent as write RPC parameters. Monetary amounts, settlement differences, carryovers, wages, fees, exchange-derived amounts, locked totals, Cash request amounts, and similar persisted facts must come from DB/RPC or backend API authority, or explicit user input. Page JS may format values and show non-persisted previews only when DB/RPC remains the authority for saved results.
 - Page modules must not call Supabase `.rpc()` directly.
 - Page modules must not directly `insert`, `update`, `delete`, or `upsert` database rows.
 - All write operations currently exposed by pages go through `js/api/*-api.js` wrappers and verified RPCs.

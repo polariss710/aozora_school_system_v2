@@ -3,6 +3,7 @@
 - Default to Chinese for progress updates and final reports.
 - Keep prompts, plans, and outputs concise. Prefer high-signal summaries over long history.
 - Start each work turn by checking `git status --short`.
+- P0 highest-priority rule: frontend/page JavaScript must not decide, derive, round, or otherwise compute business facts that will be saved or passed as write RPC parameters. This includes monetary amounts, settlement differences, carryovers, wages, fees, exchange-derived amounts, locked totals, Cash request amounts, and other persisted business-result fields. Such values must come from DB/RPC or backend API authoritative results, or from explicit user input. Frontend may format display values and may show non-persisted previews only when the saved value is still computed/validated by DB/RPC.
 - For write-operation SQL/RPC work, use the full autopilot workflow by default: analysis, DB verification, schema/RPC design, SQL draft, static review, SQL/RPC execution, rollback test, whitelist commit test, verified SQL commit, frontend implementation, checkpoint, current-status update, commit, and push.
 - Page modules must not call Supabase `.rpc()` directly.
 - Write operations must go through the API layer and/or verified RPCs. Page modules must not directly insert, update, delete, or upsert database rows.
@@ -17,7 +18,7 @@
 - Automatically run read-only DB verification, schema SQL execution, RPC SQL execution, rollback tests, and commit tests when the commit test candidate is proven to match the test data whitelist.
 - If rollback or commit test candidates do not match the test data whitelist, Codex may create narrowly scoped test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`.
 - Automatically commit and push document updates, verified SQL archives, frontend static checkpoints, feature checkpoints, and `docs/current-status.md` updates after required checks pass.
-- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for non-whitelisted real business data, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical data repair, broad backfill, secrets exposure, broad permission changes, production irreversible action, or a request/documentation conflict that cannot be safely interpreted.
+- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for non-whitelisted real business data, frontend/page JS computing persisted business-result values instead of DB/RPC or backend API authority, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical data repair, broad backfill, secrets exposure, broad permission changes, production irreversible action, or a request/documentation conflict that cannot be safely interpreted.
 - If full autopilot shows clear problems, stop at the hard stop and tighten the documented workflow before continuing.
 
 ## Schema And RPC Execution Workflow
@@ -50,6 +51,7 @@
 - Do not run `delete`, `truncate`, `drop`, historical data repair, broad backfill, or cleanup automatically.
 - Do not skip static review, rollback test, commit test, final checkpoint, or current-status update for a write-operation feature.
 - Page/API boundaries remain mandatory: page modules must not directly `.rpc()` or directly insert/update/delete/upsert rows.
+- P0 business-calculation boundary remains mandatory: page/frontend JS must not compute values that become saved business facts or write RPC parameters. If a UI needs a default value such as "clear balance", "suggested adjustment", calculated wage, converted amount, settlement total, or rounded amount, the authoritative value must be returned by DB/RPC or backend API, or typed explicitly by the user; otherwise stop and redesign before implementation.
 - Every turn output must state whether files changed, executed SQL files and called RPCs if any, whether the database was written, whether writes were limited to test whitelist data, test record ids when relevant, whether commit/push happened, commit hashes when relevant, the current git status, and whether the workflow completed or stopped.
 
 ## Prompt Style

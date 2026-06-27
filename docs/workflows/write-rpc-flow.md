@@ -6,6 +6,8 @@ This document is the project standard for write-operation RPC development. It de
 
 ## Core Rules
 
+- P0 highest-priority business-calculation boundary: frontend/page JavaScript must not decide, derive, round, or otherwise compute business facts that will be saved or passed as write RPC parameters. Monetary amounts, settlement differences, carryovers, wages, fees, exchange-derived amounts, locked totals, Cash request amounts, and similar persisted business-result values must come from DB/RPC or backend API authority, or explicit user input.
+- Frontend may format DB/RPC/backend API values for display and may show non-persisted previews only when the saved value is still computed or validated by DB/RPC. If a UI needs a suggested amount such as "clear balance", "calculated wage", "converted amount", or "rounded total", the authoritative suggestion must be returned by DB/RPC or backend API before it can be saved.
 - Keep each phase internally narrow, but do not pause between phases for confirmation during full autopilot.
 - Treat the initial task prompt as this run's phase-level authorization. If the requested feature fits this workflow and no hard stop condition is present, continue automatically across analysis, DB verification, schema/RPC work, tests, frontend work, checkpoints, current-status updates, commit, and push.
 - Do not ask for confirmation only because a normal phase is complete, the next phase begins, or the next step is schema execution, RPC execution, rollback test, whitelist commit test, frontend implementation, checkpoint commit, or push. These are authorized by the initial prompt when the workflow conditions are satisfied.
@@ -103,6 +105,7 @@ Hard stop conditions:
 - `git status --short` shows unrelated or ambiguous changes that cannot be safely isolated.
 - Static review, `git diff --check`, `node --check`, page-boundary scans, rollback test, or commit test fails.
 - A DB command does not fit the current phase-level authorization.
+- Frontend/page JS would compute, round, default, or derive a persisted business-result value or write RPC parameter instead of using DB/RPC or backend API authority, or explicit user input.
 - Commit test requires non-whitelisted real business data.
 - Test data ownership is uncertain and safe test data cannot be created.
 - The task requires or risks `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical repair, broad backfill, or real production-data correction.

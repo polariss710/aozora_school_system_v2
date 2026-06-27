@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-26
+Status date: 2026-06-28
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -8,6 +8,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 
 - v2 is currently focused on current/future operations. Historical maintenance remains in v1 or in separately authorized guarded migration/repair phases.
 - v2 master-data policy: open create/edit where safe, keep delete/merge closed unless a future audit-safe workflow explicitly opens it.
+- P0 highest-priority business-calculation boundary: frontend/page JavaScript must not decide, derive, round, or otherwise compute persisted business facts or write-RPC parameter values. Monetary amounts, settlement differences, carryovers, wages, fees, exchange-derived amounts, locked totals, Cash request amounts, and similar business-result fields must come from DB/RPC or backend API authoritative results, or from explicit user input. Frontend may format display and may show non-persisted previews only when DB/RPC remains the authority for the saved value.
 - Core business writes are DB/RPC-backed. Page modules must not call Supabase `.rpc()` directly and must not directly insert/update/delete/upsert rows; page writes go through `js/api/*-api.js` wrappers and verified RPCs.
 - Student settlement, teacher wage generation/snapshots, payment requests, reimbursements, account transactions, income/expense, and locking flows are protected main chains. Master-data dialog work must not mutate these chains.
 - Cash linkage policy is unified: School is the business ledger and keeps business ownership; Cash System remains the user's household/private account ledger and records actual user-controlled account movement. School initiates external Cash requests from canonical income/expense records; Cash only accepts external requests, shows them for user approve/reject, and changes Cash transactions/balances only after approve. Cash must not proactively create School business records or initiate School business requests. Teacher-wage Cash confirmation now uses `teacher_wage -> school_expense_records -> Cash request`; the old `teacher_wage -> school_payment_requests -> Cash` path is legacy only and disabled for new Cash requests. Income Cash confirmation SQL/RPC is installed, `request-cash-income-confirmation` and `sync-cash-request-result` are deployed, and real CNY whitelist tests have passed.
@@ -25,10 +26,14 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 Stop and report immediately for:
 
 - missing required phase DB environment, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, or unclear ownership of test data that cannot be solved by creating safe test data; School DB phases use `SCHOOL_SUPABASE_DB_URL`, Cash DB phases use `CASH_SUPABASE_DB_URL`, and secrets must not be printed or stored;
+- frontend/page JS deciding or computing persisted business-result values, including amounts, rounding, settlement/carryover defaults, wage totals, exchange-derived values, Cash request amounts, or lock snapshot totals, instead of using DB/RPC or backend API authority or explicit user input;
 - need for non-whitelisted real business data, current/unclosed real-month write validation, broad historical-data modification, historical repair, broad backfill, destructive cleanup, `delete`, `truncate`, `drop`, broad permission changes, or irreversible production operation;
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. P0 frontend business-calculation boundary, 2026-06-28:
+   V2 documentation now treats "frontend/page JS must not compute persisted business facts" as a P0 highest-priority rule. Any amount, rounding, settlement difference, carryover, wage, fee, exchange-derived value, locked total, Cash request amount, or similar business-result value that will be saved or passed to a write RPC must come from DB/RPC or backend API authority, or be explicitly typed by the user. Page JS may only format display values or show non-persisted previews when DB/RPC still computes/validates the saved value. The immediate trigger was the student monthly settlement clear-balance adjustment issue where a frontend-derived CNY amount could diverge by 0.01 from the DB/RPC settlement amount; future work must stop and redesign if it would repeat that pattern.
 
 1. v10.3.23 add quote plan generator, 2026-06-26:
    新增独立报价单生成页面 `quote-plan.html`，用于手动输入学生姓名、报价周期、课程目录、每次时长、每周次数、内部单价和内部汇率，并生成可打印 / 保存 PDF 的月度课程报价表。报价表按月份拆分，月内按课程分组，组内按周一日期排列；每门课程独立累计回数，跨月周的归属月份以该周周一日期为准。单价和汇率只用于计算，不显示在打印内容中。该实现不读取系统学生/科目/老师/业务归属，不写 DB，不进课时、结算、收入、工资或 Cash 链路；这只是 v2 当前最小实现边界，不作为 v3 长期规则沉淀。详细记录见 `docs/quote-plan-generator-notes-2026-06-26.md`。
@@ -49,7 +54,7 @@ Stop and report immediately for:
    学生月度结算一览表已按业务查看顺序精简为基础信息、月初预定、月末实际、锁定信息四段：操作、年月、学生、业务归属、结算状态、后续锁定、上月结余 CNY、预定课时费 JPY/CNY、实际课时费 JPY/CNY、已收学费 JPY/CNY、实际差额 CNY、本月结转 CNY、锁定时间。主表不再显示汇率、备注、已收折算 CNY、调整金额 CNY 等中间/系统化列；API 返回和详情/弹窗使用字段不变。字段映射保持现有结算口径：`previous_balance_cny` 显示为上月结余 CNY，`system_difference_cny` 显示为实际差额 CNY，`carryover_amount_cny` 显示为本月结转 CNY。不修改 DB/RPC/SQL、结算计算、差额调整保存、锁定/重新锁定、Cash、课时、老师工资、收入或 `js/legacy-core.js`。
 
 1. v10.3.5 improve settlement adjustment dialog, 2026-06-21:
-   学生月度结算“保存锁定前差额调整”弹窗已从自由文本 `调整来源` 改为业务下拉 `调整方式`，选项为 `按最终差额结转`、`抹平差额`、`手动调整`。前端继续通过现有 `setStudentMonthlySettlementDraftAdjustment(...)` API 调用已安装 RPC `school_set_student_monthly_settlement_draft_adjustment(...)`，不改 DB schema、不改锁定/结转核心算法；金额按现有公式 `当前结转 = 系统差额 + 调整金额` 计算：按最终差额结转写入调整金额 `0`，抹平差额写入 `-系统差额`，手动调整允许用户编辑金额。该弹窗已移除遮罩点击关闭，只能通过取消或保存关闭；结算详情的差额调整来源显示同步映射为中文业务名，避免展示内部 source 值。未修改 Cash、课时、老师工资、收入、锁定核心逻辑或 `js/legacy-core.js`。
+   学生月度结算“保存锁定前差额调整”弹窗已从自由文本 `调整来源` 改为业务下拉 `调整方式`，选项为 `按最终差额结转`、`抹平差额`、`手动调整`。前端继续通过现有 `setStudentMonthlySettlementDraftAdjustment(...)` API 调用已安装 RPC `school_set_student_monthly_settlement_draft_adjustment(...)`，不改 DB schema、不改锁定/结转核心算法；金额按现有公式 `当前结转 = 系统差额 + 调整金额` 计算：按最终差额结转写入调整金额 `0`，抹平差额写入 `-系统差额`，手动调整允许用户编辑金额。该弹窗已移除遮罩点击关闭，只能通过取消或保存关闭；结算详情的差额调整来源显示同步映射为中文业务名，避免展示内部 source 值。未修改 Cash、课时、老师工资、收入、锁定核心逻辑或 `js/legacy-core.js`。本条记录描述的是 v10.3.5 当时实现，已被 2026-06-28 P0 business-calculation boundary 取代；后续不得再把前端推导的抹平金额作为允许模式。
 
 1. v10.3.4 remove lesson card residual ids, 2026-06-21:
    针对课时管理一览页截图中仍显示 `PLANNED` / `ACTUAL`、卡片首行短 ID 和卡片内 `planned ID` 的最后残留，确认 `v10.3.3` 的渲染源码已经移除这些字段，但 `lesson.html` / `js/lesson-app.js` 仍使用旧 query cache-buster，部署后可能继续加载旧 `lesson-page.js`；本阶段将 `lesson.html` 的 `app.css` 和 `lesson-app.js` query、`js/lesson-app.js` 的 `lesson-page.js` query 更新为 `v10.3.4-remove-lesson-card-residual-ids`，并移除 `.lesson-pair-column-title` 的 `text-transform: uppercase`，避免栏目标题被样式强制大写。未修改 DB/RPC/SQL/API/业务逻辑，未修改课时创建、编辑、取消、补课、工资、收入或统计逻辑。验证确认 `lesson-page.js` pair 渲染模板不输出 `lesson-pair-id`、`lesson-pair-placeholder-id`、`planned ID`、短 ID 或 `shortId(record.id)`；`lesson.html` 和 `js/lesson-app.js` 均引用 v10.3.4 query；`node --check` 与 `git diff --check` 通过。

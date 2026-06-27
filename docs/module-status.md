@@ -1,6 +1,6 @@
 # Module Status
 
-Status date: 2026-06-16
+Status date: 2026-06-28
 
 This is the lightweight module summary for daily sessions. It keeps only each module's current state, recent key update, current limits / hard stops, and next step. Older module history, long commit/test logs, and completed detail records are archived in `docs/archive/module-status-history.md`.
 
@@ -8,6 +8,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## Global Rules
 
+- P0 highest-priority rule: frontend/page JavaScript must not compute persisted business facts or write-RPC parameter values. Amounts, rounding, settlement differences, carryovers, wages, fees, exchange-derived values, lock totals, Cash request amounts, and similar business-result fields must be DB/RPC or backend API authoritative, or explicit user input. Frontend display formatting and non-persisted preview are allowed only when saved values are still computed/validated by DB/RPC.
 - v2 opens create/edit where safe; delete, merge, destructive cleanup, historical repair, and broad backfill remain closed unless separately designed and authorized.
 - Current/unclosed real business months must not be used for real wage generation, snapshot generation, student settlement closing, locking, or lock-style write validation.
 - Validation priority is transaction rollback or clearly marked whitelist data (`codex-test`, `v2-test`, `sandbox`, `测试学生`, `测试老师`, `测试业务归属`).
