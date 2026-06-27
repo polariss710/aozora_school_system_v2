@@ -875,17 +875,28 @@ function renderAdjustmentSummary(row) {
     return;
   }
 
-  const adjustmentAmount = Number.isFinite(Number(dom.adjustmentAmountInput?.value))
-    ? Number(dom.adjustmentAmountInput.value)
-    : numberOrZero(row.adjustment_amount_cny);
+  const mode = dom.adjustmentSourceInput.value || adjustmentModeForRow(row);
+  const hasInputAmount = dom.adjustmentAmountInput?.value !== ""
+    && Number.isFinite(Number(dom.adjustmentAmountInput?.value));
+  const hasSavedModeAmount = row.adjustment_source === mode
+    && Number.isFinite(Number(row.adjustment_amount_cny));
+  const shouldDisplayCalculatedAfterSave = mode === ADJUSTMENT_MODES.CLEAR_BALANCE
+    && !hasInputAmount
+    && !hasSavedModeAmount;
+  const adjustmentAmount = mode === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE
+    ? 0
+    : hasInputAmount
+      ? Number(dom.adjustmentAmountInput.value)
+      : numberOrZero(row.adjustment_amount_cny);
   const carryoverAmount = numberOrZero(row.system_difference_cny) + adjustmentAmount;
+  const calculatedAfterSaveLabel = "保存后由系统计算";
   dom.adjustmentSummary.innerHTML = [
     ["学生", nameById(students, row.student_id, studentName)],
     ["结算月份", formatMonth(row.year_month)],
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
-    ["当前调整", formatCurrency(adjustmentAmount, "CNY")],
-    ["当前结转", formatCurrency(carryoverAmount, "CNY")],
+    ["当前调整", shouldDisplayCalculatedAfterSave ? calculatedAfterSaveLabel : formatCurrency(adjustmentAmount, "CNY")],
+    ["当前结转", shouldDisplayCalculatedAfterSave ? calculatedAfterSaveLabel : formatCurrency(carryoverAmount, "CNY")],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -900,14 +911,17 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
   }
 
   const mode = dom.adjustmentSourceInput.value || ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
-  const systemDifference = numberOrZero(currentAdjustmentSettlement.system_difference_cny);
   const isManual = mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   dom.adjustmentAmountInput.readOnly = !isManual;
 
   if (mode === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE) {
-    dom.adjustmentAmountInput.value = formatCnyInput(0);
+    dom.adjustmentAmountInput.value = currentAdjustmentSettlement.adjustment_source === mode
+      ? formatCnyInput(currentAdjustmentSettlement.adjustment_amount_cny)
+      : "";
   } else if (mode === ADJUSTMENT_MODES.CLEAR_BALANCE) {
-    dom.adjustmentAmountInput.value = formatCnyInput(-systemDifference);
+    dom.adjustmentAmountInput.value = currentAdjustmentSettlement.adjustment_source === mode
+      ? formatCnyInput(currentAdjustmentSettlement.adjustment_amount_cny)
+      : "";
   } else if (!preserveManualAmount && !dom.adjustmentAmountInput.value) {
     dom.adjustmentAmountInput.value = formatCnyInput(0);
   }
@@ -927,11 +941,12 @@ async function handleAdjustmentSubmit() {
     return;
   }
 
-  const amount = Number(dom.adjustmentAmountInput.value);
   const source = dom.adjustmentSourceInput.value.trim();
+  const isManual = source === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
+  const amount = isManual ? Number(dom.adjustmentAmountInput.value) : null;
   const reason = dom.adjustmentReasonInput.value.trim();
   const invalidFields = [];
-  if (!Number.isFinite(amount)) invalidFields.push("amount");
+  if (isManual && !Number.isFinite(amount)) invalidFields.push("amount");
   if (!source) invalidFields.push("source");
   if (!reason) invalidFields.push("reason");
   if (!dom.adjustmentConfirmCheckbox.checked) invalidFields.push("confirm");
