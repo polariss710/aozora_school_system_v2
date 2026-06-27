@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.4-remove-lesson-card-residual-ids";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.35-lesson-fee-db-authority";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

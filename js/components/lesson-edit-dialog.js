@@ -401,7 +401,10 @@ export function createLessonEditDialogController(options) {
     const durationHours = numberFromInput(dom.durationInput.value);
     const unitPrice = numberFromInput(dom.unitPriceInput.value);
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
-    const lessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.feeInput.value);
+    const inputLessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.feeInput.value);
+    const lessonFee = isActual && !isBillable
+      ? 0
+      : (isFeeManual ? inputLessonFee : null);
     const lessonCount = nullableIntegerFromInput(dom.countInput.value);
     const lessonContent = dom.contentInput.value.trim();
     const requiresActualRequiredFields = isActual && ["completed", "makeup_completed"].includes(status);
@@ -444,7 +447,7 @@ export function createLessonEditDialogController(options) {
     }
     if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
     if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-    if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+    if (isFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
     if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
     if (invalidFields.length) {

@@ -1325,7 +1325,8 @@ function readCreatePlannedLessonPayload() {
   const endTime = dom.createPlannedLessonEndTimeInput.value;
   const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
-  const lessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
+  const inputLessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
+  const lessonFee = isCreateLessonFeeManual ? inputLessonFee : null;
   const lessonCount = nullableIntegerFromInput(dom.createPlannedLessonCountInput.value);
   const invalidFields = [];
 
@@ -1351,7 +1352,7 @@ function readCreatePlannedLessonPayload() {
   }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+  if (isCreateLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
@@ -1596,7 +1597,8 @@ function readCreateActualLessonPayload() {
   const endTime = dom.createActualLessonEndTimeInput.value;
   const durationHours = numberFromInput(dom.createActualLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createActualLessonUnitPriceInput.value);
-  const lessonFee = nullableNumberFromInput(dom.createActualLessonFeeInput.value);
+  const inputLessonFee = nullableNumberFromInput(dom.createActualLessonFeeInput.value);
+  const lessonFee = isActualLessonFeeManual ? inputLessonFee : null;
   const lessonCount = nullableIntegerFromInput(dom.createActualLessonCountInput.value);
   const lessonContent = dom.createActualLessonContentInput.value.trim();
   const invalidFields = [];
@@ -1619,7 +1621,7 @@ function readCreateActualLessonPayload() {
   }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+  if (isActualLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
@@ -2116,7 +2118,10 @@ function readCreateMakeupActualLessonPayload() {
   const endTime = dom.createMakeupActualLessonEndTimeInput.value;
   const durationHours = numberFromInput(dom.createMakeupActualLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createMakeupActualLessonUnitPriceInput.value);
-  const lessonFee = isBillable ? nullableNumberFromInput(dom.createMakeupActualLessonFeeInput.value) : 0;
+  const inputLessonFee = isBillable ? nullableNumberFromInput(dom.createMakeupActualLessonFeeInput.value) : 0;
+  const lessonFee = isBillable
+    ? (isMakeupLessonFeeManual ? inputLessonFee : null)
+    : 0;
   const lessonCount = nullableIntegerFromInput(dom.createMakeupActualLessonCountInput.value);
   const lessonContent = dom.createMakeupActualLessonContentInput.value.trim();
   const invalidFields = [];
@@ -2140,7 +2145,7 @@ function readCreateMakeupActualLessonPayload() {
   }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (isBillable && lessonFee !== null && (!Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+  if (isBillable && isMakeupLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
@@ -4347,8 +4352,7 @@ function validateLessonImportPreviewRow(row, mode) {
 
   if (!hasLessonImportPreviewValue(row.raw.lessonFee)) {
     if (Number.isFinite(values.durationHours) && Number.isFinite(values.unitPrice) && values.durationHours > 0 && values.unitPrice > 0) {
-      values.lessonFee = Math.round(values.durationHours * values.unitPrice);
-      addLessonImportPreviewIssue(row, "warning", "lessonFee", "课时费总额为空，已按课时 x 单价做 preview 估算。");
+      addLessonImportPreviewIssue(row, "warning", "lessonFee", "课时费总额为空，导入时将由 DB/RPC 按课时 x 单价计算。");
     } else {
       addLessonImportPreviewIssue(row, "warning", "lessonFee", "课时费总额为空；preview 阶段不自动写入，后续导入前需确认。");
     }
@@ -4621,7 +4625,7 @@ function buildLessonImportSubmitRows(rows) {
     duration_hours: row.values.durationHours,
     lesson_count: Number.isInteger(row.values.lessonCount) ? row.values.lessonCount : null,
     unit_price: Number.isFinite(row.values.unitPrice) ? row.values.unitPrice : 0,
-    lesson_fee: Number.isFinite(row.values.lessonFee) ? row.values.lessonFee : null,
+    lesson_fee: hasLessonImportPreviewValue(row.raw.lessonFee) && Number.isFinite(row.values.lessonFee) ? row.values.lessonFee : null,
     is_billable: true,
     student_id: row.values.studentId,
     teacher_id: row.values.teacherId,

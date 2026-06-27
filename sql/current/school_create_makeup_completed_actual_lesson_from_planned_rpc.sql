@@ -191,7 +191,7 @@ begin
 
   if v_is_billable then
     if p_lesson_fee is null then
-      v_lesson_fee := coalesce(v_planned.lesson_fee, round(v_duration_hours * v_unit_price));
+      v_lesson_fee := round(v_duration_hours * v_unit_price);
     else
       v_lesson_fee := p_lesson_fee;
     end if;
