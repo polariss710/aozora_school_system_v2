@@ -1,12 +1,11 @@
 const DEFAULT_EXCHANGE_RATE = 0.05;
 const JPY_CNY_RATE_API_URL = "https://api.frankfurter.dev/v2/rate/JPY/CNY";
+const DEFAULT_UNIT_PRICE_JPY = 10000;
 
-const DEFAULT_COURSES = [
-  { name: "EJU日语", content: "EJU日语", hoursPerSession: 2, weeklyFrequency: 1, unitPriceJpy: 13000 },
-  { name: "EJU数学", content: "EJU数学", hoursPerSession: 2, weeklyFrequency: 1, unitPriceJpy: 13000 },
-  { name: "EJU物理", content: "EJU物理", hoursPerSession: 2, weeklyFrequency: 1, unitPriceJpy: 13000 },
-  { name: "EJU化学", content: "EJU化学", hoursPerSession: 2, weeklyFrequency: 1, unitPriceJpy: 13000 },
-];
+const COURSE_TRACK_SUBJECTS = {
+  science: ["日语", "数学", "物理", "化学"],
+  humanities: ["日语", "数学", "文综"],
+};
 
 const state = {
   courses: [],
@@ -29,6 +28,7 @@ function cacheDom() {
   dom.messageArea = document.querySelector("#quotePlanMessageArea");
   dom.studentNameInput = document.querySelector("#quoteStudentName");
   dom.quoteTitleInput = document.querySelector("#quoteTitle");
+  dom.courseTrackSelect = document.querySelector("#quoteCourseTrack");
   dom.startDateInput = document.querySelector("#quoteStartDate");
   dom.endDateInput = document.querySelector("#quoteEndDate");
   dom.exchangeRateInput = document.querySelector("#quoteExchangeRate");
@@ -50,7 +50,12 @@ function bindEvents() {
   });
 
   dom.form?.addEventListener("input", () => renderQuote());
-  dom.form?.addEventListener("change", () => renderQuote());
+  dom.form?.addEventListener("change", (event) => {
+    if (event.target === dom.courseTrackSelect) {
+      applyCourseTrackPreset();
+    }
+    renderQuote();
+  });
 
   dom.addCourseButton?.addEventListener("click", () => {
     state.courses.push(createBlankCourse());
@@ -75,6 +80,7 @@ function restoreDraft() {
   const draft = createDefaultDraft();
   dom.studentNameInput.value = draft.studentName || "";
   dom.quoteTitleInput.value = draft.title || "课程计划";
+  dom.courseTrackSelect.value = draft.courseTrack || "science";
   dom.startDateInput.value = draft.startDate || getTodayDateValue();
   dom.endDateInput.value = draft.endDate || getDefaultEndDateValue();
   dom.exchangeRateInput.value = toInputNumber(toStrictPositiveNumber(draft.exchangeRate, DEFAULT_EXCHANGE_RATE), DEFAULT_EXCHANGE_RATE);
@@ -86,6 +92,7 @@ function resetDraft() {
   const draft = createDefaultDraft();
   dom.studentNameInput.value = draft.studentName;
   dom.quoteTitleInput.value = draft.title;
+  dom.courseTrackSelect.value = draft.courseTrack;
   dom.startDateInput.value = draft.startDate;
   dom.endDateInput.value = draft.endDate;
   dom.exchangeRateInput.value = draft.exchangeRate;
@@ -101,11 +108,12 @@ function createDefaultDraft() {
   return {
     studentName: "",
     title: "课程计划",
+    courseTrack: "science",
     startDate: getTodayDateValue(),
     endDate: getDefaultEndDateValue(),
     exchangeRate: DEFAULT_EXCHANGE_RATE,
     note: "",
-    courses: DEFAULT_COURSES,
+    courses: createCoursesForTrack("science"),
   };
 }
 
@@ -115,8 +123,19 @@ function createBlankCourse() {
     content: "",
     hoursPerSession: 2,
     weeklyFrequency: 1,
-    unitPriceJpy: 13000,
+    unitPriceJpy: DEFAULT_UNIT_PRICE_JPY,
   };
+}
+
+function createCoursesForTrack(track) {
+  const subjects = COURSE_TRACK_SUBJECTS[track] || COURSE_TRACK_SUBJECTS.science;
+  return subjects.map((subject) => ({
+    name: subject,
+    content: subject,
+    hoursPerSession: 2,
+    weeklyFrequency: 1,
+    unitPriceJpy: DEFAULT_UNIT_PRICE_JPY,
+  }));
 }
 
 function normalizeCourse(course) {
@@ -233,12 +252,21 @@ function getDraftFromForm() {
   return {
     studentName: dom.studentNameInput?.value.trim() || "",
     title: dom.quoteTitleInput?.value.trim() || "课程计划",
+    courseTrack: dom.courseTrackSelect?.value || "science",
     startDate: dom.startDateInput?.value || "",
     endDate: dom.endDateInput?.value || "",
     exchangeRate: toStrictPositiveNumber(dom.exchangeRateInput?.value, DEFAULT_EXCHANGE_RATE),
     note: dom.noteInput?.value.trim() || "",
     courses: state.courses.map(normalizeCourse),
   };
+}
+
+function applyCourseTrackPreset() {
+  const track = dom.courseTrackSelect?.value || "science";
+  state.courses = createCoursesForTrack(track).map(normalizeCourse);
+  state.removedRowKeys.clear();
+  state.planSignature = "";
+  renderCourseRows();
 }
 
 function printQuotePlan() {

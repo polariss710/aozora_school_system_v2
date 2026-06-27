@@ -5139,12 +5139,16 @@ h2 {
 
 .quote-plan-base-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   align-items: end;
 }
 
-.quote-exchange-rate-field,
+.quote-exchange-rate-field {
+  grid-column: span 3;
+  align-self: start;
+}
+
 .quote-note-field {
   grid-column: span 2;
   align-self: start;
@@ -5401,6 +5405,7 @@ h2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .quote-exchange-rate-field,
   .quote-note-field {
     grid-column: 1 / -1;
   }
