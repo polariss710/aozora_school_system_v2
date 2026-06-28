@@ -485,6 +485,25 @@ export async function importPlannedLessonRecordsBatch(payload) {
   return Array.isArray(data) ? data : [];
 }
 
+export async function generatePlannedLessonRecordsBatch(payload) {
+  const { data, error } = await supabase.rpc("school_generate_planned_lessons_batch", {
+    p_generation_id: payload.generationId,
+    p_student_id: payload.studentId,
+    p_business_entity_id: payload.businessEntityId,
+    p_start_date: payload.startDate,
+    p_end_date: payload.endDate,
+    p_patterns: payload.patterns,
+    p_excluded_occurrences: payload.excludedOccurrences || [],
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Array.isArray(data) ? data : [];
+}
+
 export async function updateLessonRecordGuarded(payload) {
   const { data, error } = await supabase.rpc("school_update_lesson_record_guarded", {
     p_lesson_id: payload.lessonId,

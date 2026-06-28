@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.26-weekly-schedule-image">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.42-planned-lesson-batch-generator">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -208,6 +208,7 @@
                 <button class="button view-toggle-button" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="false">普通列表</button>
               </div>
               <button class="button" id="openLessonImportPreviewButton" type="button">导入预定课时</button>
+              <button class="button" id="openLessonBatchGenerateButton" type="button">批量生成预定课时</button>
               <button class="button" id="openLessonPdfExportButton" type="button">导出学生课时 PDF</button>
               <button class="button" id="openCrossMonthMakeupDialogButton" type="button">登记跨月补课完成</button>
               <button class="button button-primary lesson-create-primary-button" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
@@ -696,6 +697,84 @@
         </section>
       </div>
 
+      <div class="dialog-backdrop is-hidden" id="lessonBatchGenerateDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonBatchGenerateTitle">
+          <div class="lesson-import-preview-body">
+            <div class="section-heading">
+              <h2 id="lessonBatchGenerateTitle">批量生成预定课时</h2>
+              <p class="section-note">按学生、日期范围和课程规则生成 planned 预定课时；提交时由 DB/RPC 重新生成日期、课时和课时费。</p>
+            </div>
+
+            <div id="lessonBatchGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+            <div class="lesson-create-field-grid">
+              <label class="field" data-batch-generate-field="student">
+                <span>学生</span>
+                <select id="lessonBatchGenerateStudentSelect"></select>
+              </label>
+
+              <label class="field" data-batch-generate-field="businessEntity">
+                <span>业务归属</span>
+                <select id="lessonBatchGenerateBusinessEntitySelect"></select>
+              </label>
+
+              <label class="field" data-batch-generate-field="startDate">
+                <span>开始日期</span>
+                <input id="lessonBatchGenerateStartDateInput" type="date">
+              </label>
+
+              <label class="field" data-batch-generate-field="endDate">
+                <span>结束日期</span>
+                <input id="lessonBatchGenerateEndDateInput" type="date">
+              </label>
+
+              <label class="field lesson-create-wide-field">
+                <span>批次备注</span>
+                <input id="lessonBatchGenerateNoteInput" type="text" placeholder="可选，会写入每条生成课时的备注">
+              </label>
+            </div>
+
+            <div class="lesson-batch-pattern-heading">
+              <h3>课程规则</h3>
+              <button class="button" id="lessonBatchGenerateAddPatternButton" type="button">新增规则</button>
+            </div>
+            <div id="lessonBatchGeneratePatternList" class="lesson-batch-pattern-list"></div>
+
+            <div id="lessonBatchGenerateSummary" class="dialog-summary lesson-import-preview-summary is-hidden"></div>
+            <div id="lessonBatchGeneratePreviewEmpty" class="state-text lesson-import-preview-empty">请填写生成条件和课程规则后更新预览。</div>
+
+            <div class="table-scroll lesson-import-preview-scroll">
+              <table class="payment-table lesson-batch-generate-preview-table">
+                <thead>
+                  <tr>
+                    <th>日期</th>
+                    <th>周</th>
+                    <th>学生</th>
+                    <th>老师</th>
+                    <th>科目</th>
+                    <th>业务归属</th>
+                    <th>时间</th>
+                    <th>课时</th>
+                    <th>单价 JPY</th>
+                    <th>内容</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="lessonBatchGeneratePreviewRows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button" id="lessonBatchGeneratePreviewButton" type="button">更新预览</button>
+            <button class="button button-primary" id="lessonBatchGenerateSubmitButton" type="button">生成预定课时</button>
+            <button class="button is-hidden" id="lessonBatchGenerateViewMonthButton" type="button">查看生成月份</button>
+            <button class="button is-hidden" id="lessonBatchGenerateViewFirstDetailButton" type="button">查看首条详情</button>
+            <button class="button" id="lessonBatchGenerateCloseButton" type="button">关闭</button>
+          </div>
+        </section>
+      </div>
+
       <div class="dialog-backdrop is-hidden" id="lessonImportPreviewDialog" aria-hidden="true">
         <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonImportPreviewTitle">
           <div class="lesson-import-preview-body">
@@ -921,6 +1000,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.39-lesson-import-duration-db-authority"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.3.42-planned-lesson-batch-generator"></script>
   </body>
 </html>

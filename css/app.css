@@ -2312,6 +2312,55 @@ h2 {
   font-weight: 700;
 }
 
+.lesson-batch-pattern-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lesson-batch-pattern-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.lesson-batch-pattern-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.lesson-batch-pattern-row {
+  display: grid;
+  grid-template-columns: 1.2fr 1.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr 1.4fr auto;
+  gap: 8px;
+  align-items: end;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px;
+}
+
+.lesson-batch-pattern-row .field {
+  margin-top: 0;
+}
+
+.lesson-batch-pattern-remove-button {
+  min-height: 38px;
+}
+
+.lesson-batch-generate-preview-table {
+  min-width: 1320px;
+}
+
+.lesson-batch-generate-preview-table td {
+  vertical-align: top;
+  max-width: 220px;
+  overflow-wrap: anywhere;
+}
+
 .lesson-pair-view {
   min-width: 0;
 }
@@ -4586,6 +4635,10 @@ h2 {
   }
 
   .lesson-import-preview-guide-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-batch-pattern-row {
     grid-template-columns: minmax(0, 1fr);
   }
 
