@@ -3637,6 +3637,7 @@ function defaultLessonBatchGeneratePattern(patternIndex) {
     endTime: "",
     durationHours: "1",
     unitPrice: "10000",
+    occurrenceCount: "1",
     lessonCount: "1",
     lessonContent: firstSubject ? subjectName(firstSubject) : "",
   };
@@ -3692,6 +3693,10 @@ function renderLessonBatchGeneratePatterns() {
       <label class="field">
         <span>单价 JPY</span>
         <input type="number" min="0" step="1" inputmode="numeric" value="${escapeAttribute(pattern.unitPrice)}" data-batch-pattern-field="unitPrice">
+      </label>
+      <label class="field">
+        <span>次数</span>
+        <input type="number" min="1" step="1" inputmode="numeric" value="${escapeAttribute(pattern.occurrenceCount)}" data-batch-pattern-field="occurrenceCount">
       </label>
       <label class="field">
         <span>回数</span>
@@ -3779,6 +3784,13 @@ function handleLessonBatchGeneratePreview() {
   }
 
   batchGeneratePreviewRows = buildLessonBatchGeneratePreviewRows(draft);
+  const duplicateRow = findDuplicateLessonBatchGeneratePreviewRow(batchGeneratePreviewRows);
+  if (duplicateRow) {
+    batchGeneratePreviewRows = [];
+    renderLessonBatchGeneratePreview();
+    showLessonBatchGenerateError(`规则 ${duplicateRow.current.patternIndex} 与规则 ${duplicateRow.first.patternIndex} 会生成重复课时，请调整日期、回数或规则内容。`);
+    return;
+  }
   batchGenerateRemovedKeys = new Set([...batchGenerateRemovedKeys].filter((key) => (
     batchGeneratePreviewRows.some((row) => row.rowKey === key)
   )));
@@ -3851,6 +3863,9 @@ function readLessonBatchGenerateDraft(options = {}) {
     if (!Number.isFinite(pattern.unitPrice) || pattern.unitPrice < 0) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 单价不能小于 0。`]);
     }
+    if (!Number.isInteger(pattern.occurrenceCount) || pattern.occurrenceCount <= 0 || pattern.occurrenceCount > 10) {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 次数必须是 1-10 的正整数。`]);
+    }
     if (pattern.lessonCount !== null && (!Number.isInteger(pattern.lessonCount) || pattern.lessonCount <= 0)) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 回数必须是正整数。`]);
     }
@@ -3903,6 +3918,7 @@ function normalizeLessonBatchGeneratePattern(pattern) {
     endTimeForSave: safeText(pattern.endTime),
     durationHours: numberFromInput(pattern.durationHours),
     unitPrice: Number(pattern.unitPrice),
+    occurrenceCount: Number(pattern.occurrenceCount),
     lessonCount: pattern.lessonCount === "" || pattern.lessonCount === null || pattern.lessonCount === undefined
       ? null
       : Number(pattern.lessonCount),
@@ -3920,6 +3936,7 @@ function buildLessonBatchGeneratePatternDuplicateKey(pattern) {
     pattern.endTimeForSave || "",
     Number.isFinite(pattern.durationHours) ? Number(pattern.durationHours).toFixed(4) : "",
     Number.isFinite(pattern.unitPrice) ? Number(pattern.unitPrice).toFixed(4) : "",
+    pattern.occurrenceCount,
     pattern.lessonCount ?? "",
     pattern.lessonContent,
   ].join("|");
@@ -3936,27 +3953,59 @@ function buildLessonBatchGeneratePreviewRows(draft) {
       }
       const timeCheck = validateLessonTimeRange(pattern.startTime, pattern.endTime);
       const hasValidTime = timeCheck.status === "valid";
-      rows.push({
-        rowKey: `${pattern.patternIndex}:${lessonDate}`,
-        patternIndex: pattern.patternIndex,
-        lessonDate,
-        weekday,
-        studentId: draft.studentId,
-        businessEntityId: draft.businessEntityId,
-        subjectId: pattern.subjectId,
-        teacherId: pattern.teacherId,
-        startTime: hasValidTime ? pattern.startTime : null,
-        endTime: hasValidTime ? pattern.endTime : null,
-        durationHours: hasValidTime ? timeCheck.durationHours : pattern.durationHours,
-        unitPrice: pattern.unitPrice,
-        lessonCount: pattern.lessonCount,
-        lessonContent: pattern.lessonContent,
-      });
+      const weekLessonDate = mondayOfDateInputValue(lessonDate);
+      for (let occurrenceIndex = 1; occurrenceIndex <= pattern.occurrenceCount; occurrenceIndex += 1) {
+        rows.push({
+          rowKey: `${pattern.patternIndex}:${weekLessonDate}:${occurrenceIndex}`,
+          patternIndex: pattern.patternIndex,
+          occurrenceIndex,
+          sourceDate: lessonDate,
+          lessonDate: weekLessonDate,
+          weekday,
+          studentId: draft.studentId,
+          businessEntityId: draft.businessEntityId,
+          subjectId: pattern.subjectId,
+          teacherId: pattern.teacherId,
+          startTime: hasValidTime ? pattern.startTime : null,
+          endTime: hasValidTime ? pattern.endTime : null,
+          durationHours: hasValidTime ? timeCheck.durationHours : pattern.durationHours,
+          unitPrice: pattern.unitPrice,
+          lessonCount: pattern.lessonCount === null ? occurrenceIndex : pattern.lessonCount + occurrenceIndex - 1,
+          lessonContent: pattern.lessonContent,
+        });
+      }
     }
   }
   return rows.sort((left, right) => (
-    left.lessonDate.localeCompare(right.lessonDate) || left.patternIndex - right.patternIndex
+    left.lessonDate.localeCompare(right.lessonDate)
+    || left.patternIndex - right.patternIndex
+    || left.occurrenceIndex - right.occurrenceIndex
   ));
+}
+
+function findDuplicateLessonBatchGeneratePreviewRow(rows) {
+  const seen = new Map();
+  for (const row of rows) {
+    const key = [
+      row.lessonDate,
+      row.studentId,
+      row.businessEntityId,
+      row.teacherId,
+      row.subjectId,
+      row.startTime || "",
+      row.endTime || "",
+      Number(row.durationHours || 0).toFixed(4),
+      Number(row.unitPrice || 0).toFixed(4),
+      row.lessonCount ?? "",
+      row.lessonContent || "",
+    ].join("|");
+    const first = seen.get(key);
+    if (first) {
+      return { first, current: row };
+    }
+    seen.set(key, row);
+  }
+  return null;
 }
 
 function renderLessonBatchGeneratePreview() {
@@ -3978,6 +4027,7 @@ function renderLessonBatchGeneratePreview() {
         <td>${escapeHtml(formatTimeRange(row.startTime, row.endTime))}</td>
         <td>${escapeHtml(row.durationHours ? `${row.durationHours} h` : "-")}</td>
         <td>${escapeHtml(formatCurrency(row.unitPrice, "JPY"))}</td>
+        <td>${escapeHtml(row.lessonCount ?? "-")}</td>
         <td>${escapeHtml(row.lessonContent || "-")}</td>
         <td><button class="table-action-button" type="button" data-batch-preview-remove-key="${escapeAttribute(row.rowKey)}">移除</button></td>
       </tr>
@@ -4037,6 +4087,14 @@ async function handleLessonBatchGenerateSubmit() {
     batchGeneratePreviewRows = buildLessonBatchGeneratePreviewRows(draft);
   }
 
+  const duplicateRow = findDuplicateLessonBatchGeneratePreviewRow(batchGeneratePreviewRows);
+  if (duplicateRow) {
+    batchGeneratePreviewRows = [];
+    renderLessonBatchGeneratePreview();
+    showLessonBatchGenerateError(`规则 ${duplicateRow.current.patternIndex} 与规则 ${duplicateRow.first.patternIndex} 会生成重复课时，请调整日期、回数或规则内容。`);
+    return;
+  }
+
   const visibleRows = visibleLessonBatchGeneratePreviewRows();
   if (!visibleRows.length) {
     renderLessonBatchGeneratePreview();
@@ -4062,15 +4120,17 @@ async function handleLessonBatchGenerateSubmit() {
         end_time: pattern.endTimeForSave || null,
         duration_hours: pattern.durationHours,
         unit_price: pattern.unitPrice,
+        occurrence_count: pattern.occurrenceCount,
         lesson_count: pattern.lessonCount,
         lesson_content: pattern.lessonContent || null,
         note: null,
       })),
       excludedOccurrences: [...batchGenerateRemovedKeys].map((key) => {
-        const [patternIndex, lessonDate] = key.split(":");
+        const [patternIndex, lessonDate, occurrenceIndex] = key.split(":");
         return {
           pattern_index: Number(patternIndex),
           lesson_date: lessonDate,
+          occurrence_index: Number(occurrenceIndex),
         };
       }),
       note: draft.note || "lesson planned batch generator from lesson.html",
@@ -6493,6 +6553,16 @@ function listDateInputValues(startDate, endDate) {
 function dateInputWeekday(value) {
   const date = new Date(`${value}T00:00:00`);
   return Number.isNaN(date.getTime()) ? -1 : date.getDay();
+}
+
+function mondayOfDateInputValue(value) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  const offset = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function displayInputNumber(value) {

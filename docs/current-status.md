@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.44 planned lesson batch week-Monday dates and counts, 2026-06-29:
+   修复课时管理页“批量生成预定课时”的预览/落库日期和同周多次区分语义。批量生成规则现在区分 `次数` 与 `回数`：`次数` 表示同一条规则在每个匹配周内生成几条课时；`回数` 写入 `school_lesson_records.lesson_count`，当 `次数 > 1` 时从起始回数递增，用于同一周内 2 次以上课程的区分。预览与 DB/RPC `school_generate_planned_lessons_batch(...)` 现在统一使用课程所在周的周一作为 `lesson_date` / `year_month` 归属依据，同时保留规则的 `周几` 作为页面提示。执行 SQL `sql/current/school_generate_planned_lessons_batch_rpc.sql`。Rollback 测试 generation `97000000-0000-4000-8000-000000104601` 验证周五规则 `2027-03-05` 生成周一日期 `2027-03-01`、`次数=2` 生成回数 1/2、DB/RPC 计算 `lesson_fee = 18000`，rollback residue 为 0。白名单 commit test 写入 planned lessons `f9596005-02ef-4db0-8bda-4d6f68eca735` / `ac87953c-e64a-479f-b488-bc80ccc296fb`，generation `97000000-0000-4000-8000-000000104621`，仅使用既有 `codex-test-v10.3.42` 主数据；no real business data, Cash DB, settlement, wage, income, expense, account transaction, or Cash request was modified.
+
 1. v10.3.43 planned lesson batch generator guards, 2026-06-29:
    修复课时管理页“批量生成预定课时”上线试用后发现的弹窗和规则边界问题。批量生成弹窗现在纳入现有 dialog guard：点击遮罩或 Escape 不会直接关闭，关闭按钮在表单有修改时需要二次确认；弹窗使用专用大尺寸布局，规则行新增“课时”输入，预览表降低横向宽度需求。开始/结束时间从硬必填改为提醒：规则可填写有效时间并由预览/RPC 使用时间课时，也可只填写课时生成无时间的 planned 课时；提交仍由 DB/RPC 校验和写入。前端新增完全重复规则 guard，DB/RPC `school_generate_planned_lessons_batch(...)` 同步新增重复规则与展开后重复课时 guard；有课时但缺失/无效时间时，RPC 清空时间并返回 warning，不再因时间本身阻止生成。执行 SQL `sql/current/school_generate_planned_lessons_batch_rpc.sql`。Rollback 测试 generation `97000000-0000-4000-8000-000000104561` 验证重复规则被拒绝且 residue 为 0；rollback 测试 generation `97000000-0000-4000-8000-000000104562` 验证无时间 + `duration_hours = 1.25` 生成课时费 `12500` 且 rollback。白名单 commit test 写入 planned lesson `d31bd5ac-8a59-45aa-827c-a03fbb535bfa` / generation `97000000-0000-4000-8000-000000104541`，仅使用既有 `codex-test-v10.3.42` 主数据；no real business data, Cash DB, settlement, wage, income, expense, account transaction, or Cash request was modified.
 

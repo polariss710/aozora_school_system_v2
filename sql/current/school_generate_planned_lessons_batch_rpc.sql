@@ -122,6 +122,7 @@ begin
     end_time text,
     duration_hours numeric,
     unit_price numeric,
+    occurrence_count integer,
     lesson_count integer,
     lesson_content text,
     note text,
@@ -139,6 +140,7 @@ begin
     end_time,
     duration_hours,
     unit_price,
+    occurrence_count,
     lesson_count,
     lesson_content,
     note
@@ -153,6 +155,7 @@ begin
     nullif(trim(coalesce(r.end_time, '')), ''),
     r.duration_hours,
     r.unit_price,
+    coalesce(r.occurrence_count, 1),
     r.lesson_count,
     nullif(trim(coalesce(r.lesson_content, '')), ''),
     nullif(trim(coalesce(r.note, '')), '')
@@ -166,6 +169,7 @@ begin
     end_time text,
     duration_hours numeric,
     unit_price numeric,
+    occurrence_count integer,
     lesson_count integer,
     lesson_content text,
     note text
@@ -313,6 +317,12 @@ begin
   where coalesce(p.unit_price, 0) < 0;
 
   update planned_lesson_generation_patterns p
+  set errors = p.errors || array['次数必须是 1-10 的正整数。']
+  where p.occurrence_count is null
+     or p.occurrence_count <= 0
+     or p.occurrence_count > 10;
+
+  update planned_lesson_generation_patterns p
   set errors = p.errors || array['回数必须大于 0。']
   where p.lesson_count is not null
     and p.lesson_count <= 0;
@@ -332,6 +342,7 @@ begin
       and d.end_time is not distinct from p.end_time
       and d.duration_hours is not distinct from p.duration_hours
       and d.unit_price is not distinct from p.unit_price
+      and d.occurrence_count is not distinct from p.occurrence_count
       and d.lesson_count is not distinct from p.lesson_count
       and d.lesson_content is not distinct from p.lesson_content
       and d.note is not distinct from p.note
@@ -364,19 +375,23 @@ begin
 
   create temp table planned_lesson_generation_exclusions (
     pattern_index integer,
-    lesson_date date
+    lesson_date date,
+    occurrence_index integer
   ) on commit drop;
 
   insert into planned_lesson_generation_exclusions (
     pattern_index,
-    lesson_date
+    lesson_date,
+    occurrence_index
   )
   select
     e.pattern_index,
-    e.lesson_date
+    e.lesson_date,
+    e.occurrence_index
   from jsonb_to_recordset(p_excluded_occurrences) as e(
     pattern_index integer,
-    lesson_date date
+    lesson_date date,
+    occurrence_index integer
   )
   where e.pattern_index is not null
     and e.lesson_date is not null;
@@ -384,6 +399,7 @@ begin
   create temp table planned_lesson_generation_rows (
     row_index integer,
     pattern_index integer,
+    occurrence_index integer,
     lesson_date date,
     year_month text,
     status text,
@@ -405,6 +421,7 @@ begin
   insert into planned_lesson_generation_rows (
     row_index,
     pattern_index,
+    occurrence_index,
     lesson_date,
     year_month,
     status,
@@ -421,10 +438,11 @@ begin
     warnings
   )
   select
-    row_number() over (order by d.lesson_date, p.pattern_index)::integer,
+    row_number() over (order by w.lesson_date, p.pattern_index, o.occurrence_index)::integer,
     p.pattern_index,
-    d.lesson_date,
-    to_char(d.lesson_date, 'YYYY-MM'),
+    o.occurrence_index,
+    w.lesson_date,
+    to_char(w.lesson_date, 'YYYY-MM'),
     p.status,
     p.teacher_id,
     p.subject_id,
@@ -433,19 +451,31 @@ begin
     p.duration_hours,
     coalesce(p.unit_price, 0),
     round(p.duration_hours * coalesce(p.unit_price, 0)),
-    p.lesson_count,
+    case
+      when p.lesson_count is null and p.occurrence_count > 1 then o.occurrence_index
+      when p.lesson_count is null then null
+      else p.lesson_count + o.occurrence_index - 1
+    end,
     p.lesson_content,
     p.note,
     p.warnings
   from planned_lesson_generation_patterns p
   cross join lateral generate_series(p_start_date, p_end_date, interval '1 day') as gs(lesson_date)
   cross join lateral (select gs.lesson_date::date as lesson_date) d
+  cross join lateral (
+    select (d.lesson_date - ((extract(dow from d.lesson_date)::integer + 6) % 7))::date as lesson_date
+  ) w
+  cross join lateral generate_series(1, p.occurrence_count) as o(occurrence_index)
   where extract(dow from d.lesson_date)::integer = p.weekday
     and not exists (
       select 1
       from planned_lesson_generation_exclusions x
       where x.pattern_index = p.pattern_index
-        and x.lesson_date = d.lesson_date
+        and x.lesson_date = w.lesson_date
+        and (
+          x.occurrence_index is null
+          or x.occurrence_index = o.occurrence_index
+        )
     );
 
   select count(*)
@@ -571,7 +601,8 @@ begin
       ' | ',
       'lesson_planned_batch_generator',
       'generation=' || v_generation_id_text,
-      'pattern=' || r.pattern_index::text
+      'pattern=' || r.pattern_index::text,
+      'occurrence=' || r.occurrence_index::text
     ),
     v_now,
     r.lesson_count,
