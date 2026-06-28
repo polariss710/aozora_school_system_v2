@@ -2155,9 +2155,18 @@ h2 {
   height: min(860px, calc(100vh - 32px));
 }
 
+.dialog-panel.lesson-batch-generate-dialog-panel {
+  width: min(1480px, calc(100vw - 20px));
+  height: min(900px, calc(100vh - 20px));
+}
+
 @supports (height: 100dvh) {
   .dialog-panel.lesson-import-preview-dialog-panel {
     height: min(860px, calc(100dvh - 32px));
+  }
+
+  .dialog-panel.lesson-batch-generate-dialog-panel {
+    height: min(900px, calc(100dvh - 20px));
   }
 }
 
@@ -2334,7 +2343,7 @@ h2 {
 
 .lesson-batch-pattern-row {
   display: grid;
-  grid-template-columns: 1.2fr 1.2fr 0.8fr 0.9fr 0.9fr 0.8fr 0.9fr 1.4fr auto;
+  grid-template-columns: minmax(112px, 1.1fr) minmax(112px, 1.1fr) minmax(86px, 0.7fr) minmax(96px, 0.8fr) minmax(96px, 0.8fr) minmax(86px, 0.7fr) minmax(104px, 0.75fr) minmax(86px, 0.7fr) minmax(132px, 1.1fr) auto;
   gap: 8px;
   align-items: end;
   border: 1px solid var(--line);
@@ -2352,13 +2361,20 @@ h2 {
 }
 
 .lesson-batch-generate-preview-table {
-  min-width: 1320px;
+  min-width: 1160px;
 }
 
 .lesson-batch-generate-preview-table td {
   vertical-align: top;
-  max-width: 220px;
+  max-width: 180px;
   overflow-wrap: anywhere;
+}
+
+.lesson-batch-generate-warning {
+  grid-column: 1 / -1;
+  color: var(--warning);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .lesson-pair-view {

@@ -280,6 +280,8 @@ let batchGeneratePatterns = [];
 let batchGeneratePreviewRows = [];
 let batchGenerateRemovedKeys = new Set();
 let isLessonBatchGenerateSubmitting = false;
+let lessonBatchGenerateInitialSnapshot = null;
+let isLessonBatchGenerateCloseConfirmPending = false;
 let lastLessonBatchGenerateResult = null;
 
 export function initLessonPage() {
@@ -579,7 +581,7 @@ function bindEvents() {
   dom.lessonBatchGenerateViewFirstDetailButton?.addEventListener("click", handleLessonBatchGenerateViewFirstDetailClick);
   dom.lessonBatchGenerateDialog?.addEventListener("click", (event) => {
     if (event.target === dom.lessonBatchGenerateDialog) {
-      closeLessonBatchGenerateDialog();
+      blockLessonBatchGenerateDirectDismiss();
     }
   });
   dom.lessonBatchGeneratePatternList?.addEventListener("input", handleLessonBatchGeneratePatternInput);
@@ -591,13 +593,16 @@ function bindEvents() {
     ["businessEntity", dom.lessonBatchGenerateBusinessEntitySelect],
     ["startDate", dom.lessonBatchGenerateStartDateInput],
     ["endDate", dom.lessonBatchGenerateEndDateInput],
+    ["note", dom.lessonBatchGenerateNoteInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
+      isLessonBatchGenerateCloseConfirmPending = false;
       clearLessonBatchGenerateFieldInvalid(fieldId);
       hideLessonBatchGenerateErrorIfClean();
       clearLessonBatchGenerateSubmitResult();
     });
     element?.addEventListener("change", () => {
+      isLessonBatchGenerateCloseConfirmPending = false;
       clearLessonBatchGenerateFieldInvalid(fieldId);
       hideLessonBatchGenerateErrorIfClean();
       clearLessonBatchGenerateSubmitResult();
@@ -1214,6 +1219,9 @@ function activeLessonCreateDialog() {
   if (isDialogOpen(dom.createCrossMonthMakeupActualDialog)) {
     return { blockDirectDismiss: blockCreateCrossMonthMakeupActualDirectDismiss };
   }
+  if (isDialogOpen(dom.lessonBatchGenerateDialog)) {
+    return { blockDirectDismiss: blockLessonBatchGenerateDirectDismiss };
+  }
   return null;
 }
 
@@ -1254,6 +1262,13 @@ function blockCreateCrossMonthMakeupActualDirectDismiss() {
     return;
   }
   showCreateCrossMonthMakeupActualError("请使用取消按钮关闭窗口；表单已有修改时需要二次确认。");
+}
+
+function blockLessonBatchGenerateDirectDismiss() {
+  if (!isDialogOpen(dom.lessonBatchGenerateDialog) || isLessonBatchGenerateSubmitting) {
+    return;
+  }
+  showLessonBatchGenerateError("请使用关闭按钮关闭窗口；表单已有修改时需要二次确认。");
 }
 
 function openCreatePlannedLessonDialog() {
@@ -3558,13 +3573,23 @@ function openLessonBatchGenerateDialog() {
   dom.lessonBatchGenerateStudentSelect?.focus();
 }
 
-function closeLessonBatchGenerateDialog() {
-  if (isLessonBatchGenerateSubmitting) {
+function closeLessonBatchGenerateDialog(force = false) {
+  if (isLessonBatchGenerateSubmitting && !force) {
     return;
+  }
+
+  if (!force && hasLessonBatchGenerateFormChanged()) {
+    if (!isLessonBatchGenerateCloseConfirmPending) {
+      isLessonBatchGenerateCloseConfirmPending = true;
+      showLessonBatchGenerateError("表单已有修改。再次点击关闭将放弃输入。");
+      return;
+    }
   }
 
   dom.lessonBatchGenerateDialog.classList.add("is-hidden");
   dom.lessonBatchGenerateDialog.setAttribute("aria-hidden", "true");
+  lessonBatchGenerateInitialSnapshot = null;
+  isLessonBatchGenerateCloseConfirmPending = false;
 }
 
 function renderLessonBatchGenerateMasterOptions() {
@@ -3593,9 +3618,11 @@ function resetLessonBatchGenerateForm() {
   batchGeneratePreviewRows = [];
   batchGenerateRemovedKeys = new Set();
   lastLessonBatchGenerateResult = null;
+  isLessonBatchGenerateCloseConfirmPending = false;
   clearLessonBatchGenerateErrors();
   renderLessonBatchGeneratePatterns();
   renderLessonBatchGeneratePreview();
+  lessonBatchGenerateInitialSnapshot = readLessonBatchGenerateFormSnapshot();
 }
 
 function defaultLessonBatchGeneratePattern(patternIndex) {
@@ -3608,6 +3635,7 @@ function defaultLessonBatchGeneratePattern(patternIndex) {
     weekday: "1",
     startTime: "",
     endTime: "",
+    durationHours: "1",
     unitPrice: "10000",
     lessonCount: "1",
     lessonContent: firstSubject ? subjectName(firstSubject) : "",
@@ -3656,6 +3684,10 @@ function renderLessonBatchGeneratePatterns() {
       <label class="field">
         <span>结束</span>
         <input type="time" value="${escapeAttribute(pattern.endTime)}" data-batch-pattern-field="endTime">
+      </label>
+      <label class="field">
+        <span>课时</span>
+        <input type="number" min="0.25" step="0.25" inputmode="decimal" value="${escapeAttribute(pattern.durationHours)}" data-batch-pattern-field="durationHours">
       </label>
       <label class="field">
         <span>单价 JPY</span>
@@ -3708,6 +3740,7 @@ function handleLessonBatchGeneratePatternInput(event) {
 
   const fieldName = field.dataset.batchPatternField;
   pattern[fieldName] = field.value;
+  isLessonBatchGenerateCloseConfirmPending = false;
   if (fieldName === "subjectId" && !pattern.lessonContent) {
     const subject = subjects.find((item) => item.id === field.value);
     pattern.lessonContent = subject ? subjectName(subject) : "";
@@ -3728,6 +3761,7 @@ function handleLessonBatchGeneratePatternAction(event) {
   const patternIndex = Number(row?.dataset.batchPatternIndex);
   if (button.dataset.batchPatternAction === "remove" && batchGeneratePatterns.length > 1) {
     batchGeneratePatterns = batchGeneratePatterns.filter((pattern) => Number(pattern.patternIndex) !== patternIndex);
+    isLessonBatchGenerateCloseConfirmPending = false;
     clearLessonBatchGeneratePreviewState();
     renderLessonBatchGeneratePatterns();
     renderLessonBatchGeneratePreview();
@@ -3754,7 +3788,8 @@ function handleLessonBatchGeneratePreview() {
   }
 }
 
-function readLessonBatchGenerateDraft() {
+function readLessonBatchGenerateDraft(options = {}) {
+  const silent = Boolean(options.silent);
   const studentId = dom.lessonBatchGenerateStudentSelect.value;
   const businessEntityId = dom.lessonBatchGenerateBusinessEntitySelect.value;
   const startDate = dom.lessonBatchGenerateStartDateInput.value;
@@ -3793,8 +3828,25 @@ function readLessonBatchGenerateDraft() {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 请选择周几。`]);
     }
     const timeCheck = validateLessonTimeRange(pattern.startTime, pattern.endTime);
-    if (timeCheck.status !== "valid") {
-      errors.push(["patterns", `规则 ${pattern.patternIndex} ${timeCheck.message || "请填写开始和结束时间。"}`]);
+    if (timeCheck.status === "valid") {
+      pattern.startTimeForSave = pattern.startTime;
+      pattern.endTimeForSave = pattern.endTime;
+      if (!Number.isFinite(pattern.durationHours) || pattern.durationHours <= 0) {
+        pattern.durationHours = timeCheck.durationHours;
+      }
+    } else if (Number.isFinite(pattern.durationHours) && pattern.durationHours > 0) {
+      pattern.startTimeForSave = null;
+      pattern.endTimeForSave = null;
+      pattern.warnings.push(`规则 ${pattern.patternIndex} 未填写有效开始/结束时间，将只按课时生成。`);
+    } else {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 请填写课时，或填写有效开始和结束时间。`]);
+    }
+    if (Number.isFinite(pattern.durationHours) && pattern.durationHours > 0 && timeCheck.status === "valid" && !numbersEqual(pattern.durationHours, timeCheck.durationHours)) {
+      pattern.warnings.push(`规则 ${pattern.patternIndex} 课时与开始/结束时间不一致，预览和提交将按开始/结束时间 ${displayInputNumber(timeCheck.durationHours)} h。`);
+      pattern.durationHours = timeCheck.durationHours;
+    }
+    if (!Number.isFinite(pattern.durationHours) || pattern.durationHours <= 0) {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 课时必须大于 0。`]);
     }
     if (!Number.isFinite(pattern.unitPrice) || pattern.unitPrice < 0) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 单价不能小于 0。`]);
@@ -3804,7 +3856,21 @@ function readLessonBatchGenerateDraft() {
     }
   }
 
+  const duplicateKeys = new Map();
+  for (const pattern of normalizedPatterns) {
+    const key = buildLessonBatchGeneratePatternDuplicateKey(pattern);
+    const firstPatternIndex = duplicateKeys.get(key);
+    if (firstPatternIndex !== undefined) {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 与规则 ${firstPatternIndex} 完全相同，请删除或调整重复规则。`]);
+    } else {
+      duplicateKeys.set(key, pattern.patternIndex);
+    }
+  }
+
   if (errors.length) {
+    if (silent) {
+      return null;
+    }
     for (const [fieldId] of errors) {
       if (LESSON_BATCH_FIELD_IDS.includes(fieldId)) {
         setLessonBatchGenerateFieldInvalid(fieldId, true);
@@ -3821,6 +3887,7 @@ function readLessonBatchGenerateDraft() {
     endDate,
     note: dom.lessonBatchGenerateNoteInput.value.trim(),
     patterns: normalizedPatterns,
+    warnings: normalizedPatterns.flatMap((pattern) => pattern.warnings),
   };
 }
 
@@ -3832,12 +3899,30 @@ function normalizeLessonBatchGeneratePattern(pattern) {
     weekday: Number(pattern.weekday),
     startTime: safeText(pattern.startTime),
     endTime: safeText(pattern.endTime),
+    startTimeForSave: safeText(pattern.startTime),
+    endTimeForSave: safeText(pattern.endTime),
+    durationHours: numberFromInput(pattern.durationHours),
     unitPrice: Number(pattern.unitPrice),
     lessonCount: pattern.lessonCount === "" || pattern.lessonCount === null || pattern.lessonCount === undefined
       ? null
       : Number(pattern.lessonCount),
     lessonContent: safeText(pattern.lessonContent),
+    warnings: [],
   };
+}
+
+function buildLessonBatchGeneratePatternDuplicateKey(pattern) {
+  return [
+    pattern.weekday,
+    pattern.teacherId,
+    pattern.subjectId,
+    pattern.startTimeForSave || "",
+    pattern.endTimeForSave || "",
+    Number.isFinite(pattern.durationHours) ? Number(pattern.durationHours).toFixed(4) : "",
+    Number.isFinite(pattern.unitPrice) ? Number(pattern.unitPrice).toFixed(4) : "",
+    pattern.lessonCount ?? "",
+    pattern.lessonContent,
+  ].join("|");
 }
 
 function buildLessonBatchGeneratePreviewRows(draft) {
@@ -3850,6 +3935,7 @@ function buildLessonBatchGeneratePreviewRows(draft) {
         continue;
       }
       const timeCheck = validateLessonTimeRange(pattern.startTime, pattern.endTime);
+      const hasValidTime = timeCheck.status === "valid";
       rows.push({
         rowKey: `${pattern.patternIndex}:${lessonDate}`,
         patternIndex: pattern.patternIndex,
@@ -3859,9 +3945,9 @@ function buildLessonBatchGeneratePreviewRows(draft) {
         businessEntityId: draft.businessEntityId,
         subjectId: pattern.subjectId,
         teacherId: pattern.teacherId,
-        startTime: pattern.startTime,
-        endTime: pattern.endTime,
-        durationHours: timeCheck.durationHours || null,
+        startTime: hasValidTime ? pattern.startTime : null,
+        endTime: hasValidTime ? pattern.endTime : null,
+        durationHours: hasValidTime ? timeCheck.durationHours : pattern.durationHours,
         unitPrice: pattern.unitPrice,
         lessonCount: pattern.lessonCount,
         lessonContent: pattern.lessonContent,
@@ -3901,11 +3987,16 @@ function renderLessonBatchGeneratePreview() {
   if (dom.lessonBatchGenerateSummary) {
     const months = lessonBatchGeneratePreviewMonths(visibleRows);
     const totalHours = visibleRows.reduce((sum, row) => sum + (Number(row.durationHours) || 0), 0);
+    const warnings = (readLessonBatchGenerateWarnings() || []).slice(0, 3);
+    const warningHtml = warnings.length
+      ? `<div class="lesson-batch-generate-warning">${escapeHtml(warnings.join(" / "))}</div>`
+      : "";
     dom.lessonBatchGenerateSummary.innerHTML = `
       <div><dt>预览课时数</dt><dd>${visibleRows.length}</dd></div>
       <div><dt>预览总课时</dt><dd>${totalHours.toFixed(2)} h</dd></div>
       <div><dt>月份</dt><dd>${escapeHtml(formatLessonImportMonthRange(months) || "-")}</dd></div>
       <div><dt>已移除</dt><dd>${batchGenerateRemovedKeys.size}</dd></div>
+      ${warningHtml}
     `;
     dom.lessonBatchGenerateSummary.classList.toggle("is-hidden", !batchGeneratePreviewRows.length);
   }
@@ -3967,9 +4058,9 @@ async function handleLessonBatchGenerateSubmit() {
         status: "planned",
         teacher_id: pattern.teacherId,
         subject_id: pattern.subjectId,
-        start_time: pattern.startTime,
-        end_time: pattern.endTime,
-        duration_hours: null,
+        start_time: pattern.startTimeForSave || null,
+        end_time: pattern.endTimeForSave || null,
+        duration_hours: pattern.durationHours,
         unit_price: pattern.unitPrice,
         lesson_count: pattern.lessonCount,
         lesson_content: pattern.lessonContent || null,
@@ -4042,7 +4133,7 @@ async function handleLessonBatchGenerateViewMonthClick() {
   }
 
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, months[0]);
-  closeLessonBatchGenerateDialog();
+  closeLessonBatchGenerateDialog(true);
   await applyQuery();
 }
 
@@ -4071,6 +4162,11 @@ function clearLessonBatchGeneratePreviewState() {
 
 function clearLessonBatchGenerateSubmitResult() {
   lastLessonBatchGenerateResult = null;
+}
+
+function readLessonBatchGenerateWarnings() {
+  const draft = readLessonBatchGenerateDraft({ silent: true });
+  return draft?.warnings || [];
 }
 
 function setLessonBatchGenerateSubmitting(isSubmitting) {
@@ -4112,6 +4208,25 @@ function setLessonBatchGenerateFieldInvalid(fieldId, invalid) {
 
 function clearLessonBatchGenerateFieldInvalid(fieldId) {
   setLessonBatchGenerateFieldInvalid(fieldId, false);
+}
+
+function readLessonBatchGenerateFormSnapshot() {
+  return JSON.stringify({
+    student: dom.lessonBatchGenerateStudentSelect.value,
+    businessEntity: dom.lessonBatchGenerateBusinessEntitySelect.value,
+    startDate: dom.lessonBatchGenerateStartDateInput.value,
+    endDate: dom.lessonBatchGenerateEndDateInput.value,
+    note: dom.lessonBatchGenerateNoteInput.value,
+    patterns: batchGeneratePatterns,
+    removed: [...batchGenerateRemovedKeys].sort(),
+  });
+}
+
+function hasLessonBatchGenerateFormChanged() {
+  return Boolean(
+    lessonBatchGenerateInitialSnapshot
+    && readLessonBatchGenerateFormSnapshot() !== lessonBatchGenerateInitialSnapshot
+  );
 }
 
 function buildLessonImportResultSummary(results, rows) {

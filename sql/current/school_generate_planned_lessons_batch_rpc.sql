@@ -238,6 +238,19 @@ begin
     );
 
   update planned_lesson_generation_patterns p
+  set
+    start_time = null,
+    end_time = null,
+    warnings = p.warnings || array['开始/结束时间未完整填写或格式无效，已按课时生成并不写入时间。']
+  where coalesce(p.duration_hours, 0) > 0
+    and (
+      p.start_time is null
+      or p.end_time is null
+      or p.start_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+      or p.end_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+    );
+
+  update planned_lesson_generation_patterns p
   set errors = p.errors || array['开始时间格式无效，请使用 HH:MM。']
   where p.start_time is not null
     and p.start_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$';
@@ -303,6 +316,26 @@ begin
   set errors = p.errors || array['回数必须大于 0。']
   where p.lesson_count is not null
     and p.lesson_count <= 0;
+
+  update planned_lesson_generation_patterns p
+  set errors = p.errors || array['课程规则重复，请删除或调整重复规则。']
+  where exists (
+    select 1
+    from planned_lesson_generation_patterns d
+    where d.pattern_index is distinct from p.pattern_index
+      and d.pattern_index < p.pattern_index
+      and d.weekday is not distinct from p.weekday
+      and d.status is not distinct from p.status
+      and d.teacher_id is not distinct from p.teacher_id
+      and d.subject_id is not distinct from p.subject_id
+      and d.start_time is not distinct from p.start_time
+      and d.end_time is not distinct from p.end_time
+      and d.duration_hours is not distinct from p.duration_hours
+      and d.unit_price is not distinct from p.unit_price
+      and d.lesson_count is not distinct from p.lesson_count
+      and d.lesson_content is not distinct from p.lesson_content
+      and d.note is not distinct from p.note
+  );
 
   select exists (
     select 1
@@ -436,6 +469,25 @@ begin
       and s.year_month = r.year_month
       and s.business_entity_id is not distinct from p_business_entity_id
       and s.settlement_status = 'locked'
+  );
+
+  update planned_lesson_generation_rows r
+  set errors = r.errors || array['展开后生成了重复课时，请删除或调整重复规则。']
+  where exists (
+    select 1
+    from planned_lesson_generation_rows d
+    where d.row_index < r.row_index
+      and d.lesson_date is not distinct from r.lesson_date
+      and d.status is not distinct from r.status
+      and d.teacher_id is not distinct from r.teacher_id
+      and d.subject_id is not distinct from r.subject_id
+      and d.start_time is not distinct from r.start_time
+      and d.end_time is not distinct from r.end_time
+      and d.duration_hours is not distinct from r.duration_hours
+      and d.unit_price is not distinct from r.unit_price
+      and d.lesson_count is not distinct from r.lesson_count
+      and d.lesson_content is not distinct from r.lesson_content
+      and d.note is not distinct from r.note
   );
 
   select exists (

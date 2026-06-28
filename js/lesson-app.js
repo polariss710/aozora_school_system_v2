@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.42-planned-lesson-batch-generator";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.43-planned-lesson-batch-generator-guards-2";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
