@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initExpensePage } from "./pages/expense-page.js?v=v2.122.0-month-filter-url-preserve-20260616";
+import { initExpensePage } from "./pages/expense-page.js?v=v10.3.37-expense-cash-backend-amount";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

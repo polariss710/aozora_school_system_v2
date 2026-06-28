@@ -13,6 +13,8 @@ type RequestBody = {
   actual_payment_amount?: number | string;
   actual_payment_currency?: string;
   actual_payment_date?: string;
+  exchange_rate?: number | string | null;
+  rounding_mode?: string | null;
   note?: string | null;
 };
 
@@ -175,6 +177,14 @@ function requirePositiveNumber(value: unknown, fieldName: string): number {
   return numberValue;
 }
 
+function optionalPositiveNumber(value: unknown, fieldName: string): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  return requirePositiveNumber(value, fieldName);
+}
+
 function requireCurrency(value: unknown): string {
   if (typeof value !== "string") {
     throw new Error("actual_payment_currency is required");
@@ -293,11 +303,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const expenseRecordId = requireUuid(body.expense_record_id, "expense_record_id");
     const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
-    const actualPaymentAmount = requirePositiveNumber(
+    const actualPaymentAmount = optionalPositiveNumber(
       body.actual_payment_amount,
       "actual_payment_amount",
     );
     const actualPaymentCurrency = requireCurrency(body.actual_payment_currency);
+    const exchangeRate = optionalPositiveNumber(body.exchange_rate, "exchange_rate");
+    const roundingMode = optionalText(body.rounding_mode);
     const requestedPaymentDate = optionalDate(body.actual_payment_date, "actual_payment_date");
     const note = optionalText(body.note);
 
@@ -320,6 +332,37 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const expense = expenseData as ExpenseRow;
+    const originalCurrency = requireCurrency(expense.currency);
+
+    if (actualPaymentCurrency !== originalCurrency && exchangeRate === null) {
+      return jsonResponse(
+        { ok: false, message: "Cross-currency actual payment amount requires exchange_rate" },
+        400,
+      );
+    }
+
+    if (
+      actualPaymentCurrency === originalCurrency && exchangeRate !== null &&
+      exchangeRate !== 1
+    ) {
+      return jsonResponse(
+        { ok: false, message: "Same-currency actual payment exchange_rate must be empty or 1" },
+        400,
+      );
+    }
+
+    if (actualPaymentAmount === null && actualPaymentCurrency !== originalCurrency) {
+      if (!["round", "ceil", "floor"].includes(roundingMode ?? "")) {
+        return jsonResponse(
+          {
+            ok: false,
+            message: "Backend-calculated cross-currency payment amount requires rounding_mode",
+          },
+          400,
+        );
+      }
+    }
+
     const eligibleAccounts = await listEligibleAccounts(cashClient);
     const cashAccount = eligibleAccounts.find((account) => account.id === cashAccountId);
     if (!cashAccount) {
@@ -351,6 +394,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
         p_payment_amount: actualPaymentAmount,
         p_payment_currency: actualPaymentCurrency,
         p_note: note,
+        p_exchange_rate: actualPaymentCurrency === originalCurrency ? 1 : exchangeRate,
+        p_payment_rounding_mode: actualPaymentAmount === null ? roundingMode : null,
       });
 
     if (schoolRequestError) {

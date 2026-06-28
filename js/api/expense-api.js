@@ -161,10 +161,11 @@ export async function requestCashExpenseConfirmation(payload) {
     body: {
       expense_record_id: expenseId,
       cash_account_id: payload.cashAccountId,
-      actual_payment_amount: payload.actualPaymentAmount,
+      actual_payment_amount: payload.actualPaymentAmount ?? null,
       actual_payment_currency: payload.actualPaymentCurrency,
       actual_payment_date: payload.actualPaymentDate,
       exchange_rate: payload.exchangeRate ?? null,
+      rounding_mode: payload.roundingMode || null,
       note: payload.note || null,
     },
   });

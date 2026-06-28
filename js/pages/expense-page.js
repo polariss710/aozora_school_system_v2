@@ -824,6 +824,7 @@ async function openBatchCashExpenseDialog(rows) {
   batchCashExpenseRows = targets.map((expense) => ({
     expense,
     amount: expense.amount ?? "",
+    amountSource: "db",
     currency: expense.currency || "JPY",
     paymentDate: currentJapanDate(),
     accountId: "",
@@ -874,7 +875,7 @@ function renderBatchCashExpenseRows() {
         <td class="expense-nowrap">${escapeHtml(formatMonth(expense.year_month))}</td>
         <td><input data-batch-expense-date="${escapeAttribute(expense.id)}" type="date" value="${escapeAttribute(state.paymentDate)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
         <td class="number-cell expense-nowrap">${escapeHtml(formatCurrency(expense.amount, expense.currency))}</td>
-        <td><input data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}></td>
+        <td><input data-batch-expense-amount="${escapeAttribute(expense.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}>${renderBatchCashExpenseAmountHint(state)}</td>
         <td>
           <select data-batch-expense-currency="${escapeAttribute(expense.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
             ${CASH_EXPENSE_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
@@ -892,6 +893,18 @@ function renderBatchCashExpenseRows() {
     `;
   }).join("");
   updateBatchCashExpenseTotal();
+}
+
+function renderBatchCashExpenseAmountHint(state) {
+  if (state.amountSource === "backend") {
+    return '<div class="field-hint">提交时按汇率和取整方式确认。</div>';
+  }
+
+  if (state.amountSource === "db") {
+    return '<div class="field-hint">未手动修改时使用原始金额。</div>';
+  }
+
+  return "";
 }
 
 function renderBatchCashExpenseRateAssist(state) {
@@ -973,18 +986,36 @@ function handleBatchCashExpenseInput(event) {
     return;
   }
 
-  const shouldRerender = Boolean(event.target.closest("[data-batch-expense-currency]"));
+  const amountInput = event.target.closest("[data-batch-expense-amount]");
+  const currencySelect = event.target.closest("[data-batch-expense-currency]");
+  const shouldRerender = Boolean(currencySelect);
   const shouldRefreshRateAssist = event.type === "change" && Boolean(
     event.target.closest("[data-batch-expense-rate]")
-    || event.target.closest("[data-batch-expense-amount]")
+    || amountInput
   );
   syncBatchCashExpenseRowsFromDom();
+  if (amountInput) {
+    const expenseId = amountInput.dataset.batchExpenseAmount;
+    const state = batchCashExpenseRows.find((row) => row.expense.id === expenseId);
+    if (state) {
+      state.amountSource = "manual";
+      state.roundingMode = "";
+    }
+  }
   updateBatchCashExpenseDerivedValues();
+  refreshBackendBatchCashExpensePreviewAmounts();
   if (shouldRerender) {
     for (const state of batchCashExpenseRows) {
       const account = cashEligibleAccounts.find((row) => row.id === state.accountId);
       if (account?.currency !== state.currency) {
         state.accountId = "";
+      }
+      if (state.amountSource !== "manual") {
+        state.amount = state.currency === expenseOriginalCurrency(state.expense)
+          ? String(state.expense.amount ?? "")
+          : "";
+        state.amountSource = state.currency === expenseOriginalCurrency(state.expense) ? "db" : "";
+        state.roundingMode = "";
       }
     }
     renderBatchCashExpenseRows();
@@ -992,6 +1023,19 @@ function handleBatchCashExpenseInput(event) {
     renderBatchCashExpenseRows();
   }
   clearBatchCashExpenseError();
+}
+
+function refreshBackendBatchCashExpensePreviewAmounts() {
+  for (const state of batchCashExpenseRows) {
+    if (state.amountSource !== "backend" || !ROUNDING_MODE_LABELS[state.roundingMode]) {
+      continue;
+    }
+
+    const theoreticalAmount = parseNumberInput(state.theoreticalAmount);
+    if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
+      state.amount = String(roundCnyPaymentAmount(theoreticalAmount, state.roundingMode));
+    }
+  }
 }
 
 async function handleBatchCashExpenseClick(event) {
@@ -1085,7 +1129,11 @@ function readBatchCashExpensePayloads() {
     }
 
     const actualPaymentAmount = parseNumberInput(state.amount);
-    if (!Number.isFinite(actualPaymentAmount) || actualPaymentAmount <= 0) {
+    const isCrossCurrency = state.currency !== expenseOriginalCurrency(expense);
+    const useBackendAmount = state.amountSource === "backend"
+      || (state.amountSource === "db" && !isCrossCurrency);
+    const useManualAmount = !useBackendAmount;
+    if (useManualAmount && (!Number.isFinite(actualPaymentAmount) || actualPaymentAmount <= 0)) {
       hasError = true;
       continue;
     }
@@ -1106,16 +1154,34 @@ function readBatchCashExpensePayloads() {
       continue;
     }
 
+    const exchangeRate = isCrossCurrency ? parseOptionalPositiveNumber(state.exchangeRate) : null;
+    if (isCrossCurrency && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
+      hasError = true;
+      continue;
+    }
+    if (state.amountSource === "backend" && !ROUNDING_MODE_LABELS[state.roundingMode]) {
+      hasError = true;
+      continue;
+    }
+
     payloads.push({
       state,
       payload: {
         expenseId: expense.id,
         cashAccountId: state.accountId,
-        actualPaymentAmount,
+        actualPaymentAmount: useBackendAmount ? null : actualPaymentAmount,
         actualPaymentCurrency: state.currency,
         actualPaymentDate: state.paymentDate,
-        exchangeRate: state.currency === "CNY" ? parseOptionalPositiveNumber(state.exchangeRate) : null,
-        note: buildCashExpenseRequestNote(expense, actualPaymentAmount, state.currency, state.paymentDate, state.note, rateAssistNote(state)),
+        exchangeRate,
+        roundingMode: state.amountSource === "backend" ? state.roundingMode : "",
+        note: buildCashExpenseRequestNote(
+          expense,
+          useBackendAmount ? null : actualPaymentAmount,
+          state.currency,
+          state.paymentDate,
+          state.note,
+          rateAssistNote(state)
+        ),
       },
     });
   }
@@ -1666,8 +1732,11 @@ function escapeRegExp(value) {
 
 function buildCashExpenseRequestNote(expense, amount, currency, paymentDate, baseNote, rateNote = "") {
   const base = safeText(baseNote).trim();
+  const actualAmountText = Number.isFinite(Number(amount))
+    ? `实际支付${formatCurrency(amount, currency)}`
+    : `实际支付金额按提交规则计算，币种${currency}`;
   const requiredText = [
-    `${expenseObjectName(expense)}，实际支付日${paymentDate}，实际支付${formatCurrency(amount, currency)}`,
+    `${expenseObjectName(expense)}，实际支付日${paymentDate}，${actualAmountText}`,
     rateNote,
   ].filter(Boolean).join("；");
   if (!base) {
@@ -1746,8 +1815,9 @@ function applyBatchCashExpenseRounding(state, mode) {
 
   const roundedAmount = roundCnyPaymentAmount(theoreticalAmount, mode);
   state.amount = String(roundedAmount);
+  state.amountSource = "backend";
   state.roundingMode = ROUNDING_MODE_LABELS[mode] ? mode : "";
-  state.rateStatus = `${ROUNDING_MODE_LABELS[mode] || "取整"}已填入实际支付金额，仍可手动修改。`;
+  state.rateStatus = `${ROUNDING_MODE_LABELS[mode] || "取整"}已预览实际支付金额，提交时按相同规则确认，仍可手动修改。`;
   renderBatchCashExpenseRows();
 }
 
@@ -1824,6 +1894,10 @@ function originalJpyAmount(expense) {
   return NaN;
 }
 
+function expenseOriginalCurrency(expense) {
+  return CASH_EXPENSE_CURRENCIES.includes(expense?.currency) ? expense.currency : "";
+}
+
 function formatTheoreticalCnyAmount(value) {
   const amount = parseNumberInput(value);
   return Number.isFinite(amount) && amount > 0 ? `${formatDecimal(amount, 2)} CNY` : "-";
@@ -1848,7 +1922,9 @@ function rateAssistNote(state) {
   if (Number.isFinite(rate) && rate > 0) {
     parts.push(`参考汇率 CNY/JPY ${formatRateValue(rate)}`);
   }
-  if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
+  if (state.amountSource === "backend") {
+    parts.push("实际支付金额按提交规则计算");
+  } else if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
     parts.push(`理论金额 ${formatDecimal(theoreticalAmount, 2)} CNY`);
   }
   if (ROUNDING_MODE_LABELS[state.roundingMode]) {
