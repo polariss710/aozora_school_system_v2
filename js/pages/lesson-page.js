@@ -4622,7 +4622,7 @@ function buildLessonImportSubmitRows(rows) {
     lesson_date: row.values.lessonDate,
     start_time: row.values.startTime || null,
     end_time: row.values.endTime || null,
-    duration_hours: row.values.durationHours,
+    duration_hours: hasLessonImportPreviewValue(row.raw.durationHours) && Number.isFinite(row.values.durationHours) ? row.values.durationHours : null,
     lesson_count: Number.isInteger(row.values.lessonCount) ? row.values.lessonCount : null,
     unit_price: Number.isFinite(row.values.unitPrice) ? row.values.unitPrice : 0,
     lesson_fee: hasLessonImportPreviewValue(row.raw.lessonFee) && Number.isFinite(row.values.lessonFee) ? row.values.lessonFee : null,

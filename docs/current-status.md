@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.39 lesson import duration DB authority repair, 2026-06-29:
+   修复 P2 课时导入 preview 估算 `duration_hours` 进入导入 payload 的边界问题。导入 preview 仍可在课时为空但开始/结束时间存在时显示估算课时作为非持久化提示，但 `buildLessonImportSubmitRows(...)` 只有在原文件明确填写课时时才提交 `duration_hours`；否则提交 `null`。执行并更新 `sql/current/school_import_lesson_records_batch_rpc.sql`，由 `school_import_lesson_records_batch(...)` 在 DB/RPC 端根据合法 `start_time` / `end_time` 计算缺失课时，再按 DB 端课时与单价计算 `lesson_fee`；若课时为空且时间不足或无效，RPC 拒绝导入。Rollback 测试使用 import batch `97000000-0000-4000-8000-000000104101`，验证 `09:00-10:30 -> duration_hours 1.5 -> lesson_fee 15000`，rollback residue 为 0。白名单 commit test 使用已有 `codex-test-v10.3.35 lesson fee commit` 主数据，写入 import batch `97000000-0000-4000-8000-000000104201` / lesson `c0684d59-a37f-4810-9ab7-81c2660dc9e8`，验证 `13:15-15:00 -> duration_hours 1.75 -> lesson_fee 17500`。No real business data, Cash DB, account ledger, income, teacher wage, payment, expense, settlement, or carryover data was modified.
+
 1. v10.3.38 legacy payment Cash frontend cleanup, 2026-06-29:
    修复 P2 legacy 老师工资支付页的前端业务计算残留。`index.html` / `js/pages/payment-page.js` 已在业务上降级为 legacy 只读，`teacher_wage` payment request 行不会提供 Cash 提交、直接确认、撤销、取消、恢复或重新生成操作；本次进一步删除不可达的 Cash 确认模式代码、Cash eligible account 读取、前端 `paymentAmount` / `exchangeRate` 构造、`schoolAmountJpy * exchangeRate` 换算、Cash 实付预览字段和 `request-cash-confirmation` 前端调用入口，避免旧模块未来误开入口时重新违反 frontend business-calculation boundary。未修改 DB、SQL、RPC、Edge Function 或真实业务数据；新老师工资支付仍从 `school_expense_records` / 支出记录 Cash 确认链路处理。
 

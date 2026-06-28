@@ -263,10 +263,6 @@ begin
   where r.business_entity_id is null;
 
   update lesson_import_rows r
-  set errors = r.errors || array['课时时长必须大于 0。']
-  where coalesce(r.duration_hours, 0) <= 0;
-
-  update lesson_import_rows r
   set errors = r.errors || array['课程单价不能小于 0。']
   where coalesce(r.unit_price, 0) < 0;
 
@@ -289,6 +285,54 @@ begin
   set errors = r.errors || array['结束时间格式无效，请使用 HH:MM。']
   where r.end_time is not null
     and r.end_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$';
+
+  update lesson_import_rows r
+  set
+    duration_hours = round(
+      (
+        case
+          when (
+            split_part(r.end_time, ':', 1)::integer * 60
+            + split_part(r.end_time, ':', 2)::integer
+          ) > (
+            split_part(r.start_time, ':', 1)::integer * 60
+            + split_part(r.start_time, ':', 2)::integer
+          )
+            then (
+              split_part(r.end_time, ':', 1)::integer * 60
+              + split_part(r.end_time, ':', 2)::integer
+            ) - (
+              split_part(r.start_time, ':', 1)::integer * 60
+              + split_part(r.start_time, ':', 2)::integer
+            )
+          when (
+            split_part(r.end_time, ':', 1)::integer * 60
+            + split_part(r.end_time, ':', 2)::integer
+          ) < (
+            split_part(r.start_time, ':', 1)::integer * 60
+            + split_part(r.start_time, ':', 2)::integer
+          )
+            then (
+              split_part(r.end_time, ':', 1)::integer * 60
+              + split_part(r.end_time, ':', 2)::integer
+              + 1440
+            ) - (
+              split_part(r.start_time, ':', 1)::integer * 60
+              + split_part(r.start_time, ':', 2)::integer
+            )
+          else 0
+        end
+      )::numeric / 60,
+      2
+    ),
+    warnings = r.warnings || array['课时为空，已由 DB/RPC 按开始/结束时间计算。']
+  where coalesce(r.duration_hours, 0) <= 0
+    and r.start_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+    and r.end_time ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$';
+
+  update lesson_import_rows r
+  set errors = r.errors || array['课时时长必须大于 0；如未填写课时，必须提供有效开始/结束时间供 DB/RPC 计算。']
+  where coalesce(r.duration_hours, 0) <= 0;
 
   update lesson_import_rows r
   set errors = r.errors || array['预定课时导入不允许填写 planned_lesson_id。']

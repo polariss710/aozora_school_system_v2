@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.35-lesson-fee-db-authority";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.39-lesson-import-duration-db-authority";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
