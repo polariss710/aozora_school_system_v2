@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.40 wage adjustment frontend calculation cleanup, 2026-06-29:
+   修复 P2 老师工资调整弹窗的前端业务计算残留。`wage-detail-page.js` 不再用 `Math.round(...)` 处理交通费 / 教室费后作为 `school_adjust_teacher_wage_detail(...)` 写 RPC 参数，也不再在前端用 round 后结果判断“调整前后数值没有变化”；页面只做基础输入范围校验并提交用户输入值，金额取整、工资金额重算、CNY 换算、快照汇总重算和 no-op 拒绝继续由 DB/RPC `school_adjust_teacher_wage_detail(...)` 执行。复核外部授课弹窗后确认页面侧 `lesson_wage_jpy` 仅用于预览，API 不传该金额，DB/RPC 仍按 `start_time` / `end_time` 与时给计算保存金额，本次不改外部授课。未修改 DB、SQL、RPC、Edge Function 或真实业务数据。
+
 1. v10.3.39 lesson import duration DB authority repair, 2026-06-29:
    修复 P2 课时导入 preview 估算 `duration_hours` 进入导入 payload 的边界问题。导入 preview 仍可在课时为空但开始/结束时间存在时显示估算课时作为非持久化提示，但 `buildLessonImportSubmitRows(...)` 只有在原文件明确填写课时时才提交 `duration_hours`；否则提交 `null`。执行并更新 `sql/current/school_import_lesson_records_batch_rpc.sql`，由 `school_import_lesson_records_batch(...)` 在 DB/RPC 端根据合法 `start_time` / `end_time` 计算缺失课时，再按 DB 端课时与单价计算 `lesson_fee`；若课时为空且时间不足或无效，RPC 拒绝导入。Rollback 测试使用 import batch `97000000-0000-4000-8000-000000104101`，验证 `09:00-10:30 -> duration_hours 1.5 -> lesson_fee 15000`，rollback residue 为 0。白名单 commit test 使用已有 `codex-test-v10.3.35 lesson fee commit` 主数据，写入 import batch `97000000-0000-4000-8000-000000104201` / lesson `c0684d59-a37f-4810-9ab7-81c2660dc9e8`，验证 `13:15-15:00 -> duration_hours 1.75 -> lesson_fee 17500`。No real business data, Cash DB, account ledger, income, teacher wage, payment, expense, settlement, or carryover data was modified.
 

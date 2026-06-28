@@ -1020,21 +1020,13 @@ function validateAdjustWageDetailForm(detail) {
     fields.push("reason");
   }
 
-  if (!errors.length
-    && payHours === Number(detail.pay_hours || 0)
-    && Math.round(transportFeeJpy) === Number(detail.transport_fee_jpy || 0)
-    && Math.round(classroomFeeJpy) === Number(detail.classroom_fee_jpy || 0)) {
-    errors.push("调整前后数值没有变化。");
-    fields.push("payHours", "transportFeeJpy", "classroomFeeJpy");
-  }
-
   return {
     errors,
     fields,
     values: {
       payHours,
-      transportFeeJpy: Math.round(transportFeeJpy),
-      classroomFeeJpy: Math.round(classroomFeeJpy),
+      transportFeeJpy,
+      classroomFeeJpy,
       reason,
     },
   };
