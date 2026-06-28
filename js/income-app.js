@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomePage } from "./pages/income-page.js?v=v2.122.0-month-filter-url-preserve-20260616";
+import { initIncomePage } from "./pages/income-page.js?v=v10.3.36-income-cash-backend-amount";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

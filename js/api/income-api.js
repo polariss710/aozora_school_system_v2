@@ -179,10 +179,11 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
       body: {
         income_record_id: incomeRecordId,
         cash_account_id: payload.cashAccountId,
-        actual_received_amount: payload.actualReceivedAmount,
+        actual_received_amount: payload.actualReceivedAmount ?? null,
         actual_received_currency: payload.actualReceivedCurrency,
         actual_received_date: payload.actualReceivedDate,
         exchange_rate: payload.exchangeRate ?? null,
+        rounding_mode: payload.roundingMode || null,
         note: payload.note || null,
       },
     }

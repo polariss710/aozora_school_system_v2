@@ -18,6 +18,7 @@ type RequestBody = {
   actual_received_amount?: number | string;
   actual_received_currency?: string;
   actual_received_date?: string;
+  rounding_mode?: string | null;
   income_category?: string;
   description?: string | null;
   currency?: string;
@@ -356,7 +357,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (existingIncomeRecordId) {
       const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
-      const actualReceivedAmount = requirePositiveNumber(
+      const actualReceivedAmount = optionalPositiveNumber(
         body.actual_received_amount,
         "actual_received_amount",
       );
@@ -364,23 +365,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         body.actual_received_currency,
       );
       const exchangeRate = optionalPositiveNumber(body.exchange_rate, "exchange_rate");
-
-      if (actualReceivedCurrency === "CNY" && exchangeRate === null) {
-        return jsonResponse(
-          { ok: false, message: "CNY actual received amount requires exchange_rate" },
-          400,
-        );
-      }
-
-      if (
-        actualReceivedCurrency === "JPY" && exchangeRate !== null &&
-        exchangeRate !== 1
-      ) {
-        return jsonResponse(
-          { ok: false, message: "JPY actual received exchange_rate must be empty or 1" },
-          400,
-        );
-      }
+      const roundingMode = optionalText(body.rounding_mode);
 
       const { data: incomeData, error: incomeError } = await schoolClient
         .from("school_income_records")
@@ -397,6 +382,39 @@ Deno.serve(async (request: Request): Promise<Response> => {
           },
           404,
         );
+      }
+
+      const incomeCurrency = requireCurrency(
+        (incomeData as { currency?: string }).currency,
+      );
+
+      if (actualReceivedCurrency !== incomeCurrency && exchangeRate === null) {
+        return jsonResponse(
+          { ok: false, message: "Cross-currency actual received amount requires exchange_rate" },
+          400,
+        );
+      }
+
+      if (
+        actualReceivedCurrency === incomeCurrency && exchangeRate !== null &&
+        exchangeRate !== 1
+      ) {
+        return jsonResponse(
+          { ok: false, message: "Same-currency actual received exchange_rate must be empty or 1" },
+          400,
+        );
+      }
+
+      if (actualReceivedAmount === null && actualReceivedCurrency !== incomeCurrency) {
+        if (!["round", "ceil", "floor"].includes(roundingMode ?? "")) {
+          return jsonResponse(
+            {
+              ok: false,
+              message: "Backend-calculated cross-currency amount requires rounding_mode",
+            },
+            400,
+          );
+        }
       }
 
       const eligibleAccounts = await listEligibleAccounts(cashClient);
@@ -432,8 +450,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
           p_cash_account_type_snapshot: cashAccount.account_type ?? null,
           p_payment_amount: actualReceivedAmount,
           p_payment_currency: actualReceivedCurrency,
-          p_exchange_rate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
+          p_exchange_rate: actualReceivedCurrency === incomeCurrency ? 1 : exchangeRate,
           p_note: optionalText(body.note),
+          p_payment_rounding_mode: actualReceivedAmount === null ? roundingMode : null,
         });
 
       if (schoolRequestError) {
@@ -483,6 +502,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
           settlement_month: settlementMonth,
           amount: schoolRequest.amount,
           currency: schoolRequest.currency,
+          actual_received_amount: schoolRequest.payment_amount,
+          actual_received_currency: schoolRequest.payment_currency,
           description: optionalText((incomeData as { source_label?: string | null }).source_label) ??
             optionalText((incomeData as { description?: string | null }).description),
         },
