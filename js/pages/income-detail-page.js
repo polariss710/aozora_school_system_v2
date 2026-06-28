@@ -138,7 +138,6 @@ function cacheDom() {
   dom.cashIncomeActualAmountInput = document.querySelector("#cashIncomeActualAmountInput");
   dom.cashIncomeActualDateInput = document.querySelector("#cashIncomeActualDateInput");
   dom.cashIncomeActualCurrencySelect = document.querySelector("#cashIncomeActualCurrencySelect");
-  dom.cashIncomeExchangeRateInput = document.querySelector("#cashIncomeExchangeRateInput");
   dom.cashIncomeAccountSelect = document.querySelector("#cashIncomeAccountSelect");
   dom.cashIncomeNoteInput = document.querySelector("#cashIncomeNoteInput");
   dom.cashIncomeRequestPreview = document.querySelector("#cashIncomeRequestPreview");
@@ -190,7 +189,6 @@ function bindEvents() {
     dom.cashIncomeActualAmountInput,
     dom.cashIncomeActualDateInput,
     dom.cashIncomeActualCurrencySelect,
-    dom.cashIncomeExchangeRateInput,
     dom.cashIncomeAccountSelect,
     dom.cashIncomeNoteInput,
   ]) {
@@ -200,7 +198,7 @@ function bindEvents() {
       if (input === dom.cashIncomeActualCurrencySelect) {
         renderCashIncomeAccountOptions();
       }
-      updateCashIncomeRequestPreview({ inferExchangeRate: input !== dom.cashIncomeExchangeRateInput });
+      updateCashIncomeRequestPreview();
     });
   }
   dom.editCancelButton.addEventListener("click", closeEditDialog);
@@ -638,7 +636,6 @@ async function openCashIncomeRequestDialog() {
   dom.cashIncomeActualAmountInput.value = "";
   dom.cashIncomeActualDateInput.value = currentJapanDate();
   dom.cashIncomeActualCurrencySelect.value = income.source_type === "part_time_work" ? "CNY" : income.currency || "JPY";
-  dom.cashIncomeExchangeRateInput.value = "";
   dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
   renderCashIncomeAccountOptions();
   updateCashIncomeRequestPreview();
@@ -755,20 +752,14 @@ function readCashIncomeRequestPayload() {
     return null;
   }
 
-  const exchangeRate = calculatedCashIncomeExchangeRate(income, actualReceivedAmount, actualReceivedCurrency);
-  if (actualReceivedCurrency === "CNY" && (!Number.isFinite(exchangeRate) || exchangeRate <= 0)) {
-    showCashIncomeRequestError("CNY 实际到账必须能根据 School JPY 原始金额计算参考汇率。", ["exchangeRate"]);
-    return null;
-  }
-
   return {
     incomeRecordId: income.id,
     cashAccountId,
     actualReceivedAmount,
     actualReceivedDate,
     actualReceivedCurrency,
-    exchangeRate: actualReceivedCurrency === "JPY" ? 1 : exchangeRate,
-    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, exchangeRate, actualReceivedDate),
+    exchangeRate: null,
+    note: buildCashIncomeRequestNote(income, actualReceivedAmount, actualReceivedCurrency, actualReceivedDate),
   };
 }
 
@@ -782,8 +773,6 @@ function updateCashIncomeRequestPreview() {
   const amount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
   const receivedDate = dom.cashIncomeActualDateInput.value;
   const currency = dom.cashIncomeActualCurrencySelect.value;
-  const exchangeRate = calculatedCashIncomeExchangeRate(income, amount, currency);
-  dom.cashIncomeExchangeRateInput.value = Number.isFinite(exchangeRate) ? String(exchangeRate) : "";
 
   if (!Number.isFinite(amount) || amount <= 0) {
     dom.cashIncomeRequestPreview.textContent = `Cash 请求预览：School 原始金额 ${formatCurrency(income.amount, income.currency)} / 实际到账 -`;
@@ -796,21 +785,8 @@ function updateCashIncomeRequestPreview() {
     `School 原始金额 ${formatCurrency(income.amount, income.currency)}`,
     receivedDate ? `实际到账日 ${receivedDate}` : "",
     `实际到账 ${formatCurrency(amount, currency)}`,
-    Number.isFinite(exchangeRate) ? `参考汇率 ${exchangeRate}` : "",
+    currency !== income.currency ? "参考汇率提交后由系统计算" : "",
   ].filter(Boolean).join(" / ");
-}
-
-function calculatedCashIncomeExchangeRate(income, actualAmount, actualCurrency) {
-  if (actualCurrency === "JPY") {
-    return 1;
-  }
-
-  const originalJpy = Number(income.amount_jpy || (income.currency === "JPY" ? income.amount : 0));
-  if (!Number.isFinite(actualAmount) || actualAmount <= 0 || !Number.isFinite(originalJpy) || originalJpy <= 0) {
-    return NaN;
-  }
-
-  return roundDecimal(actualAmount / originalJpy, 7);
 }
 
 function defaultCashIncomeNote(income) {
@@ -820,9 +796,9 @@ function defaultCashIncomeNote(income) {
   return income.note || income.description || incomeCategoryLabel(income.income_category);
 }
 
-function buildCashIncomeRequestNote(income, amount, currency, exchangeRate, receivedDate) {
+function buildCashIncomeRequestNote(income, amount, currency, receivedDate) {
   const base = dom.cashIncomeNoteInput.value.trim();
-  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，实际到账日${receivedDate}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}${exchangeRate ? `，参考汇率${exchangeRate}` : ""}`;
+  const requiredText = `${income.source_label || income.description || incomeCategoryLabel(income.income_category)}，实际到账日${receivedDate}，School原始金额${formatCurrency(income.amount, income.currency)}，实际到账${formatCurrency(amount, currency)}`;
   if (!base) {
     return requiredText;
   }
@@ -1805,11 +1781,6 @@ function currentDate() {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function roundDecimal(value, digits) {
-  const factor = 10 ** digits;
-  return Math.round(Number(value) * factor) / factor;
 }
 
 function displayValue(value) {

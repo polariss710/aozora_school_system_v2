@@ -388,9 +388,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
         (incomeData as { currency?: string }).currency,
       );
 
-      if (actualReceivedCurrency !== incomeCurrency && exchangeRate === null) {
+      if (
+        actualReceivedCurrency !== incomeCurrency &&
+        actualReceivedAmount === null &&
+        exchangeRate === null
+      ) {
         return jsonResponse(
-          { ok: false, message: "Cross-currency actual received amount requires exchange_rate" },
+          { ok: false, message: "Backend-calculated cross-currency amount requires exchange_rate" },
           400,
         );
       }

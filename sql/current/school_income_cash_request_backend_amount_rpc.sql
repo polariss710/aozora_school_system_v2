@@ -11,6 +11,7 @@ drop function if exists public.school_request_cash_income_confirmation_for_recor
   numeric,
   text,
   numeric,
+  text,
   text
 );
 
@@ -65,6 +66,7 @@ declare
   v_note text := nullif(trim(coalesce(p_note, '')), '');
   v_rounding_mode text := lower(trim(coalesce(p_payment_rounding_mode, '')));
   v_payment_amount numeric := p_payment_amount;
+  v_payment_exchange_rate numeric;
   v_computed_amount numeric;
   v_now timestamptz := now();
 begin
@@ -111,26 +113,44 @@ begin
     raise exception 'School income original currency must be JPY or CNY.';
   end if;
 
-  if v_income.currency <> v_payment_currency and (p_exchange_rate is null or p_exchange_rate <= 0) then
-    raise exception '跨币种实际到账必须填写本次汇率。';
-  end if;
-
   if v_income.currency = v_payment_currency then
     if p_exchange_rate is not null and p_exchange_rate <> 1 then
       raise exception '同币种实际到账汇率应为空或 1。';
     end if;
 
+    v_payment_exchange_rate := coalesce(p_exchange_rate, 1);
+
     if v_payment_amount is null then
       v_payment_amount := v_income.amount;
     end if;
-  elsif v_payment_amount is null then
+  else
+    if v_payment_amount is null and (p_exchange_rate is null or p_exchange_rate <= 0) then
+      raise exception '后端计算跨币种实际到账金额时必须填写本次汇率。';
+    end if;
+
+    if p_exchange_rate is not null then
+      v_payment_exchange_rate := p_exchange_rate;
+    elsif v_payment_amount is not null and v_payment_amount > 0 and v_income.amount > 0 then
+      v_payment_exchange_rate := case
+        when v_income.currency = 'JPY' and v_payment_currency = 'CNY' then round((v_payment_amount / v_income.amount) * 10000000) / 10000000
+        when v_income.currency = 'CNY' and v_payment_currency = 'JPY' then round((v_income.amount / v_payment_amount) * 10000000) / 10000000
+        else null
+      end;
+    end if;
+
+    if v_payment_exchange_rate is null or v_payment_exchange_rate <= 0 then
+      raise exception '跨币种实际到账汇率计算失败。';
+    end if;
+  end if;
+
+  if v_income.currency <> v_payment_currency and v_payment_amount is null then
     if v_rounding_mode not in ('round', 'ceil', 'floor') then
       raise exception '后端计算实际到账金额时必须指定取整方式。';
     end if;
 
     v_computed_amount := case
-      when v_income.currency = 'JPY' and v_payment_currency = 'CNY' then v_income.amount * p_exchange_rate
-      when v_income.currency = 'CNY' and v_payment_currency = 'JPY' then v_income.amount / p_exchange_rate
+      when v_income.currency = 'JPY' and v_payment_currency = 'CNY' then v_income.amount * v_payment_exchange_rate
+      when v_income.currency = 'CNY' and v_payment_currency = 'JPY' then v_income.amount / v_payment_exchange_rate
       else null
     end;
 
@@ -178,6 +198,7 @@ begin
        or v_existing.currency is distinct from v_income.currency
        or v_existing.amount is distinct from v_income.amount
        or v_existing.payment_currency is distinct from v_payment_currency
+       or v_existing.payment_exchange_rate is distinct from v_payment_exchange_rate
        or v_existing.payment_amount is distinct from v_payment_amount then
       raise exception 'existing Cash income linkage event conflicts with requested snapshot: %', v_existing.id;
     end if;
@@ -250,7 +271,7 @@ begin
       v_income.currency,
       v_income.amount,
       v_payment_currency,
-      case when v_income.currency = v_payment_currency then coalesce(p_exchange_rate, 1) else p_exchange_rate end,
+      v_payment_exchange_rate,
       v_payment_amount,
       v_idempotency_key,
       'pending_cash_request',
@@ -336,4 +357,4 @@ comment on function public.school_request_cash_income_confirmation_for_record(
   text,
   text
 ) is
-  'Creates/reuses a Cash income linkage event for an existing pending school_income_records row. If payment_amount is null, DB/RPC computes it from the income amount, payment currency, exchange rate, and rounding mode.';
+  'Creates/reuses a Cash income linkage event for an existing pending school_income_records row. DB/RPC computes payment amount from exchange rate or derives payment exchange rate from an explicit payment amount.';

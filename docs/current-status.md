@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-28
+Status date: 2026-06-29
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.41 income detail Cash rate DB authority repair, 2026-06-29:
+   修复 P2 收入详情页单条 Cash 确认请求的前端汇率反推残留。`income-detail-page.js` 不再根据 School 原始金额和实际到账金额计算 `exchangeRate`，详情页 Cash 确认弹窗也不再显示前端计算的参考汇率；跨币种且用户明确填写实际到账金额时，页面提交 `exchangeRate: null`，由 `school_request_cash_income_confirmation_for_record(...)` 在 DB/RPC 端根据 `payment_amount / amount` 反推 `payment_exchange_rate`。`request-cash-income-confirmation` Edge Function 已更新并部署，允许“跨币种 + 显式实际到账金额 + exchange_rate 为空”的 income-detail 路径，并继续在需要后端计算实际到账金额时要求汇率和取整方式。执行并更新 `sql/current/school_income_cash_request_backend_amount_rpc.sql`。Rollback 测试使用临时收入 `97000000-0000-4000-8000-000000104301`，验证 `86760 JPY` 显式到账 `3670 CNY` 时 RPC 反推 `payment_exchange_rate = 0.0423006`，rollback residue 为 0。白名单 commit test 仅写入 `codex-test-v10.3.41` 测试数据：income `97000000-0000-4000-8000-000000104321`、linkage event `bfe28878-be8b-473a-ae44-7250354e0ac6`，状态 `pending_cash_request`，无 Cash request / Cash transaction。No real business data, Cash DB, account ledger, teacher wage, payment, expense, settlement, or carryover data was modified.
 
 1. v10.3.40 wage adjustment frontend calculation cleanup, 2026-06-29:
    修复 P2 老师工资调整弹窗的前端业务计算残留。`wage-detail-page.js` 不再用 `Math.round(...)` 处理交通费 / 教室费后作为 `school_adjust_teacher_wage_detail(...)` 写 RPC 参数，也不再在前端用 round 后结果判断“调整前后数值没有变化”；页面只做基础输入范围校验并提交用户输入值，金额取整、工资金额重算、CNY 换算、快照汇总重算和 no-op 拒绝继续由 DB/RPC `school_adjust_teacher_wage_detail(...)` 执行。复核外部授课弹窗后确认页面侧 `lesson_wage_jpy` 仅用于预览，API 不传该金额，DB/RPC 仍按 `start_time` / `end_time` 与时给计算保存金额，本次不改外部授课。未修改 DB、SQL、RPC、Edge Function 或真实业务数据。
