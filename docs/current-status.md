@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.34-41 whitelist test data cleanup, 2026-06-29:
+   已定向清除本轮 P0-P2 / v10.3.34-41 修复期间保留的 School DB 白名单测试数据。清除前只读盘点确认目标残留为：business entities 4、students 2、teacher 1、subject 1、lesson records 6、student settlement adjustment draft 1、income records 3、income Cash linkage events 2、expense record 1；依赖检查确认无 account transactions、student payments、student months、formal student settlements、teacher wage rules、expense attachments、reimbursement refs 或 import batch 残留引用。Rollback 清除测试通过后，commit 清除仅按固定 UUID 删除目标 codex-test 数据；最终固定 UUID 复核和 `codex-test[- ]v10.3.(34|35|36|37|39|41)` 标记扫尾均为 0。No real business data, Cash DB, account ledger, income/expense historical repair, teacher wage, payment, settlement, or carryover data was modified.
+
 1. v10.3.41 income detail Cash rate DB authority repair, 2026-06-29:
    修复 P2 收入详情页单条 Cash 确认请求的前端汇率反推残留。`income-detail-page.js` 不再根据 School 原始金额和实际到账金额计算 `exchangeRate`，详情页 Cash 确认弹窗也不再显示前端计算的参考汇率；跨币种且用户明确填写实际到账金额时，页面提交 `exchangeRate: null`，由 `school_request_cash_income_confirmation_for_record(...)` 在 DB/RPC 端根据 `payment_amount / amount` 反推 `payment_exchange_rate`。`request-cash-income-confirmation` Edge Function 已更新并部署，允许“跨币种 + 显式实际到账金额 + exchange_rate 为空”的 income-detail 路径，并继续在需要后端计算实际到账金额时要求汇率和取整方式。执行并更新 `sql/current/school_income_cash_request_backend_amount_rpc.sql`。Rollback 测试使用临时收入 `97000000-0000-4000-8000-000000104301`，验证 `86760 JPY` 显式到账 `3670 CNY` 时 RPC 反推 `payment_exchange_rate = 0.0423006`，rollback residue 为 0。白名单 commit test 仅写入 `codex-test-v10.3.41` 测试数据：income `97000000-0000-4000-8000-000000104321`、linkage event `bfe28878-be8b-473a-ae44-7250354e0ac6`，状态 `pending_cash_request`，无 Cash request / Cash transaction。No real business data, Cash DB, account ledger, teacher wage, payment, expense, settlement, or carryover data was modified.
 
