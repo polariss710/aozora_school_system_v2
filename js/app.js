@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js?v=v2.112.0-cash-retry-attempts-20260614";
-import { initPaymentPage } from "./pages/payment-page.js?v=v2.112.0-cash-retry-attempts-20260614";
+import { initPaymentPage } from "./pages/payment-page.js?v=v10.3.38-payment-legacy-cash-cleanup";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

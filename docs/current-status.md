@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.38 legacy payment Cash frontend cleanup, 2026-06-29:
+   修复 P2 legacy 老师工资支付页的前端业务计算残留。`index.html` / `js/pages/payment-page.js` 已在业务上降级为 legacy 只读，`teacher_wage` payment request 行不会提供 Cash 提交、直接确认、撤销、取消、恢复或重新生成操作；本次进一步删除不可达的 Cash 确认模式代码、Cash eligible account 读取、前端 `paymentAmount` / `exchangeRate` 构造、`schoolAmountJpy * exchangeRate` 换算、Cash 实付预览字段和 `request-cash-confirmation` 前端调用入口，避免旧模块未来误开入口时重新违反 frontend business-calculation boundary。未修改 DB、SQL、RPC、Edge Function 或真实业务数据；新老师工资支付仍从 `school_expense_records` / 支出记录 Cash 确认链路处理。
+
 1. v10.3.37 expense Cash request backend amount repair, 2026-06-28:
    修复 P1 支出批量提交 Cash 确认的金额写入边界。支出页保留汇率获取、理论金额和取整按钮作为非持久化预览，但自动取整不再把前端计算结果作为 `actual_payment_amount` 提交；页面现在区分 DB 原始金额、用户手动输入金额和提交规则预览。用户手动输入仍作为显式金额提交；未手动修改的同币种请求提交 `null`，由 DB/RPC 使用 School 原始支出金额；跨币种点击取整时提交 `null + rounding_mode + exchange_rate`，由 `school_request_cash_expense_payment_confirmation(...)` 在 DB/RPC 端按 School 原始金额、支付币种、汇率和取整方式计算 `cash_payment_amount`。新增并执行 `sql/current/school_expense_cash_request_backend_amount_rpc.sql`，替换支出 Cash 请求 RPC 并删除旧 8 参数 overload；`request-cash-expense-confirmation` Edge Function 已部署，使用 RPC 返回的 `payment_amount` 创建 Cash pending request。Rollback 测试使用 `codex-test-v10.3.37-expense-cash rollback` 临时数据，验证跨币种 round `86760 JPY * 0.0423 -> 3670 CNY`、同币种 null 使用原金额 `12345 JPY`、手动金额 `211 CNY` 原样保存，rollback residue 全为 0。白名单 commit test 仅写入 `codex-test-v10.3.37-expense-cash commit` 测试数据：business entity `97000000-0000-4000-8000-000000104001`、expense `97000000-0000-4000-8000-000000104021`、cash request event `94a87451-b285-4491-bf88-7fca52f5d7d4`; School 原始金额 `86760 JPY`，expense `cash_payment_amount = 3670 CNY`，无 Cash request / Cash transaction。No real business data, Cash DB, account ledger, income, teacher wage, payment, settlement, or carryover data was modified.
 
