@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.45 planned lesson batch existing-record duplicate guard, 2026-06-29:
+   修复课时管理页“批量生成预定课时”跨批次重复生成缺口。此前前端/RPC 只阻止同一次生成请求内部的重复规则或展开重复行；如果用户先生成一批、关闭弹窗、再用相同规则生成第二批，目标表中会出现两批完全相同的 planned 课时。本次在 DB/RPC `school_generate_planned_lessons_batch(...)` 插入前新增 against `school_lesson_records` 的目标表重复检查，同一学生、业务归属、周一归属日期、planned 状态、老师、科目、时间/课时、单价、回数和内容已存在且非 voided 时，整批返回错误并不写入。执行 SQL `sql/current/school_generate_planned_lessons_batch_rpc.sql`。Rollback 测试 generation `97000000-0000-4000-8000-000000104643` 使用既有 v10.3.44 白名单课时验证第二批完全相同数据被拒绝且 inserted_count 为 0；白名单 commit test 写入非重复 planned lesson `db4d1e90-7ae5-4836-b3d3-1a216579e2c3` / generation `97000000-0000-4000-8000-000000104661`，证明正常生成路径仍可用。No real business data, Cash DB, settlement, wage, income, expense, account transaction, or Cash request was modified.
+
 1. v10.3.44 planned lesson batch week-Monday dates and counts, 2026-06-29:
    修复课时管理页“批量生成预定课时”的预览/落库日期和同周多次区分语义。批量生成规则现在区分 `次数` 与 `回数`：`次数` 表示同一条规则在每个匹配周内生成几条课时；`回数` 写入 `school_lesson_records.lesson_count`，当 `次数 > 1` 时从起始回数递增，用于同一周内 2 次以上课程的区分。预览与 DB/RPC `school_generate_planned_lessons_batch(...)` 现在统一使用课程所在周的周一作为 `lesson_date` / `year_month` 归属依据，同时保留规则的 `周几` 作为页面提示。执行 SQL `sql/current/school_generate_planned_lessons_batch_rpc.sql`。Rollback 测试 generation `97000000-0000-4000-8000-000000104601` 验证周五规则 `2027-03-05` 生成周一日期 `2027-03-01`、`次数=2` 生成回数 1/2、DB/RPC 计算 `lesson_fee = 18000`，rollback residue 为 0。白名单 commit test 写入 planned lessons `f9596005-02ef-4db0-8bda-4d6f68eca735` / `ac87953c-e64a-479f-b488-bc80ccc296fb`，generation `97000000-0000-4000-8000-000000104621`，仅使用既有 `codex-test-v10.3.42` 主数据；no real business data, Cash DB, settlement, wage, income, expense, account transaction, or Cash request was modified.
 

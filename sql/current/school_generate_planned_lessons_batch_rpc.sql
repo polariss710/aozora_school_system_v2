@@ -520,6 +520,28 @@ begin
       and d.note is not distinct from r.note
   );
 
+  update planned_lesson_generation_rows r
+  set errors = r.errors || array['目标课时已存在，不能重复生成同一条预定课时。']
+  where exists (
+    select 1
+    from public.school_lesson_records l
+    where l.app_type = 'school'
+      and l.lesson_type = 'planned'
+      and coalesce(l.status, '') <> 'voided'
+      and l.student_id = p_student_id
+      and l.business_entity_id is not distinct from p_business_entity_id
+      and l.lesson_date is not distinct from r.lesson_date
+      and l.status is not distinct from r.status
+      and l.teacher_id is not distinct from r.teacher_id
+      and l.subject_id is not distinct from r.subject_id
+      and l.start_time::text is not distinct from r.start_time
+      and l.end_time::text is not distinct from r.end_time
+      and l.duration_hours is not distinct from r.duration_hours
+      and l.unit_price is not distinct from r.unit_price
+      and l.lesson_count is not distinct from r.lesson_count
+      and nullif(trim(coalesce(l.lesson_content, '')), '') is not distinct from r.lesson_content
+  );
+
   select exists (
     select 1
     from planned_lesson_generation_rows r
