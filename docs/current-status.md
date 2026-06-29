@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.42-45 planned lesson batch whitelist cleanup, 2026-06-29:
+   已按固定 UUID 定向清除“批量生成预定课时”功能 v10.3.42-45 修复期间保留的 School DB 白名单测试数据。清除前只读盘点确认目标为 6 条 planned lesson records，且无 linked actual、teacher wage detail、student settlement、teacher wage lock、wage rule、income、expense、account 或 account transaction 引用；关联测试主数据仅被这 6 条目标课时引用。Rollback 删除演练通过后，正式删除 lesson records `becf622a-e0ab-49dc-8e04-d3ea693289bf` / `8da047df-cd63-4398-9eb6-ef9538eca900` / `d31bd5ac-8a59-45aa-827c-a03fbb535bfa` / `f9596005-02ef-4db0-8bda-4d6f68eca735` / `ac87953c-e64a-479f-b488-bc80ccc296fb` / `db4d1e90-7ae5-4836-b3d3-1a216579e2c3`，并删除 master data business entity `97000000-0000-4000-8000-000000104401`、student `97000000-0000-4000-8000-000000104421`、teacher `97000000-0000-4000-8000-000000104441`、subject `97000000-0000-4000-8000-000000104461`。最终固定 UUID、import batch、codex 文本标记和 broad reference 复核均为 0。No real business data, Cash DB, settlement, wage, income, expense, account transaction, or Cash request was modified.
+
 1. v10.3.45 planned lesson batch existing-record duplicate guard, 2026-06-29:
    修复课时管理页“批量生成预定课时”跨批次重复生成缺口。此前前端/RPC 只阻止同一次生成请求内部的重复规则或展开重复行；如果用户先生成一批、关闭弹窗、再用相同规则生成第二批，目标表中会出现两批完全相同的 planned 课时。本次在 DB/RPC `school_generate_planned_lessons_batch(...)` 插入前新增 against `school_lesson_records` 的目标表重复检查，同一学生、业务归属、周一归属日期、planned 状态、老师、科目、时间/课时、单价、回数和内容已存在且非 voided 时，整批返回错误并不写入。执行 SQL `sql/current/school_generate_planned_lessons_batch_rpc.sql`。Rollback 测试 generation `97000000-0000-4000-8000-000000104643` 使用既有 v10.3.44 白名单课时验证第二批完全相同数据被拒绝且 inserted_count 为 0；白名单 commit test 写入非重复 planned lesson `db4d1e90-7ae5-4836-b3d3-1a216579e2c3` / generation `97000000-0000-4000-8000-000000104661`，证明正常生成路径仍可用。No real business data, Cash DB, settlement, wage, income, expense, account transaction, or Cash request was modified.
 
