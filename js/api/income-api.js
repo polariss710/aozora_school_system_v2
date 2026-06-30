@@ -131,6 +131,46 @@ export async function createPendingCashIncomeRecord(payload) {
   return result;
 }
 
+export async function generateStudentTuitionBill(payload) {
+  const { data, error } = await supabase.rpc("school_generate_student_tuition_bill", {
+    p_student_id: payload.studentId,
+    p_billing_month: payload.billingMonth,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.tuition_bill_id) {
+    throw new Error("学费应收生成成功，但 RPC 没有返回应收单 ID。");
+  }
+
+  return result;
+}
+
+export async function createStudentTuitionBillIncomeRecord(payload) {
+  const tuitionBillId = requireUuid(payload.tuitionBillId, "tuition_bill_id");
+
+  const { data, error } = await supabase.rpc("school_create_student_tuition_bill_income_record", {
+    p_tuition_bill_id: tuitionBillId,
+    p_income_date: payload.incomeDate,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.income_id) {
+    throw new Error("学费收入请求生成成功，但 RPC 没有返回收入 ID。");
+  }
+
+  return result;
+}
+
 export async function createCashSystemIncome(payload) {
   const { data, error } = await supabase.functions.invoke(
     "request-cash-income-confirmation",

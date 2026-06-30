@@ -3,7 +3,7 @@ export const SUPABASE_CONFIG = {
   anonKey: "sb_publishable_6c7EFHXfq256rvv8KvY0Yw_FrAZtb6x",
 };
 
-export const APP_VERSION = "v10.3.32";
+export const APP_VERSION = "v10.3.47";
 
 export const PAYMENT_MONTH_FILTER_YEAR_RANGE = {
   start: 2024,

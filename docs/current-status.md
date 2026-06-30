@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-29
+Status date: 2026-06-30
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.47 student tuition bill request chain, 2026-06-30:
+   补齐学生月度学费生成主链路。新增并执行 `sql/current/school_student_tuition_bills_schema.sql`，创建 `school_student_tuition_bills` 应收快照表，用于冻结 DB/RPC 权威生成的 JPY 预定课时费和上月 CNY 结转；新增并执行 `sql/current/school_student_tuition_bills_rpcs.sql`，提供 `school_generate_student_tuition_bill(...)` 从正式 planned 课时生成/重算草稿应收、`school_create_student_tuition_bill_income_record(...)` 从应收生成一条 pending `school_income_records`，并替换 `school_request_cash_income_confirmation_for_record(...)`：当收入来源为 `student_tuition_bill` 且提交 CNY Cash 确认时，DB/RPC 用 `JPY应收 * 本次汇率 + 冻结CNY结转` 后再按取整规则计算实际到账金额；手动实际到账金额仍视为用户显式输入。收入页新增“生成学费应收”入口，只传学生、月份、请求日期和备注，不传应收金额；Cash 批量提交弹窗对学费应收默认 CNY 到账并显示非持久化理论金额预览，提交保存值仍由 DB/RPC 或用户显式输入决定。Rollback 测试使用 2099-02 白名单数据验证 JPY 应收 `120000`、CNY 结转 `321.45`、CNY Cash 后端取整金额 `6321`，rollback residue 为 0。白名单 commit test 写入 `codex-test-v10.3.47` 数据：business entity `97000000-0000-4000-8000-000000103491`、student `97000000-0000-4000-8000-000000103492`、teacher `97000000-0000-4000-8000-000000103493`、subject `97000000-0000-4000-8000-000000103494`、previous settlement `97000000-0000-4000-8000-000000103495`、planned lesson `97000000-0000-4000-8000-000000103496`、tuition bill `3f1c4213-2905-4d40-bb6a-5dcc3efbd29d`、pending income `0d67832b-9604-4c84-a103-10d5cd1307af`、School Cash linkage event `109943b8-b31e-4e4c-b708-38c804411b74`，payment amount `4623 CNY`。No Cash DB, Cash request, Cash transaction, School account transaction, account balance, real student/lesson/settlement, teacher wage, expense, or historical data was modified.
 
 1. v10.3.46 external part-time locked lesson write guard, 2026-06-29:
    修复外部授课结算锁定后的课时写入缺口。此前 `school_update_part_time_work_lesson(...)` / `school_delete_part_time_work_lesson(...)` 只保护已经进入锁定快照的 actual lesson，但 `school_generate_part_time_work_actual_from_planned(...)` 可在同一 `year_month + workplace_name` 已锁定后继续生成新的 actual lesson，导致原始课时表与锁定结算快照偏离。本次新增并执行 `sql/current/school_part_time_work_locked_lesson_write_guard.sql`，在 `school_part_time_work_lessons` 表上安装 `before insert/update/delete` trigger：只要对应月份/机构存在 `locked` 或 `income_request_created` 月度结算，即禁止 planned/actual 课时新增、编辑、软删除或物理删除；追加临时课必须先撤销锁定，再写课时，再重新锁定/生成收入记录。Rollback 测试使用 `2099-01 / 新领域` 白名单数据验证 locked 状态下 create planned、generate actual、update、delete 均被拒绝；commit 测试同样验证后在事务内清理测试行并提交；正向 rollback 测试验证无锁定结算时 planned/actual 仍可正常生成。最终 `codex-test-v10.3.46` 2099 测试残留为 0。No Cash DB, account ledger, income, expense, teacher wage, student settlement, or real lesson data was modified by tests.

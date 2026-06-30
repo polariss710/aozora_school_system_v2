@@ -4,8 +4,10 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createIncomeRecord,
   createPendingCashIncomeRecord,
+  createStudentTuitionBillIncomeRecord,
   fetchIncomeLookups,
   fetchIncomeRecords,
+  generateStudentTuitionBill,
   requestCashIncomeConfirmationForRecord,
 } from "../api/income-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
@@ -87,6 +89,7 @@ let isCreateSubmitting = false;
 let batchCashIncomeRows = [];
 let isBatchCashSubmitting = false;
 let initialMonth = "";
+let isTuitionBillSubmitting = false;
 
 export function initIncomePage() {
   cacheDom();
@@ -124,6 +127,7 @@ function cacheDom() {
   dom.emptyState = document.querySelector("#incomeEmptyState");
   dom.incomeCount = document.querySelector("#incomeCount");
   dom.openCreateIncomeButton = document.querySelector("#openCreateIncomeButton");
+  dom.openGenerateTuitionBillButton = document.querySelector("#openGenerateTuitionBillButton");
   dom.openBatchCashIncomeButton = document.querySelector("#openBatchCashIncomeButton");
   dom.selectAllCashRequests = document.querySelector("#incomeSelectAllCashRequests");
   dom.batchCashIncomeDialog = document.querySelector("#batchCashIncomeDialog");
@@ -153,6 +157,14 @@ function cacheDom() {
   dom.createIncomeNoteInput = document.querySelector("#createIncomeNoteInput");
   dom.createIncomeSubmitButton = document.querySelector("#createIncomeSubmitButton");
   dom.createIncomeCancelButton = document.querySelector("#createIncomeCancelButton");
+  dom.generateTuitionBillDialog = document.querySelector("#generateTuitionBillDialog");
+  dom.generateTuitionBillError = document.querySelector("#generateTuitionBillError");
+  dom.tuitionBillIncomeDateInput = document.querySelector("#tuitionBillIncomeDateInput");
+  dom.tuitionBillMonthInput = document.querySelector("#tuitionBillMonthInput");
+  dom.tuitionBillStudentSelect = document.querySelector("#tuitionBillStudentSelect");
+  dom.tuitionBillNoteInput = document.querySelector("#tuitionBillNoteInput");
+  dom.generateTuitionBillCancelButton = document.querySelector("#generateTuitionBillCancelButton");
+  dom.generateTuitionBillSubmitButton = document.querySelector("#generateTuitionBillSubmitButton");
 }
 
 function bindEvents() {
@@ -169,6 +181,7 @@ function bindEvents() {
   });
 
   dom.openCreateIncomeButton.addEventListener("click", openCreateIncomeDialog);
+  dom.openGenerateTuitionBillButton.addEventListener("click", openGenerateTuitionBillDialog);
   dom.openBatchCashIncomeButton.addEventListener("click", () => {
     openBatchCashIncomeDialog(selectedIncomeRows());
   });
@@ -182,6 +195,11 @@ function bindEvents() {
   dom.batchCashIncomeTableBody.addEventListener("click", handleBatchCashIncomeClick);
   dom.createIncomeCancelButton.addEventListener("click", closeCreateIncomeDialog);
   dom.createIncomeSubmitButton.addEventListener("click", submitCreateIncome);
+  dom.generateTuitionBillCancelButton.addEventListener("click", closeGenerateTuitionBillDialog);
+  dom.generateTuitionBillSubmitButton.addEventListener("click", submitGenerateTuitionBill);
+  dom.tuitionBillStudentSelect.addEventListener("change", () => clearTuitionBillFieldInvalid("student"));
+  dom.tuitionBillMonthInput.addEventListener("change", () => clearTuitionBillFieldInvalid("billingMonth"));
+  dom.tuitionBillIncomeDateInput.addEventListener("change", () => clearTuitionBillFieldInvalid("incomeDate"));
   dom.createIncomeModeSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("createMode");
     hideCreateErrorIfClean();
@@ -605,9 +623,9 @@ async function openBatchCashIncomeDialog(rows) {
 
   batchCashIncomeRows = targets.map((income) => ({
     income,
-    amount: income.amount ?? "",
+    amount: defaultBatchCashIncomeAmount(income),
     amountSource: "db",
-    currency: income.currency || "JPY",
+    currency: defaultBatchCashIncomeCurrency(income),
     receivedDate: currentJapanDate(),
     accountId: "",
     note: defaultCashIncomeNote(income),
@@ -998,8 +1016,9 @@ function updateBatchCashIncomeDerivedValue(state) {
     return;
   }
 
+  const carryoverCny = studentTuitionBillCarryoverCny(state.income);
   state.theoreticalAmount = state.currency === "CNY"
-    ? formatDecimal(sourceAmount * rate, 2)
+    ? formatDecimal(sourceAmount * rate + carryoverCny, 2)
     : formatDecimal(sourceAmount / rate, 0);
 }
 
@@ -1070,6 +1089,28 @@ function originalIncomeAmount(income) {
   return Number.isFinite(amount) && amount > 0 ? amount : NaN;
 }
 
+function defaultBatchCashIncomeCurrency(income) {
+  return income?.source_type === "student_tuition_bill" ? "CNY" : (income.currency || "JPY");
+}
+
+function defaultBatchCashIncomeAmount(income) {
+  return defaultBatchCashIncomeCurrency(income) === incomeOriginalCurrency(income)
+    ? income.amount ?? ""
+    : "";
+}
+
+function studentTuitionBillCarryoverCny(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return 0;
+  }
+
+  const snapshot = income.source_snapshot && typeof income.source_snapshot === "object"
+    ? income.source_snapshot
+    : {};
+  const carryover = Number(snapshot.previous_carryover_cny);
+  return Number.isFinite(carryover) ? carryover : 0;
+}
+
 function incomeOriginalCurrency(income) {
   return CASH_INCOME_CURRENCIES.includes(income?.currency) ? income.currency : "";
 }
@@ -1116,6 +1157,10 @@ function incomeRateAssistNote(state) {
   } else if (Number.isFinite(theoreticalAmount) && theoreticalAmount > 0) {
     parts.push(`理论到账 ${state.currency === "JPY" ? formatDecimal(theoreticalAmount, 0) : formatDecimal(theoreticalAmount, 2)} ${state.currency}`);
   }
+  const carryoverCny = studentTuitionBillCarryoverCny(state.income);
+  if (carryoverCny) {
+    parts.push(`含上月结转 ${formatCurrency(carryoverCny, "CNY")}`);
+  }
   if (ROUNDING_MODE_LABELS[state.roundingMode]) {
     parts.push(`取整方式 ${ROUNDING_MODE_LABELS[state.roundingMode]}`);
   }
@@ -1153,6 +1198,14 @@ function formatDecimal(value, decimals) {
 }
 
 function defaultCashIncomeNote(income) {
+  if (income.source_type === "student_tuition_bill") {
+    const carryoverCny = studentTuitionBillCarryoverCny(income);
+    return [
+      `${income.source_label || "学生学费应收"}，JPY学费${formatCurrency(income.amount_jpy || income.amount, "JPY")}`,
+      carryoverCny ? `上月结转${formatCurrency(carryoverCny, "CNY")}` : "",
+    ].filter(Boolean).join("，");
+  }
+
   if (income.source_type === "part_time_work") {
     return `${income.source_label || "外部塾打工收入"}，JPY工资总额${formatCurrency(income.amount_jpy || income.amount, "JPY")}。`;
   }
@@ -1234,6 +1287,166 @@ function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRa
     return extraNote && !base.includes("理论到账") ? `${base}；${extraNote}` : base;
   }
   return `${base}；${requiredText}`;
+}
+
+function openGenerateTuitionBillDialog() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  clearTuitionBillErrors();
+  setTuitionBillSubmitting(false);
+
+  const filters = readFilters();
+  dom.tuitionBillIncomeDateInput.value = currentDate();
+  dom.tuitionBillMonthInput.value = filters?.month || currentYearMonth();
+  dom.tuitionBillNoteInput.value = "";
+  renderTuitionBillStudentOptions(filters?.studentId || "", filters?.businessEntityId || "");
+
+  dom.generateTuitionBillDialog.classList.remove("is-hidden");
+  dom.generateTuitionBillDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeGenerateTuitionBillDialog() {
+  if (isTuitionBillSubmitting) {
+    return;
+  }
+
+  dom.generateTuitionBillDialog.classList.add("is-hidden");
+  dom.generateTuitionBillDialog.setAttribute("aria-hidden", "true");
+}
+
+async function submitGenerateTuitionBill() {
+  if (isTuitionBillSubmitting) {
+    return;
+  }
+
+  clearTuitionBillErrors();
+  const payload = readGenerateTuitionBillPayload();
+  if (!payload) {
+    return;
+  }
+
+  setTuitionBillSubmitting(true);
+  try {
+    const bill = await generateStudentTuitionBill({
+      studentId: payload.studentId,
+      billingMonth: payload.billingMonth,
+      note: payload.note,
+    });
+    const income = await createStudentTuitionBillIncomeRecord({
+      tuitionBillId: bill.tuition_bill_id,
+      incomeDate: payload.incomeDate,
+      note: payload.note,
+    });
+    setTuitionBillSubmitting(false);
+    closeGenerateTuitionBillDialog();
+    await refreshCurrentIncomeList();
+    showTuitionBillSuccess(bill, income);
+  } catch (error) {
+    console.error(error);
+    showTuitionBillError(`生成学费应收失败：${error.message || error}`, tuitionBillFieldIdsForError(error.message || ""));
+  } finally {
+    setTuitionBillSubmitting(false);
+  }
+}
+
+function readGenerateTuitionBillPayload() {
+  const incomeDate = dom.tuitionBillIncomeDateInput.value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(incomeDate || "")) {
+    showTuitionBillError("请选择请求日期。", ["incomeDate"]);
+    return null;
+  }
+
+  const billingMonth = dom.tuitionBillMonthInput.value;
+  if (!billingMonth || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(billingMonth)) {
+    showTuitionBillError("学费月份格式无效。", ["billingMonth"]);
+    return null;
+  }
+
+  const studentId = dom.tuitionBillStudentSelect.value;
+  if (!studentId) {
+    showTuitionBillError("请选择学生。", ["student"]);
+    return null;
+  }
+
+  return {
+    incomeDate,
+    billingMonth,
+    studentId,
+    note: dom.tuitionBillNoteInput.value.trim(),
+  };
+}
+
+function renderTuitionBillStudentOptions(selectedStudentId = "", businessEntityId = "") {
+  const rows = students.filter((student) => {
+    if (businessEntityId && student.business_entity_id !== businessEntityId) {
+      return false;
+    }
+    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+  });
+  dom.tuitionBillStudentSelect.innerHTML = [
+    '<option value="">请选择学生</option>',
+    ...rows.map((student) => `<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`),
+  ].join("");
+  if (rows.some((student) => student.id === selectedStudentId)) {
+    dom.tuitionBillStudentSelect.value = selectedStudentId;
+  }
+}
+
+function setTuitionBillSubmitting(isSubmitting) {
+  isTuitionBillSubmitting = isSubmitting;
+  dom.generateTuitionBillSubmitButton.disabled = isSubmitting;
+  dom.generateTuitionBillCancelButton.disabled = isSubmitting;
+  dom.generateTuitionBillSubmitButton.textContent = isSubmitting ? "生成中..." : "生成应收";
+}
+
+function clearTuitionBillErrors() {
+  dom.generateTuitionBillError.textContent = "";
+  dom.generateTuitionBillError.classList.add("is-hidden");
+  for (const fieldId of ["incomeDate", "billingMonth", "student"]) {
+    clearTuitionBillFieldInvalid(fieldId);
+  }
+}
+
+function showTuitionBillError(message, fieldIds = []) {
+  dom.generateTuitionBillError.textContent = message;
+  dom.generateTuitionBillError.classList.remove("is-hidden");
+  for (const fieldId of fieldIds) {
+    setTuitionBillFieldInvalid(fieldId, true);
+  }
+}
+
+function tuitionBillFieldIdsForError(message) {
+  const text = safeText(message);
+  const fields = [];
+  if (text.includes("日期")) fields.push("incomeDate");
+  if (text.includes("月份") || text.includes("月度结算") || text.includes("学费")) fields.push("billingMonth");
+  if (text.includes("学生")) fields.push("student");
+  return fields;
+}
+
+function setTuitionBillFieldInvalid(fieldId, invalid) {
+  const field = dom.generateTuitionBillDialog.querySelector(`[data-tuition-bill-field="${fieldId}"]`);
+  field?.classList.toggle("is-invalid", invalid);
+}
+
+function clearTuitionBillFieldInvalid(fieldId) {
+  setTuitionBillFieldInvalid(fieldId, false);
+}
+
+function showTuitionBillSuccess(bill, income) {
+  const incomeId = income?.income_id;
+  const amountText = formatCurrency(bill?.bill_amount_jpy || income?.amount, "JPY");
+  const carryoverText = formatCurrency(bill?.previous_carryover_cny || 0, "CNY");
+  const message = `学费应收已生成：${amountText}，上月结转 ${carryoverText}。`;
+  dom.messageArea.className = "message message-success";
+  if (incomeId) {
+    dom.messageArea.innerHTML = `${escapeHtml(message)}<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看收入记录</a>`;
+  } else {
+    dom.messageArea.textContent = message;
+  }
 }
 
 function openCreateIncomeDialog() {

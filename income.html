@@ -154,6 +154,7 @@
               <p class="section-note">按业务归属月管理收入，Cash 流水按实际到账日同步。</p>
             </div>
             <div class="table-actions">
+              <button class="button" id="openGenerateTuitionBillButton" type="button">生成学费应收</button>
               <button class="button button-primary" id="openCreateIncomeButton" type="button">新增收入</button>
               <button class="button" id="openBatchCashIncomeButton" type="button" disabled>批量提交 Cash</button>
               <span id="incomeCount" class="record-count">0 条</span>
@@ -376,6 +377,44 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v10.3.36-income-cash-backend-amount"></script>
+    <div id="generateTuitionBillDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
+        <div class="section-heading">
+          <h2 id="generateTuitionBillTitle">生成学费应收</h2>
+          <p class="section-note">生成后会创建一条待提交 Cash 的学费收入记录。</p>
+        </div>
+
+        <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
+
+        <div class="income-create-field-grid">
+          <label class="field" data-tuition-bill-field="incomeDate">
+            <span>请求日期 <b class="required-mark">必填</b></span>
+            <input id="tuitionBillIncomeDateInput" type="date">
+          </label>
+
+          <label class="field" data-tuition-bill-field="billingMonth">
+            <span>学费月份 <b class="required-mark">必填</b></span>
+            <input id="tuitionBillMonthInput" type="month">
+          </label>
+
+          <label class="field income-create-wide-field" data-tuition-bill-field="student">
+            <span>学生 <b class="required-mark">必填</b></span>
+            <select id="tuitionBillStudentSelect"></select>
+          </label>
+
+          <label class="field income-create-wide-field">
+            <span>备注</span>
+            <textarea id="tuitionBillNoteInput" rows="2" placeholder="可选：学费应收生成备注"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="button" id="generateTuitionBillCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="generateTuitionBillSubmitButton" type="button">生成应收</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/income-app.js?v=v10.3.47-student-tuition-bill"></script>
   </body>
 </html>
