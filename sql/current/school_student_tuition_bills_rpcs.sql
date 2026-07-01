@@ -837,3 +837,10 @@ comment on function public.school_request_cash_income_confirmation_for_record(
   text
 ) is
   'Creates/reuses a Cash income linkage event for an existing pending school_income_records row. DB/RPC computes payment amount from exchange rate/rounding; student_tuition_bill CNY requests add frozen previous-month CNY carryover.';
+
+-- v10.3.52 overlay:
+-- Student tuition bills now require a DB/RPC-authoritative CNY notification
+-- amount calculated from an operator-entered CNY/JPY notification rate.
+-- Keep this relative include at the end so executing the historical full RPC
+-- file cannot accidentally revert the current tuition-bill signatures.
+\ir school_student_tuition_bill_notice_amount.sql

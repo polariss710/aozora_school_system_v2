@@ -353,6 +353,7 @@ function renderAmountSummary(income, cashLinkageEvent) {
 function renderSystemInfo(data, cashLinkageEvent) {
   const { income } = data;
   dom.systemInfo.innerHTML = `
+    ${renderTuitionBillSnapshotCard(income)}
     <article class="detail-list-card">
       <h3>记录与来源</h3>
       ${renderDefinitionList([
@@ -390,6 +391,31 @@ function renderSystemInfo(data, cashLinkageEvent) {
         ["idempotency_key", displayValue(cashLinkageEvent?.idempotency_key)],
         ["Cash 请求备注", displayValue(cashLinkageEvent?.note)],
         ["last_error", displayValue(cashLinkageEvent?.last_error)],
+      ])}
+    </article>
+  `;
+}
+
+function renderTuitionBillSnapshotCard(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return "";
+  }
+
+  const snapshot = tuitionBillSnapshot(income);
+  return `
+    <article class="detail-list-card">
+      <h3>学费应收快照</h3>
+      ${renderDefinitionList([
+        ["学费月份", formatMonth(snapshot.billing_month || income.year_month)],
+        ["预定课时费", formatCurrency(snapshot.planned_lesson_fee_jpy || snapshot.bill_amount_jpy || income.amount_jpy || income.amount, "JPY")],
+        ["上月结转", studentTuitionBillCarryoverText(income)],
+        ["通知金额", studentTuitionBillBillingAmountText(income)],
+        ["通知汇率", displayValue(studentTuitionBillBillingExchangeRate(income))],
+        ["上月结算月", formatMonth(snapshot.previous_settlement_month)],
+        ["上月结算", shortId(snapshot.previous_settlement_id)],
+        ["预定课时", displayValue(snapshot.planned_lesson_count)],
+        ["预定小时", displayValue(snapshot.planned_lesson_hours)],
+        ["tuition_bill_id", shortId(snapshot.tuition_bill_id || income.source_id)],
       ])}
     </article>
   `;
@@ -632,10 +658,13 @@ async function openCashIncomeRequestDialog() {
     ["来源", displayValue(income.source_label || income.description)],
     ["School 原始金额", formatCurrency(income.amount, income.currency)],
     ["JPY 金额", formatCurrency(income.amount_jpy, "JPY")],
+    ["上月结转", studentTuitionBillCarryoverText(income)],
+    ["通知金额", studentTuitionBillBillingAmountText(income)],
+    ["通知汇率", displayValue(studentTuitionBillBillingExchangeRate(income))],
   ]);
-  dom.cashIncomeActualAmountInput.value = "";
+  dom.cashIncomeActualAmountInput.value = defaultCashIncomeActualAmount(income);
   dom.cashIncomeActualDateInput.value = currentJapanDate();
-  dom.cashIncomeActualCurrencySelect.value = income.source_type === "part_time_work" ? "CNY" : income.currency || "JPY";
+  dom.cashIncomeActualCurrencySelect.value = defaultCashIncomeActualCurrency(income);
   dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
   renderCashIncomeAccountOptions();
   updateCashIncomeRequestPreview();
@@ -790,10 +819,85 @@ function updateCashIncomeRequestPreview() {
 }
 
 function defaultCashIncomeNote(income) {
+  if (income.source_type === "student_tuition_bill") {
+    return [
+      `${income.source_label || "学生学费应收"}，JPY学费${formatCurrency(income.amount_jpy || income.amount, "JPY")}`,
+      studentTuitionBillCarryoverNote(income),
+      studentTuitionBillBillingAmountNote(income),
+      studentTuitionBillBillingExchangeRate(income) ? `通知汇率${studentTuitionBillBillingExchangeRate(income)}` : "",
+    ].filter(Boolean).join("，");
+  }
+
   if (income.source_type === "part_time_work") {
     return `${income.source_label || "外部塾打工收入"}，JPY工资总额${formatCurrency(income.amount_jpy || income.amount, "JPY")}。`;
   }
   return income.note || income.description || incomeCategoryLabel(income.income_category);
+}
+
+function defaultCashIncomeActualCurrency(income) {
+  if (income?.source_type === "student_tuition_bill" || income?.source_type === "part_time_work") {
+    return "CNY";
+  }
+  return income.currency || "JPY";
+}
+
+function defaultCashIncomeActualAmount(income) {
+  if (income?.source_type === "student_tuition_bill") {
+    return studentTuitionBillBillingAmountValue(income);
+  }
+  return "";
+}
+
+function tuitionBillSnapshot(income) {
+  return income?.source_snapshot && typeof income.source_snapshot === "object"
+    ? income.source_snapshot
+    : {};
+}
+
+function studentTuitionBillCarryoverValue(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return null;
+  }
+
+  const value = Number(tuitionBillSnapshot(income).previous_carryover_cny);
+  return Number.isFinite(value) ? value : null;
+}
+
+function studentTuitionBillBillingAmountValue(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return "";
+  }
+
+  const value = Number(tuitionBillSnapshot(income).billing_amount_cny);
+  return Number.isFinite(value) && value > 0 ? formatDecimal(value, 2) : "";
+}
+
+function studentTuitionBillBillingExchangeRate(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return "";
+  }
+
+  return formatRateValue(tuitionBillSnapshot(income).billing_exchange_rate);
+}
+
+function studentTuitionBillCarryoverText(income) {
+  const value = studentTuitionBillCarryoverValue(income);
+  return value === null ? "-" : formatCurrency(value, "CNY");
+}
+
+function studentTuitionBillBillingAmountText(income) {
+  const value = studentTuitionBillBillingAmountValue(income);
+  return value ? formatCurrency(value, "CNY") : "-";
+}
+
+function studentTuitionBillCarryoverNote(income) {
+  const value = studentTuitionBillCarryoverValue(income);
+  return value ? `上月结转${formatCurrency(value, "CNY")}` : "";
+}
+
+function studentTuitionBillBillingAmountNote(income) {
+  const value = studentTuitionBillBillingAmountValue(income);
+  return value ? `通知金额${formatCurrency(value, "CNY")}` : "";
 }
 
 function buildCashIncomeRequestNote(income, amount, currency, receivedDate) {
@@ -1773,6 +1877,22 @@ function parseNumberInput(value) {
     return NaN;
   }
   return Number(normalized);
+}
+
+function formatDecimal(value, decimals) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) {
+    return "";
+  }
+
+  return numberValue.toFixed(decimals).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatRateValue(value) {
+  const rate = Number(value);
+  return Number.isFinite(rate) && rate > 0
+    ? rate.toFixed(7).replace(/0+$/, "").replace(/\.$/, "")
+    : "";
 }
 
 function currentDate() {

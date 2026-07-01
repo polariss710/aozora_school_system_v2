@@ -20,6 +20,9 @@ create table if not exists public.school_student_tuition_bills (
   planned_lesson_fee_jpy numeric not null default 0,
   bill_amount_jpy numeric not null default 0,
   currency text not null default 'JPY',
+  billing_exchange_rate numeric,
+  billing_amount_cny numeric,
+  billing_amount_calculated_at timestamptz,
   status text not null default 'draft',
   income_record_id uuid references public.school_income_records(id),
   source_snapshot jsonb not null default '{}'::jsonb,
@@ -45,6 +48,10 @@ create table if not exists public.school_student_tuition_bills (
     ),
   constraint school_student_tuition_bills_currency_check
     check (currency = 'JPY'),
+  constraint school_student_tuition_bills_billing_rate_check
+    check (billing_exchange_rate is null or billing_exchange_rate > 0),
+  constraint school_student_tuition_bills_billing_cny_check
+    check (billing_amount_cny is null or billing_amount_cny > 0),
   constraint school_student_tuition_bills_status_check
     check (status in ('draft', 'income_created', 'cancelled')),
   constraint school_student_tuition_bills_income_status_check
@@ -78,6 +85,15 @@ comment on column public.school_student_tuition_bills.previous_carryover_cny is
 
 comment on column public.school_student_tuition_bills.bill_amount_jpy is
   'JPY tuition amount generated from formal planned lessons. This is the School income original amount.';
+
+comment on column public.school_student_tuition_bills.billing_exchange_rate is
+  'CNY/JPY notification exchange rate explicitly entered by the operator when generating the tuition bill.';
+
+comment on column public.school_student_tuition_bills.billing_amount_cny is
+  'CNY amount notified to the student, calculated by DB/RPC as JPY tuition * notification rate + previous CNY carryover, rounded to 2 decimals.';
+
+comment on column public.school_student_tuition_bills.billing_amount_calculated_at is
+  'Timestamp when DB/RPC calculated billing_amount_cny.';
 
 comment on column public.school_student_tuition_bills.source_snapshot is
   'Immutable bill calculation evidence: planned lesson ids/counts, planned JPY amount, and previous settlement carryover reference.';

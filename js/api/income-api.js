@@ -135,6 +135,7 @@ export async function generateStudentTuitionBill(payload) {
   const { data, error } = await supabase.rpc("school_generate_student_tuition_bill", {
     p_student_id: payload.studentId,
     p_billing_month: payload.billingMonth,
+    p_billing_exchange_rate: payload.billingExchangeRate,
     p_note: payload.note || null,
   });
 

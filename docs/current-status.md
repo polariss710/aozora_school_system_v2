@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-01
+Status date: 2026-07-02
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.52 student tuition notice amount, 2026-07-02:
+   学生学费应收新增“通知金额”快照层。新增并执行 `sql/current/school_student_tuition_bill_notice_amount.sql`：`school_student_tuition_bills` 增加可空的 `billing_exchange_rate`、`billing_amount_cny`、`billing_amount_calculated_at`；新签名 `school_generate_student_tuition_bill(student, month, billing_exchange_rate, note)` 要求操作员输入通知汇率，由 DB/RPC 计算并冻结 `通知金额 CNY = 预定课时费 JPY * 通知汇率 + 上月结转 CNY`，保留 2 位小数；旧三参数签名改为 guard，防止旧页面绕过通知汇率生成应收。`school_create_student_tuition_bill_income_record(...)` 保持旧返回结构，但把通知汇率、通知金额、结转、预定课时费复制进收入 `source_snapshot`；School 原始收入金额仍为 JPY。收入一览页生成学费应收时只输入通知汇率，不在页面计算持久化金额；批量 Cash 弹窗对学费应收默认 CNY、默认通知金额和通知汇率，用户仍可手动改实际到账金额或继续用汇率/取整辅助。收入详情页显示学费应收快照，并在 Cash 提交弹窗默认填入通知金额 CNY。Rollback 测试使用 `2099-04` 白名单数据验证旧签名被拒、新签名生成 `40000 JPY + 123.46 CNY` 在 `0.05` 汇率下的通知金额 `2123.46 CNY`，收入快照复制正确，rollback residue 为 0。白名单 commit test 写入 `codex-test-v10.3.52` 数据：business entity `97000000-0000-4000-8000-000000103531`、student `97000000-0000-4000-8000-000000103532`、teacher `97000000-0000-4000-8000-000000103533`、subject `97000000-0000-4000-8000-000000103534`、previous settlement `97000000-0000-4000-8000-000000103535`、planned lesson `97000000-0000-4000-8000-000000103536`、tuition bill `8a6c1227-08b6-45ac-ae5a-6684174ae224`、pending income `cefc7202-47bd-4578-b53a-15ebd8e3197b`，验证 `45000 JPY`、结转 `50.20 CNY`、通知汇率 `0.0512`、通知金额 `2354.20 CNY`。No Cash DB, Cash request, Cash transaction, School account transaction, account balance, real student/lesson/settlement, teacher wage, expense, or historical data was modified.
 
 1. v10.3.51 teacher duty report ZIP grouped by teacher, 2026-07-01:
    批量导出勤务申报表的 ZIP 内文件粒度从“每个工资快照一个 Excel”调整为“每个老师一个 Excel”。如果同一老师在工资快照一览中因不同业务归属出现多条未作废快照，批量导出会把这些业务归属下的锁定明细合并到同一张勤务申报表中；合并时 `课程 / 工作内容` 列会带上业务归属前缀，避免不同业务课程混在一起不可辨认。第 37 行仍只展示各业务归属 DB 快照摘要文本，不生成新的持久化金额、不写 DB、不改变老师工资生成、调整、支付请求、Cash 链路或金额计算口径。

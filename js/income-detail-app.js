@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=v10.3.41-income-detail-cash-rate-db-authority";
+import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=v10.3.52-tuition-notice-amount";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

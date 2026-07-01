@@ -402,6 +402,11 @@
             <select id="tuitionBillStudentSelect"></select>
           </label>
 
+          <label class="field" data-tuition-bill-field="billingRate">
+            <span>通知汇率 CNY/JPY <b class="required-mark">必填</b></span>
+            <input id="tuitionBillBillingRateInput" type="number" min="0" step="0.0000001" inputmode="decimal" placeholder="0.05">
+          </label>
+
           <label class="field income-create-wide-field">
             <span>备注</span>
             <textarea id="tuitionBillNoteInput" rows="2" placeholder="可选：学费应收生成备注"></textarea>
@@ -415,6 +420,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v10.3.47-student-tuition-bill"></script>
+    <script type="module" src="./js/income-app.js?v=v10.3.52-tuition-notice-amount"></script>
   </body>
 </html>

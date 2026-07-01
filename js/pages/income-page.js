@@ -162,6 +162,7 @@ function cacheDom() {
   dom.tuitionBillIncomeDateInput = document.querySelector("#tuitionBillIncomeDateInput");
   dom.tuitionBillMonthInput = document.querySelector("#tuitionBillMonthInput");
   dom.tuitionBillStudentSelect = document.querySelector("#tuitionBillStudentSelect");
+  dom.tuitionBillBillingRateInput = document.querySelector("#tuitionBillBillingRateInput");
   dom.tuitionBillNoteInput = document.querySelector("#tuitionBillNoteInput");
   dom.generateTuitionBillCancelButton = document.querySelector("#generateTuitionBillCancelButton");
   dom.generateTuitionBillSubmitButton = document.querySelector("#generateTuitionBillSubmitButton");
@@ -200,6 +201,7 @@ function bindEvents() {
   dom.tuitionBillStudentSelect.addEventListener("change", () => clearTuitionBillFieldInvalid("student"));
   dom.tuitionBillMonthInput.addEventListener("change", () => clearTuitionBillFieldInvalid("billingMonth"));
   dom.tuitionBillIncomeDateInput.addEventListener("change", () => clearTuitionBillFieldInvalid("incomeDate"));
+  dom.tuitionBillBillingRateInput.addEventListener("input", () => clearTuitionBillFieldInvalid("billingRate"));
   dom.createIncomeModeSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("createMode");
     hideCreateErrorIfClean();
@@ -629,7 +631,7 @@ async function openBatchCashIncomeDialog(rows) {
     receivedDate: currentJapanDate(),
     accountId: "",
     note: defaultCashIncomeNote(income),
-    exchangeRate: "",
+    exchangeRate: defaultBatchCashIncomeExchangeRate(income),
     theoreticalAmount: "",
     roundingMode: "",
     rateStatus: "",
@@ -698,6 +700,9 @@ function renderBatchCashIncomeAmountHint(state) {
   }
 
   if (state.amountSource === "db") {
+    if (state.income?.source_type === "student_tuition_bill" && state.currency === "CNY") {
+      return '<div class="income-batch-cash-field-hint">未手动修改时使用通知金额。</div>';
+    }
     return '<div class="income-batch-cash-field-hint">未手动修改时使用原始金额。</div>';
   }
 
@@ -800,10 +805,9 @@ function handleBatchCashIncomeInput(event) {
         state.accountId = "";
       }
       if (state.amountSource !== "manual") {
-        state.amount = state.currency === incomeOriginalCurrency(state.income)
-          ? String(state.income.amount ?? "")
-          : "";
-        state.amountSource = state.currency === incomeOriginalCurrency(state.income) ? "db" : "";
+        state.amount = defaultBatchCashIncomeAmountForCurrency(state.income, state.currency);
+        state.amountSource = state.amount ? "db" : "";
+        state.exchangeRate = defaultBatchCashIncomeExchangeRate(state.income);
         state.roundingMode = "";
       }
     }
@@ -1094,7 +1098,15 @@ function defaultBatchCashIncomeCurrency(income) {
 }
 
 function defaultBatchCashIncomeAmount(income) {
-  return defaultBatchCashIncomeCurrency(income) === incomeOriginalCurrency(income)
+  return defaultBatchCashIncomeAmountForCurrency(income, defaultBatchCashIncomeCurrency(income));
+}
+
+function defaultBatchCashIncomeAmountForCurrency(income, currency) {
+  if (income?.source_type === "student_tuition_bill" && currency === "CNY") {
+    return studentTuitionBillBillingAmountCny(income) || "";
+  }
+
+  return currency === incomeOriginalCurrency(income)
     ? income.amount ?? ""
     : "";
 }
@@ -1109,6 +1121,33 @@ function studentTuitionBillCarryoverCny(income) {
     : {};
   const carryover = Number(snapshot.previous_carryover_cny);
   return Number.isFinite(carryover) ? carryover : 0;
+}
+
+function studentTuitionBillBillingAmountCny(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return "";
+  }
+
+  const snapshot = income.source_snapshot && typeof income.source_snapshot === "object"
+    ? income.source_snapshot
+    : {};
+  const amount = Number(snapshot.billing_amount_cny);
+  return Number.isFinite(amount) && amount > 0 ? formatDecimal(amount, 2) : "";
+}
+
+function studentTuitionBillBillingExchangeRate(income) {
+  if (income?.source_type !== "student_tuition_bill") {
+    return "";
+  }
+
+  const snapshot = income.source_snapshot && typeof income.source_snapshot === "object"
+    ? income.source_snapshot
+    : {};
+  return formatRateValue(snapshot.billing_exchange_rate);
+}
+
+function defaultBatchCashIncomeExchangeRate(income) {
+  return studentTuitionBillBillingExchangeRate(income);
 }
 
 function incomeOriginalCurrency(income) {
@@ -1200,9 +1239,13 @@ function formatDecimal(value, decimals) {
 function defaultCashIncomeNote(income) {
   if (income.source_type === "student_tuition_bill") {
     const carryoverCny = studentTuitionBillCarryoverCny(income);
+    const billingAmountCny = studentTuitionBillBillingAmountCny(income);
+    const billingExchangeRate = studentTuitionBillBillingExchangeRate(income);
     return [
       `${income.source_label || "学生学费应收"}，JPY学费${formatCurrency(income.amount_jpy || income.amount, "JPY")}`,
       carryoverCny ? `上月结转${formatCurrency(carryoverCny, "CNY")}` : "",
+      billingAmountCny ? `通知金额${formatCurrency(billingAmountCny, "CNY")}` : "",
+      billingExchangeRate ? `通知汇率${billingExchangeRate}` : "",
     ].filter(Boolean).join("，");
   }
 
@@ -1301,6 +1344,7 @@ function openGenerateTuitionBillDialog() {
   const filters = readFilters();
   dom.tuitionBillIncomeDateInput.value = currentDate();
   dom.tuitionBillMonthInput.value = filters?.month || currentYearMonth();
+  dom.tuitionBillBillingRateInput.value = "";
   dom.tuitionBillNoteInput.value = "";
   renderTuitionBillStudentOptions(filters?.studentId || "", filters?.businessEntityId || "");
 
@@ -1333,6 +1377,7 @@ async function submitGenerateTuitionBill() {
     const bill = await generateStudentTuitionBill({
       studentId: payload.studentId,
       billingMonth: payload.billingMonth,
+      billingExchangeRate: payload.billingExchangeRate,
       note: payload.note,
     });
     const income = await createStudentTuitionBillIncomeRecord({
@@ -1371,10 +1416,17 @@ function readGenerateTuitionBillPayload() {
     return null;
   }
 
+  const billingExchangeRate = parseNumberInput(dom.tuitionBillBillingRateInput.value);
+  if (!Number.isFinite(billingExchangeRate) || billingExchangeRate <= 0) {
+    showTuitionBillError("通知汇率必须大于 0。", ["billingRate"]);
+    return null;
+  }
+
   return {
     incomeDate,
     billingMonth,
     studentId,
+    billingExchangeRate,
     note: dom.tuitionBillNoteInput.value.trim(),
   };
 }
@@ -1405,7 +1457,7 @@ function setTuitionBillSubmitting(isSubmitting) {
 function clearTuitionBillErrors() {
   dom.generateTuitionBillError.textContent = "";
   dom.generateTuitionBillError.classList.add("is-hidden");
-  for (const fieldId of ["incomeDate", "billingMonth", "student"]) {
+  for (const fieldId of ["incomeDate", "billingMonth", "student", "billingRate"]) {
     clearTuitionBillFieldInvalid(fieldId);
   }
 }
@@ -1424,6 +1476,7 @@ function tuitionBillFieldIdsForError(message) {
   if (text.includes("日期")) fields.push("incomeDate");
   if (text.includes("月份") || text.includes("月度结算") || text.includes("学费")) fields.push("billingMonth");
   if (text.includes("学生")) fields.push("student");
+  if (text.includes("汇率") || text.includes("通知")) fields.push("billingRate");
   return fields;
 }
 
@@ -1440,7 +1493,9 @@ function showTuitionBillSuccess(bill, income) {
   const incomeId = income?.income_id;
   const amountText = formatCurrency(bill?.bill_amount_jpy || income?.amount, "JPY");
   const carryoverText = formatCurrency(bill?.previous_carryover_cny || 0, "CNY");
-  const message = `学费应收已生成：${amountText}，上月结转 ${carryoverText}。`;
+  const billingText = formatCurrency(bill?.billing_amount_cny || income?.billing_amount_cny, "CNY");
+  const rateText = formatRateValue(bill?.billing_exchange_rate || income?.billing_exchange_rate);
+  const message = `学费应收已生成：${amountText}，上月结转 ${carryoverText}，通知金额 ${billingText}${rateText ? `，通知汇率 ${rateText}` : ""}。`;
   dom.messageArea.className = "message message-success";
   if (incomeId) {
     dom.messageArea.innerHTML = `${escapeHtml(message)}<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看收入记录</a>`;
