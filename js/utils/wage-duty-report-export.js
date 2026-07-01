@@ -31,10 +31,11 @@ export function exportBatchWageDutyReportXlsx(reports, { month }) {
   const xlsx = window.XLSX;
   const usedFileNames = new Set();
   const zipEntries = [];
+  const teacherReports = buildTeacherDutyReportGroups(reports);
 
-  for (const reportData of reports) {
+  for (const reportData of teacherReports) {
     const workbook = xlsx.utils.book_new();
-    const fileName = uniqueFileName(buildBatchWageDutyReportEntryFileName(reportData.wageLock), usedFileNames);
+    const fileName = uniqueFileName(buildWageDutyReportFileName(reportData.wageLock), usedFileNames);
     appendWageDutyReportSheet(workbook, reportData, "勤务申报表");
     zipEntries.push({
       name: fileName,
@@ -47,6 +48,7 @@ export function exportBatchWageDutyReportXlsx(reports, { month }) {
   }
 
   downloadBlob(buildZipBlob(zipEntries), buildBatchWageDutyReportZipFileName(month));
+  return zipEntries.length;
 }
 
 function appendWageDutyReportSheet(workbook, data, sheetName) {
@@ -129,7 +131,7 @@ function buildWageDutyReport(wageLock, details) {
   ]);
 
   rows.push([
-    `系统快照合计：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`,
+    wageLock.snapshot_summary_text || `系统快照合计：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`,
     "",
     "",
     "",
@@ -222,6 +224,61 @@ function buildDutyDetailRow(detail) {
     numberOrZero(detail.classroom_fee_jpy),
     "",
   ];
+}
+
+function buildTeacherDutyReportGroups(reports) {
+  const groups = new Map();
+  for (const report of reports) {
+    const key = safeText(report.wageLock?.teacher_id) || safeText(report.wageLock?.teacher_name) || "teacher";
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(report);
+  }
+
+  return Array.from(groups.values()).map(buildTeacherDutyReportData);
+}
+
+function buildTeacherDutyReportData(reports) {
+  const firstReport = reports[0];
+  const wageLock = firstReport.wageLock;
+  const businessKeys = new Set(
+    reports.map((report) => safeText(report.wageLock.business_entity_id) || safeText(report.wageLock.business_name)).filter(Boolean)
+  );
+  const shouldShowBusinessInDetail = businessKeys.size > 1;
+  const details = reports
+    .flatMap((report) => (report.details || []).map((detail) => ({
+      ...detail,
+      duty_business_name: shouldShowBusinessInDetail
+        ? safeText(detail.business_name).trim() || safeText(report.wageLock.business_name).trim()
+        : "",
+    })))
+    .sort(sortDutyDetails);
+
+  return {
+    wageLock: {
+      ...wageLock,
+      snapshot_summary_text: buildTeacherSnapshotSummaryText(reports),
+    },
+    details,
+  };
+}
+
+function buildTeacherSnapshotSummaryText(reports) {
+  const summaries = reports.map((report) => {
+    const wageLock = report.wageLock;
+    return `${displayValue(wageLock.business_name)}：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`;
+  });
+  return `系统快照合计：${summaries.join("；")}`;
+}
+
+function sortDutyDetails(a, b) {
+  return [
+    safeText(a.lesson_date).localeCompare(safeText(b.lesson_date)),
+    safeText(a.start_time).localeCompare(safeText(b.start_time)),
+    safeText(a.duty_business_name).localeCompare(safeText(b.duty_business_name)),
+    safeText(a.student_name).localeCompare(safeText(b.student_name), "zh-CN"),
+  ].find((result) => result !== 0) || 0;
 }
 
 function styleWageDutyReportSheet(sheet, report) {
@@ -337,13 +394,6 @@ function buildWageDutyReportFileName(wageLock) {
   const teacherName = sanitizeFileName(displayValue(wageLock.teacher_name)).replaceAll("-", "") || "teacher";
   const month = formatMonth(wageLock.settlement_month).replaceAll("/", "-");
   return `${teacherName}_${month}_勤务申报表.xlsx`;
-}
-
-function buildBatchWageDutyReportEntryFileName(wageLock) {
-  const teacherName = sanitizeFileName(displayValue(wageLock.teacher_name)).replaceAll("-", "") || "teacher";
-  const businessName = sanitizeFileName(displayValue(wageLock.business_name)).replaceAll("-", "") || "business";
-  const month = formatMonth(wageLock.settlement_month).replaceAll("/", "-");
-  return `${teacherName}_${businessName}_${month}_勤务申报表.xlsx`;
 }
 
 function buildBatchWageDutyReportZipFileName(month) {
@@ -540,12 +590,14 @@ function dutyDateText(value) {
 }
 
 function dutyWorkContent(detail) {
+  const business = safeText(detail.duty_business_name).trim();
   const subject = safeText(detail.subject_name).trim();
   const content = safeText(detail.lesson_content).trim();
-  if (subject && content) {
-    return `${subject} / ${content}`;
+  const lessonText = subject && content ? `${subject} / ${content}` : subject || content || "";
+  if (business && lessonText) {
+    return `${business} / ${lessonText}`;
   }
-  return subject || content || "";
+  return business || lessonText;
 }
 
 function timeOnly(value) {

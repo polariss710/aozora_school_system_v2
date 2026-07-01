@@ -1231,8 +1231,8 @@ async function handleBatchDutyReportExport() {
 
   try {
     const reports = await Promise.all(rows.map((row) => fetchWageDetailPage(row.id)));
-    exportBatchWageDutyReportXlsx(reports, { month: filters.month });
-    showMessage("success", `勤务申报表 ZIP 已导出：${reports.length} 个 Excel 文件。`);
+    const exportedFileCount = exportBatchWageDutyReportXlsx(reports, { month: filters.month });
+    showMessage("success", `勤务申报表 ZIP 已导出：${exportedFileCount} 个老师 Excel 文件。`);
   } catch (error) {
     showMessage("error", `批量导出勤务申报表失败：${error.message || error}`);
   } finally {
