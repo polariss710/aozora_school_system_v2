@@ -437,6 +437,7 @@ function renderIncomeRecords(rows) {
       <td class="income-nowrap month-cell">${escapeHtml(formatMonth(row.year_month))}</td>
       <td class="income-nowrap date-cell">${escapeHtml(formatDateOnly(row.income_date))}</td>
       <td class="number-cell income-nowrap amount-cell">${escapeHtml(formatIncomeListAmount(row))}</td>
+      <td class="number-cell income-nowrap carryover-amount-cell">${escapeHtml(formatIncomeListCarryoverAmount(row))}</td>
       <td class="number-cell income-nowrap notice-amount-cell">${escapeHtml(formatIncomeListNoticeAmount(row))}</td>
       <td>${renderIncomeStatusSummary(row)}</td>
       <td class="income-related-cell">${renderIncomeRelatedCell(row)}</td>
@@ -2229,6 +2230,22 @@ function formatIncomeListAmount(row) {
     return "-";
   }
   return formatCurrency(row.amount, row.currency);
+}
+
+function formatIncomeListCarryoverAmount(row) {
+  if (row?.source_type !== "student_tuition_bill") {
+    return "-";
+  }
+
+  const snapshot = row.source_snapshot && typeof row.source_snapshot === "object"
+    ? row.source_snapshot
+    : {};
+  if (!Object.prototype.hasOwnProperty.call(snapshot, "previous_carryover_cny")) {
+    return "-";
+  }
+
+  const carryover = Number(snapshot.previous_carryover_cny);
+  return Number.isFinite(carryover) ? formatCurrency(carryover, "CNY") : "-";
 }
 
 function formatIncomeListNoticeAmount(row) {

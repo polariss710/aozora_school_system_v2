@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.55 income list tuition carryover column, 2026-07-02:
+   收入记录一览页在 `金额` 与 `通知金额` 之间新增 `上月结转` 列，用于显示 `student_tuition_bill` 收入快照中的 `source_snapshot.previous_carryover_cny`。这样一览页可同时看到 School 原始 JPY 学费、上月 CNY 结转和向学生通知的 CNY 金额，避免误以为通知金额只是 JPY 换算值。普通收入或缺少结转快照的旧记录显示 `-`，结转为 0 的新/旧学费快照显示 `CNY 0.00`。本次仍是纯展示和缓存版本调整：前端只读取 DB/RPC 快照，不计算、不回填、不写入金额，不执行 SQL/RPC，不改变学费生成、Cash 提交、学生结算或历史数据。
+
 1. v10.3.54 income list tuition notice amount column, 2026-07-02:
    收入记录一览页新增 `通知金额` 列，用于直接显示 `student_tuition_bill` 收入快照中的 `source_snapshot.billing_amount_cny`，避免月末确认学费时必须进入详情页才能看到向学生通知的 CNY 金额。普通收入、旧学费收入或缺少通知金额快照的记录显示 `-`。本次只调整 `income.html` / `js/pages/income-page.js` / `css/app.css` 的展示和缓存版本；通知金额仍只读取 DB/RPC 已冻结快照，前端不计算、不回填、不写入金额，不改变学费生成、Cash 提交、学生结算、收入状态、DB/RPC 或历史数据。
 

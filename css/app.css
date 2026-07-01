@@ -1450,7 +1450,7 @@ h2 {
 
 .income-table {
   width: 100%;
-  min-width: 1345px;
+  min-width: 1475px;
   table-layout: fixed;
 }
 
@@ -1461,7 +1461,7 @@ h2 {
 }
 
 .app-shell--dense .income-table {
-  min-width: 1220px;
+  min-width: 1350px;
 }
 
 .app-shell--dense .expense-table {
@@ -1469,7 +1469,7 @@ h2 {
 }
 
 .app-shell--income-list .income-table {
-  min-width: 1420px;
+  min-width: 1550px;
 }
 
 .app-shell--expense-list .expense-table {
@@ -1504,6 +1504,10 @@ h2 {
 .income-col-amount,
 .expense-col-amount {
   width: 145px;
+}
+
+.income-col-carryover {
+  width: 130px;
 }
 
 .income-col-notice {
@@ -1548,6 +1552,10 @@ h2 {
 .app-shell--dense .income-col-amount,
 .app-shell--dense .expense-col-amount {
   width: 130px;
+}
+
+.app-shell--dense .income-col-carryover {
+  width: 120px;
 }
 
 .app-shell--dense .income-col-notice {
@@ -1597,6 +1605,10 @@ h2 {
 .app-shell--income-list .income-col-amount,
 .app-shell--expense-list .expense-col-amount {
   width: 145px;
+}
+
+.app-shell--income-list .income-col-carryover {
+  width: 130px;
 }
 
 .app-shell--income-list .income-col-notice {
@@ -1656,8 +1668,8 @@ h2 {
 .income-table td:nth-child(3),
 .income-table th:nth-child(4),
 .income-table th:nth-child(5),
-.income-table th:nth-child(10),
-.income-table td:nth-child(10),
+.income-table th:nth-child(11),
+.income-table td:nth-child(11),
 .expense-table th:nth-child(3),
 .expense-table td:nth-child(3),
 .expense-table th:nth-child(4),
@@ -1669,6 +1681,7 @@ h2 {
 
 .income-table th:nth-child(6),
 .income-table th:nth-child(7),
+.income-table th:nth-child(8),
 .expense-table th:nth-child(6) {
   text-align: right;
 }
@@ -1677,13 +1690,15 @@ h2 {
 .income-table td:nth-child(6),
 .income-table th:nth-child(7),
 .income-table td:nth-child(7),
+.income-table th:nth-child(8),
+.income-table td:nth-child(8),
 .expense-table th:nth-child(6),
 .expense-table td:nth-child(6) {
   padding-right: 18px;
 }
 
-.income-table th:nth-child(8),
-.income-table td:nth-child(8),
+.income-table th:nth-child(9),
+.income-table td:nth-child(9),
 .expense-table th:nth-child(7),
 .expense-table td:nth-child(7) {
   padding-left: 18px;
@@ -1708,6 +1723,7 @@ h2 {
 }
 
 .income-table .amount-cell,
+.income-table .carryover-amount-cell,
 .income-table .notice-amount-cell,
 .expense-table .amount-cell,
 .expense-table .rate-cell {
