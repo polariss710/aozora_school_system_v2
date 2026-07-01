@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.50 teacher duty report batch ZIP export, 2026-07-01:
+   老师工资一览页的 `批量导出勤务申报表` 从多工作表单一 Excel 改为 ZIP 打包：当前筛选月份和筛选结果中的每个未作废工资快照会生成一个独立 `.xlsx` 勤务申报表，文件名包含老师、业务归属和月份，再由浏览器端打成 `老师勤务申报表_YYYY-MM_批量.zip` 下载；重复文件名会自动追加序号。ZIP 打包不引入额外 CDN，继续复用 `js/utils/wage-duty-report-export.js` 的单个勤务申报表模板，保持明细表隐藏 `课时工资 JPY` / `明细合计 JPY`、第 37 行保留 DB 快照来源 `系统快照合计`。本次仍是只读导出/UI 缓存更新，不执行 SQL/RPC、不写 DB、不改变老师工资生成、调整、支付请求、Cash 链路或金额计算口径。
+
 1. v10.3.49 teacher duty report batch export, 2026-07-01:
    老师工资一览页新增 `批量导出勤务申报表`，按当前筛选月份和筛选结果导出所有未作废工资快照；页面逐个通过 API 层读取工资详情和锁定明细，生成一个多工作表 Excel，每个工资快照一张勤务申报表 sheet，避免月结时逐个进入详情页下载。详情页单个导出与一览页批量导出已抽到共用 `js/utils/wage-duty-report-export.js`，继续使用 v10.3.48 口径：明细表不显示 `课时工资 JPY` / `明细合计 JPY`，第 37 行保留 DB 快照来源的 `系统快照合计`。本次为只读导出/UI 缓存更新，不执行 SQL/RPC、不写 DB、不改变老师工资生成、调整、支付请求、Cash 链路或金额计算口径。
 

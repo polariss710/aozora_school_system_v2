@@ -1160,7 +1160,7 @@ async function handleMonthlySummaryExport() {
     return;
   }
 
-  if (!window.XLSX?.utils?.aoa_to_sheet || !window.XLSX?.writeFile) {
+  if (!window.XLSX?.utils?.aoa_to_sheet || !window.XLSX?.write) {
     showMessage("error", "Excel 导出库尚未加载，请刷新页面后重试。");
     return;
   }
@@ -1227,12 +1227,12 @@ async function handleBatchDutyReportExport() {
   }
 
   setDutyReportExportSubmitting(true);
-  showMessage("info", `正在读取 ${rows.length} 位老师的工资明细并生成勤务申报表...`);
+  showMessage("info", `正在读取 ${rows.length} 位老师的工资明细并打包勤务申报表 ZIP...`);
 
   try {
     const reports = await Promise.all(rows.map((row) => fetchWageDetailPage(row.id)));
     exportBatchWageDutyReportXlsx(reports, { month: filters.month });
-    showMessage("success", `勤务申报表已批量导出：${reports.length} 张工作表。`);
+    showMessage("success", `勤务申报表 ZIP 已导出：${reports.length} 个 Excel 文件。`);
   } catch (error) {
     showMessage("error", `批量导出勤务申报表失败：${error.message || error}`);
   } finally {

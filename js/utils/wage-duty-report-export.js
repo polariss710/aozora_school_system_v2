@@ -13,6 +13,7 @@ const DUTY_REPORT_HEADERS = [
   "教室费 JPY",
   "备注",
 ];
+const ZIP_CRC32_TABLE = buildCrc32Table();
 
 export function exportWageDutyReportXlsx(data) {
   const { wageLock } = data;
@@ -28,18 +29,24 @@ export function exportWageDutyReportXlsx(data) {
 
 export function exportBatchWageDutyReportXlsx(reports, { month }) {
   const xlsx = window.XLSX;
-  const workbook = xlsx.utils.book_new();
-  const usedSheetNames = new Set();
+  const usedFileNames = new Set();
+  const zipEntries = [];
 
   for (const reportData of reports) {
-    const sheetName = uniqueSheetName(buildBatchDutyReportSheetName(reportData.wageLock), usedSheetNames);
-    appendWageDutyReportSheet(workbook, reportData, sheetName);
+    const workbook = xlsx.utils.book_new();
+    const fileName = uniqueFileName(buildBatchWageDutyReportEntryFileName(reportData.wageLock), usedFileNames);
+    appendWageDutyReportSheet(workbook, reportData, "勤务申报表");
+    zipEntries.push({
+      name: fileName,
+      data: normalizeZipEntryData(xlsx.write(workbook, {
+        bookType: "xlsx",
+        type: "array",
+        cellStyles: true,
+      })),
+    });
   }
 
-  xlsx.writeFile(workbook, buildBatchWageDutyReportFileName(month), {
-    bookType: "xlsx",
-    cellStyles: true,
-  });
+  downloadBlob(buildZipBlob(zipEntries), buildBatchWageDutyReportZipFileName(month));
 }
 
 function appendWageDutyReportSheet(workbook, data, sheetName) {
@@ -332,36 +339,183 @@ function buildWageDutyReportFileName(wageLock) {
   return `${teacherName}_${month}_勤务申报表.xlsx`;
 }
 
-function buildBatchWageDutyReportFileName(month) {
+function buildBatchWageDutyReportEntryFileName(wageLock) {
+  const teacherName = sanitizeFileName(displayValue(wageLock.teacher_name)).replaceAll("-", "") || "teacher";
+  const businessName = sanitizeFileName(displayValue(wageLock.business_name)).replaceAll("-", "") || "business";
+  const month = formatMonth(wageLock.settlement_month).replaceAll("/", "-");
+  return `${teacherName}_${businessName}_${month}_勤务申报表.xlsx`;
+}
+
+function buildBatchWageDutyReportZipFileName(month) {
   const normalizedMonth = formatMonth(month).replaceAll("/", "-") || "month";
-  return `老师勤务申报表_${sanitizeFileName(normalizedMonth)}_批量.xlsx`;
+  return `老师勤务申报表_${sanitizeFileName(normalizedMonth)}_批量.zip`;
 }
 
-function buildBatchDutyReportSheetName(wageLock) {
-  const teacher = displayValue(wageLock.teacher_name).replaceAll("-", "") || "老师";
-  const business = displayValue(wageLock.business_name).replaceAll("-", "") || "业务";
-  return `${teacher}_${business}`;
-}
-
-function uniqueSheetName(baseName, usedSheetNames) {
-  const sanitizedBase = sanitizeSheetName(baseName) || "勤务申报表";
-  let candidate = sanitizedBase.slice(0, 31);
+function uniqueFileName(baseName, usedFileNames) {
+  const dotIndex = baseName.lastIndexOf(".");
+  const stem = dotIndex > 0 ? baseName.slice(0, dotIndex) : baseName;
+  const extension = dotIndex > 0 ? baseName.slice(dotIndex) : "";
+  const sanitizedStem = sanitizeFileName(stem) || "勤务申报表";
+  let candidate = `${sanitizedStem}${extension}`;
   let suffix = 2;
-  while (usedSheetNames.has(candidate)) {
+  while (usedFileNames.has(candidate)) {
     const suffixText = `_${suffix}`;
-    candidate = `${sanitizedBase.slice(0, 31 - suffixText.length)}${suffixText}`;
+    candidate = `${sanitizedStem}${suffixText}${extension}`;
     suffix += 1;
   }
-  usedSheetNames.add(candidate);
+  usedFileNames.add(candidate);
   return candidate;
-}
-
-function sanitizeSheetName(value) {
-  return safeText(value).replace(/[\][*?/\\:]/g, "-").trim();
 }
 
 function sanitizeFileName(value) {
   return safeText(value).replace(/[\\/:*?"<>|]/g, "-").trim();
+}
+
+function normalizeZipEntryData(value) {
+  if (value instanceof Uint8Array) {
+    return value;
+  }
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value);
+  }
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  throw new Error("Excel 导出数据格式不受支持。");
+}
+
+function buildZipBlob(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const timestamp = zipDosTimestamp(new Date());
+
+  for (const entry of entries) {
+    const fileNameBytes = new TextEncoder().encode(entry.name);
+    const crc = crc32(entry.data);
+    const localHeader = buildZipLocalHeader({
+      fileNameBytes,
+      crc,
+      size: entry.data.length,
+      timestamp,
+    });
+    const centralHeader = buildZipCentralHeader({
+      fileNameBytes,
+      crc,
+      size: entry.data.length,
+      offset,
+      timestamp,
+    });
+    localParts.push(localHeader, entry.data);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + entry.data.length;
+  }
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
+  const endRecord = buildZipEndRecord({
+    entryCount: entries.length,
+    centralSize,
+    centralOffset,
+  });
+
+  return new Blob([...localParts, ...centralParts, endRecord], { type: "application/zip" });
+}
+
+function buildZipLocalHeader({ fileNameBytes, crc, size, timestamp }) {
+  const header = new Uint8Array(30 + fileNameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0x0800, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, timestamp.time, true);
+  view.setUint16(12, timestamp.date, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, size, true);
+  view.setUint32(22, size, true);
+  view.setUint16(26, fileNameBytes.length, true);
+  view.setUint16(28, 0, true);
+  header.set(fileNameBytes, 30);
+  return header;
+}
+
+function buildZipCentralHeader({ fileNameBytes, crc, size, offset, timestamp }) {
+  const header = new Uint8Array(46 + fileNameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0x0800, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, timestamp.time, true);
+  view.setUint16(14, timestamp.date, true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, size, true);
+  view.setUint32(24, size, true);
+  view.setUint16(28, fileNameBytes.length, true);
+  view.setUint16(30, 0, true);
+  view.setUint16(32, 0, true);
+  view.setUint16(34, 0, true);
+  view.setUint16(36, 0, true);
+  view.setUint32(38, 0, true);
+  view.setUint32(42, offset, true);
+  header.set(fileNameBytes, 46);
+  return header;
+}
+
+function buildZipEndRecord({ entryCount, centralSize, centralOffset }) {
+  const record = new Uint8Array(22);
+  const view = new DataView(record.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(4, 0, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, entryCount, true);
+  view.setUint16(10, entryCount, true);
+  view.setUint32(12, centralSize, true);
+  view.setUint32(16, centralOffset, true);
+  view.setUint16(20, 0, true);
+  return record;
+}
+
+function zipDosTimestamp(value) {
+  const year = Math.max(1980, value.getFullYear());
+  return {
+    time: (value.getHours() << 11) | (value.getMinutes() << 5) | Math.floor(value.getSeconds() / 2),
+    date: ((year - 1980) << 9) | ((value.getMonth() + 1) << 5) | value.getDate(),
+  };
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = ZIP_CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function buildCrc32Table() {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function japaneseMonthText(value) {
