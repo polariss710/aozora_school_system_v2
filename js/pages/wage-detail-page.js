@@ -61,10 +61,8 @@ const DUTY_REPORT_HEADERS = [
   "开始时间",
   "结束时间",
   "结算课时",
-  "课时工资 JPY",
   "交通费 JPY",
   "教室费 JPY",
-  "明细合计 JPY",
   "备注",
 ];
 
@@ -1184,8 +1182,6 @@ function exportWageDutyReportXlsx(data) {
     { wch: 12 },
     { wch: 14 },
     { wch: 14 },
-    { wch: 14 },
-    { wch: 16 },
     { wch: 22 },
   ];
   sheet["!rows"] = report.rows.map((_, index) => ({
@@ -1204,7 +1200,7 @@ function exportWageDutyReportXlsx(data) {
 function buildWageDutyReport(wageLock, details) {
   const detailRowCount = Math.max(DUTY_REPORT_MIN_DETAIL_ROWS, details.length);
   const rows = [
-    ["勤务申报表（讲师填写用）", "", "", "", "", "", "", "", "", "", "", ""],
+    ["勤务申报表（讲师填写用）", "", "", "", "", "", "", "", "", ""],
     [
       "月份",
       japaneseMonthText(wageLock.settlement_month),
@@ -1216,13 +1212,9 @@ function buildWageDutyReport(wageLock, details) {
       "日元银行 / 支付宝 / 微信",
       "",
       "",
-      "",
-      "",
     ],
     [
-      "※ 本表用于老师确认工资快照明细并补充交通费、教室费、备注和支付信息。请勿修改系统已填写的日期、学生、课程、开始时间、结束时间、结算课时和课时工资。",
-      "",
-      "",
+      "※ 本表用于老师确认工资快照明细并补充交通费、教室费、备注和支付信息。请勿修改系统已填写的日期、学生、课程、开始时间、结束时间和结算课时。",
       "",
       "",
       "",
@@ -1238,8 +1230,7 @@ function buildWageDutyReport(wageLock, details) {
 
   for (let index = 0; index < detailRowCount; index += 1) {
     const detail = details[index] || null;
-    const excelRow = 5 + index;
-    rows.push(buildDutyDetailRow(detail, excelRow));
+    rows.push(buildDutyDetailRow(detail));
   }
 
   const detailStartRow = 5;
@@ -1255,8 +1246,6 @@ function buildWageDutyReport(wageLock, details) {
     { f: `SUM(G${detailStartRow}:G${detailEndRow})` },
     { f: `SUM(H${detailStartRow}:H${detailEndRow})` },
     { f: `SUM(I${detailStartRow}:I${detailEndRow})` },
-    { f: `SUM(J${detailStartRow}:J${detailEndRow})` },
-    { f: `SUM(K${detailStartRow}:K${detailEndRow})` },
     "",
   ]);
 
@@ -1271,19 +1260,17 @@ function buildWageDutyReport(wageLock, details) {
     "",
     "",
     "",
-    "",
-    "",
   ]);
 
-  rows.push(["日元支付（银行振込）", "", "", "", "", "", "", "", "", "", "", ""]);
-  rows.push(["銀行名", "支店番号", "支店名", "口座番号", "名義", "", "", "备注", "", "", "", ""]);
-  rows.push(["", "", "", "", "", "", "", "", "", "", "", ""]);
-  rows.push(["人民币支付", "", "", "", "", "", "", "", "", "", "", ""]);
-  rows.push(["支付宝", "微信", "", "", "", "备注", "", "", "", "", "", ""]);
-  rows.push(["", "", "", "", "", "", "", "", "", "", "", ""]);
-  rows.push(["老师确认", "", "", "", "", "", "", "", "", "", "", ""]);
-  rows.push(["确认日期", "", "老师签名", "", "", "备注", "", "", "", "", "", ""]);
-  rows.push(["", "", "", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["日元支付（银行振込）", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["銀行名", "支店番号", "支店名", "口座番号", "名義", "", "备注", "", "", ""]);
+  rows.push(["", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["人民币支付", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["支付宝", "微信", "", "", "", "备注", "", "", "", ""]);
+  rows.push(["", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["老师确认", "", "", "", "", "", "", "", "", ""]);
+  rows.push(["确认日期", "", "老师签名", "", "", "备注", "", "", "", ""]);
+  rows.push(["", "", "", "", "", "", "", "", "", ""]);
 
   const totalRowIndex = totalRowNumber - 1;
   const summaryRowIndex = totalRowIndex + 1;
@@ -1313,35 +1300,35 @@ function buildWageDutyReport(wageLock, details) {
     confirmHeaderRowIndex,
     confirmInputRowIndex,
     merges: [
-      "A1:L1",
+      "A1:J1",
       "D2:F2",
-      "H2:L2",
-      "A3:L3",
+      "H2:J2",
+      "A3:J3",
       ...Array.from({ length: detailRowCount }, (_, index) => `C${detailStartRow + index}:D${detailStartRow + index}`),
       `A${totalRowNumber}:F${totalRowNumber}`,
-      `A${totalRowNumber + 1}:L${totalRowNumber + 1}`,
-      `A${totalRowNumber + 2}:L${totalRowNumber + 2}`,
-      `E${totalRowNumber + 3}:G${totalRowNumber + 3}`,
-      `H${totalRowNumber + 3}:L${totalRowNumber + 3}`,
-      `E${totalRowNumber + 4}:G${totalRowNumber + 4}`,
-      `H${totalRowNumber + 4}:L${totalRowNumber + 4}`,
-      `A${totalRowNumber + 5}:L${totalRowNumber + 5}`,
+      `A${totalRowNumber + 1}:J${totalRowNumber + 1}`,
+      `A${totalRowNumber + 2}:J${totalRowNumber + 2}`,
+      `E${totalRowNumber + 3}:F${totalRowNumber + 3}`,
+      `G${totalRowNumber + 3}:J${totalRowNumber + 3}`,
+      `E${totalRowNumber + 4}:F${totalRowNumber + 4}`,
+      `G${totalRowNumber + 4}:J${totalRowNumber + 4}`,
+      `A${totalRowNumber + 5}:J${totalRowNumber + 5}`,
       `B${totalRowNumber + 6}:E${totalRowNumber + 6}`,
-      `F${totalRowNumber + 6}:L${totalRowNumber + 6}`,
+      `F${totalRowNumber + 6}:J${totalRowNumber + 6}`,
       `B${totalRowNumber + 7}:E${totalRowNumber + 7}`,
-      `F${totalRowNumber + 7}:L${totalRowNumber + 7}`,
-      `A${totalRowNumber + 8}:L${totalRowNumber + 8}`,
+      `F${totalRowNumber + 7}:J${totalRowNumber + 7}`,
+      `A${totalRowNumber + 8}:J${totalRowNumber + 8}`,
       `C${totalRowNumber + 9}:E${totalRowNumber + 9}`,
-      `F${totalRowNumber + 9}:L${totalRowNumber + 9}`,
+      `F${totalRowNumber + 9}:J${totalRowNumber + 9}`,
       `C${totalRowNumber + 10}:E${totalRowNumber + 10}`,
-      `F${totalRowNumber + 10}:L${totalRowNumber + 10}`,
+      `F${totalRowNumber + 10}:J${totalRowNumber + 10}`,
     ],
   };
 }
 
-function buildDutyDetailRow(detail, excelRow) {
+function buildDutyDetailRow(detail) {
   if (!detail) {
-    return ["", "", "", "", "", "", 0, 0, 0, 0, { f: `H${excelRow}+I${excelRow}+J${excelRow}` }, ""];
+    return ["", "", "", "", "", "", 0, 0, 0, ""];
   }
 
   return [
@@ -1352,16 +1339,14 @@ function buildDutyDetailRow(detail, excelRow) {
     timeOnly(detail.start_time),
     timeOnly(detail.end_time),
     numberOrZero(detail.pay_hours),
-    numberOrZero(detail.lesson_wage_jpy),
     numberOrZero(detail.transport_fee_jpy),
     numberOrZero(detail.classroom_fee_jpy),
-    { f: `H${excelRow}+I${excelRow}+J${excelRow}` },
     "",
   ];
 }
 
 function styleWageDutyReportSheet(sheet, report) {
-  const allRange = `A1:L${report.rows.length}`;
+  const allRange = `A1:J${report.rows.length}`;
   const baseStyle = {
     font: { name: "Arial", sz: 10 },
     alignment: { vertical: "center", wrapText: true },
@@ -1400,7 +1385,7 @@ function styleWageDutyReportSheet(sheet, report) {
   };
 
   applyCellStyle(sheet, allRange, baseStyle);
-  applyCellStyle(sheet, "A1:L1", {
+  applyCellStyle(sheet, "A1:J1", {
     ...baseStyle,
     font: { name: "Arial", sz: 16, bold: true },
     alignment: { horizontal: "center", vertical: "center" },
@@ -1410,40 +1395,38 @@ function styleWageDutyReportSheet(sheet, report) {
   applyCellStyle(sheet, "C2:C2", labelStyle);
   applyCellStyle(sheet, "G2:G2", labelStyle);
   applyCellStyle(sheet, "B2:F2", lockedStyle);
-  applyCellStyle(sheet, "H2:L2", editableStyle);
-  applyCellStyle(sheet, "A3:L3", {
+  applyCellStyle(sheet, "H2:J2", editableStyle);
+  applyCellStyle(sheet, "A3:J3", {
     ...baseStyle,
     fill: { fgColor: { rgb: "FFF2CC" } },
     alignment: { vertical: "center", wrapText: true },
   });
-  applyCellStyle(sheet, "A4:L4", labelStyle);
-  applyCellStyle(sheet, `A${report.detailStartRow}:H${report.detailEndRow}`, lockedStyle);
-  applyCellStyle(sheet, `K${report.detailStartRow}:K${report.detailEndRow}`, lockedStyle);
-  applyCellStyle(sheet, `I${report.detailStartRow}:J${report.detailEndRow}`, editableStyle);
-  applyCellStyle(sheet, `L${report.detailStartRow}:L${report.detailEndRow}`, editableStyle);
-  applyCellStyle(sheet, `A${report.totalRowIndex + 1}:L${report.totalRowIndex + 1}`, totalStyle);
-  applyCellStyle(sheet, `A${report.summaryRowIndex + 1}:L${report.summaryRowIndex + 1}`, {
+  applyCellStyle(sheet, "A4:J4", labelStyle);
+  applyCellStyle(sheet, `A${report.detailStartRow}:G${report.detailEndRow}`, lockedStyle);
+  applyCellStyle(sheet, `H${report.detailStartRow}:J${report.detailEndRow}`, editableStyle);
+  applyCellStyle(sheet, `A${report.totalRowIndex + 1}:J${report.totalRowIndex + 1}`, totalStyle);
+  applyCellStyle(sheet, `A${report.summaryRowIndex + 1}:J${report.summaryRowIndex + 1}`, {
     ...baseStyle,
     font: { name: "Arial", sz: 10, bold: true },
     fill: { fgColor: { rgb: "F3F6FA" } },
   });
 
   for (const rowIndex of [report.bankTitleRowIndex, report.cnyTitleRowIndex, report.confirmTitleRowIndex]) {
-    applyCellStyle(sheet, `A${rowIndex + 1}:L${rowIndex + 1}`, sectionStyle);
+    applyCellStyle(sheet, `A${rowIndex + 1}:J${rowIndex + 1}`, sectionStyle);
   }
   for (const rowIndex of [report.bankHeaderRowIndex, report.cnyHeaderRowIndex, report.confirmHeaderRowIndex]) {
-    applyCellStyle(sheet, `A${rowIndex + 1}:L${rowIndex + 1}`, labelStyle);
+    applyCellStyle(sheet, `A${rowIndex + 1}:J${rowIndex + 1}`, labelStyle);
   }
   for (const rowIndex of [report.bankInputRowIndex, report.cnyInputRowIndex, report.confirmInputRowIndex]) {
-    applyCellStyle(sheet, `A${rowIndex + 1}:L${rowIndex + 1}`, editableStyle);
+    applyCellStyle(sheet, `A${rowIndex + 1}:J${rowIndex + 1}`, editableStyle);
   }
 
   for (let row = report.detailStartRow; row <= report.detailEndRow; row += 1) {
     applyNumberFormat(sheet, `G${row}:G${row}`, "0.##");
-    applyNumberFormat(sheet, `H${row}:K${row}`, "#,##0");
+    applyNumberFormat(sheet, `H${row}:I${row}`, "#,##0");
   }
   applyNumberFormat(sheet, `G${report.totalRowIndex + 1}:G${report.totalRowIndex + 1}`, "0.##");
-  applyNumberFormat(sheet, `H${report.totalRowIndex + 1}:K${report.totalRowIndex + 1}`, "#,##0");
+  applyNumberFormat(sheet, `H${report.totalRowIndex + 1}:I${report.totalRowIndex + 1}`, "#,##0");
 }
 
 function applyCellStyle(sheet, range, style) {

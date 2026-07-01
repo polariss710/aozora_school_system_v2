@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-06-30
+Status date: 2026-07-01
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.48 teacher duty report export column cleanup, 2026-07-01:
+   老师工资详情页的勤务申报表 Excel 导出改为老师结算填写用口径：明细表不再显示 `课时工资 JPY` 和 `明细合计 JPY` 两列，保留日期、学生、课程/工作内容、开始/结束时间、结算课时、交通费、教室费和备注；合计行仍汇总结算课时、交通费和教室费，第 37 行继续保留 DB 快照来源的 `系统快照合计` 文本，用于内部核对课时工资、费用和总额。本次只调整 `wage-detail.html` 导出工作簿版式和缓存版本，不改变老师工资生成、明细调整、支付请求、Cash 链路、DB/RPC 计算口径或历史业务数据。
 
 1. v10.3.47 student tuition bill request chain, 2026-06-30:
    补齐学生月度学费生成主链路。新增并执行 `sql/current/school_student_tuition_bills_schema.sql`，创建 `school_student_tuition_bills` 应收快照表，用于冻结 DB/RPC 权威生成的 JPY 预定课时费和上月 CNY 结转；新增并执行 `sql/current/school_student_tuition_bills_rpcs.sql`，提供 `school_generate_student_tuition_bill(...)` 从正式 planned 课时生成/重算草稿应收、`school_create_student_tuition_bill_income_record(...)` 从应收生成一条 pending `school_income_records`，并替换 `school_request_cash_income_confirmation_for_record(...)`：当收入来源为 `student_tuition_bill` 且提交 CNY Cash 确认时，DB/RPC 用 `JPY应收 * 本次汇率 + 冻结CNY结转` 后再按取整规则计算实际到账金额；手动实际到账金额仍视为用户显式输入。收入页新增“生成学费应收”入口，只传学生、月份、请求日期和备注，不传应收金额；Cash 批量提交弹窗对学费应收默认 CNY 到账并显示非持久化理论金额预览，提交保存值仍由 DB/RPC 或用户显式输入决定。Rollback 测试使用 2099-02 白名单数据验证 JPY 应收 `120000`、CNY 结转 `321.45`、CNY Cash 后端取整金额 `6321`，rollback residue 为 0。白名单 commit test 写入 `codex-test-v10.3.47` 数据：business entity `97000000-0000-4000-8000-000000103491`、student `97000000-0000-4000-8000-000000103492`、teacher `97000000-0000-4000-8000-000000103493`、subject `97000000-0000-4000-8000-000000103494`、previous settlement `97000000-0000-4000-8000-000000103495`、planned lesson `97000000-0000-4000-8000-000000103496`、tuition bill `3f1c4213-2905-4d40-bb6a-5dcc3efbd29d`、pending income `0d67832b-9604-4c84-a103-10d5cd1307af`、School Cash linkage event `109943b8-b31e-4e4c-b708-38c804411b74`，payment amount `4623 CNY`。No Cash DB, Cash request, Cash transaction, School account transaction, account balance, real student/lesson/settlement, teacher wage, expense, or historical data was modified.
