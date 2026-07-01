@@ -14,6 +14,7 @@ import {
   fetchWageTeachers,
   generateTeacherMonthlyWage,
 } from "../api/wage-api.js";
+import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -24,6 +25,7 @@ import {
   updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js";
 
 const DEFAULT_FILTERS = {
   teacherId: "",
@@ -80,6 +82,7 @@ let startupFilters = null;
 let renderedWageLockRows = [];
 let selectedWageLockIds = new Set();
 let isPaymentRequestSubmitting = false;
+let isDutyReportExportSubmitting = false;
 
 export async function initWagePage() {
   cacheDom();
@@ -125,6 +128,7 @@ function cacheDom() {
   dom.candidateEmptyState = document.querySelector("#wageCandidateEmptyState");
   dom.candidateTableBody = document.querySelector("#wageCandidateTableBody");
   dom.exportMonthlySummaryButton = document.querySelector("#wageMonthlySummaryExportButton");
+  dom.exportDutyReportBatchButton = document.querySelector("#wageDutyReportBatchExportButton");
   dom.openGenerateDialogButton = document.querySelector("#openWageGenerateDialogButton");
   dom.generateDialog = document.querySelector("#wageGenerateDialog");
   dom.generateSummary = document.querySelector("#wageGenerateSummary");
@@ -153,6 +157,7 @@ function bindEvents() {
   dom.tableBody?.addEventListener("click", handleWageTableClick);
   dom.tableBody?.addEventListener("change", handleWageTableChange);
   dom.exportMonthlySummaryButton?.addEventListener("click", handleMonthlySummaryExport);
+  dom.exportDutyReportBatchButton?.addEventListener("click", handleBatchDutyReportExport);
   dom.generateCancelButton?.addEventListener("click", closeGenerateDialog);
   dom.generateSubmitButton?.addEventListener("click", handleGenerateSubmit);
   dom.generateDialog?.addEventListener("click", (event) => {
@@ -581,14 +586,14 @@ function updatePaymentRequestBatchControls() {
   const selectableRows = renderedWageLockRows.filter(canCreatePaymentRequestForWageLock);
   const selectedRows = selectedPaymentRequestRows();
   if (dom.openBatchPaymentRequestButton) {
-    dom.openBatchPaymentRequestButton.disabled = isPaymentRequestSubmitting || selectedRows.length === 0;
+    dom.openBatchPaymentRequestButton.disabled = isPaymentRequestSubmitting || isDutyReportExportSubmitting || selectedRows.length === 0;
     dom.openBatchPaymentRequestButton.textContent = selectedRows.length > 0
       ? `批量生成支付请求（已选 ${selectedRows.length} 条）`
       : "批量生成支付请求";
   }
 
   if (dom.selectAllPaymentRequests) {
-    dom.selectAllPaymentRequests.disabled = isPaymentRequestSubmitting || selectableRows.length === 0;
+    dom.selectAllPaymentRequests.disabled = isPaymentRequestSubmitting || isDutyReportExportSubmitting || selectableRows.length === 0;
     dom.selectAllPaymentRequests.checked = selectableRows.length > 0 && selectedRows.length === selectableRows.length;
     dom.selectAllPaymentRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
   }
@@ -697,6 +702,12 @@ function setPaymentRequestSubmitting(isSubmitting) {
   isPaymentRequestSubmitting = isSubmitting;
   if (dom.openBatchPaymentRequestButton) {
     dom.openBatchPaymentRequestButton.disabled = isSubmitting;
+  }
+  if (dom.exportDutyReportBatchButton) {
+    dom.exportDutyReportBatchButton.disabled = isSubmitting || isDutyReportExportSubmitting;
+  }
+  if (dom.exportMonthlySummaryButton) {
+    dom.exportMonthlySummaryButton.disabled = isSubmitting || isDutyReportExportSubmitting;
   }
   for (const button of dom.tableBody.querySelectorAll("[data-wage-create-payment-request-id]")) {
     button.disabled = isSubmitting;
@@ -1188,8 +1199,53 @@ async function handleMonthlySummaryExport() {
   }
 }
 
+async function handleBatchDutyReportExport() {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
+    return;
+  }
+
+  if (!window.XLSX?.utils?.aoa_to_sheet || !window.XLSX?.writeFile) {
+    showMessage("error", "Excel 导出库尚未加载，请刷新页面后重试。");
+    return;
+  }
+
+  const filters = readFilters();
+  if (!filters) {
+    return;
+  }
+
+  if (filters.month !== loadedMonth) {
+    showMessage("error", "请先查询当前筛选月份，再批量导出勤务申报表。");
+    return;
+  }
+
+  const rows = effectiveDutyReportWageLocks();
+  if (!rows.length) {
+    showMessage("error", `${formatMonth(filters.month)} 当前筛选结果没有可导出的未作废工资快照。`);
+    return;
+  }
+
+  setDutyReportExportSubmitting(true);
+  showMessage("info", `正在读取 ${rows.length} 位老师的工资明细并生成勤务申报表...`);
+
+  try {
+    const reports = await Promise.all(rows.map((row) => fetchWageDetailPage(row.id)));
+    exportBatchWageDutyReportXlsx(reports, { month: filters.month });
+    showMessage("success", `勤务申报表已批量导出：${reports.length} 张工作表。`);
+  } catch (error) {
+    showMessage("error", `批量导出勤务申报表失败：${error.message || error}`);
+  } finally {
+    setDutyReportExportSubmitting(false);
+  }
+}
+
 function effectiveMonthlyWageLocks() {
   return sortWageLocks(wageLocks).filter((row) => row.status !== "void" && !row.voided_at);
+}
+
+function effectiveDutyReportWageLocks() {
+  return renderedWageLockRows.filter((row) => row.status !== "void" && !row.voided_at);
 }
 
 function exportMonthlySummaryWorkbook({ month, rows, feeSummaries }) {
@@ -1548,6 +1604,24 @@ function setMonthlyExportSubmitting(isSubmitting) {
   if (dom.exportMonthlySummaryButton) {
     dom.exportMonthlySummaryButton.disabled = isSubmitting;
     dom.exportMonthlySummaryButton.textContent = isSubmitting ? "导出中..." : "月度汇总导出";
+  }
+  if (dom.exportDutyReportBatchButton) {
+    dom.exportDutyReportBatchButton.disabled = isSubmitting || isDutyReportExportSubmitting;
+  }
+  if (dom.openGenerateDialogButton) {
+    dom.openGenerateDialogButton.disabled = isSubmitting || isDutyReportExportSubmitting;
+  }
+  updatePaymentRequestBatchControls();
+}
+
+function setDutyReportExportSubmitting(isSubmitting) {
+  isDutyReportExportSubmitting = isSubmitting;
+  if (dom.exportDutyReportBatchButton) {
+    dom.exportDutyReportBatchButton.disabled = isSubmitting;
+    dom.exportDutyReportBatchButton.textContent = isSubmitting ? "导出中..." : "批量导出勤务申报表";
+  }
+  if (dom.exportMonthlySummaryButton) {
+    dom.exportMonthlySummaryButton.disabled = isSubmitting;
   }
   if (dom.openGenerateDialogButton) {
     dom.openGenerateDialogButton.disabled = isSubmitting;
@@ -1942,13 +2016,16 @@ function renderDialogSummaryRow(label, value) {
 function setLoading(isLoading) {
   dom.loadingState.classList.toggle("is-hidden", !isLoading);
   if (dom.exportMonthlySummaryButton) {
-    dom.exportMonthlySummaryButton.disabled = isLoading;
+    dom.exportMonthlySummaryButton.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
+  }
+  if (dom.exportDutyReportBatchButton) {
+    dom.exportDutyReportBatchButton.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
   }
   if (dom.openBatchPaymentRequestButton) {
-    dom.openBatchPaymentRequestButton.disabled = isLoading || isPaymentRequestSubmitting;
+    dom.openBatchPaymentRequestButton.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
   }
   if (dom.selectAllPaymentRequests) {
-    dom.selectAllPaymentRequests.disabled = isLoading || isPaymentRequestSubmitting;
+    dom.selectAllPaymentRequests.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
   }
 }
 
