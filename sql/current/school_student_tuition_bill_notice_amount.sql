@@ -129,6 +129,8 @@ declare
   v_lesson_ids uuid[];
   v_note text := nullif(trim(coalesce(p_note, '')), '');
   v_now timestamptz := now();
+  v_existing_found boolean := false;
+  v_existing_income public.school_income_records%rowtype;
   v_message text;
 begin
   if p_student_id is null then
@@ -231,11 +233,35 @@ begin
      and b.status in ('draft', 'income_created')
    for update;
 
-  if found and v_existing.status = 'income_created' then
-    raise exception '该学生月份已生成收入记录，不能重复生成学费应收。';
+  v_existing_found := found;
+
+  if v_existing_found and v_existing.status = 'income_created' then
+    select *
+      into v_existing_income
+      from public.school_income_records i
+     where i.id = v_existing.income_record_id
+       and i.app_type = 'school'
+     for update;
+
+    if found and (v_existing_income.status = 'cancelled' or v_existing_income.cancelled_at is not null) then
+      update public.school_student_tuition_bills b
+         set status = 'cancelled',
+             cancelled_at = coalesce(b.cancelled_at, v_now),
+             cancelled_reason = coalesce(
+               b.cancelled_reason,
+               'associated income record cancelled; tuition bill can be regenerated'
+             ),
+             updated_by = current_user,
+             updated_at = v_now
+       where b.id = v_existing.id;
+
+      v_existing_found := false;
+    else
+      raise exception '该学生月份已生成收入记录，不能重复生成学费应收。';
+    end if;
   end if;
 
-  if found then
+  if v_existing_found then
     update public.school_student_tuition_bills b
        set previous_settlement_month = v_previous_month,
            previous_settlement_id = v_previous_settlement.id,

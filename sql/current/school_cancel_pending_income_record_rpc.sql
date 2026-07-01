@@ -212,6 +212,22 @@ begin
    returning i.id, i.status, i.cancelled_at, i.cancelled_reason, i.cancelled_by
     into income_id, status, cancelled_at, cancelled_reason, cancelled_by;
 
+  if v_income.source_type = 'student_tuition_bill' and v_income.source_id is not null then
+    update public.school_student_tuition_bills b
+       set status = 'cancelled',
+           cancelled_at = coalesce(b.cancelled_at, v_now),
+           cancelled_reason = coalesce(
+             b.cancelled_reason,
+             concat('associated income record cancelled: ', v_reason)
+           ),
+           updated_by = coalesce(v_operator, nullif(current_setting('request.jwt.claim.sub', true), ''), current_user),
+           updated_at = v_now
+     where b.id = v_income.source_id
+       and b.income_record_id = v_income.id
+       and b.status = 'income_created'
+       and b.app_type = 'school';
+  end if;
+
   return next;
 end;
 $$;
