@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.54 income list tuition notice amount column, 2026-07-02:
+   收入记录一览页新增 `通知金额` 列，用于直接显示 `student_tuition_bill` 收入快照中的 `source_snapshot.billing_amount_cny`，避免月末确认学费时必须进入详情页才能看到向学生通知的 CNY 金额。普通收入、旧学费收入或缺少通知金额快照的记录显示 `-`。本次只调整 `income.html` / `js/pages/income-page.js` / `css/app.css` 的展示和缓存版本；通知金额仍只读取 DB/RPC 已冻结快照，前端不计算、不回填、不写入金额，不改变学费生成、Cash 提交、学生结算、收入状态、DB/RPC 或历史数据。
+
 1. v10.3.53 student tuition bill cancel/regenerate guard fix, 2026-07-02:
    修复 v10.3.52 上线后发现的学费应收重建缺口：收入详情页作废 `student_tuition_bill` pending 收入后，关联 `school_student_tuition_bills` 仍停留在 `income_created`，导致重新生成同学生同月份学费应收时报“该学生月份已生成收入记录”。新增并执行 `sql/current/school_student_tuition_bill_cancel_regenerate.sql`，并同步更新 `school_student_tuition_bill_notice_amount.sql` / `school_cancel_pending_income_record_rpc.sql`：作废 pending 学费收入时同步把关联 tuition bill 标为 `cancelled`；重新生成时若发现旧 `income_created` bill 的关联收入已 `cancelled`，DB/RPC 会先把旧 bill 标为 `cancelled` 并插入新的应收快照。旧收入、旧 bill 保留为 audit，不删除、不回填、不改 Cash。Rollback 测试使用 `2099-06` 白名单数据验证 first bill/income 作废后可用新通知汇率重新生成 bill，旧 bill cancelled，新通知金额 `2172.34 CNY`，rollback residue 为 0。白名单 commit test 写入 `codex-test-v10.3.53` 数据：business entity `97000000-0000-4000-8000-000000103561`、student `97000000-0000-4000-8000-000000103562`、teacher `97000000-0000-4000-8000-000000103563`、subject `97000000-0000-4000-8000-000000103564`、previous settlement `97000000-0000-4000-8000-000000103565`、planned lesson `97000000-0000-4000-8000-000000103566`、cancelled bill `d69aabda-a5af-4292-b948-89d85c06f020`、cancelled income `2df02858-3ae0-4cfe-8631-7e57b7fa4d3e`、regenerated bill `05e697d9-fd11-4a96-ad73-a8d0c66bc1cb`、regenerated income `2f5d983c-cc89-42be-8afd-a7b12fa4b25c`，验证新收入原始金额 `44000 JPY`、通知汇率 `0.0550`、通知金额 `2420.00 CNY`。No Cash DB, Cash request, Cash transaction, School account transaction, account balance, real student/lesson/settlement, teacher wage, expense, or historical data was modified.
 

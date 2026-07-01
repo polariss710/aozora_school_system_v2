@@ -1450,7 +1450,7 @@ h2 {
 
 .income-table {
   width: 100%;
-  min-width: 1200px;
+  min-width: 1345px;
   table-layout: fixed;
 }
 
@@ -1460,12 +1460,18 @@ h2 {
   table-layout: fixed;
 }
 
-.app-shell--dense .income-table,
+.app-shell--dense .income-table {
+  min-width: 1220px;
+}
+
 .app-shell--dense .expense-table {
   min-width: 1080px;
 }
 
-.app-shell--income-list .income-table,
+.app-shell--income-list .income-table {
+  min-width: 1420px;
+}
+
 .app-shell--expense-list .expense-table {
   min-width: 1280px;
 }
@@ -1497,6 +1503,10 @@ h2 {
 
 .income-col-amount,
 .expense-col-amount {
+  width: 145px;
+}
+
+.income-col-notice {
   width: 145px;
 }
 
@@ -1537,6 +1547,10 @@ h2 {
 
 .app-shell--dense .income-col-amount,
 .app-shell--dense .expense-col-amount {
+  width: 130px;
+}
+
+.app-shell--dense .income-col-notice {
   width: 130px;
 }
 
@@ -1582,6 +1596,10 @@ h2 {
 
 .app-shell--income-list .income-col-amount,
 .app-shell--expense-list .expense-col-amount {
+  width: 145px;
+}
+
+.app-shell--income-list .income-col-notice {
   width: 145px;
 }
 
@@ -1638,8 +1656,8 @@ h2 {
 .income-table td:nth-child(3),
 .income-table th:nth-child(4),
 .income-table th:nth-child(5),
-.income-table th:nth-child(9),
-.income-table td:nth-child(9),
+.income-table th:nth-child(10),
+.income-table td:nth-child(10),
 .expense-table th:nth-child(3),
 .expense-table td:nth-child(3),
 .expense-table th:nth-child(4),
@@ -1650,19 +1668,22 @@ h2 {
 }
 
 .income-table th:nth-child(6),
+.income-table th:nth-child(7),
 .expense-table th:nth-child(6) {
   text-align: right;
 }
 
 .income-table th:nth-child(6),
 .income-table td:nth-child(6),
+.income-table th:nth-child(7),
+.income-table td:nth-child(7),
 .expense-table th:nth-child(6),
 .expense-table td:nth-child(6) {
   padding-right: 18px;
 }
 
-.income-table th:nth-child(7),
-.income-table td:nth-child(7),
+.income-table th:nth-child(8),
+.income-table td:nth-child(8),
 .expense-table th:nth-child(7),
 .expense-table td:nth-child(7) {
   padding-left: 18px;
@@ -1687,6 +1708,7 @@ h2 {
 }
 
 .income-table .amount-cell,
+.income-table .notice-amount-cell,
 .expense-table .amount-cell,
 .expense-table .rate-cell {
   color: #172033;

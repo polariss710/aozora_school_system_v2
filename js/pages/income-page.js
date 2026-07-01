@@ -437,6 +437,7 @@ function renderIncomeRecords(rows) {
       <td class="income-nowrap month-cell">${escapeHtml(formatMonth(row.year_month))}</td>
       <td class="income-nowrap date-cell">${escapeHtml(formatDateOnly(row.income_date))}</td>
       <td class="number-cell income-nowrap amount-cell">${escapeHtml(formatIncomeListAmount(row))}</td>
+      <td class="number-cell income-nowrap notice-amount-cell">${escapeHtml(formatIncomeListNoticeAmount(row))}</td>
       <td>${renderIncomeStatusSummary(row)}</td>
       <td class="income-related-cell">${renderIncomeRelatedCell(row)}</td>
       <td class="action-cell income-action-cell">${renderIncomeRowActions(row)}</td>
@@ -2228,6 +2229,11 @@ function formatIncomeListAmount(row) {
     return "-";
   }
   return formatCurrency(row.amount, row.currency);
+}
+
+function formatIncomeListNoticeAmount(row) {
+  const billingAmountCny = studentTuitionBillBillingAmountCny(row);
+  return billingAmountCny ? formatCurrency(billingAmountCny, "CNY") : "-";
 }
 
 function formatDateOnly(value) {
