@@ -3069,7 +3069,7 @@ function renderLessonPdfPrintStyles() {
     .lesson-pdf-meta { color: #64748b; display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; }
     .lesson-pdf-summary {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       margin: 10px 0 12px;
     }
@@ -3193,6 +3193,8 @@ function renderLessonPdfSummaryCards(stats = {}) {
     ["实际课时", displayValue(stats.actual_hours)],
     ["预定课时费", formatCurrency(stats.planned_fee_jpy, "JPY")],
     ["实际课时费", formatCurrency(stats.actual_fee_jpy, "JPY")],
+    ["完成跨月补课次数", displayValue(stats.cross_month_makeup_completed_count)],
+    ["完成跨月补课课时", displayValue(stats.cross_month_makeup_completed_hours)],
   ];
 
   return `

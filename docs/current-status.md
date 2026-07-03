@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-02
+Status date: 2026-07-03
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.56 lesson PDF cross-month makeup summary, 2026-07-03:
+   学生课时管理页导出学生课时 PDF 时，摘要区新增 `完成跨月补课次数` 和 `完成跨月补课课时` 两张卡片，和页面顶部统计使用同一套 `fetchLessonManagementStats(...)` / `school_get_lesson_management_stats_filtered` 返回值，避免页面显示跨月补课完成但 PDF 中缺失导致观感不一致。PDF 摘要布局从 4 列调整为 3 列两行以容纳新增统计。本次仅展示已由 DB/RPC 返回的统计字段，不在前端计算业务结果，不执行 SQL/RPC，不写 DB，不改变课时、学生结算、老师工资、收入、支出或 Cash 链路。
 
 1. v10.3.55 income list tuition carryover column, 2026-07-02:
    收入记录一览页在 `金额` 与 `通知金额` 之间新增 `上月结转` 列，用于显示 `student_tuition_bill` 收入快照中的 `source_snapshot.previous_carryover_cny`。这样一览页可同时看到 School 原始 JPY 学费、上月 CNY 结转和向学生通知的 CNY 金额，避免误以为通知金额只是 JPY 换算值。普通收入或缺少结转快照的旧记录显示 `-`，结转为 0 的新/旧学费快照显示 `CNY 0.00`。本次仍是纯展示和缓存版本调整：前端只读取 DB/RPC 快照，不计算、不回填、不写入金额，不执行 SQL/RPC，不改变学费生成、Cash 提交、学生结算或历史数据。
