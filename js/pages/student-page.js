@@ -19,9 +19,10 @@ const UNSET_VALUE = "__unset__";
 
 const STUDENT_STATUS_LABELS = {
   active: "在籍",
-  inactive: "停用",
   paused: "暂停",
   graduated: "毕业",
+  withdrawn: "退出",
+  inactive: "停用",
 };
 
 const COURSE_TRACK_LABELS = {
@@ -30,8 +31,10 @@ const COURSE_TRACK_LABELS = {
 };
 
 const EDITABLE_COURSE_TRACK_OPTIONS = ["science", "humanities"];
+const EDITABLE_STUDENT_STATUS_OPTIONS = ["active", "paused", "graduated", "withdrawn"];
 const STUDENT_FIELD_IDS = [
   "name",
+  "status",
   "defaultBusinessEntity",
   "courseTrack",
   "presetExchangeRate",
@@ -79,6 +82,7 @@ function cacheDom() {
   dom.createDialog = document.querySelector("#createStudentProfileDialog");
   dom.createError = document.querySelector("#createStudentProfileError");
   dom.createNameInput = document.querySelector("#createStudentNameInput");
+  dom.createStatusSelect = document.querySelector("#createStudentStatusSelect");
   dom.createBusinessEntitySelect = document.querySelector("#createStudentBusinessEntitySelect");
   dom.createCourseTrackSelect = document.querySelector("#createStudentCourseTrackSelect");
   dom.createPresetExchangeRateInput = document.querySelector("#createStudentPresetExchangeRateInput");
@@ -93,6 +97,7 @@ function cacheDom() {
   dom.editDialog = document.querySelector("#editStudentProfileDialog");
   dom.editError = document.querySelector("#editStudentProfileError");
   dom.editNameInput = document.querySelector("#editStudentNameInput");
+  dom.editStatusSelect = document.querySelector("#editStudentStatusSelect");
   dom.editBusinessEntitySelect = document.querySelector("#editStudentBusinessEntitySelect");
   dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
   dom.editPresetExchangeRateInput = document.querySelector("#editStudentPresetExchangeRateInput");
@@ -139,6 +144,7 @@ function bindDialogFieldEvents(scope) {
   const fields = scope === "create"
     ? [
         ["name", dom.createNameInput, "input"],
+        ["status", dom.createStatusSelect, "change"],
         ["defaultBusinessEntity", dom.createBusinessEntitySelect, "change"],
         ["courseTrack", dom.createCourseTrackSelect, "change"],
         ["presetExchangeRate", dom.createPresetExchangeRateInput, "input"],
@@ -146,6 +152,7 @@ function bindDialogFieldEvents(scope) {
       ]
     : [
         ["name", dom.editNameInput, "input"],
+        ["status", dom.editStatusSelect, "change"],
         ["defaultBusinessEntity", dom.editBusinessEntitySelect, "change"],
         ["courseTrack", dom.editCourseTrackSelect, "change"],
         ["presetExchangeRate", dom.editPresetExchangeRateInput, "input"],
@@ -227,11 +234,20 @@ function restoreFilterSelections(filters) {
 
 function renderStatusOptions(rows) {
   const options = ['<option value="">全部</option>'];
+  const fixedStatuses = new Set(EDITABLE_STUDENT_STATUS_OPTIONS);
 
-  for (const status of distinctValues(rows, "status")) {
+  for (const status of EDITABLE_STUDENT_STATUS_OPTIONS) {
     options.push(
       `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`
     );
+  }
+
+  for (const status of distinctValues(rows, "status")) {
+    if (!fixedStatuses.has(status)) {
+      options.push(
+        `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`
+      );
+    }
   }
 
   dom.statusSelect.innerHTML = options.join("");
@@ -336,6 +352,7 @@ function openCreateDialog() {
   clearCreateErrors();
   setCreateSubmitting(false);
   dom.createNameInput.value = "";
+  renderCreateStudentStatusOptions("active");
   renderCreateBusinessEntityOptions("");
   renderCreateCourseTrackOptions("science");
   dom.createPresetExchangeRateInput.value = "0";
@@ -389,6 +406,7 @@ async function submitCreateDialog() {
 function readCreatePayload() {
   return {
     name: dom.createNameInput.value.trim(),
+    status: dom.createStatusSelect.value,
     defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
     courseTrack: dom.createCourseTrackSelect.value,
     presetExchangeRate: readNonNegativeNumber(dom.createPresetExchangeRateInput.value),
@@ -409,6 +427,7 @@ function openEditDialog(studentId) {
 
   editingStudent = student;
   dom.editNameInput.value = student.name || student.display_name || "";
+  renderEditStudentStatusOptions(student.status || "active");
   renderEditBusinessEntityOptions(student.business_entity_id);
   renderEditCourseTrackOptions(student.course_track);
   dom.editPresetExchangeRateInput.value = displayNumberInput(student.preset_exchange_rate);
@@ -471,6 +490,7 @@ function readEditPayload() {
   return {
     studentId: editingStudent.id,
     name: dom.editNameInput.value.trim(),
+    status: dom.editStatusSelect.value,
     defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
     courseTrack: dom.editCourseTrackSelect.value,
     presetExchangeRate: readNonNegativeNumber(dom.editPresetExchangeRateInput.value),
@@ -487,6 +507,10 @@ function validateStudentPayload(payload) {
     return { message: "请输入学生姓名。", fieldIds: ["name"] };
   }
 
+  if (!EDITABLE_STUDENT_STATUS_OPTIONS.includes(payload.status)) {
+    return { message: "请选择有效学生状态。", fieldIds: ["status"] };
+  }
+
   if (payload.courseTrack && !EDITABLE_COURSE_TRACK_OPTIONS.includes(payload.courseTrack)) {
     return { message: "请选择有效文理区分。", fieldIds: ["courseTrack"] };
   }
@@ -500,6 +524,26 @@ function validateStudentPayload(payload) {
   }
 
   return null;
+}
+
+function renderEditStudentStatusOptions(selectedStatus) {
+  dom.editStatusSelect.innerHTML = studentStatusEditOptions();
+  dom.editStatusSelect.value = EDITABLE_STUDENT_STATUS_OPTIONS.includes(selectedStatus)
+    ? selectedStatus
+    : "active";
+}
+
+function renderCreateStudentStatusOptions(selectedStatus) {
+  dom.createStatusSelect.innerHTML = studentStatusEditOptions();
+  dom.createStatusSelect.value = EDITABLE_STUDENT_STATUS_OPTIONS.includes(selectedStatus)
+    ? selectedStatus
+    : "active";
+}
+
+function studentStatusEditOptions() {
+  return EDITABLE_STUDENT_STATUS_OPTIONS.map((status) =>
+    `<option value="${escapeAttribute(status)}">${escapeHtml(studentStatusLabel(status))}</option>`
+  ).join("");
 }
 
 function renderEditCourseTrackOptions(selectedCourseTrack) {
@@ -623,6 +667,7 @@ function setEditSubmitting(isSubmitting) {
 function studentFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("姓名")) return ["name"];
+  if (message.includes("状态")) return ["status"];
   if (message.includes("文理")) return ["courseTrack"];
   if (message.includes("业务归属")) return ["defaultBusinessEntity"];
   if (message.includes("预设汇率")) return ["presetExchangeRate"];

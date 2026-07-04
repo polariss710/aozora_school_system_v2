@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.26-weekly-schedule-image">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.57-student-status-profile">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -151,6 +151,11 @@
           <input id="createStudentNameInput" type="text" autocomplete="off">
         </label>
 
+        <label class="field" data-create-student-field="status">
+          <span>状态</span>
+          <select id="createStudentStatusSelect"></select>
+        </label>
+
         <label class="field" data-create-student-field="defaultBusinessEntity">
           <span>默认业务归属</span>
           <select id="createStudentBusinessEntitySelect"></select>
@@ -212,6 +217,11 @@
           <input id="editStudentNameInput" type="text" autocomplete="off">
         </label>
 
+        <label class="field" data-edit-student-field="status">
+          <span>状态</span>
+          <select id="editStudentStatusSelect"></select>
+        </label>
+
         <label class="field" data-edit-student-field="defaultBusinessEntity">
           <span>默认业务归属</span>
           <select id="editStudentBusinessEntitySelect"></select>
@@ -259,6 +269,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=v10.1.16-student-management-ui-polish"></script>
+    <script type="module" src="./js/student-app.js?v=v10.3.57-student-status-profile"></script>
   </body>
 </html>
