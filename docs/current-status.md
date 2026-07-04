@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-03
+Status date: 2026-07-04
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. 2026-07-04 tuition whitelist test data cleanup:
+   按用户确认清理学生管理中残留的 3 套学费链路白名单测试数据，仅限固定 UUID 和 `codex-test` 标记范围。删除前只读盘点确认目标为 v10.3.47 / v10.3.52 / v10.3.53 commit tests：3 students、3 business entities、3 teachers、3 subjects、3 previous settlements、3 planned lessons、4 student tuition bills、4 pending/cancelled income records、1 School-side personal Cash income linkage event；School account transactions 为 0，personal Cash request id 为空，legacy payment Cash linkage 为 0。事务内 rollback 演练删除计数完全匹配后正式 COMMIT 删除同样计数；删除后固定 UUID 目标和 `codex-test` 宽搜在 students / business entities / teachers / subjects / lesson records / income records / student tuition bills 均为 0。No real business data, Cash DB transaction, Cash request, School account transaction, account balance, teacher wage, expense, or current operational lesson/settlement data was modified.
 
 1. v10.3.56 lesson PDF cross-month makeup summary, 2026-07-03:
    学生课时管理页导出学生课时 PDF 时，摘要区新增 `完成跨月补课次数` 和 `完成跨月补课课时` 两张卡片，和页面顶部统计使用同一套 `fetchLessonManagementStats(...)` / `school_get_lesson_management_stats_filtered` 返回值，避免页面显示跨月补课完成但 PDF 中缺失导致观感不一致。PDF 摘要布局从 4 列调整为 3 列两行以容纳新增统计。本次仅展示已由 DB/RPC 返回的统计字段，不在前端计算业务结果，不执行 SQL/RPC，不写 DB，不改变课时、学生结算、老师工资、收入、支出或 Cash 链路。
