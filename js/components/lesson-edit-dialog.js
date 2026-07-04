@@ -244,7 +244,7 @@ export function createLessonEditDialogController(options) {
     const { students = [], teachers = [], subjects = [], businessEntities = [] } = getMasterData() || {};
     renderEntityOptionsWithPlaceholder(
       dom.studentSelect,
-      students.filter((student) => !["inactive", "graduated"].includes(safeText(student.status))),
+      students.filter(isActiveStudent),
       studentName,
       "请选择学生"
     );
@@ -657,6 +657,10 @@ function renderEntityOptionsWithPlaceholder(selectEl, rows, labelGetter, placeho
 
 function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
+}
+
+function isActiveStudent(student) {
+  return safeText(student?.status) === "active";
 }
 
 function teacherName(teacher) {

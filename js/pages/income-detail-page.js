@@ -1136,8 +1136,12 @@ function filteredEditStudents() {
     if (businessEntityId && student.business_entity_id !== businessEntityId) {
       return false;
     }
-    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+    return isActiveStudent(student);
   });
+}
+
+function isActiveStudent(student) {
+  return safeText(student?.status) === "active";
 }
 
 function filteredEditAccounts() {

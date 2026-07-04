@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomePage } from "./pages/income-page.js?v=v10.3.52-tuition-notice-amount";
+import { initIncomePage } from "./pages/income-page.js?v=v10.3.58-active-student-dialog-options";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

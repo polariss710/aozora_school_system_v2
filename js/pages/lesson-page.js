@@ -20,7 +20,7 @@ import {
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.58-active-student-dialog-options";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
@@ -1308,7 +1308,7 @@ function closeCreatePlannedLessonDialog(force = false) {
 function renderCreatePlannedLessonOptions() {
   renderEntityOptionsWithPlaceholder(
     dom.createPlannedLessonStudentSelect,
-    students.filter((student) => !["inactive", "graduated"].includes(safeText(student.status))),
+    students.filter(isActiveStudent),
     studentName,
     "请选择学生"
   );
@@ -2887,7 +2887,12 @@ function openLessonPdfExportDialog() {
     return;
   }
 
-  renderEntityOptionsWithPlaceholder(dom.lessonPdfExportStudentSelect, students, studentName, "请选择学生");
+  renderEntityOptionsWithPlaceholder(
+    dom.lessonPdfExportStudentSelect,
+    students.filter(isActiveStudent),
+    studentName,
+    "请选择学生"
+  );
   dom.lessonPdfExportStudentSelect.value = dom.studentSelect.value || "";
   dom.lessonPdfExportModeSelect.value = "actual_current";
   clearLessonPdfExportErrors();
@@ -3597,7 +3602,7 @@ function closeLessonBatchGenerateDialog(force = false) {
 function renderLessonBatchGenerateMasterOptions() {
   renderEntityOptionsWithPlaceholder(
     dom.lessonBatchGenerateStudentSelect,
-    students.filter((student) => !["inactive", "graduated"].includes(safeText(student.status))),
+    students.filter(isActiveStudent),
     studentName,
     "请选择学生"
   );
@@ -6406,6 +6411,10 @@ function nameById(rows, id, labelGetter) {
 
 function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
+}
+
+function isActiveStudent(student) {
+  return safeText(student?.status) === "active";
 }
 
 function teacherName(teacher) {

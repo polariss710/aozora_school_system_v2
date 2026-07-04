@@ -1,6 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.58-active-student-dialog-options";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 

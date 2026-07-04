@@ -1438,7 +1438,7 @@ function renderTuitionBillStudentOptions(selectedStudentId = "", businessEntityI
     if (businessEntityId && student.business_entity_id !== businessEntityId) {
       return false;
     }
-    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+    return isActiveStudent(student);
   });
   dom.tuitionBillStudentSelect.innerHTML = [
     '<option value="">请选择学生</option>',
@@ -1816,8 +1816,12 @@ function filteredCreateStudents() {
       return false;
     }
 
-    return student.status !== "inactive" && student.status !== "disabled" && student.status !== "archived";
+    return isActiveStudent(student);
   });
+}
+
+function isActiveStudent(student) {
+  return safeText(student?.status) === "active";
 }
 
 function filteredCreateAccounts() {

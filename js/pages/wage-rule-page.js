@@ -450,7 +450,7 @@ function renderEditLookupOptions(rule) {
   );
   renderEditEntityOptions(
     dom.editStudentSelect,
-    students,
+    students.filter(isUsableStudent),
     rule.student_id,
     isUsableStudent,
     studentName,
@@ -1106,8 +1106,8 @@ function usableStudentById(id) {
   return students.find((student) => student.id === id && isUsableStudent(student)) || null;
 }
 
-function editableStudentById(id, currentId) {
-  return id && (id === currentId ? students.find((student) => student.id === id) : usableStudentById(id));
+function editableStudentById(id) {
+  return id && usableStudentById(id);
 }
 
 function usableSubjectById(id) {
@@ -1217,7 +1217,7 @@ function isUsableTeacher(teacher) {
 }
 
 function isUsableStudent(student) {
-  return Boolean(student && !["inactive", "graduated", "withdrawn"].includes(safeText(student.status)));
+  return safeText(student?.status) === "active";
 }
 
 function isUsableSubject(subject) {

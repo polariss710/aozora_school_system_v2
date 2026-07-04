@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-04
+Status date: 2026-07-05
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.58 active-only student dialog options, 2026-07-05:
+   学生状态新增后，补齐各业务弹窗里的学生下拉框过滤：课时管理新增预定课时、课时编辑、学生课时 PDF 导出、批量生成预定课时，收入记录新增收入、生成学费应收，收入详情编辑收入，以及老师工资规则新增/编辑中的学生选项，统一只显示 `status = active` 的在籍学生。页面筛选栏和历史列表仍保留全部学生用于查询旧数据。该阶段只读取既有 master data 的 `status` 字段并过滤显示选项，不执行 SQL/RPC、不写 DB、不回填或修改学生、课时、收入、工资、结算、Cash 链路或历史数据。
 
 1. v10.3.57 student status profile field, 2026-07-04:
    学生管理新增显式学生状态维护。新增并执行 `sql/current/school_student_profile_status_rpc.sql`，为 `school_create_student_profile(...)` / `school_update_student_profile(...)` 增加带 `p_status` 的新 RPC 签名，允许状态为 `active` / `paused` / `graduated` / `withdrawn`，分别显示为 `在籍` / `暂停` / `毕业` / `退出`；RPC 仅写 `school_students.status` 和既有安全主数据字段，不改表结构、不回填历史数据、不触碰余额、课时、结算、收入、支出、工资、Cash 或账户流水。学生新增/编辑弹窗新增状态下拉框，新增默认 `在籍`，列表筛选固定展示四个业务状态，旧 `inactive` 仅作为 legacy 显示保留。Rollback 测试创建 1 条 `codex-test-v10.3.57 rollback` 学生并验证 `paused -> graduated` 和非法状态拒绝后 rollback residue 0；白名单 commit test 创建 1 条 `codex-test-v10.3.57 commit` 学生，验证 `paused -> withdrawn`，随后在同事务内按刚创建 id 删除该测试行并 COMMIT，最终 residue 0。No real business data, Cash DB transaction, Cash request, School account transaction, balance, lesson, settlement, income, expense, or teacher wage data was modified.
