@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.60 guarded fresh planned lesson delete, 2026-07-06:
+   学生课时管理新增带业务 guard 的“删除预定课时”入口，仅用于全新且未发生任何业务关联的 `planned / status=planned / 未作废` 预定课时。新增并执行 `sql/current/school_delete_fresh_planned_lesson_rpc.sql`，RPC `school_delete_fresh_planned_lesson(lesson_id, expected_updated_at, confirm_delete)` 只按 id 删除 `school_lesson_records` 中一条目标 planned，要求二次确认和 `updated_at` 乐观锁，并拒绝非 planned、非 `planned` 状态、已作废、已有 actual/取消课/补课完成关联、同学生同月同业务已有月度结算/调整草稿/调整记录、已进入老师工资快照明细、已进入学生学费应收快照或收入快照的记录。前端新增删除确认弹窗和按钮；页面只做显示层初判，最终是否可删由 DB/RPC 权威判断。Rollback 测试使用 `codex-test-v10.3.60` 白名单数据覆盖成功删除、未确认拒绝、actual 关联拒绝、月结拒绝、工资明细拒绝、学费应收快照拒绝、收入快照拒绝，rollback residue 0；白名单 commit test 创建并删除一条 `2099-12` fresh planned 及测试主数据后同事务清理，最终 residue 0。No real business data, Cash DB, student settlement, teacher wage, tuition bill, income, expense, account transaction, or Cash request was modified.
+
 1. v10.3.59 weekly schedule Beijing time display, 2026-07-06:
    Beta 周课表图片生成页在每条课程行的时间区同步显示东京时间与北京时间。课程开始/结束时间仍以现有课时记录中的东京时间为唯一输入/保存口径；页面只在 canvas 预览和 PNG 导出时把北京时间作为 `东京时间 - 1小时` 的非持久化展示文本，不提交、不保存、不修改课时记录，也不改变课时生成、学生结算、老师工资、收入、支出或 Cash 链路。
 

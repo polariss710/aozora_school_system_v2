@@ -998,9 +998,33 @@
           </div>
         </section>
       </div>
+
+      <div class="dialog-backdrop is-hidden" id="deleteLessonDialog" aria-hidden="true">
+        <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="deleteLessonTitle">
+          <div class="section-heading">
+            <h2 id="deleteLessonTitle">删除预定课时</h2>
+            <p class="section-note">仅允许删除全新且没有任何业务关联的待上课预定课时。已有实际课时、取消课、补课记录、月度结算、工资快照、学费应收或收入快照时，系统会拒绝删除。</p>
+          </div>
+
+          <div id="deleteLessonSummary" class="dialog-summary"></div>
+          <div id="deleteLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <div class="lesson-create-field-grid">
+            <label class="field lesson-create-wide-field confirm-check" data-delete-lesson-field="confirm">
+              <input id="deleteLessonConfirmCheckbox" type="checkbox">
+              <span>确认这是全新的未关联预定课时，删除后不保留课时记录。</span>
+            </label>
+          </div>
+
+          <div class="dialog-actions">
+            <button class="button button-danger" id="deleteLessonSubmitButton" type="button">确认删除</button>
+            <button class="button" id="deleteLessonCancelButton" type="button">取消</button>
+          </div>
+        </section>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.58-active-student-dialog-options"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.3.60-delete-fresh-planned-lesson"></script>
   </body>
 </html>

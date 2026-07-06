@@ -20,6 +20,7 @@ import {
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
+import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.58-active-student-dialog-options";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
@@ -267,6 +268,7 @@ let createCrossMonthMakeupActualInitialSnapshot = null;
 let isCreateCrossMonthMakeupActualCloseConfirmPending = false;
 let lessonEditController = null;
 let lessonVoidController = null;
+let lessonDeleteController = null;
 let isLessonPageInitialized = false;
 let initialLessonQueryFilters = null;
 let lessonStatsRequestId = 0;
@@ -293,6 +295,7 @@ export function initLessonPage() {
   cacheDom();
   setupLessonEditController();
   setupLessonVoidController();
+  setupLessonDeleteController();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   [
@@ -333,6 +336,23 @@ function setupLessonVoidController() {
     },
   });
   lessonVoidController.init();
+}
+
+function setupLessonDeleteController() {
+  lessonDeleteController = createLessonDeleteDialogController({
+    dom: cacheLessonDeleteDialogDom(),
+    getLessonRecords: () => lessonRecords,
+    hasSupabaseConfig,
+    showMessage,
+    onDeleted: refreshAfterDeleteLesson,
+    getLinkedActualExists: hasLinkedActualLesson,
+    setExternalBusy: (isBusy) => {
+      if (dom.openCreatePlannedLessonButton) {
+        dom.openCreatePlannedLessonButton.disabled = isBusy;
+      }
+    },
+  });
+  lessonDeleteController.init();
 }
 
 function setupLessonEditController() {
@@ -622,6 +642,12 @@ function bindEvents() {
   });
 
   dom.tableBody?.addEventListener("click", (event) => {
+    const deleteButton = event.target.closest("[data-delete-planned-lesson-id]");
+    if (deleteButton) {
+      lessonDeleteController?.open(deleteButton.dataset.deletePlannedLessonId || "");
+      return;
+    }
+
     const voidButton = event.target.closest("[data-void-planned-lesson-id]");
     if (voidButton) {
       lessonVoidController?.open(voidButton.dataset.voidPlannedLessonId || "");
@@ -708,6 +734,12 @@ function bindEvents() {
     const voidButton = event.target.closest("[data-void-planned-lesson-id]");
     if (voidButton) {
       lessonVoidController?.open(voidButton.dataset.voidPlannedLessonId || "");
+      return;
+    }
+
+    const deleteButton = event.target.closest("[data-delete-planned-lesson-id]");
+    if (deleteButton) {
+      lessonDeleteController?.open(deleteButton.dataset.deletePlannedLessonId || "");
       return;
     }
 
@@ -1747,6 +1779,18 @@ async function refreshAfterVoidLesson(result, sourceLesson) {
   await loadLessonMonth(targetMonth, filters);
   applyCurrentFilters();
   showMessage("success", `预定课时已误录作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
+}
+
+async function refreshAfterDeleteLesson(result, sourceLesson) {
+  const targetMonth = result?.year_month || sourceLesson?.year_month || loadedMonth || currentYearMonth();
+  if (targetMonth) {
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, targetMonth);
+  }
+
+  const filters = readFilters() || { status: "" };
+  await loadLessonMonth(targetMonth, filters);
+  applyCurrentFilters();
+  showMessage("success", `预定课时已删除：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
 
 function setCreateActualLessonSubmitting(isSubmitting) {
@@ -6123,17 +6167,24 @@ function renderLessonEditAction(record) {
   return lessonEditController?.renderAction(record) || "";
 }
 
+function renderLessonDeleteAction(record) {
+  return lessonDeleteController?.renderAction(record) || "";
+}
+
 function renderLessonActions(record) {
   return [
     renderLessonEditAction(record),
+    renderLessonDeleteAction(record),
   ].filter(Boolean).join(" ");
 }
 
 function hasLinkedActualLesson(plannedLessonId) {
-  return lessonRecords.some((record) => (
+  const hasSameMonthActual = lessonRecords.some((record) => (
     record.lesson_type === "actual"
     && record.planned_lesson_id === plannedLessonId
   ));
+  const hasCrossMonthActual = (crossMonthMakeupReferences.actualsBySourcePlannedId.get(plannedLessonId) || []).length > 0;
+  return hasSameMonthActual || hasCrossMonthActual;
 }
 
 function isVoidedPlanned(record) {

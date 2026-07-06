@@ -556,6 +556,25 @@ export async function voidPlannedLesson(payload) {
   return result;
 }
 
+export async function deleteFreshPlannedLesson(payload) {
+  const { data, error } = await supabase.rpc("school_delete_fresh_planned_lesson", {
+    p_lesson_id: payload.lessonId,
+    p_expected_updated_at: payload.expectedUpdatedAt,
+    p_confirm_delete: payload.confirmDelete === true,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result) {
+    throw new Error("预定课时删除失败：RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
 export async function createActualLessonFromPlanned(payload) {
   const { data, error } = await supabase.rpc("school_create_actual_lesson_from_planned", {
     p_planned_lesson_id: payload.plannedLessonId,
