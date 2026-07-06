@@ -226,7 +226,7 @@ function drawScheduleCanvas(canvas, schedule) {
   const groupedDays = groupLessonsByDate(schedule.lessons);
   const dayBlocks = groupedDays.map((day) => ({
     ...day,
-    height: 104 + day.lessons.length * 92,
+    height: 104 + day.lessons.length * 102,
   }));
   const contentHeight = dayBlocks.reduce((sum, day) => sum + day.height + 22, 0);
   const canvasHeight = Math.max(760, 268 + contentHeight + 120);
@@ -282,20 +282,27 @@ function drawDayBlock(ctx, day, y) {
   let rowY = y + 94;
   day.lessons.forEach((lesson) => {
     drawLessonRow(ctx, lesson, x + 30, rowY, width - 60);
-    rowY += 92;
+    rowY += 102;
   });
 }
 
 function drawLessonRow(ctx, lesson, x, y, width) {
-  drawRoundedRect(ctx, x, y, width, 72, 18, "#f8fafc");
+  drawRoundedRect(ctx, x, y, width, 82, 18, "#f8fafc");
 
   ctx.fillStyle = "#0f172a";
-  ctx.font = "900 30px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  ctx.fillText(formatTimeRange(lesson), x + 22, y + 45);
+  ctx.font = "900 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.fillText(`东京 ${formatTimeRange(lesson)}`, x + 22, y + 33);
+
+  const beijingTime = formatBeijingTimeRange(lesson);
+  if (beijingTime) {
+    ctx.fillStyle = "#0f766e";
+    ctx.font = "800 21px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText(`北京 ${beijingTime}`, x + 22, y + 64);
+  }
 
   ctx.fillStyle = "#111827";
   ctx.font = "900 30px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
-  ctx.fillText(truncateText(ctx, subjectNameById(lesson.subject_id), 220), x + 260, y + 45);
+  ctx.fillText(truncateText(ctx, subjectNameById(lesson.subject_id), 210), x + 270, y + 50);
 
   ctx.fillStyle = "#475569";
   ctx.font = "700 24px system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
@@ -304,7 +311,7 @@ function drawLessonRow(ctx, lesson, x, y, width) {
     formatDuration(lesson.duration_hours),
     safeText(lesson.lesson_content || lesson.note),
   ].filter(Boolean).join(" / ");
-  ctx.fillText(truncateText(ctx, meta, width - 510), x + 500, y + 43);
+  ctx.fillText(truncateText(ctx, meta, width - 520), x + 510, y + 48);
 }
 
 function drawFooter(ctx, y) {
@@ -394,9 +401,38 @@ function formatTimeRange(lesson) {
   return start || end || "时间未定";
 }
 
-function formatTime(value) {
+function formatBeijingTimeRange(lesson) {
+  if (!safeText(lesson.start_time) && !safeText(lesson.end_time)) {
+    return "";
+  }
+  const start = formatTime(lesson.start_time, -1);
+  const end = formatTime(lesson.end_time, -1);
+  if (start && end) return `${start}-${end}`;
+  return start || end;
+}
+
+function formatTime(value, offsetHours = 0) {
   const text = safeText(value);
-  return text ? text.slice(0, 5) : "";
+  if (!text) return "";
+
+  const [hourText, minuteText] = text.slice(0, 5).split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  if (
+    !Number.isInteger(hour)
+    || !Number.isInteger(minute)
+    || hour < 0
+    || hour > 23
+    || minute < 0
+    || minute > 59
+  ) {
+    return text.slice(0, 5);
+  }
+
+  const totalMinutes = (hour * 60 + minute + offsetHours * 60 + 24 * 60) % (24 * 60);
+  const shiftedHour = Math.floor(totalMinutes / 60);
+  const shiftedMinute = totalMinutes % 60;
+  return `${String(shiftedHour).padStart(2, "0")}:${String(shiftedMinute).padStart(2, "0")}`;
 }
 
 function formatDuration(value) {

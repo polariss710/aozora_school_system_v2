@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-05
+Status date: 2026-07-06
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.59 weekly schedule Beijing time display, 2026-07-06:
+   Beta 周课表图片生成页在每条课程行的时间区同步显示东京时间与北京时间。课程开始/结束时间仍以现有课时记录中的东京时间为唯一输入/保存口径；页面只在 canvas 预览和 PNG 导出时把北京时间作为 `东京时间 - 1小时` 的非持久化展示文本，不提交、不保存、不修改课时记录，也不改变课时生成、学生结算、老师工资、收入、支出或 Cash 链路。
 
 1. v10.3.58 active-only student dialog options, 2026-07-05:
    学生状态新增后，补齐各业务弹窗里的学生下拉框过滤：课时管理新增预定课时、课时编辑、学生课时 PDF 导出、批量生成预定课时，收入记录新增收入、生成学费应收，收入详情编辑收入，以及老师工资规则新增/编辑中的学生选项，统一只显示 `status = active` 的在籍学生。页面筛选栏和历史列表仍保留全部学生用于查询旧数据。该阶段只读取既有 master data 的 `status` 字段并过滤显示选项，不执行 SQL/RPC、不写 DB、不回填或修改学生、课时、收入、工资、结算、Cash 链路或历史数据。
