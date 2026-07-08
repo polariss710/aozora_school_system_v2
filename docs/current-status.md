@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.64 quote PDF total summary, 2026-07-08:
+   Beta `报价单生成` 的打印 / 保存 PDF 版式新增总报价汇总。原页面顶部已有的 `报价月份 / 总课时 / 报价合计 / 人民币参考` 现在会同步显示在每个打印页标题下、月度明细表上方，避免 PDF 只展示每月课时明细而看不到整体总报价。该阶段只复用前端已计算的报价预览结果做静态展示，不读取或写入学生、课时、收入、结算、Cash、DB/RPC 或历史数据。
+
 1. v10.3.63 tuition bill readonly preview, 2026-07-08:
    收入记录页 `生成学费应收` 增加只读预览步骤。新增并执行 `sql/current/school_student_tuition_bill_preview_rpc.sql`，RPC `school_preview_student_tuition_bill(student_id, billing_month, billing_exchange_rate)` 复用 DB/RPC 权威口径校验学生、月份、通知汇率、学生默认业务归属、目标月锁定状态、正式 planned 课时、既有 draft / income_created 应收状态，并只返回预览结果：JPY 学费、正式预定课时数/小时、上月 locked 结转 CNY、通知汇率、通知金额 CNY、既有应收状态等；不 insert/update/delete 学费应收、收入记录、课时、结算、Cash 请求、账户流水或余额。前端新增 `生成预览` 按钮和只读预览摘要，正式 `生成应收` 前必须先生成当前学生/月/汇率匹配的预览；学生、月份或汇率变化会清空旧预览。Rollback 测试使用 `codex-test-v10.3.63` 白名单数据验证 `35000 JPY + 123.45 CNY` 在 `0.05` 汇率下预览为 `1873.45 CNY` 且未创建 tuition bill，rollback residue 0；白名单 commit test 创建并同事务清理固定测试数据，验证负结转 `-50.25 CNY` 下 `24000 JPY * 0.0525 - 50.25 = 1209.75 CNY`，最终 residue 0。No real business data, Cash DB, Cash request, Cash transaction, School account transaction, balance, lesson, settlement, income, expense, or teacher wage data was modified.
 

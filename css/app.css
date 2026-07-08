@@ -5662,6 +5662,36 @@ h2 {
   font-weight: 800;
 }
 
+.quote-print-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.quote-print-summary div {
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.quote-print-summary span {
+  display: block;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.quote-print-summary strong {
+  display: block;
+  margin-top: 3px;
+  color: #111827;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
 .quote-plan-table {
   width: 100%;
   border-collapse: collapse;
@@ -5797,6 +5827,7 @@ h2 {
   .quote-course-row,
   .quote-exchange-rate-control,
   .weekly-schedule-filter-grid,
+  .quote-print-summary,
   .quote-print-footer {
     grid-template-columns: 1fr;
   }
@@ -6066,6 +6097,32 @@ h2 {
 
   .quote-plan-row-delete-button {
     display: none !important;
+  }
+
+  .quote-print-summary {
+    break-inside: avoid;
+    gap: 4pt;
+    margin-bottom: 6pt;
+  }
+
+  .quote-print-summary div {
+    border-color: #b9d3e6;
+    background: #f8fafc !important;
+    border-radius: 4pt;
+    padding: 3.5pt 4pt;
+  }
+
+  .quote-print-summary span {
+    color: #475569;
+    font-size: 7pt;
+    line-height: 1.15;
+  }
+
+  .quote-print-summary strong {
+    color: #0f172a;
+    font-size: 9.2pt;
+    line-height: 1.12;
+    margin-top: 1pt;
   }
 
   .quote-plan-table {

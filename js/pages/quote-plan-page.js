@@ -487,6 +487,7 @@ function renderPreview(draft, result) {
         </div>
         <div class="quote-print-page-number">${index + 1} / ${result.months.length}</div>
       </header>
+      ${renderQuotePrintSummary(result)}
       <table class="quote-plan-table">
         <thead>
           <tr>
@@ -509,6 +510,17 @@ function renderPreview(draft, result) {
       ${draft.note ? `<p class="quote-print-note">${escapeHtml(draft.note)}</p>` : ""}
     </article>
   `).join("");
+}
+
+function renderQuotePrintSummary(result) {
+  return `
+    <section class="quote-print-summary" aria-label="报价合计">
+      <div><span>报价月份</span><strong>${formatNumber(result.months.length)} 个月</strong></div>
+      <div><span>总课时</span><strong>${formatHours(result.grandTotalHours)} H</strong></div>
+      <div><span>报价合计</span><strong>${formatCurrency(result.grandTotalJpy, "JPY")}</strong></div>
+      <div><span>人民币参考</span><strong>${formatCurrency(result.grandTotalCny, "CNY")}</strong></div>
+    </section>
+  `;
 }
 
 function renderGroupedMonthRows(rows) {
