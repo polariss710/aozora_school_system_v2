@@ -757,7 +757,7 @@
                     <th>时间</th>
                     <th>课时</th>
                     <th>单价 JPY</th>
-                    <th>回数</th>
+                    <th>第几回</th>
                     <th>内容</th>
                     <th>操作</th>
                   </tr>
@@ -769,6 +769,7 @@
 
           <div class="dialog-actions">
             <button class="button" id="lessonBatchGeneratePreviewButton" type="button">更新预览</button>
+            <button class="button" id="lessonBatchGenerateRegenerateButton" type="button">重新生成预览</button>
             <button class="button button-primary" id="lessonBatchGenerateSubmitButton" type="button">生成预定课时</button>
             <button class="button is-hidden" id="lessonBatchGenerateViewMonthButton" type="button">查看生成月份</button>
             <button class="button is-hidden" id="lessonBatchGenerateViewFirstDetailButton" type="button">查看首条详情</button>
@@ -1026,6 +1027,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.60-delete-fresh-planned-lesson"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.3.62-batch-planned-preview-order"></script>
   </body>
 </html>

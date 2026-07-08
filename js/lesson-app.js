@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.60-delete-fresh-planned-lesson";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.62-batch-planned-preview-order";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

@@ -78,6 +78,8 @@ const SUBJECT_SORT_RULES = [
   ["文综", "综合科目", "総合科目", "文科"],
 ];
 
+const LESSON_BATCH_SUBJECT_ORDER_FALLBACK = 999;
+
 const LESSON_IMPORT_PREVIEW_FIELD_LABELS = {
   student: "学生",
   teacher: "老师",
@@ -439,6 +441,7 @@ function cacheDom() {
   dom.lessonBatchGeneratePreviewEmpty = document.querySelector("#lessonBatchGeneratePreviewEmpty");
   dom.lessonBatchGeneratePreviewRows = document.querySelector("#lessonBatchGeneratePreviewRows");
   dom.lessonBatchGeneratePreviewButton = document.querySelector("#lessonBatchGeneratePreviewButton");
+  dom.lessonBatchGenerateRegenerateButton = document.querySelector("#lessonBatchGenerateRegenerateButton");
   dom.lessonBatchGenerateSubmitButton = document.querySelector("#lessonBatchGenerateSubmitButton");
   dom.lessonBatchGenerateViewMonthButton = document.querySelector("#lessonBatchGenerateViewMonthButton");
   dom.lessonBatchGenerateViewFirstDetailButton = document.querySelector("#lessonBatchGenerateViewFirstDetailButton");
@@ -595,6 +598,7 @@ function bindEvents() {
   dom.openLessonBatchGenerateButton?.addEventListener("click", openLessonBatchGenerateDialog);
   dom.lessonBatchGenerateCloseButton?.addEventListener("click", closeLessonBatchGenerateDialog);
   dom.lessonBatchGeneratePreviewButton?.addEventListener("click", handleLessonBatchGeneratePreview);
+  dom.lessonBatchGenerateRegenerateButton?.addEventListener("click", handleLessonBatchGenerateRegeneratePreview);
   dom.lessonBatchGenerateSubmitButton?.addEventListener("click", handleLessonBatchGenerateSubmit);
   dom.lessonBatchGenerateAddPatternButton?.addEventListener("click", addLessonBatchGeneratePattern);
   dom.lessonBatchGenerateViewMonthButton?.addEventListener("click", handleLessonBatchGenerateViewMonthClick);
@@ -619,13 +623,23 @@ function bindEvents() {
       isLessonBatchGenerateCloseConfirmPending = false;
       clearLessonBatchGenerateFieldInvalid(fieldId);
       hideLessonBatchGenerateErrorIfClean();
-      clearLessonBatchGenerateSubmitResult();
+      if (fieldId === "note") {
+        clearLessonBatchGenerateSubmitResult();
+      } else {
+        clearLessonBatchGeneratePreviewState();
+        renderLessonBatchGeneratePreview();
+      }
     });
     element?.addEventListener("change", () => {
       isLessonBatchGenerateCloseConfirmPending = false;
       clearLessonBatchGenerateFieldInvalid(fieldId);
       hideLessonBatchGenerateErrorIfClean();
-      clearLessonBatchGenerateSubmitResult();
+      if (fieldId === "note") {
+        clearLessonBatchGenerateSubmitResult();
+      } else {
+        clearLessonBatchGeneratePreviewState();
+        renderLessonBatchGeneratePreview();
+      }
     });
   });
   dom.openCrossMonthMakeupDialogButton?.addEventListener("click", openCreateCrossMonthMakeupActualDialog);
@@ -3677,20 +3691,18 @@ function resetLessonBatchGenerateForm() {
 }
 
 function defaultLessonBatchGeneratePattern(patternIndex) {
-  const firstTeacher = teachers.find((teacher) => !["inactive", "retired"].includes(safeText(teacher.status)));
-  const firstSubject = subjects.find((subject) => subject.is_active !== false);
   return {
     patternIndex,
-    subjectId: firstSubject?.id || "",
-    teacherId: firstTeacher?.id || "",
+    subjectId: "",
+    teacherId: "",
     weekday: "1",
     startTime: "",
     endTime: "",
-    durationHours: "1",
+    durationHours: "2",
     unitPrice: "10000",
     occurrenceCount: "1",
     lessonCount: "1",
-    lessonContent: firstSubject ? subjectName(firstSubject) : "",
+    lessonContent: "",
   };
 }
 
@@ -3746,11 +3758,11 @@ function renderLessonBatchGeneratePatterns() {
         <input type="number" min="0" step="1" inputmode="numeric" value="${escapeAttribute(pattern.unitPrice)}" data-batch-pattern-field="unitPrice">
       </label>
       <label class="field">
-        <span>次数</span>
+        <span>每周次数</span>
         <input type="number" min="1" step="1" inputmode="numeric" value="${escapeAttribute(pattern.occurrenceCount)}" data-batch-pattern-field="occurrenceCount">
       </label>
       <label class="field">
-        <span>回数</span>
+        <span>起始回数</span>
         <input type="number" min="1" step="1" inputmode="numeric" value="${escapeAttribute(pattern.lessonCount)}" data-batch-pattern-field="lessonCount">
       </label>
       <label class="field">
@@ -3768,17 +3780,21 @@ function renderLessonBatchGeneratePatterns() {
 }
 
 function renderLessonBatchGenerateSubjectOptions(selectedId) {
-  return subjects
+  const options = ['<option value="">请选择科目</option>'];
+  options.push(...subjects
     .filter((subject) => subject.is_active !== false)
     .map((subject) => `<option value="${escapeAttribute(subject.id)}" ${subject.id === selectedId ? "selected" : ""}>${escapeHtml(subjectName(subject))}</option>`)
-    .join("");
+  );
+  return options.join("");
 }
 
 function renderLessonBatchGenerateTeacherOptions(selectedId) {
-  return teachers
+  const options = ['<option value="">请选择老师</option>'];
+  options.push(...teachers
     .filter((teacher) => !["inactive", "retired"].includes(safeText(teacher.status)))
     .map((teacher) => `<option value="${escapeAttribute(teacher.id)}" ${teacher.id === selectedId ? "selected" : ""}>${escapeHtml(teacherName(teacher))}</option>`)
-    .join("");
+  );
+  return options.join("");
 }
 
 function handleLessonBatchGeneratePatternInput(event) {
@@ -3835,20 +3851,22 @@ function handleLessonBatchGeneratePreview() {
   }
 
   batchGeneratePreviewRows = buildLessonBatchGeneratePreviewRows(draft);
+  batchGenerateRemovedKeys = new Set();
   const duplicateRow = findDuplicateLessonBatchGeneratePreviewRow(batchGeneratePreviewRows);
   if (duplicateRow) {
     batchGeneratePreviewRows = [];
     renderLessonBatchGeneratePreview();
-    showLessonBatchGenerateError(`规则 ${duplicateRow.current.patternIndex} 与规则 ${duplicateRow.first.patternIndex} 会生成重复课时，请调整日期、回数或规则内容。`);
+    showLessonBatchGenerateError(`规则 ${duplicateRow.current.patternIndex} 与规则 ${duplicateRow.first.patternIndex} 会生成重复课时，请调整日期、第几回或规则内容。`);
     return;
   }
-  batchGenerateRemovedKeys = new Set([...batchGenerateRemovedKeys].filter((key) => (
-    batchGeneratePreviewRows.some((row) => row.rowKey === key)
-  )));
   renderLessonBatchGeneratePreview();
   if (!visibleLessonBatchGeneratePreviewRows().length) {
     showLessonBatchGenerateError("当前规则没有可生成的预定课时。");
   }
+}
+
+function handleLessonBatchGenerateRegeneratePreview() {
+  handleLessonBatchGeneratePreview();
 }
 
 function readLessonBatchGenerateDraft(options = {}) {
@@ -3915,10 +3933,10 @@ function readLessonBatchGenerateDraft(options = {}) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 单价不能小于 0。`]);
     }
     if (!Number.isInteger(pattern.occurrenceCount) || pattern.occurrenceCount <= 0 || pattern.occurrenceCount > 10) {
-      errors.push(["patterns", `规则 ${pattern.patternIndex} 次数必须是 1-10 的正整数。`]);
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 每周次数必须是 1-10 的正整数。`]);
     }
     if (pattern.lessonCount !== null && (!Number.isInteger(pattern.lessonCount) || pattern.lessonCount <= 0)) {
-      errors.push(["patterns", `规则 ${pattern.patternIndex} 回数必须是正整数。`]);
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 起始回数必须是正整数。`]);
     }
   }
 
@@ -4027,11 +4045,27 @@ function buildLessonBatchGeneratePreviewRows(draft) {
       }
     }
   }
-  return rows.sort((left, right) => (
-    left.lessonDate.localeCompare(right.lessonDate)
+  return rows.sort(compareLessonBatchGeneratePreviewRows);
+}
+
+function compareLessonBatchGeneratePreviewRows(left, right) {
+  return left.lessonDate.localeCompare(right.lessonDate)
+    || lessonBatchGenerateSubjectOrder(left.subjectId) - lessonBatchGenerateSubjectOrder(right.subjectId)
+    || Number(left.lessonCount || 0) - Number(right.lessonCount || 0)
     || left.patternIndex - right.patternIndex
-    || left.occurrenceIndex - right.occurrenceIndex
+    || left.occurrenceIndex - right.occurrenceIndex;
+}
+
+function lessonBatchGenerateSubjectOrder(subjectId) {
+  const subject = subjects.find((item) => item.id === subjectId);
+  if (!subject) {
+    return LESSON_BATCH_SUBJECT_ORDER_FALLBACK;
+  }
+  const normalizedName = normalizeLessonImportLookup(subjectName(subject));
+  const matchedIndex = SUBJECT_SORT_RULES.findIndex((aliases) => (
+    aliases.some((alias) => normalizedName.includes(normalizeLessonImportLookup(alias)))
   ));
+  return matchedIndex >= 0 ? matchedIndex : LESSON_BATCH_SUBJECT_ORDER_FALLBACK;
 }
 
 function findDuplicateLessonBatchGeneratePreviewRow(rows) {
