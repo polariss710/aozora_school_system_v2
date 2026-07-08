@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.63 tuition bill readonly preview, 2026-07-08:
+   收入记录页 `生成学费应收` 增加只读预览步骤。新增并执行 `sql/current/school_student_tuition_bill_preview_rpc.sql`，RPC `school_preview_student_tuition_bill(student_id, billing_month, billing_exchange_rate)` 复用 DB/RPC 权威口径校验学生、月份、通知汇率、学生默认业务归属、目标月锁定状态、正式 planned 课时、既有 draft / income_created 应收状态，并只返回预览结果：JPY 学费、正式预定课时数/小时、上月 locked 结转 CNY、通知汇率、通知金额 CNY、既有应收状态等；不 insert/update/delete 学费应收、收入记录、课时、结算、Cash 请求、账户流水或余额。前端新增 `生成预览` 按钮和只读预览摘要，正式 `生成应收` 前必须先生成当前学生/月/汇率匹配的预览；学生、月份或汇率变化会清空旧预览。Rollback 测试使用 `codex-test-v10.3.63` 白名单数据验证 `35000 JPY + 123.45 CNY` 在 `0.05` 汇率下预览为 `1873.45 CNY` 且未创建 tuition bill，rollback residue 0；白名单 commit test 创建并同事务清理固定测试数据，验证负结转 `-50.25 CNY` 下 `24000 JPY * 0.0525 - 50.25 = 1209.75 CNY`，最终 residue 0。No real business data, Cash DB, Cash request, Cash transaction, School account transaction, balance, lesson, settlement, income, expense, or teacher wage data was modified.
+
 1. v10.3.62 batch planned lesson preview ordering, 2026-07-08:
    学生课时管理的 `批量生成预定课时` dialog 做稳定运营微调。预览排序从按日期展开改为与课时计划 PDF 更一致的顺序：每月周一日期优先，其次按科目优先级（日语、数学、物理、化学、文综），再按第几回排序；不改变 DB/RPC 提交口径。课程规则默认科目和老师改为空白占位，默认课时改为 `2 h`，字段文案从容易混淆的 `次数 / 回数` 调整为 `每周次数 / 起始回数 / 第几回`。预览中手动移除行后，点击 `更新预览` 或新增 `重新生成预览` 会从当前规则重新生成并清空移除状态，方便误删后恢复。该阶段只改前端预览、表单默认值和静态文案；不执行 SQL/RPC、不写 DB、不修改课时、结算、工资、收入、支出或 Cash 链路。
 

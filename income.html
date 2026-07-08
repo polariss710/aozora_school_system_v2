@@ -390,6 +390,7 @@
         </div>
 
         <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
+        <div id="generateTuitionBillPreview" class="dialog-summary tuition-bill-preview-summary is-hidden" aria-live="polite"></div>
 
         <div class="income-create-field-grid">
           <label class="field" data-tuition-bill-field="incomeDate">
@@ -420,11 +421,12 @@
 
         <div class="dialog-actions">
           <button class="button" id="generateTuitionBillCancelButton" type="button">取消</button>
+          <button class="button" id="generateTuitionBillPreviewButton" type="button">生成预览</button>
           <button class="button button-primary" id="generateTuitionBillSubmitButton" type="button">生成应收</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v10.3.58-active-student-dialog-options"></script>
+    <script type="module" src="./js/income-app.js?v=v10.3.63-tuition-bill-preview"></script>
   </body>
 </html>

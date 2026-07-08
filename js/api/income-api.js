@@ -151,6 +151,25 @@ export async function generateStudentTuitionBill(payload) {
   return result;
 }
 
+export async function previewStudentTuitionBill(payload) {
+  const { data, error } = await supabase.rpc("school_preview_student_tuition_bill", {
+    p_student_id: payload.studentId,
+    p_billing_month: payload.billingMonth,
+    p_billing_exchange_rate: payload.billingExchangeRate,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.student_id) {
+    throw new Error("学费应收预览失败：RPC 没有返回预览结果。");
+  }
+
+  return result;
+}
+
 export async function createStudentTuitionBillIncomeRecord(payload) {
   const tuitionBillId = requireUuid(payload.tuitionBillId, "tuition_bill_id");
 
