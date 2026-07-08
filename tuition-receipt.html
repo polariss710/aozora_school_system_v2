@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>青空塾 管理系统 v2 / 报价单生成</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.32-quote-plan-course-track-layout">
+    <title>青空塾 管理系统 v2 / 領収書生成</title>
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.61-tuition-receipt-beta">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -16,9 +16,9 @@
         <details class="page-nav-group page-nav-group--beta is-active-group" open>
           <summary>Beta功能</summary>
           <div class="page-nav-group-links">
-            <a class="is-active" href="./quote-plan.html">报价单生成</a>
+            <a href="./quote-plan.html">报价单生成</a>
             <a href="./contract-generator.html">合同生成</a>
-            <a href="./tuition-receipt.html">領収書生成</a>
+            <a class="is-active" href="./tuition-receipt.html">領収書生成</a>
             <a href="./weekly-schedule-image.html">周课表图片</a>
           </div>
         </details>
@@ -65,12 +65,12 @@
       </nav>
     </aside>
 
-    <div class="app-shell app-shell--dense app-shell--quote-plan">
+    <div class="app-shell app-shell--dense app-shell--tuition-receipt">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
-          <h1>报价单生成</h1>
-          <p class="page-subtitle">独立生成课程报价 PDF，不读取学生、课时、结算或 Cash 数据。</p>
+          <h1>領収書生成</h1>
+          <p class="page-subtitle">手动填写学生、金额和项目，独立生成学费領収書 PDF。</p>
         </div>
         <div class="header-meta">
           <span class="readonly-pill">本地生成</span>
@@ -79,84 +79,77 @@
       </header>
 
       <main class="page-main">
-        <section id="quotePlanMessageArea" class="message is-hidden" aria-live="polite"></section>
+        <section id="tuitionReceiptMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel quote-plan-editor-panel" aria-labelledby="quotePlanEditorTitle">
+        <section class="panel tuition-receipt-editor-panel" aria-labelledby="tuitionReceiptEditorTitle">
           <div class="section-heading">
-            <h2 id="quotePlanEditorTitle">报价条件</h2>
-            <p class="section-note">单价与汇率只用于计算，不会显示在打印版报价单中。</p>
+            <h2 id="tuitionReceiptEditorTitle">領収書内容</h2>
+            <p class="section-note">仅使用本页手动输入内容生成预览，不读取学生、课时、收入、结算或 Cash 数据。</p>
           </div>
 
-          <form id="quotePlanForm">
-            <div class="quote-plan-base-grid">
+          <form id="tuitionReceiptForm">
+            <div class="tuition-receipt-form-grid">
               <label class="field">
-                <span>学生姓名</span>
-                <input id="quoteStudentName" type="text" autocomplete="off" placeholder="手动输入">
-              </label>
-              <label class="field">
-                <span>文件标题</span>
-                <input id="quoteTitle" type="text" value="课程计划">
+                <span>学生名称 / 宛名</span>
+                <input id="receiptStudentName" type="text" autocomplete="off" placeholder="例：山田太郎">
               </label>
               <label class="field">
-                <span>文理区分</span>
-                <select id="quoteCourseTrack">
-                  <option value="science">理科</option>
-                  <option value="humanities">文科</option>
-                </select>
+                <span>金额 JPY</span>
+                <input id="receiptAmountJpy" type="number" min="0" step="1" inputmode="numeric" placeholder="例：216000">
               </label>
               <label class="field">
-                <span>开始日期</span>
-                <input id="quoteStartDate" type="date">
+                <span>项目 / 但し書き</span>
+                <input id="receiptItemName" type="text" autocomplete="off" placeholder="例：2026年7月分 授業料として">
               </label>
               <label class="field">
-                <span>结束日期</span>
-                <input id="quoteEndDate" type="date">
+                <span>発行日</span>
+                <input id="receiptIssueDate" type="date">
               </label>
-              <label class="field quote-exchange-rate-field">
-                <span>内部汇率：1 JPY = CNY</span>
-                <div class="quote-exchange-rate-control">
-                  <input id="quoteExchangeRate" type="number" min="0" step="0.0000001" value="0.05" inputmode="decimal">
-                  <button id="quoteExchangeRateFetchButton" class="button" type="button">获取今日汇率</button>
-                </div>
-                <small id="quoteExchangeRateStatus" class="quote-exchange-rate-status"></small>
+              <label class="field">
+                <span>領収書番号</span>
+                <input id="receiptNumber" type="text" autocomplete="off">
               </label>
-              <label class="field quote-note-field">
-                <span>备注</span>
-                <input id="quoteNote" type="text" placeholder="可选，会显示在报价单底部">
+              <label class="field">
+                <span>支払方法</span>
+                <input id="receiptPaymentMethod" type="text" autocomplete="off" placeholder="例：銀行振込 / 現金 / Alipay">
+              </label>
+              <label class="field">
+                <span>発行者名称</span>
+                <input id="receiptIssuerName" type="text" autocomplete="off" value="青空進学塾">
+              </label>
+              <label class="field tuition-receipt-wide-field">
+                <span>発行者情報</span>
+                <input id="receiptIssuerInfo" type="text" autocomplete="off" placeholder="住所・連絡先など任意">
+              </label>
+              <label class="field tuition-receipt-wide-field">
+                <span>備考</span>
+                <textarea id="receiptNote" rows="2" placeholder="任意。領収書下部に表示します。"></textarea>
               </label>
             </div>
-
-            <div class="quote-course-heading">
-              <h3>课程目录</h3>
-              <button id="addQuoteCourseButton" class="button" type="button">新增课程</button>
-            </div>
-            <div id="quoteCourseList" class="quote-course-list"></div>
 
             <div class="quote-plan-form-actions">
               <button class="button button-primary" type="submit">更新预览</button>
-              <button id="resetQuotePlanButton" class="button" type="button">恢复默认</button>
+              <button id="resetTuitionReceiptButton" class="button" type="button">恢复默认</button>
             </div>
           </form>
         </section>
 
-        <section class="summary-grid quote-plan-summary-grid" id="quotePlanSummary" aria-label="报价汇总"></section>
-
-        <section class="panel quote-plan-preview-panel" aria-labelledby="quotePlanPreviewTitle">
+        <section class="panel tuition-receipt-preview-panel" aria-labelledby="tuitionReceiptPreviewTitle">
           <div class="section-heading-row">
             <div>
-              <h2 id="quotePlanPreviewTitle">报价单预览</h2>
-              <p class="section-note">打印时只输出下方报价单，不输出输入区。</p>
+              <h2 id="tuitionReceiptPreviewTitle">領収書预览</h2>
+              <p class="section-note">打印时只输出下方 A4 領収書，不输出输入区。</p>
             </div>
-            <div class="table-actions quote-plan-preview-actions">
-              <button id="printQuotePlanButton" class="button button-primary" type="button">打印 / 保存 PDF</button>
+            <div class="table-actions">
+              <button id="printTuitionReceiptButton" class="button button-primary" type="button">打印 / 保存 PDF</button>
             </div>
           </div>
 
-          <div id="quotePlanPreview" class="quote-plan-preview"></div>
+          <div id="tuitionReceiptPreview" class="tuition-receipt-preview"></div>
         </section>
       </main>
     </div>
 
-    <script type="module" src="./js/quote-plan-app.js?v=v10.3.32-quote-plan-course-track"></script>
+    <script type="module" src="./js/tuition-receipt-app.js?v=v10.3.61-tuition-receipt-beta"></script>
   </body>
 </html>

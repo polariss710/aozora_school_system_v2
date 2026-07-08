@@ -5015,6 +5015,12 @@ h2 {
   max-width: none;
 }
 
+.app-shell--tuition-receipt {
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  max-width: none;
+}
+
 .app-shell--contract-generator {
   --accent: #0f766e;
   --accent-dark: #115e59;
@@ -5065,6 +5071,247 @@ h2 {
 .weekly-schedule-filter-panel {
   border-color: #cfe0f3;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.tuition-receipt-editor-panel {
+  border-color: #cfe0f3;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.tuition-receipt-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.tuition-receipt-wide-field {
+  grid-column: span 2;
+}
+
+.tuition-receipt-preview-panel {
+  background: #f8fafc;
+}
+
+.tuition-receipt-preview {
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.tuition-receipt-document {
+  width: min(100%, 794px);
+  min-height: 1123px;
+  border: 1px solid #d8e2ee;
+  border-radius: 8px;
+  background: #fff;
+  color: #1f2937;
+  padding: 48px 56px;
+  font-family: "Meiryo UI", Meiryo, "Yu Gothic", "Hiragino Sans", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.tuition-receipt-document-header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 42px;
+}
+
+.tuition-receipt-document-header h2 {
+  grid-column: 2;
+  margin: 0;
+  color: #172033;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.tuition-receipt-document-header img {
+  grid-column: 3;
+  justify-self: end;
+  width: 196px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.tuition-receipt-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.9fr);
+  gap: 56px;
+  align-items: start;
+  margin-bottom: 52px;
+}
+
+.tuition-receipt-recipient p,
+.tuition-receipt-issuer p,
+.tuition-receipt-footer p {
+  margin: 0;
+}
+
+.tuition-receipt-student {
+  margin-bottom: 24px !important;
+  border-bottom: 1px solid #172033;
+  padding-bottom: 10px;
+  color: #172033;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.tuition-receipt-amount-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: end;
+  margin-top: 28px;
+  border-bottom: 2px solid #172033;
+  padding-bottom: 8px;
+}
+
+.tuition-receipt-amount-box span {
+  color: #172033;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.tuition-receipt-amount-box strong {
+  justify-self: end;
+  color: #172033;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.tuition-receipt-tax-note {
+  margin-top: 9px !important;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tuition-receipt-issuer {
+  text-align: right;
+}
+
+.tuition-receipt-issuer dl {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 26px;
+}
+
+.tuition-receipt-issuer dl div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+}
+
+.tuition-receipt-issuer dt {
+  color: #475569;
+  font-weight: 900;
+}
+
+.tuition-receipt-issuer dd {
+  margin: 0;
+  color: #172033;
+  font-weight: 800;
+}
+
+.tuition-receipt-issuer h3 {
+  margin: 0 0 10px;
+  color: #172033;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.tuition-receipt-muted {
+  color: #94a3b8;
+}
+
+.tuition-receipt-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 34px;
+  color: #172033;
+}
+
+.tuition-receipt-detail-table th,
+.tuition-receipt-detail-table td {
+  border-bottom: 1px solid #d8e2ee;
+  padding: 14px 18px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.tuition-receipt-detail-table th {
+  background: #f3f6f9;
+  font-weight: 900;
+}
+
+.tuition-receipt-detail-table th:nth-child(2),
+.tuition-receipt-detail-table td:nth-child(2) {
+  width: 150px;
+  text-align: right;
+}
+
+.tuition-receipt-detail-table th:nth-child(3),
+.tuition-receipt-detail-table td:nth-child(3) {
+  width: 128px;
+}
+
+.tuition-receipt-detail-table th:nth-child(4),
+.tuition-receipt-detail-table td:nth-child(4) {
+  width: 160px;
+}
+
+.tuition-receipt-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+  gap: 0;
+  width: min(100%, 560px);
+  margin: 0 0 34px auto;
+  border: 1px solid #d8e2ee;
+}
+
+.tuition-receipt-summary div {
+  display: grid;
+  gap: 4px;
+  padding: 14px 18px;
+}
+
+.tuition-receipt-summary div + div {
+  border-left: 1px solid #d8e2ee;
+}
+
+.tuition-receipt-summary span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.tuition-receipt-summary strong {
+  color: #172033;
+  font-size: 18px;
+  font-weight: 900;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.tuition-receipt-footer {
+  margin-top: 54px;
+}
+
+.tuition-receipt-note {
+  margin-top: 24px;
+  background: #f3f6f9;
+  padding: 14px 18px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .contract-form-grid {
@@ -5522,13 +5769,15 @@ h2 {
 @media (max-width: 1023px) {
   .quote-plan-base-grid,
   .contract-form-grid,
+  .tuition-receipt-form-grid,
   .quote-course-row,
   .weekly-schedule-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .quote-exchange-rate-field,
-  .quote-note-field {
+  .quote-note-field,
+  .tuition-receipt-wide-field {
     grid-column: 1 / -1;
   }
 
@@ -5542,6 +5791,9 @@ h2 {
   .quote-plan-base-grid,
   .contract-form-grid,
   .contract-start-row,
+  .tuition-receipt-form-grid,
+  .tuition-receipt-top,
+  .tuition-receipt-summary,
   .quote-course-row,
   .quote-exchange-rate-control,
   .weekly-schedule-filter-grid,
@@ -5564,6 +5816,33 @@ h2 {
 
   .contract-document {
     padding: 22px;
+  }
+
+  .tuition-receipt-document {
+    padding: 28px;
+  }
+
+  .tuition-receipt-document-header {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+
+  .tuition-receipt-document-header h2,
+  .tuition-receipt-document-header img {
+    grid-column: auto;
+  }
+
+  .tuition-receipt-issuer {
+    text-align: left;
+  }
+
+  .tuition-receipt-summary {
+    width: 100%;
+  }
+
+  .tuition-receipt-summary div + div {
+    border-top: 1px solid #d8e2ee;
+    border-left: 0;
   }
 
   .contract-party-grid {
@@ -5590,18 +5869,22 @@ h2 {
   .page-header,
   #quotePlanMessageArea,
   #contractGeneratorMessageArea,
+  #tuitionReceiptMessageArea,
   .quote-plan-editor-panel,
   .quote-plan-summary-grid,
   .quote-plan-preview-panel > .section-heading-row,
   .contract-editor-panel,
-  .contract-preview-panel > .section-heading-row {
+  .contract-preview-panel > .section-heading-row,
+  .tuition-receipt-editor-panel,
+  .tuition-receipt-preview-panel > .section-heading-row {
     display: none !important;
   }
 
   .app-shell,
   .app-shell--dense,
   .app-shell--quote-plan,
-  .app-shell--contract-generator {
+  .app-shell--contract-generator,
+  .app-shell--tuition-receipt {
     width: 100%;
     max-width: none;
     margin: 0;
@@ -5610,7 +5893,8 @@ h2 {
 
   .page-main,
   .quote-plan-preview,
-  .contract-preview {
+  .contract-preview,
+  .tuition-receipt-preview {
     display: block;
   }
 
@@ -5627,6 +5911,61 @@ h2 {
     box-shadow: none;
     padding: 0;
     background: #fff;
+  }
+
+  .tuition-receipt-preview-panel {
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    background: #fff;
+  }
+
+  .tuition-receipt-document {
+    width: auto;
+    min-height: auto;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    color: #172033;
+    font-size: 10.5pt;
+  }
+
+  .tuition-receipt-document-header {
+    margin-bottom: 28pt;
+  }
+
+  .tuition-receipt-document-header h2 {
+    font-size: 22pt;
+  }
+
+  .tuition-receipt-document-header img {
+    width: 145pt;
+  }
+
+  .tuition-receipt-top {
+    gap: 34pt;
+    margin-bottom: 34pt;
+  }
+
+  .tuition-receipt-student {
+    font-size: 16pt;
+  }
+
+  .tuition-receipt-amount-box span {
+    font-size: 15pt;
+  }
+
+  .tuition-receipt-amount-box strong {
+    font-size: 23pt;
+  }
+
+  .tuition-receipt-detail-table th,
+  .tuition-receipt-detail-table td {
+    padding: 8pt 10pt;
+  }
+
+  .tuition-receipt-footer {
+    margin-top: 34pt;
   }
 
   .contract-document {

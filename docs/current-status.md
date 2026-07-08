@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-06
+Status date: 2026-07-08
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.61 tuition receipt beta generator, 2026-07-08:
+   Beta 功能新增 `領収書生成` 静态工具页，用于手动开具学费領収書。页面只接受显式输入的学生名称/宛名、JPY 金额、项目/但し書き、発行日、領収書番号、支払方法、発行者信息和备注，并生成 A4 領収書预览；打印/保存 PDF 走浏览器打印，不读取学生、课时、学费账单、收入、结算、账户或 Cash 数据，不保存草稿，不调用 Supabase、SQL、RPC 或 Edge Function。金额仅作为用户输入值格式化展示，不进入业务链路、不反写财务记录、不作为 Cash 请求金额。Beta 侧边栏统一新增入口，青空進学塾 Logo 作为静态资源加入 `assets/logo3.png`。
 
 1. v10.3.60 guarded fresh planned lesson delete, 2026-07-06:
    学生课时管理新增带业务 guard 的“删除预定课时”入口，仅用于全新且未发生任何业务关联的 `planned / status=planned / 未作废` 预定课时。新增并执行 `sql/current/school_delete_fresh_planned_lesson_rpc.sql`，RPC `school_delete_fresh_planned_lesson(lesson_id, expected_updated_at, confirm_delete)` 只按 id 删除 `school_lesson_records` 中一条目标 planned，要求二次确认和 `updated_at` 乐观锁，并拒绝非 planned、非 `planned` 状态、已作废、已有 actual/取消课/补课完成关联、同学生同月同业务已有月度结算/调整草稿/调整记录、已进入老师工资快照明细、已进入学生学费应收快照或收入快照的记录。前端新增删除确认弹窗和按钮；页面只做显示层初判，最终是否可删由 DB/RPC 权威判断。Rollback 测试使用 `codex-test-v10.3.60` 白名单数据覆盖成功删除、未确认拒绝、actual 关联拒绝、月结拒绝、工资明细拒绝、学费应收快照拒绝、收入快照拒绝，rollback residue 0；白名单 commit test 创建并删除一条 `2099-12` fresh planned 及测试主数据后同事务清理，最终 residue 0。No real business data, Cash DB, student settlement, teacher wage, tuition bill, income, expense, account transaction, or Cash request was modified.
