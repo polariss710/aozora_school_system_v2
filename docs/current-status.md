@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.65 income-sourced tuition receipt, 2026-07-08:
+   Beta `領収書生成` 从自由手动工具收敛为收入主链路派生入口。所有侧边栏 Beta 菜单移除直接 `領収書生成` 链接；收入记录一览和收入详情仅在 `已收款 / 学费 / 已 Cash synced / 有 Cash 实际到账金额和币种 / 有学生` 的收入记录上显示 `生成收据`。`tuition-receipt.html` 必须带 `income_record_id` 进入，并通过只读 API 读取 `school_income_records`、学生和最新 Cash income linkage event；页面只展示 Cash 确认后的实际到账金额/币种、学生、收款日、项目和 Cash 账户，不支持手动新增或修改收据金额，不写入收据台账、不生成收据编号落库、不调用 SQL/RPC、不修改收入、课时、结算、账户流水、Cash 请求或历史数据。
+
 1. v10.3.64 quote PDF total summary, 2026-07-08:
    Beta `报价单生成` 的打印 / 保存 PDF 版式新增总报价汇总。原页面顶部已有的 `报价月份 / 总课时 / 报价合计 / 人民币参考` 现在会同步显示在每个打印页标题下、月度明细表上方，避免 PDF 只展示每月课时明细而看不到整体总报价。该阶段只复用前端已计算的报价预览结果做静态展示，不读取或写入学生、课时、收入、结算、Cash、DB/RPC 或历史数据。
 

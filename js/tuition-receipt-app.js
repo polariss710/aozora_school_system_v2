@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initTuitionReceiptPage } from "./pages/tuition-receipt-page.js?v=v10.3.61-tuition-receipt-beta";
+import { initTuitionReceiptPage } from "./pages/tuition-receipt-page.js?v=v10.3.65-income-receipt-source";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

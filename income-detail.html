@@ -18,7 +18,6 @@
                     <div class="page-nav-group-links">
                       <a href="./quote-plan.html">报价单生成</a>
             <a href="./contract-generator.html">合同生成</a>
-            <a href="./tuition-receipt.html">領収書生成</a>
                       <a href="./weekly-schedule-image.html">周课表图片</a>
                     </div>
                   </details>
@@ -90,6 +89,7 @@
             <div class="income-detail-actions">
               <span id="incomeDetailActionStatus" class="status-badge status-neutral">-</span>
               <button class="button button-primary is-hidden" id="openCashIncomeRequestButton" type="button">提交 Cash 确认</button>
+              <a class="button button-primary is-hidden" id="openTuitionReceiptButton" href="./tuition-receipt.html">生成收据</a>
               <button class="button button-primary is-hidden" id="openEditIncomeButton" type="button">编辑收入</button>
               <button class="button button-danger is-hidden" id="openReverseIncomeButton" type="button">撤销收入</button>
               <button class="button button-danger is-hidden" id="openCancelIncomeButton" type="button">作废收入</button>
@@ -407,6 +407,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-detail-app.js?v=v10.3.58-active-student-dialog-options"></script>
+    <script type="module" src="./js/income-detail-app.js?v=v10.3.65-income-receipt-source"></script>
   </body>
 </html>

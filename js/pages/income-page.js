@@ -523,10 +523,14 @@ function renderIncomeRowActions(row) {
   const cashButton = canRequestCashIncome(row)
     ? `<button class="table-action-button" type="button" data-income-cash-request-id="${escapeAttribute(row.id)}">提交Cash</button>`
     : "";
+  const receiptButton = canGenerateTuitionReceipt(row)
+    ? `<a class="button table-action-button" href="${escapeAttribute(tuitionReceiptHref(row.id))}">生成收据</a>`
+    : "";
   return `
     <div class="income-row-actions">
       <a class="button table-action-button" href="${escapeAttribute(incomeDetailHref(row.id))}">详情</a>
       ${cashButton}
+      ${receiptButton}
     </div>
   `;
 }
@@ -541,6 +545,12 @@ function incomeDetailHref(incomeId) {
     params.set("month", monthPart);
   }
   return `./income-detail.html?${params.toString()}`;
+}
+
+function tuitionReceiptHref(incomeId) {
+  const params = new URLSearchParams();
+  params.set("income_record_id", incomeId);
+  return `./tuition-receipt.html?${params.toString()}`;
 }
 
 function handleIncomeTableClick(event) {
@@ -2113,6 +2123,25 @@ function canRequestCashIncome(row) {
   }
 
   return event.sync_status === "cash_rejected" || event.cash_request_status === "rejected";
+}
+
+function canGenerateTuitionReceipt(row) {
+  if (!row || row.status !== "received" || !row.student_id) {
+    return false;
+  }
+  if (row.income_category !== "tuition" && row.source_type !== "student_tuition_bill") {
+    return false;
+  }
+
+  const event = row.cashIncomeLinkageEvent;
+  if (!event || event.sync_status !== "synced") {
+    return false;
+  }
+
+  return event.payment_amount !== null &&
+    event.payment_amount !== undefined &&
+    Number(event.payment_amount) > 0 &&
+    Boolean(event.payment_currency);
 }
 
 function cashIncomeRequestNotAllowedMessage(row) {

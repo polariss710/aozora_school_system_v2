@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 領収書生成</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.61-tuition-receipt-beta">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.65-income-receipt-source">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -18,7 +18,6 @@
           <div class="page-nav-group-links">
             <a href="./quote-plan.html">报价单生成</a>
             <a href="./contract-generator.html">合同生成</a>
-            <a class="is-active" href="./tuition-receipt.html">領収書生成</a>
             <a href="./weekly-schedule-image.html">周课表图片</a>
           </div>
         </details>
@@ -70,7 +69,7 @@
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>領収書生成</h1>
-          <p class="page-subtitle">手动填写学生、金额和项目，独立生成学费領収書 PDF。</p>
+          <p class="page-subtitle">仅基于已 Cash 确认的学费收入记录生成領収書 PDF。</p>
         </div>
         <div class="header-meta">
           <span class="readonly-pill">本地生成</span>
@@ -81,10 +80,10 @@
       <main class="page-main">
         <section id="tuitionReceiptMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel tuition-receipt-editor-panel" aria-labelledby="tuitionReceiptEditorTitle">
+        <section id="tuitionReceiptEditorPanel" class="panel tuition-receipt-editor-panel" aria-labelledby="tuitionReceiptEditorTitle">
           <div class="section-heading">
-            <h2 id="tuitionReceiptEditorTitle">領収書内容</h2>
-            <p class="section-note">仅使用本页手动输入内容生成预览，不读取学生、课时、收入、结算或 Cash 数据。</p>
+            <h2 id="tuitionReceiptEditorTitle">領収書来源</h2>
+            <p class="section-note">以下内容来自已 Cash 确认的收入记录。本页不支持手动新增或修改收据金额。</p>
           </div>
 
           <form id="tuitionReceiptForm">
@@ -94,8 +93,8 @@
                 <input id="receiptStudentName" type="text" autocomplete="off" placeholder="例：山田太郎">
               </label>
               <label class="field">
-                <span>金额 JPY</span>
-                <input id="receiptAmountJpy" type="number" min="0" step="1" inputmode="numeric" placeholder="例：216000">
+                <span>Cash 确认金额</span>
+                <input id="receiptAmountJpy" type="text" autocomplete="off">
               </label>
               <label class="field">
                 <span>项目 / 但し書き</span>
@@ -126,19 +125,14 @@
                 <textarea id="receiptNote" rows="2" placeholder="任意。領収書下部に表示します。"></textarea>
               </label>
             </div>
-
-            <div class="quote-plan-form-actions">
-              <button class="button button-primary" type="submit">更新预览</button>
-              <button id="resetTuitionReceiptButton" class="button" type="button">恢复默认</button>
-            </div>
           </form>
         </section>
 
-        <section class="panel tuition-receipt-preview-panel" aria-labelledby="tuitionReceiptPreviewTitle">
+        <section id="tuitionReceiptPreviewPanel" class="panel tuition-receipt-preview-panel" aria-labelledby="tuitionReceiptPreviewTitle">
           <div class="section-heading-row">
             <div>
               <h2 id="tuitionReceiptPreviewTitle">領収書预览</h2>
-              <p class="section-note">打印时只输出下方 A4 領収書，不输出输入区。</p>
+              <p class="section-note">打印时只输出下方 A4 領収書，不输出来源区。</p>
             </div>
             <div class="table-actions">
               <button id="printTuitionReceiptButton" class="button button-primary" type="button">打印 / 保存 PDF</button>
@@ -150,6 +144,6 @@
       </main>
     </div>
 
-    <script type="module" src="./js/tuition-receipt-app.js?v=v10.3.61-tuition-receipt-beta"></script>
+    <script type="module" src="./js/tuition-receipt-app.js?v=v10.3.65-income-receipt-source"></script>
   </body>
 </html>

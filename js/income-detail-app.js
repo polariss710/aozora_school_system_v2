@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=v10.3.58-active-student-dialog-options";
+import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=v10.3.65-income-receipt-source";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

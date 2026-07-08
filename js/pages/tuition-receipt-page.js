@@ -1,17 +1,35 @@
+import { hasSupabaseConfig } from "../supabase-client.js";
+import { fetchTuitionReceiptSource } from "../api/tuition-receipt-api.js";
+import { formatCurrency, safeText } from "../utils/format.js";
+
 const LOGO_SRC = "./assets/logo3.png";
 
 const dom = {};
+let receiptData = null;
 
 export function initTuitionReceiptPage() {
   cacheDom();
-  setDefaultValues();
   bindEvents();
-  renderReceipt();
+
+  const incomeRecordId = readIncomeRecordId();
+  if (!incomeRecordId) {
+    blockReceiptPage("请从已 Cash 确认的学费收入记录进入領収書生成页面。");
+    return;
+  }
+
+  if (!hasSupabaseConfig()) {
+    blockReceiptPage("请先配置 Supabase。当前页面无法读取收入记录。");
+    return;
+  }
+
+  loadReceiptSource(incomeRecordId);
 }
 
 function cacheDom() {
   dom.form = document.querySelector("#tuitionReceiptForm");
   dom.messageArea = document.querySelector("#tuitionReceiptMessageArea");
+  dom.editorPanel = document.querySelector("#tuitionReceiptEditorPanel");
+  dom.previewPanel = document.querySelector("#tuitionReceiptPreviewPanel");
   dom.studentNameInput = document.querySelector("#receiptStudentName");
   dom.amountInput = document.querySelector("#receiptAmountJpy");
   dom.itemInput = document.querySelector("#receiptItemName");
@@ -23,30 +41,12 @@ function cacheDom() {
   dom.noteInput = document.querySelector("#receiptNote");
   dom.preview = document.querySelector("#tuitionReceiptPreview");
   dom.printButton = document.querySelector("#printTuitionReceiptButton");
-  dom.resetButton = document.querySelector("#resetTuitionReceiptButton");
-}
-
-function setDefaultValues() {
-  const today = getTodayDateValue();
-  dom.issueDateInput.value = today;
-  dom.receiptNumberInput.value = buildReceiptNumber(today);
-  dom.itemInput.value = buildDefaultItem(today);
-  dom.paymentMethodInput.value = "銀行振込";
-  dom.issuerNameInput.value = dom.issuerNameInput.value || "青空進学塾";
 }
 
 function bindEvents() {
   dom.form?.addEventListener("submit", (event) => {
     event.preventDefault();
     renderReceipt({ showSuccess: true });
-  });
-
-  dom.form?.addEventListener("input", () => renderReceipt());
-  dom.form?.addEventListener("change", (event) => {
-    if (event.target === dom.issueDateInput && !dom.receiptNumberInput.value.trim()) {
-      dom.receiptNumberInput.value = buildReceiptNumber(dom.issueDateInput.value);
-    }
-    renderReceipt();
   });
 
   dom.printButton?.addEventListener("click", () => {
@@ -56,15 +56,83 @@ function bindEvents() {
     hideMessage();
     window.print();
   });
-
-  dom.resetButton?.addEventListener("click", () => {
-    clearInputs();
-    setDefaultValues();
-    renderReceipt({ message: "已恢复默认領収書模板。" });
-  });
 }
 
-function clearInputs() {
+async function loadReceiptSource(incomeRecordId) {
+  showMessage("info", "正在读取已 Cash 确认的学费收入记录...");
+  setReceiptControlsDisabled(true);
+
+  try {
+    const source = await fetchTuitionReceiptSource(incomeRecordId);
+    receiptData = buildReceiptDataFromSource(source);
+    populateReceiptFields(receiptData);
+    renderReceipt();
+    showMessage("success", "已从 Cash 确认收入记录生成領収書预览。");
+  } catch (error) {
+    receiptData = null;
+    blockReceiptPage(`无法生成領収書：${error.message || error}`);
+  } finally {
+    setReceiptControlsDisabled(false);
+  }
+}
+
+function buildReceiptDataFromSource(source) {
+  const { income, student, cashIncomeLinkageEvent: event } = source;
+
+  if (!income || income.app_type !== "school") {
+    throw new Error("收入记录不存在或不属于 School 业务。");
+  }
+  if (income.income_category !== "tuition" && income.source_type !== "student_tuition_bill") {
+    throw new Error("只有学费收入可以生成学费領収書。");
+  }
+  if (income.status !== "received") {
+    throw new Error("只有已收款收入可以生成領収書。");
+  }
+  if (income.cancelled_at || income.reversed_at) {
+    throw new Error("已作废或已撤销收入不能生成領収書。");
+  }
+  if (!income.student_id || !student) {
+    throw new Error("收入记录缺少学生信息，不能生成学费領収書。");
+  }
+  if (!event || event.sync_status !== "synced") {
+    throw new Error("只有已通过 Cash 确认并同步的收入记录可以生成領収書。");
+  }
+  if (event.payment_amount === null || event.payment_amount === undefined || !event.payment_currency) {
+    throw new Error("Cash 确认记录缺少实际到账金额或币种。");
+  }
+
+  const receiptDate = dateOnly(income.income_date) || dateOnly(event.synced_at) || getTodayDateValue();
+  const amount = Number(event.payment_amount);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Cash 确认金额无效。");
+  }
+
+  return {
+    incomeRecordId: income.id,
+    studentName: safeText(student.display_name || student.name),
+    amount,
+    currency: event.payment_currency,
+    itemName: buildItemName(income),
+    issueDate: receiptDate,
+    receiptNumber: buildReceiptNumber(receiptDate, income.id),
+    paymentMethod: buildPaymentMethod(event),
+    issuerName: "青空進学塾",
+    issuerInfo: "",
+    note: buildReceiptNote(income),
+  };
+}
+
+function populateReceiptFields(data) {
+  dom.studentNameInput.value = data.studentName;
+  dom.amountInput.value = formatReceiptAmount(data.amount, data.currency);
+  dom.itemInput.value = data.itemName;
+  dom.issueDateInput.value = data.issueDate;
+  dom.receiptNumberInput.value = data.receiptNumber;
+  dom.paymentMethodInput.value = data.paymentMethod;
+  dom.issuerNameInput.value = data.issuerName;
+  dom.issuerInfoInput.value = data.issuerInfo;
+  dom.noteInput.value = data.note;
+
   [
     dom.studentNameInput,
     dom.amountInput,
@@ -76,51 +144,29 @@ function clearInputs() {
     dom.issuerInfoInput,
     dom.noteInput,
   ].forEach((input) => {
-    if (input) input.value = "";
+    if (input) input.readOnly = true;
   });
 }
 
 function renderReceipt(options = {}) {
-  const data = readReceiptData();
-  dom.preview.innerHTML = buildReceiptHtml(data);
-
-  if (options.showSuccess) {
-    if (validateReceipt()) {
-      showMessage("success", "領収書预览已更新。");
-    }
+  if (!receiptData) {
+    dom.preview.innerHTML = "";
     return;
   }
 
-  if (options.message) {
-    showMessage("success", options.message);
+  dom.preview.innerHTML = buildReceiptHtml(receiptData);
+
+  if (options.showSuccess) {
+    showMessage("success", "領収書预览已根据收入记录刷新。");
   }
 }
 
-function readReceiptData() {
-  const amount = parseExplicitJpyAmount(dom.amountInput.value);
-  return {
-    studentName: dom.studentNameInput.value.trim(),
-    amount,
-    itemName: dom.itemInput.value.trim(),
-    issueDate: dom.issueDateInput.value,
-    receiptNumber: dom.receiptNumberInput.value.trim(),
-    paymentMethod: dom.paymentMethodInput.value.trim(),
-    issuerName: dom.issuerNameInput.value.trim() || "青空進学塾",
-    issuerInfo: dom.issuerInfoInput.value.trim(),
-    note: dom.noteInput.value.trim(),
-  };
-}
-
 function buildReceiptHtml(data) {
-  const amountText = data.amount === null ? "¥ -" : formatJpy(data.amount);
-  const studentText = data.studentName || "学生名未入力";
-  const itemText = data.itemName || "授業料として";
+  const amountText = formatReceiptAmount(data.amount, data.currency);
   const issueDateText = formatJapaneseDate(data.issueDate);
-  const receiptNumberText = data.receiptNumber || "-";
-  const paymentMethodText = data.paymentMethod || "-";
   const issuerInfoHtml = data.issuerInfo
     ? `<p>${escapeHtml(data.issuerInfo)}</p>`
-    : `<p class="tuition-receipt-muted">発行者情報未入力</p>`;
+    : `<p class="tuition-receipt-muted">Cash 確認済み収入記録に基づき発行</p>`;
   const noteHtml = data.note
     ? `<div class="tuition-receipt-note">${escapeHtml(data.note).replace(/\n/g, "<br>")}</div>`
     : "";
@@ -134,13 +180,13 @@ function buildReceiptHtml(data) {
 
       <section class="tuition-receipt-top">
         <div class="tuition-receipt-recipient">
-          <p class="tuition-receipt-student">${escapeHtml(studentText)} 様</p>
+          <p class="tuition-receipt-student">${escapeHtml(data.studentName)} 様</p>
           <p>下記の通り領収いたしました。</p>
           <div class="tuition-receipt-amount-box">
             <span>領収金額</span>
             <strong>${escapeHtml(amountText)}</strong>
           </div>
-          <p class="tuition-receipt-tax-note">上記金額は手動入力値です。</p>
+          <p class="tuition-receipt-tax-note">上記金額は Cash 確認済みの収入記録に基づきます。</p>
         </div>
 
         <div class="tuition-receipt-issuer">
@@ -151,7 +197,7 @@ function buildReceiptHtml(data) {
             </div>
             <div>
               <dt>領収書番号</dt>
-              <dd>${escapeHtml(receiptNumberText)}</dd>
+              <dd>${escapeHtml(data.receiptNumber)}</dd>
             </div>
           </dl>
           <h3>${escapeHtml(data.issuerName)}</h3>
@@ -170,9 +216,9 @@ function buildReceiptHtml(data) {
         </thead>
         <tbody>
           <tr>
-            <td>${escapeHtml(itemText)}</td>
+            <td>${escapeHtml(data.itemName)}</td>
             <td>${escapeHtml(amountText)}</td>
-            <td>${escapeHtml(paymentMethodText)}</td>
+            <td>${escapeHtml(data.paymentMethod)}</td>
             <td>${data.note ? escapeHtml(data.note) : "-"}</td>
           </tr>
         </tbody>
@@ -181,7 +227,7 @@ function buildReceiptHtml(data) {
       <section class="tuition-receipt-summary">
         <div>
           <span>但し書き</span>
-          <strong>${escapeHtml(itemText)}</strong>
+          <strong>${escapeHtml(data.itemName)}</strong>
         </div>
         <div>
           <span>合計金額</span>
@@ -198,50 +244,59 @@ function buildReceiptHtml(data) {
 }
 
 function validateReceipt() {
-  const data = readReceiptData();
-  if (!data.studentName) {
-    showMessage("warning", "请输入学生名称 / 宛名。");
-    dom.studentNameInput.focus();
-    return false;
-  }
-  if (data.amount === null) {
-    showMessage("warning", "请输入有效的 JPY 金额。");
-    dom.amountInput.focus();
-    return false;
-  }
-  if (!data.itemName) {
-    showMessage("warning", "请输入项目 / 但し書き。");
-    dom.itemInput.focus();
+  if (!receiptData) {
+    showMessage("warning", "没有可打印的領収書。请从已 Cash 确认的学费收入记录进入。");
     return false;
   }
   return true;
 }
 
-function parseExplicitJpyAmount(value) {
-  const normalized = String(value || "").trim();
-  if (!normalized) return null;
-  const amount = Number(normalized);
-  if (!Number.isFinite(amount) || amount < 0) return null;
-  return Math.round(amount);
+function blockReceiptPage(message) {
+  showMessage("warning", message);
+  dom.editorPanel?.classList.add("is-hidden");
+  dom.previewPanel?.classList.add("is-hidden");
 }
 
-function formatJpy(amount) {
-  return `¥ ${amount.toLocaleString("ja-JP")}`;
+function setReceiptControlsDisabled(disabled) {
+  if (dom.printButton) {
+    dom.printButton.disabled = disabled || !receiptData;
+  }
 }
 
-function buildDefaultItem(dateValue) {
-  const date = parseDateValue(dateValue);
-  if (!date) return "授業料として";
-  return `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, "0")}月分 授業料として`;
+function readIncomeRecordId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("income_record_id") || params.get("id") || "";
 }
 
-function buildReceiptNumber(dateValue) {
+function buildItemName(income) {
+  const snapshot = income.source_snapshot && typeof income.source_snapshot === "object"
+    ? income.source_snapshot
+    : {};
+  const month = safeText(snapshot.billing_month || income.settlement_month || income.year_month);
+  const monthMatch = month.match(/^(\d{4})-(\d{2})/);
+  const monthLabel = monthMatch
+    ? `${monthMatch[1]}年${monthMatch[2]}月分`
+    : "";
+  return `${monthLabel ? `${monthLabel} ` : ""}授業料として`;
+}
+
+function buildPaymentMethod(event) {
+  const accountName = safeText(event.cash_account_name_snapshot);
+  return accountName ? `${accountName} / Cash確認` : "Cash確認";
+}
+
+function buildReceiptNote(income) {
+  const sourceLabel = safeText(income.source_label || income.description);
+  return sourceLabel ? sourceLabel : `收入记录 ${shortId(income.id)}`;
+}
+
+function formatReceiptAmount(amount, currency) {
+  return formatCurrency(amount, currency);
+}
+
+function buildReceiptNumber(dateValue, incomeRecordId) {
   const compactDate = String(dateValue || getTodayDateValue()).replace(/-/g, "");
-  const now = new Date();
-  const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
-    .map((part) => String(part).padStart(2, "0"))
-    .join("");
-  return `R-${compactDate}-${time}`;
+  return `R-${compactDate}-${shortId(incomeRecordId)}`;
 }
 
 function formatJapaneseDate(dateValue) {
@@ -251,6 +306,16 @@ function formatJapaneseDate(dateValue) {
   return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 (${weekdays[date.getDay()]})`;
 }
 
+function dateOnly(value) {
+  const text = safeText(value);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : "";
+}
+
+function getTodayDateValue() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function parseDateValue(dateValue) {
   if (!dateValue) return null;
   const [year, month, day] = dateValue.split("-").map((part) => Number(part));
@@ -258,12 +323,8 @@ function parseDateValue(dateValue) {
   return new Date(year, month - 1, day);
 }
 
-function getTodayDateValue() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+function shortId(value) {
+  return value ? String(value).slice(0, 8) : "-";
 }
 
 function showMessage(type, text) {
@@ -282,5 +343,5 @@ function escapeHtml(value) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/'/g, "&#039;");
 }

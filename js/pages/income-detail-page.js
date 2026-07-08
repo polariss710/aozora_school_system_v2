@@ -114,6 +114,7 @@ function cacheDom() {
   dom.openReverseIncomeButton = document.querySelector("#openReverseIncomeButton");
   dom.openCancelIncomeButton = document.querySelector("#openCancelIncomeButton");
   dom.openCashIncomeRequestButton = document.querySelector("#openCashIncomeRequestButton");
+  dom.openTuitionReceiptButton = document.querySelector("#openTuitionReceiptButton");
   dom.returnLink = document.querySelector('.income-detail-actions a[href="./income.html"]');
   dom.loadingState = document.querySelector("#incomeDetailLoadingState");
   dom.content = document.querySelector("#incomeDetailContent");
@@ -428,6 +429,7 @@ function renderActionArea(data) {
   const canCancel = canCancelPendingIncome(data);
   const canEdit = canEditIncome(data);
   const canRequestCash = canRequestCashIncome(data);
+  const canGenerateReceipt = canGenerateTuitionReceipt(data);
   const actionReason = cashIncomeLinkageNotAllowedMessage(data);
   dom.actionStatus.className = `status-badge ${statusClass(status)}`;
   dom.actionStatus.textContent = incomeStatusLabel(status);
@@ -435,6 +437,8 @@ function renderActionArea(data) {
   dom.actionReason.classList.toggle("is-hidden", !actionReason);
   dom.openCashIncomeRequestButton.classList.toggle("is-hidden", !canRequestCash);
   dom.openCashIncomeRequestButton.disabled = !canRequestCash;
+  dom.openTuitionReceiptButton.classList.toggle("is-hidden", !canGenerateReceipt);
+  dom.openTuitionReceiptButton.setAttribute("href", canGenerateReceipt ? tuitionReceiptHref(income.id) : "./tuition-receipt.html");
   dom.openEditIncomeButton.classList.toggle("is-hidden", !canEdit);
   dom.openEditIncomeButton.disabled = !canEdit;
   dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
@@ -455,6 +459,32 @@ function canRequestCashIncome(data) {
   }
 
   return event.sync_status === "cash_rejected";
+}
+
+function canGenerateTuitionReceipt(data) {
+  const income = data?.income;
+  if (!income || income.status !== "received" || !income.student_id) {
+    return false;
+  }
+  if (income.income_category !== "tuition" && income.source_type !== "student_tuition_bill") {
+    return false;
+  }
+
+  const event = cashIncomeLinkageEvent(data);
+  if (!event || event.sync_status !== "synced") {
+    return false;
+  }
+
+  return event.payment_amount !== null &&
+    event.payment_amount !== undefined &&
+    Number(event.payment_amount) > 0 &&
+    Boolean(event.payment_currency);
+}
+
+function tuitionReceiptHref(incomeId) {
+  const params = new URLSearchParams();
+  params.set("income_record_id", incomeId);
+  return `./tuition-receipt.html?${params.toString()}`;
 }
 
 function canCancelPendingIncome(data) {
