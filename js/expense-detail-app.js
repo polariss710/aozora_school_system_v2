@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=v2.122.0-month-filter-url-preserve-20260616";
+import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=v10.3.66-rejected-wage-expense-void";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

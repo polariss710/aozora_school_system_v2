@@ -547,13 +547,14 @@ function canRequestCashExpense(data) {
 
 function canVoidUnsubmittedTeacherWageExpense(data) {
   const expense = data?.expense;
+  const hasNoCashRequest = !expense?.cash_request_status && !expense?.cash_request_id;
+  const hasRejectedCashRequest = expense?.cash_request_status === "rejected";
   return Boolean(expense?.id)
     && expense.app_type === "school"
     && expense.source_type === "teacher_wage"
     && expense.status === "pending"
     && !expense.cancelled_at
-    && !expense.cash_request_status
-    && !expense.cash_request_id
+    && (hasNoCashRequest || hasRejectedCashRequest)
     && !expense.cash_transaction_id;
 }
 
@@ -563,10 +564,10 @@ function voidTeacherWageExpenseNotAllowedMessage(data) {
   if (expense.app_type !== "school") return "只能作废 School 支出记录。";
   if (expense.source_type !== "teacher_wage") return "本流程只允许作废老师工资支出记录。";
   if (expense.status === "cancelled" || expense.cancelled_at) return "该老师工资支出记录已作废。";
-  if (expense.status !== "pending") return "只有待支付且未提交 Cash 的老师工资支出记录可以作废。";
-  if (expense.cash_request_status === "rejected") return "Cash 已拒绝的老师工资支出记录本版先保持重新提交 Cash，不作废。";
-  if (expense.cash_request_status || expense.cash_request_id) return "该支出记录已提交 Cash，不能在 School 侧直接作废。";
+  if (expense.status !== "pending") return "只有待支付且未生成 Cash 流水的老师工资支出记录可以作废。";
   if (expense.cash_transaction_id) return "该支出记录已有 Cash transaction，不能作废。";
+  if (expense.cash_request_status === "rejected") return "";
+  if (expense.cash_request_status || expense.cash_request_id) return "该支出记录已有未终止 Cash 请求，不能在 School 侧直接作废。";
   return "该支出记录当前状态不能作废。";
 }
 

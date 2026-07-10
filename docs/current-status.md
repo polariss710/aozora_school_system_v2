@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.66 rejected teacher wage expense void guard, 2026-07-10:
+   老师工资 canonical 支出链路补齐 Cash 拒绝后的回退出口。新增并执行 `sql/current/school_teacher_wage_rejected_expense_void_guard.sql`：`school_void_unsubmitted_teacher_wage_expense_record(...)` 现在允许 `source_type = teacher_wage`、`status = pending`、`cash_request_status = rejected` 且无 `cash_transaction_id` 的老师工资支出记录受控作废，保留 rejected Cash request id / error message 作为审计；仍拒绝 active Cash pending / approved / synced、有 Cash transaction、非 teacher_wage、paid 或已 cancelled 记录。`school_void_teacher_wage_lock(...)` 同步补齐 DB/RPC guard，存在 active canonical `school_expense_records.source_type = teacher_wage` 支出时拒绝直接撤销工资快照，只有支出已 cancelled / voided 后才允许撤销快照。支出详情页对应放开 rejected teacher_wage 支出的 `作废` 入口。Rollback 测试使用 `codex-test-v10.3.66` 固定 UUID 验证 rejected 支出可作废、作废后快照可撤销、active 支出仍阻止快照撤销、active Cash pending 和已有 Cash transaction 仍拒绝，rollback residue 0；白名单 commit test 写入固定测试数据并同事务精确删除后 COMMIT，最终 residue 0。王亚楠真实 2026-06 两条 rejected 老师工资支出只读复核仍为 `pending/rejected`，未被测试修改；Cash DB 未写入，未创建/删除 Cash request 或 Cash transaction。
+
 1. v10.3.65 income-sourced tuition receipt, 2026-07-08:
    Beta `領収書生成` 从自由手动工具收敛为收入主链路派生入口。所有侧边栏 Beta 菜单移除直接 `領収書生成` 链接；收入记录一览和收入详情仅在 `已收款 / 学费 / 已 Cash synced / 有 Cash 实际到账金额和币种 / 有学生` 的收入记录上显示 `生成收据`。`tuition-receipt.html` 必须带 `income_record_id` 进入，并通过只读 API 读取 `school_income_records`、学生和最新 Cash income linkage event；页面只展示 Cash 确认后的实际到账金额/币种、学生、收款日、项目和 Cash 账户，不支持手动新增或修改收据金额，不写入收据台账、不生成收据编号落库、不调用 SQL/RPC、不修改收入、课时、结算、账户流水、Cash 请求或历史数据。
 
