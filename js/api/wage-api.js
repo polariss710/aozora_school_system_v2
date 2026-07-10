@@ -345,10 +345,11 @@ export async function fetchWageBusinessEntities() {
   return data || [];
 }
 
-export async function generateTeacherMonthlyWage({ yearMonth, teacherId = null }) {
+export async function generateTeacherMonthlyWage({ yearMonth, teacherId = null, businessEntityId = null }) {
   const { data, error } = await supabase.rpc("school_generate_teacher_monthly_wage", {
     p_year_month: yearMonth,
     p_teacher_id: teacherId || null,
+    p_business_entity_id: businessEntityId || null,
   });
 
   if (error) {

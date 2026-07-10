@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initWagePage } from "./pages/wage-page.js?v=v10.3.51-batch-duty-report-by-teacher";
+import { initWagePage } from "./pages/wage-page.js?v=v10.3.67-wage-business-scope";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

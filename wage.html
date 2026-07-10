@@ -248,7 +248,7 @@
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。当前生成 RPC 会按 teacher + business_entity + month 生成快照；若只筛选老师但未限定业务归属，可能一次生成多条业务归属快照。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。生成 RPC 会按 teacher + business_entity + month 生成快照；若已筛选业务归属，仅生成该业务归属；未限定业务归属时，同一老师可能一次生成多条业务归属快照。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -266,6 +266,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=v10.3.51-batch-duty-report-by-teacher"></script>
+    <script type="module" src="./js/wage-app.js?v=v10.3.67-wage-business-scope"></script>
   </body>
 </html>

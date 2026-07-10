@@ -318,6 +318,7 @@ async function handleGenerateSubmit() {
     const generatedRows = await generateTeacherMonthlyWage({
       yearMonth: filters.month,
       teacherId: filters.teacherId || null,
+      businessEntityId: filters.businessEntityId || null,
     });
 
     await loadWageMonth(filters.month);
@@ -1013,12 +1014,16 @@ function formatCandidateGroupSummary(groups) {
 function generationScopeCandidateLessons() {
   return wageCandidateLessons.filter((row) => (
     !activeFilters?.teacherId || row.teacher_id === activeFilters.teacherId
+  )).filter((row) => (
+    !activeFilters?.businessEntityId || row.business_entity_id === activeFilters.businessEntityId
   ));
 }
 
 function generationScopeCandidateLessonsForFilters(filters) {
   return wageCandidateLessons.filter((row) => (
     !filters?.teacherId || row.teacher_id === filters.teacherId
+  )).filter((row) => (
+    !filters?.businessEntityId || row.business_entity_id === filters.businessEntityId
   ));
 }
 
@@ -1469,16 +1474,18 @@ function styleMonthlySummarySheet(sheet, report) {
 
 function renderGenerateSummary(filters) {
   const teacherLabel = filters.teacherId ? teacherNameById(filters.teacherId) : "全部老师";
+  const businessLabel = filters.businessEntityId ? businessNameById(filters.businessEntityId) : "全部业务归属";
   const visibleGroups = candidateGenerationGroups(filterWageCandidateLessons(wageCandidateLessons, filters));
   const generationGroups = candidateGenerationGroups(generationScopeCandidateLessonsForFilters(filters));
   const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessonsForFilters(filters));
   const businessScopeNote = filters.businessEntityId
-    ? "业务归属筛选只影响页面显示，当前生成 RPC 不按业务归属限制。"
+    ? "已限定业务归属，本次只生成该业务归属的工资快照。"
     : "未限定业务归属时，同一老师可能按多个业务归属生成多条快照。";
 
   return [
     renderDialogSummaryRow("工资月份", formatMonth(filters.month)),
     renderDialogSummaryRow("生成范围", teacherLabel),
+    renderDialogSummaryRow("业务归属范围", businessLabel),
     renderDialogSummaryRow("生成粒度", "teacher + business_entity + month"),
     renderDialogSummaryRow("当前显示分组", formatCandidateGroupSummary(visibleGroups)),
     renderDialogSummaryRow("预计生成分组", formatCandidateGroupSummary(generationGroups)),

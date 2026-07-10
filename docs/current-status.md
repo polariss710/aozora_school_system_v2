@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-08
+Status date: 2026-07-10
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.67 teacher wage business-scoped generation, 2026-07-10:
+   老师工资生成支持按业务归属精确限定。新增并执行 `sql/current/school_generate_teacher_monthly_wage_business_scope.sql`，将 `school_generate_teacher_monthly_wage(...)` 扩展为 3 参数权威 RPC：`p_year_month + p_teacher_id + p_business_entity_id`，并保留旧 2 参数 wrapper 作为未限定业务归属的批量生成入口。3 参数版本会把候选 actual / makeup_completed 课时、既有工资快照 blocker、既有明细 blocker、学生月结锁定校验、工资规则校验和最终插入全部限制在目标 `business_entity_id` 内；因此同一老师存在多个业务归属时，可以只重新生成其中一个业务归属的工资快照，另一个业务归属的 active locked 快照不会阻止本次 scoped 生成。工资页生成弹窗同步把业务归属筛选纳入提交参数、预览范围和学生月结未完成检查，并明确显示业务归属范围；未筛选业务归属时仍维持原 teacher + business_entity + month 批量生成行为。Rollback 测试使用固定白名单 UUID `97000000-0000-4000-8000-0000001067xx` 验证同一老师业务 B 已锁时仍可 scoped 生成业务 A、业务 B scoped 生成与旧 unscoped 生成都会被重复工资 guard 拦截，rollback residue 0；白名单 commit test 使用 `97000000-0000-4000-8000-0000001068xx` 写入并清理测试主数据、课时、学生月结、工资规则和生成快照后 COMMIT，最终 residue 0。No real business data, Cash DB, income, expense, account transaction, Cash request, student settlement repair, or historical data was modified.
 
 1. v10.3.66 rejected teacher wage expense void guard, 2026-07-10:
    老师工资 canonical 支出链路补齐 Cash 拒绝后的回退出口。新增并执行 `sql/current/school_teacher_wage_rejected_expense_void_guard.sql`：`school_void_unsubmitted_teacher_wage_expense_record(...)` 现在允许 `source_type = teacher_wage`、`status = pending`、`cash_request_status = rejected` 且无 `cash_transaction_id` 的老师工资支出记录受控作废，保留 rejected Cash request id / error message 作为审计；仍拒绝 active Cash pending / approved / synced、有 Cash transaction、非 teacher_wage、paid 或已 cancelled 记录。`school_void_teacher_wage_lock(...)` 同步补齐 DB/RPC guard，存在 active canonical `school_expense_records.source_type = teacher_wage` 支出时拒绝直接撤销工资快照，只有支出已 cancelled / voided 后才允许撤销快照。支出详情页对应放开 rejected teacher_wage 支出的 `作废` 入口。Rollback 测试使用 `codex-test-v10.3.66` 固定 UUID 验证 rejected 支出可作废、作废后快照可撤销、active 支出仍阻止快照撤销、active Cash pending 和已有 Cash transaction 仍拒绝，rollback residue 0；白名单 commit test 写入固定测试数据并同事务精确删除后 COMMIT，最终 residue 0。王亚楠真实 2026-06 两条 rejected 老师工资支出只读复核仍为 `pending/rejected`，未被测试修改；Cash DB 未写入，未创建/删除 Cash request 或 Cash transaction。
