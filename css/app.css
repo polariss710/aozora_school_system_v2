@@ -590,7 +590,12 @@ h2 {
 .income-filter-panel .filter-grid {
   grid-template-columns:
     196px
-    repeat(4, minmax(0, 1fr));
+    minmax(160px, 1.1fr)
+    minmax(160px, 1.1fr)
+    minmax(150px, 1fr)
+    minmax(128px, 0.8fr)
+    128px
+    auto;
 }
 
 .lesson-filter-panel .filter-grid,
