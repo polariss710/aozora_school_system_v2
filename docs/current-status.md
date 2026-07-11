@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-10
+Status date: 2026-07-12
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -31,6 +31,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.68 part-time work annual summary, 2026-07-12:
+   私塾打工模块新增只读 `年度汇总` 入口和面板。年度按现有 Excel 口径使用 `上一年12月 + 当年1-11月`，例如 2026年度显示 2025-12 至 2026-11。页面复用既有 `school_list_part_time_work_monthly_settlements(...)` 月度结算只读 RPC 和 `school_income_records` / `school_personal_cash_income_linkage_events` 只读数据：JPY 金额只取已锁定 / 已生成收入记录的月度结算快照 `total_wage_jpy`，作为业务应收/业务总额；CNY 金额只取对应收入记录最新 Cash linkage 已确认后的 `payment_amount` 且 `payment_currency = CNY`，作为实际到账人民币。页面不使用统一汇率折算 JPY，不反算 CNY；未锁定或未 Cash 确认的人民币金额显示 `-`。汇总区展示统计期间、正式结算月份、年度业务 JPY、实际到账 CNY、业务月均 JPY、到账月均 CNY；明细表按私塾显示每月 JPY / CNY / 支給日、月度合计、私塾合计和月均。该阶段只改前端/API 只读查询和展示，不新增/执行 SQL/RPC，不写 DB，不修改课时、月度结算、收入、Cash 请求、账户流水或历史数据。
 
 1. v10.3.67 teacher wage business-scoped generation, 2026-07-10:
    老师工资生成支持按业务归属精确限定。新增并执行 `sql/current/school_generate_teacher_monthly_wage_business_scope.sql`，将 `school_generate_teacher_monthly_wage(...)` 扩展为 3 参数权威 RPC：`p_year_month + p_teacher_id + p_business_entity_id`，并保留旧 2 参数 wrapper 作为未限定业务归属的批量生成入口。3 参数版本会把候选 actual / makeup_completed 课时、既有工资快照 blocker、既有明细 blocker、学生月结锁定校验、工资规则校验和最终插入全部限制在目标 `business_entity_id` 内；因此同一老师存在多个业务归属时，可以只重新生成其中一个业务归属的工资快照，另一个业务归属的 active locked 快照不会阻止本次 scoped 生成。工资页生成弹窗同步把业务归属筛选纳入提交参数、预览范围和学生月结未完成检查，并明确显示业务归属范围；未筛选业务归属时仍维持原 teacher + business_entity + month 批量生成行为。Rollback 测试使用固定白名单 UUID `97000000-0000-4000-8000-0000001067xx` 验证同一老师业务 B 已锁时仍可 scoped 生成业务 A、业务 B scoped 生成与旧 unscoped 生成都会被重复工资 guard 拦截，rollback residue 0；白名单 commit test 使用 `97000000-0000-4000-8000-0000001068xx` 写入并清理测试主数据、课时、学生月结、工资规则和生成快照后 COMMIT，最终 residue 0。No real business data, Cash DB, income, expense, account transaction, Cash request, student settlement repair, or historical data was modified.

@@ -1878,6 +1878,38 @@ h2 {
   gap: 12px;
 }
 
+.part-time-work-annual-container {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.part-time-work-annual-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.part-time-work-annual-note {
+  margin: 0;
+}
+
+.part-time-work-annual-table {
+  min-width: 1320px;
+}
+
+.part-time-work-annual-table th,
+.part-time-work-annual-table td {
+  white-space: nowrap;
+}
+
+.part-time-work-annual-table thead th,
+.part-time-work-annual-table tfoot th,
+.part-time-work-annual-table tfoot td {
+  background: #f8fafc;
+  font-weight: 800;
+}
+
 .part-time-work-summary-card {
   min-width: 0;
   min-height: 64px;
@@ -4822,6 +4854,10 @@ h2 {
   }
 
   .part-time-work-summary-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .part-time-work-annual-summary-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

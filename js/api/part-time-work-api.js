@@ -1,5 +1,34 @@
 import { supabase } from "../supabase-client.js";
 
+const ANNUAL_INCOME_COLUMNS = [
+  "id",
+  "income_date",
+  "year_month",
+  "currency",
+  "amount",
+  "amount_jpy",
+  "amount_cny",
+  "status",
+  "source_type",
+  "source_id",
+  "source_label",
+  "source_snapshot",
+  "created_at",
+].join(",");
+
+const ANNUAL_CASH_INCOME_LINKAGE_COLUMNS = [
+  "id",
+  "income_record_id",
+  "sync_status",
+  "payment_currency",
+  "payment_amount",
+  "cash_account_name_snapshot",
+  "cash_request_status",
+  "cash_transaction_id",
+  "synced_at",
+  "created_at",
+].join(",");
+
 function firstResult(data, fallbackMessage) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
@@ -32,6 +61,84 @@ export async function fetchPartTimeWorkMonthlySettlements(filters = {}) {
   }
 
   return data || [];
+}
+
+export function partTimeWorkAnnualMonths(year) {
+  const numericYear = Number(year);
+  if (!Number.isInteger(numericYear)) {
+    return [];
+  }
+
+  return [
+    `${numericYear - 1}-12`,
+    ...Array.from({ length: 11 }, (_, index) => `${numericYear}-${String(index + 1).padStart(2, "0")}`),
+  ];
+}
+
+export async function fetchPartTimeWorkAnnualSummary(year) {
+  const months = partTimeWorkAnnualMonths(year);
+  if (!months.length) {
+    return { months: [], settlements: [], incomeRecords: [] };
+  }
+
+  const [monthlySettlements, incomeRecords] = await Promise.all([
+    Promise.all(months.map((yearMonth) => fetchPartTimeWorkMonthlySettlements({ yearMonth }))),
+    fetchPartTimeWorkAnnualIncomeRecords(months[0], months[months.length - 1]),
+  ]);
+
+  return {
+    months,
+    settlements: monthlySettlements.flat(),
+    incomeRecords,
+  };
+}
+
+async function fetchPartTimeWorkAnnualIncomeRecords(startMonth, endMonth) {
+  const { data, error } = await supabase
+    .from("school_income_records")
+    .select(ANNUAL_INCOME_COLUMNS)
+    .eq("app_type", "school")
+    .eq("source_type", "part_time_work")
+    .gte("year_month", startMonth)
+    .lte("year_month", endMonth)
+    .order("year_month", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return mergeAnnualCashIncomeLinkageEvents(data || []);
+}
+
+async function mergeAnnualCashIncomeLinkageEvents(records) {
+  const incomeIds = records.map((row) => row.id).filter(Boolean);
+  if (!incomeIds.length) {
+    return records.map((row) => ({ ...row, cashIncomeLinkageEvent: null }));
+  }
+
+  const { data, error } = await supabase
+    .from("school_personal_cash_income_linkage_events")
+    .select(ANNUAL_CASH_INCOME_LINKAGE_COLUMNS)
+    .eq("source_table", "school_income_records")
+    .in("income_record_id", incomeIds)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const latestByIncomeId = new Map();
+  for (const event of data || []) {
+    if (event.income_record_id && !latestByIncomeId.has(event.income_record_id)) {
+      latestByIncomeId.set(event.income_record_id, event);
+    }
+  }
+
+  return records.map((row) => ({
+    ...row,
+    cashIncomeLinkageEvent: latestByIncomeId.get(row.id) || null,
+  }));
 }
 
 export async function createPartTimeWorkPlannedLesson(payload) {

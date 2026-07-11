@@ -5,6 +5,7 @@ import {
   createPartTimeWorkIncomeRequest,
   createPartTimeWorkPlannedLesson,
   deletePartTimeWorkLesson,
+  fetchPartTimeWorkAnnualSummary,
   fetchPartTimeWorkLessons,
   fetchPartTimeWorkMonthlySettlements,
   fetchPartTimeWorkSettlementExport,
@@ -76,6 +77,7 @@ const dom = {};
 let lessons = [];
 let wageLessons = [];
 let settlements = [];
+let annualSummary = { months: [], settlements: [], incomeRecords: [] };
 let editingLesson = null;
 let pendingIncomeGenerationSettlement = null;
 let dialogMode = DIALOG_MODES.CREATE_PLANNED;
@@ -108,6 +110,7 @@ export async function initPartTimeWorkPage() {
   bindEvents();
   renderLessons([]);
   renderWageCalculation([], []);
+  renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, yearFromYearMonth(initialMonth));
   if (initialView) {
     scrollToPartTimeWorkView(initialView);
   }
@@ -140,6 +143,8 @@ function cacheDom() {
   dom.openCreateButton = document.querySelector("#openPartTimeWorkCreateButton");
   dom.lessonColumns = document.querySelector("#partTimeWorkLessonColumns");
   dom.wageCalculationContainer = document.querySelector("#partTimeWorkWageCalculationContainer");
+  dom.annualSummaryTitle = document.querySelector("#partTimeWorkAnnualSummaryTitle");
+  dom.annualSummaryContainer = document.querySelector("#partTimeWorkAnnualSummaryContainer");
   dom.loadingState = document.querySelector("#partTimeWorkLoadingState");
   dom.emptyState = document.querySelector("#partTimeWorkEmptyState");
   dom.dialog = document.querySelector("#partTimeWorkDialog");
@@ -238,6 +243,7 @@ async function loadPageData(options = {}) {
   if (!isLoggedIn()) {
     renderLessons([]);
     renderWageCalculation([], []);
+    renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, yearFromYearMonth(appliedFilters.yearMonth || initialMonth));
     showMessage("error", "请先登录后查看或编辑私塾打工记录。");
     return;
   }
@@ -249,17 +255,19 @@ async function loadPageData(options = {}) {
   showMessage("", "");
 
   try {
-    const [lessonRows, wageLessonRows, settlementRows] = await Promise.all([
+    const [lessonRows, wageLessonRows, settlementRows, annualSummaryRows] = await Promise.all([
       fetchPartTimeWorkLessons({
         yearMonth: filters.yearMonth,
         workplaceName: filters.workplaceName,
       }),
       fetchPartTimeWorkLessons({ yearMonth: filters.yearMonth }),
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
+      fetchPartTimeWorkAnnualSummary(yearFromYearMonth(filters.yearMonth)),
     ]);
     lessons = lessonRows || [];
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
+    annualSummary = annualSummaryRows || { months: [], settlements: [], incomeRecords: [] };
     const classDescription = normalizedAppliedClassDescription(filters);
     renderClassDescriptionOptions(wageLessons, dom.classDescriptionFilter.value, dom.workplaceFilter.value);
     if (options.expandSelectedWorkplace && filters.workplaceName) {
@@ -267,13 +275,16 @@ async function loadPageData(options = {}) {
     }
     renderVisibleLessons({ ...filters, classDescription });
     renderWageCalculation(wageLessons, settlements);
+    renderAnnualSummary(annualSummary, yearFromYearMonth(filters.yearMonth));
   } catch (error) {
     lessons = [];
     wageLessons = [];
     settlements = [];
+    annualSummary = { months: [], settlements: [], incomeRecords: [] };
     renderClassDescriptionOptions([], "");
     renderLessons([]);
     renderWageCalculation([], []);
+    renderAnnualSummary(annualSummary, yearFromYearMonth(filters.yearMonth));
     showMessage("error", `私塾打工数据读取失败：${error.message || error}`);
   } finally {
     setLoading(false);
@@ -315,7 +326,7 @@ function updateMonthNavigationFromCurrentSelection() {
 
 function partTimeWorkViewFromUrl() {
   const view = new URLSearchParams(window.location.search).get("view");
-  return view === "settlement" || view === "lessons" ? view : "";
+  return view === "annual" || view === "settlement" || view === "lessons" ? view : "";
 }
 
 function updatePartTimeWorkNavForView(view) {
@@ -325,9 +336,11 @@ function updatePartTimeWorkNavForView(view) {
 }
 
 function scrollToPartTimeWorkView(view) {
-  const target = view === "settlement"
-    ? document.querySelector("#partTimeWorkWageCalculationTitle")
-    : document.querySelector("#partTimeWorkLessonsTitle");
+  const target = view === "annual"
+    ? document.querySelector("#partTimeWorkAnnualSummaryTitle")
+    : view === "settlement"
+      ? document.querySelector("#partTimeWorkWageCalculationTitle")
+      : document.querySelector("#partTimeWorkLessonsTitle");
   if (!target) {
     return;
   }
@@ -343,6 +356,211 @@ function renderLessons(rows) {
 
 function renderVisibleLessons(filters = readAppliedFilters()) {
   renderLessons(filterLessonsByClassDescription(lessons, filters.classDescription));
+}
+
+function renderAnnualSummary(summary, fiscalYear) {
+  const year = Number.isInteger(Number(fiscalYear)) ? Number(fiscalYear) : yearFromYearMonth(currentYearMonth());
+  const viewModel = buildAnnualSummaryViewModel(summary, year);
+  if (dom.annualSummaryTitle) {
+    dom.annualSummaryTitle.textContent = `${year}年度汇总`;
+  }
+  if (!dom.annualSummaryContainer) {
+    return;
+  }
+
+  dom.annualSummaryContainer.innerHTML = `
+    <div class="part-time-work-annual-summary-grid">
+      <article class="summary-card part-time-work-summary-card">
+        <p class="summary-label">统计期间</p>
+        <p class="summary-value">${escapeHtml(viewModel.periodLabel)}</p>
+      </article>
+      <article class="summary-card part-time-work-summary-card">
+        <p class="summary-label">正式结算月份</p>
+        <p class="summary-value">${escapeHtml(`${viewModel.officialMonthCount}个月`)}</p>
+      </article>
+      <article class="summary-card part-time-work-summary-card">
+        <p class="summary-label">年度业务总额</p>
+        <p class="summary-value">${escapeHtml(formatCurrency(viewModel.totalJpy, "JPY"))}</p>
+      </article>
+      <article class="summary-card part-time-work-summary-card">
+        <p class="summary-label">实际到账 CNY</p>
+        <p class="summary-value">${escapeHtml(formatCurrency(viewModel.totalCny, "CNY"))}</p>
+      </article>
+      <article class="summary-card part-time-work-summary-card">
+        <p class="summary-label">业务月均 JPY</p>
+        <p class="summary-value">${escapeHtml(formatCurrency(viewModel.averageJpy, "JPY"))}</p>
+      </article>
+      <article class="summary-card part-time-work-summary-card">
+        <p class="summary-label">到账月均 CNY</p>
+        <p class="summary-value">${escapeHtml(formatCurrency(viewModel.averageCny, "CNY"))}</p>
+      </article>
+    </div>
+    <p class="section-note part-time-work-annual-note">JPY 为锁定结算快照金额；CNY 为 Cash 确认后的实际到账金额，不用统一汇率反算。未锁定或未 Cash 确认的人民币金额显示为 -。</p>
+    <div class="table-scroll">
+      <table class="payment-table part-time-work-annual-table">
+        <thead>
+          <tr>
+            <th rowspan="2">月份</th>
+            ${WORKPLACE_OPTIONS.map((workplaceName) => `<th colspan="3">${escapeHtml(workplaceName)}</th>`).join("")}
+            <th colspan="2">月度合计</th>
+          </tr>
+          <tr>
+            ${WORKPLACE_OPTIONS.map(() => "<th>JPY</th><th>CNY</th><th>支給日</th>").join("")}
+            <th>JPY</th>
+            <th>CNY</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${viewModel.monthRows.map(renderAnnualSummaryMonthRow).join("")}
+        </tbody>
+        <tfoot>
+          ${renderAnnualSummaryTotalRow("合计", viewModel.workplaceTotals, viewModel.totalJpy, viewModel.totalCny)}
+          ${renderAnnualSummaryTotalRow("月均", viewModel.workplaceAverages, viewModel.averageJpy, viewModel.averageCny)}
+        </tfoot>
+      </table>
+    </div>
+  `;
+}
+
+function buildAnnualSummaryViewModel(summary, fiscalYear) {
+  const months = summary?.months?.length ? summary.months : buildFiscalYearMonths(fiscalYear);
+  const settlementsByKey = new Map((summary?.settlements || []).map((row) => [
+    `${row.year_month || ""}::${row.workplace_name || ""}`,
+    row,
+  ]));
+  const incomeBySettlementId = new Map();
+  for (const income of summary?.incomeRecords || []) {
+    if (income.source_id && !incomeBySettlementId.has(income.source_id)) {
+      incomeBySettlementId.set(income.source_id, income);
+    }
+  }
+
+  const monthRows = months.map((yearMonth) => {
+    const workplaces = WORKPLACE_OPTIONS.map((workplaceName) => {
+      const settlement = settlementsByKey.get(`${yearMonth}::${workplaceName}`) || null;
+      return buildAnnualWorkplaceCell(settlement, incomeBySettlementId);
+    });
+    return {
+      yearMonth,
+      monthLabel: annualMonthLabel(yearMonth),
+      workplaces,
+      totalJpy: sumAnnualValues(workplaces, "jpy"),
+      totalCny: sumAnnualValues(workplaces, "cny"),
+    };
+  });
+
+  const officialMonthCount = monthRows.filter((row) => row.totalJpy > 0).length;
+  const cnyMonthCount = monthRows.filter((row) => row.totalCny > 0).length;
+  const workplaceTotals = WORKPLACE_OPTIONS.map((_, index) => ({
+    jpy: monthRows.reduce((sum, row) => sum + Number(row.workplaces[index]?.jpy || 0), 0),
+    cny: monthRows.reduce((sum, row) => sum + Number(row.workplaces[index]?.cny || 0), 0),
+  }));
+  const workplaceAverages = workplaceTotals.map((total, index) => {
+    const jpyMonthCount = monthRows.filter((row) => Number(row.workplaces[index]?.jpy || 0) > 0).length;
+    const cnyCount = monthRows.filter((row) => Number(row.workplaces[index]?.cny || 0) > 0).length;
+    return {
+      jpy: averageAmount(total.jpy, jpyMonthCount),
+      cny: averageAmount(total.cny, cnyCount),
+    };
+  });
+  const totalJpy = monthRows.reduce((sum, row) => sum + row.totalJpy, 0);
+  const totalCny = monthRows.reduce((sum, row) => sum + row.totalCny, 0);
+
+  return {
+    periodLabel: `${months[0] || "-"} - ${months[months.length - 1] || "-"}`,
+    officialMonthCount,
+    totalJpy,
+    totalCny,
+    averageJpy: averageAmount(totalJpy, officialMonthCount),
+    averageCny: averageAmount(totalCny, cnyMonthCount),
+    workplaceTotals,
+    workplaceAverages,
+    monthRows,
+  };
+}
+
+function buildAnnualWorkplaceCell(settlement, incomeBySettlementId) {
+  const isOfficial = Boolean(settlement?.id) && ["locked", "income_request_created"].includes(settlement.status);
+  const income = settlement?.id ? incomeBySettlementId.get(settlement.id) : null;
+  const event = income?.cashIncomeLinkageEvent || null;
+  const isCnyReceived = event
+    && ["approved", "received", "settled", "synced"].includes(event.sync_status)
+    && event.payment_currency === "CNY"
+    && Number(event.payment_amount || 0) > 0;
+
+  return {
+    jpy: isOfficial ? Number(settlement.total_wage_jpy || 0) : 0,
+    cny: isCnyReceived ? Number(event.payment_amount || 0) : 0,
+    paidDate: isCnyReceived ? formatDateOnly(income.income_date || event.synced_at) : "",
+    status: settlement?.status || "draft",
+  };
+}
+
+function renderAnnualSummaryMonthRow(row) {
+  return `
+    <tr>
+      <th>${escapeHtml(row.monthLabel)}</th>
+      ${row.workplaces.map((cell) => `
+        <td class="number-cell">${escapeHtml(formatOptionalCurrency(cell.jpy, "JPY"))}</td>
+        <td class="number-cell">${escapeHtml(formatOptionalCurrency(cell.cny, "CNY"))}</td>
+        <td>${escapeHtml(cell.paidDate || "-")}</td>
+      `).join("")}
+      <td class="number-cell">${escapeHtml(formatOptionalCurrency(row.totalJpy, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatOptionalCurrency(row.totalCny, "CNY"))}</td>
+    </tr>
+  `;
+}
+
+function renderAnnualSummaryTotalRow(label, workplaceValues, totalJpy, totalCny) {
+  return `
+    <tr>
+      <th>${escapeHtml(label)}</th>
+      ${workplaceValues.map((cell) => `
+        <td class="number-cell">${escapeHtml(formatOptionalCurrency(cell.jpy, "JPY"))}</td>
+        <td class="number-cell">${escapeHtml(formatOptionalCurrency(cell.cny, "CNY"))}</td>
+        <td>-</td>
+      `).join("")}
+      <td class="number-cell">${escapeHtml(formatOptionalCurrency(totalJpy, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatOptionalCurrency(totalCny, "CNY"))}</td>
+    </tr>
+  `;
+}
+
+function sumAnnualValues(rows, key) {
+  return rows.reduce((sum, row) => sum + Number(row?.[key] || 0), 0);
+}
+
+function averageAmount(total, count) {
+  return count > 0 ? total / count : 0;
+}
+
+function formatOptionalCurrency(value, currency) {
+  const numberValue = Number(value || 0);
+  return numberValue > 0 ? formatCurrency(numberValue, currency) : "-";
+}
+
+function yearFromYearMonth(yearMonth) {
+  const match = String(yearMonth || "").match(/^(\d{4})-/);
+  return match ? Number(match[1]) : new Date().getFullYear();
+}
+
+function buildFiscalYearMonths(fiscalYear) {
+  const year = Number(fiscalYear);
+  if (!Number.isInteger(year)) {
+    return [];
+  }
+  return [
+    `${year - 1}-12`,
+    ...Array.from({ length: 11 }, (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`),
+  ];
+}
+
+function annualMonthLabel(yearMonth) {
+  const [year, month] = String(yearMonth || "").split("-");
+  if (!year || !month) {
+    return "-";
+  }
+  return `${year}年${Number(month)}月`;
 }
 
 function renderClassDescriptionOptions(rows, selectedValue = "", workplaceName = "") {
