@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.70 part-time work annual year guard, 2026-07-12:
+   私塾打工独立 `年度汇总` 页补齐年度参数兜底。URL 或筛选框出现 `year=0`、空值、非 4 位年份或超出当前年度选择范围时，页面会自动回落到当前运营年度并同步修正 URL，避免继续拼出 `0-07` 这类无效年月传给只读查询。API 侧 `partTimeWorkAnnualMonths(...)` 同步增加异常年度保护，异常输入直接返回空月份，不发起月度结算 RPC。顶部 6 张统计卡片从一行 6 列改为 3 列 2 行，降低横向拥挤。该阶段只改页面参数校验、只读 API 防护、样式和缓存版本；不新增/执行 SQL/RPC，不写 DB，不修改打工课时、月度结算、收入、Cash 请求、账户流水或历史数据。
+
 1. v10.3.69 part-time work annual summary standalone page, 2026-07-12:
    私塾打工 `年度汇总` 从原 `part-time-work.html` 月度运营页拆出为独立页面 `part-time-work-annual.html`。原打工页只保留授课记录和授课结算，侧边栏年度入口跳转到新页面；新页面有独立年度筛选、登录态、只读加载状态和年度汇总表，使用 `js/part-time-work-annual-app.js` / `js/pages/part-time-work-annual-page.js`。年度金额口径沿用 v10.3.68：JPY 读取 locked / income_request_created 月度结算快照，CNY 只读取已 Cash 确认的实际到账金额，不用统一汇率折算。本次只移动前端展示结构和缓存版本，不新增/执行 SQL/RPC，不写 DB，不修改课时、月度结算、收入、Cash 请求、账户流水或历史数据。
 

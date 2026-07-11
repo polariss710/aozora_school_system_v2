@@ -29,6 +29,9 @@ const ANNUAL_CASH_INCOME_LINKAGE_COLUMNS = [
   "created_at",
 ].join(",");
 
+const MIN_PART_TIME_WORK_ANNUAL_YEAR = 2000;
+const MAX_PART_TIME_WORK_ANNUAL_YEAR = 2100;
+
 function firstResult(data, fallbackMessage) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
@@ -65,7 +68,11 @@ export async function fetchPartTimeWorkMonthlySettlements(filters = {}) {
 
 export function partTimeWorkAnnualMonths(year) {
   const numericYear = Number(year);
-  if (!Number.isInteger(numericYear)) {
+  if (
+    !Number.isInteger(numericYear)
+    || numericYear < MIN_PART_TIME_WORK_ANNUAL_YEAR
+    || numericYear > MAX_PART_TIME_WORK_ANNUAL_YEAR
+  ) {
     return [];
   }
 

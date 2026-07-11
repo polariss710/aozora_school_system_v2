@@ -6,14 +6,16 @@ import { populateYearSelect } from "../utils/month-filter.js";
 import { formatCurrency } from "../utils/format.js";
 
 const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];
+const MIN_FISCAL_YEAR = PAYMENT_MONTH_FILTER_YEAR_RANGE.start;
+const MAX_FISCAL_YEAR = PAYMENT_MONTH_FILTER_YEAR_RANGE.end;
 const dom = {};
 
 export async function initPartTimeWorkAnnualPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
-  dom.yearFilter.value = initialFiscalYearFromUrl();
+  setYearFilterValue(initialFiscalYearFromUrl());
   bindEvents();
-  renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, Number(dom.yearFilter.value));
+  renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, selectedFiscalYear());
 
   if (!hasSupabaseConfig()) {
     showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。当前页面不会发起数据请求。");
@@ -46,23 +48,25 @@ function bindEvents() {
   });
 
   dom.yearFilter?.addEventListener("change", () => {
-    updateYearUrl(Number(dom.yearFilter.value));
+    updateYearUrl(selectedFiscalYear());
   });
 
   dom.resetButton?.addEventListener("click", () => {
-    dom.yearFilter.value = String(currentFiscalYear());
+    setYearFilterValue(currentFiscalYear());
     loadAnnualSummary();
   });
 }
 
 async function loadAnnualSummary() {
+  const fiscalYear = selectedFiscalYear();
+  setYearFilterValue(fiscalYear);
+
   if (!isLoggedIn()) {
-    renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, Number(dom.yearFilter.value));
+    renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, fiscalYear);
     showMessage("error", "请先登录后查看私塾打工年度汇总。");
     return;
   }
 
-  const fiscalYear = Number(dom.yearFilter.value);
   updateYearUrl(fiscalYear);
   setLoading(true);
   showMessage("", "");
@@ -246,16 +250,39 @@ function renderAnnualSummaryTotalRow(label, workplaceValues, totalJpy, totalCny)
 }
 
 function initialFiscalYearFromUrl() {
-  const year = Number(new URLSearchParams(window.location.search).get("year"));
-  return Number.isInteger(year) ? String(year) : String(currentFiscalYear());
+  return normalizeFiscalYear(new URLSearchParams(window.location.search).get("year"));
+}
+
+function selectedFiscalYear() {
+  return normalizeFiscalYear(dom.yearFilter?.value);
+}
+
+function setYearFilterValue(value) {
+  if (!dom.yearFilter) {
+    return;
+  }
+  dom.yearFilter.value = String(normalizeFiscalYear(value));
+}
+
+function normalizeFiscalYear(value) {
+  const text = String(value ?? "").trim();
+  if (!/^\d{4}$/.test(text)) {
+    return currentFiscalYear();
+  }
+  const year = Number(text);
+  if (!Number.isInteger(year) || year < MIN_FISCAL_YEAR || year > MAX_FISCAL_YEAR) {
+    return currentFiscalYear();
+  }
+  return year;
 }
 
 function updateYearUrl(fiscalYear) {
-  if (!window.history?.replaceState || !Number.isInteger(Number(fiscalYear))) {
+  const year = normalizeFiscalYear(fiscalYear);
+  if (!window.history?.replaceState) {
     return;
   }
   const url = new URL(window.location.href);
-  url.searchParams.set("year", String(fiscalYear));
+  url.searchParams.set("year", String(year));
   window.history.replaceState({}, "", url);
 }
 
@@ -265,7 +292,7 @@ function currentFiscalYear() {
 
 function buildFiscalYearMonths(fiscalYear) {
   const year = Number(fiscalYear);
-  if (!Number.isInteger(year)) {
+  if (!Number.isInteger(year) || year < MIN_FISCAL_YEAR || year > MAX_FISCAL_YEAR) {
     return [];
   }
   return [
