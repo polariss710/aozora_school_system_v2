@@ -29,6 +29,7 @@ const DEFAULT_FILTERS = {
   studentId: "",
   businessEntityId: "",
   accountId: "",
+  incomeCategory: "",
   currency: "",
 };
 
@@ -124,6 +125,7 @@ function cacheDom() {
   dom.studentSelect = document.querySelector("#incomeStudentSelect");
   dom.businessEntitySelect = document.querySelector("#incomeBusinessEntitySelect");
   dom.accountSelect = document.querySelector("#incomeAccountSelect");
+  dom.categorySelect = document.querySelector("#incomeCategorySelect");
   dom.currencySelect = document.querySelector("#incomeCurrencySelect");
   dom.resetButton = document.querySelector("#incomeResetButton");
   dom.tableBody = document.querySelector("#incomeTableBody");
@@ -274,6 +276,7 @@ function setDefaultFilters(overrides = null) {
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
+  dom.categorySelect.value = DEFAULT_FILTERS.incomeCategory;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
   updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
 }
@@ -376,6 +379,7 @@ function readFilters() {
     studentId: dom.studentSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
     accountId: dom.accountSelect.value,
+    incomeCategory: dom.categorySelect.value,
     currency: dom.currencySelect.value,
   };
 }
@@ -385,6 +389,7 @@ function restoreFilterSelections(filters) {
   dom.studentSelect.value = filters.studentId;
   dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
+  dom.categorySelect.value = filters.incomeCategory;
   dom.currencySelect.value = filters.currency;
   updateMonthNavigationFromCurrentSelection();
 }
@@ -405,6 +410,7 @@ function renderMasterOptions() {
 }
 
 function renderDataOptions(rows) {
+  renderValueOptions(dom.categorySelect, distinctValues(rows, "income_category"), incomeCategoryLabel);
   renderValueOptions(dom.currencySelect, distinctValues(rows, "currency"), displayValue);
 }
 
@@ -2101,6 +2107,10 @@ function filterIncomeRecords(rows, filters) {
     }
 
     if (filters.accountId && row.account_id !== filters.accountId) {
+      return false;
+    }
+
+    if (filters.incomeCategory && row.income_category !== filters.incomeCategory) {
       return false;
     }
 
