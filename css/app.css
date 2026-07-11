@@ -1872,6 +1872,12 @@ h2 {
   text-overflow: ellipsis;
 }
 
+.part-time-work-annual-filter-panel .filter-grid {
+  grid-template-columns:
+    196px
+    auto;
+}
+
 .part-time-work-summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

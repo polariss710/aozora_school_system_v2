@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 私塾打工</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.26-weekly-schedule-image">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.69-part-time-annual-page">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -43,7 +43,7 @@
                     <div class="page-nav-group-links">
                       <a class="is-active" href="./part-time-work.html?view=lessons" data-part-time-work-nav-view="lessons">授课记录</a>
                       <a href="./part-time-work.html?view=settlement" data-part-time-work-nav-view="settlement">授课结算</a>
-                      <a href="./part-time-work.html?view=annual" data-part-time-work-nav-view="annual">年度汇总</a>
+                      <a href="./part-time-work-annual.html">年度汇总</a>
                     </div>
                   </details>
                   <details class="page-nav-group">
@@ -128,13 +128,6 @@
               <button class="button" id="partTimeWorkResetButton" type="button">重置</button>
             </div>
           </form>
-        </section>
-
-        <section class="panel table-panel part-time-work-annual-panel" aria-labelledby="partTimeWorkAnnualSummaryTitle">
-          <div class="section-heading">
-            <h2 id="partTimeWorkAnnualSummaryTitle">年度汇总</h2>
-          </div>
-          <div id="partTimeWorkAnnualSummaryContainer" class="part-time-work-annual-container" aria-live="polite"></div>
         </section>
 
         <section class="panel table-panel part-time-work-lessons-panel" aria-labelledby="partTimeWorkLessonsTitle">
@@ -271,6 +264,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v10.3.68-part-time-annual-summary"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v10.3.69-part-time-annual-page"></script>
   </body>
 </html>

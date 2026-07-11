@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.69 part-time work annual summary standalone page, 2026-07-12:
+   私塾打工 `年度汇总` 从原 `part-time-work.html` 月度运营页拆出为独立页面 `part-time-work-annual.html`。原打工页只保留授课记录和授课结算，侧边栏年度入口跳转到新页面；新页面有独立年度筛选、登录态、只读加载状态和年度汇总表，使用 `js/part-time-work-annual-app.js` / `js/pages/part-time-work-annual-page.js`。年度金额口径沿用 v10.3.68：JPY 读取 locked / income_request_created 月度结算快照，CNY 只读取已 Cash 确认的实际到账金额，不用统一汇率折算。本次只移动前端展示结构和缓存版本，不新增/执行 SQL/RPC，不写 DB，不修改课时、月度结算、收入、Cash 请求、账户流水或历史数据。
+
 1. v10.3.68 part-time work annual summary, 2026-07-12:
    私塾打工模块新增只读 `年度汇总` 入口和面板。年度按现有 Excel 口径使用 `上一年12月 + 当年1-11月`，例如 2026年度显示 2025-12 至 2026-11。页面复用既有 `school_list_part_time_work_monthly_settlements(...)` 月度结算只读 RPC 和 `school_income_records` / `school_personal_cash_income_linkage_events` 只读数据：JPY 金额只取已锁定 / 已生成收入记录的月度结算快照 `total_wage_jpy`，作为业务应收/业务总额；CNY 金额只取对应收入记录最新 Cash linkage 已确认后的 `payment_amount` 且 `payment_currency = CNY`，作为实际到账人民币。页面不使用统一汇率折算 JPY，不反算 CNY；未锁定或未 Cash 确认的人民币金额显示 `-`。汇总区展示统计期间、正式结算月份、年度业务 JPY、实际到账 CNY、业务月均 JPY、到账月均 CNY；明细表按私塾显示每月 JPY / CNY / 支給日、月度合计、私塾合计和月均。该阶段只改前端/API 只读查询和展示，不新增/执行 SQL/RPC，不写 DB，不修改课时、月度结算、收入、Cash 请求、账户流水或历史数据。
 
