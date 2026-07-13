@@ -32,6 +32,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.74 lesson edit business entity immutable, 2026-07-13:
+   课时管理编辑弹窗补齐单一业务归属收口细节：编辑已有课时时，`业务归属` 只显示当前课时自己的归属并设为不可修改，不再把 `个人名义` 暴露为可选入口。同步更新并执行 `sql/current/school_update_lesson_record_guarded_rpc.sql`，RPC `school_update_lesson_record_guarded(...)` 现在拒绝任何通过课时编辑修改 `business_entity_id` 的请求，历史个人名义课时继续按原归属保留；针对已手动把学生默认归属改为青空的情况，历史非青空课时在不改业务归属时不再因学生默认归属不一致而被该项校验阻断。前端不新增页面层 `.rpc()`，不计算持久化业务金额；本阶段不批量修改任何历史课时、学生、老师、工资、收入、支出或 Cash 数据。
+
 1. v10.3.73 single new business entity guard, 2026-07-13:
    V2 完成“单一业务归属收口”：从本阶段开始，新业务统一归属 `青空进学塾 / code=aosora`，`个人名义 / code=personal` 仅保留历史业务归属，不归档、不删除、不批量改写历史记录。新增并执行 `sql/current/school_single_business_entity_guard.sql`，提供 `school_primary_business_entity_id()` 和 `school_assert_new_business_entity_allowed(...)`，所有新业务写入通过 DB/RPC 解析/校验青空归属，前端不硬编码 UUID。已补 guard 的创建/写入口包括学生/老师/账户主数据创建旧新重载、预定课时新增、预定课时批量生成、预定课时导入、手动收入、Cash 待提交收入、手动支出、老师工资规则、账户调整和账户转账；更新类 RPC 在业务归属实际变更时只允许改向青空，原历史个人名义记录不改归属时仍可维护。页面层新增统一 `js/utils/business-entity-policy.js`，学生、老师、课时、收入、支出、工资规则、账户等新建 dialog 只显示青空可用归属；筛选/列表/详情仍保留全部业务归属用于历史查询审计。学费账单、月度结算、老师工资、报销、Cash 请求和收据等派生链路继续继承上游业务归属，不在前端重新选择。SQL/RPC 执行成功；只读验证确认关键创建函数覆盖 guard；拒绝路径测试覆盖个人名义学生、课时、收入、支出、工资规则、账户、账户调整和账户转账新业务写入，均在写入前拒绝且无残留；rollback 测试验证历史个人名义工资规则不改业务归属仍可编辑且 residue 0；白名单 commit test 新增 `codex-test-single-entity-default-student-20260713`，student id `f8db8d17-6a14-4f5b-9a21-2ac5f3b8c0af`，业务归属确认为 `aosora / 青空进学塾`。未修改生产历史个人名义学生、课时、账单、收入、支出、工资、Cash 或账户流水数据。
 

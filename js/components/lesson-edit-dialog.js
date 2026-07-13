@@ -242,6 +242,8 @@ export function createLessonEditDialogController(options) {
 
   function renderOptions() {
     const { students = [], teachers = [], subjects = [], businessEntities = [] } = getMasterData() || {};
+    const currentBusinessEntityId = safeText(currentLesson?.business_entity_id);
+    const currentBusinessEntity = businessEntities.find((entity) => entity.id === currentBusinessEntityId);
     renderEntityOptionsWithPlaceholder(
       dom.studentSelect,
       students.filter(isActiveStudent),
@@ -262,9 +264,9 @@ export function createLessonEditDialogController(options) {
     );
     renderEntityOptionsWithPlaceholder(
       dom.businessEntitySelect,
-      businessEntities.filter((entity) => entity.is_active !== false),
+      currentBusinessEntity ? [currentBusinessEntity] : [],
       businessEntityName,
-      "请选择业务归属"
+      currentBusinessEntity ? "当前业务归属" : "请选择业务归属"
     );
   }
 
@@ -312,10 +314,12 @@ export function createLessonEditDialogController(options) {
         : option.value !== lesson.status;
     });
 
-    [dom.studentSelect, dom.teacherSelect, dom.subjectSelect, dom.businessEntitySelect].forEach((element) => {
+    [dom.studentSelect, dom.teacherSelect, dom.subjectSelect].forEach((element) => {
       element.disabled = isLinkedActual;
       element.title = isLinkedActual ? "已关联来源课时，对象信息不可在此修改。" : "";
     });
+    dom.businessEntitySelect.disabled = true;
+    dom.businessEntitySelect.title = "课时业务归属不可在编辑中修改；历史记录按原归属保留。";
 
     dom.billableSelect.disabled = isPlanned || isCancelledActual;
     dom.billableSelect.title = isPlanned

@@ -2,7 +2,7 @@
 -- RPC: public.school_update_lesson_record_guarded
 -- Purpose: Guarded V1 update for one school lesson record.
 -- Status: EXECUTED ON SUPABASE. Rollback-tested, guard-tested, and commit-tested.
--- Version: v2.63.0-lesson-planned-void-schema-rpc-20260609
+-- Version: v10.3.74-single-business-lesson-edit-guard-20260713
 --
 -- Scope:
 -- - Update one public.school_lesson_records row only.
@@ -14,7 +14,9 @@
 --   completed/cancelled/makeup_completed, requested status is unchanged, old/new
 --   student settlement months and old/new teacher wage months are unlocked, and
 --   no wage lock detail references the lesson.
--- - linked actual rows cannot change student/teacher/subject/business entity in V1.
+-- - business_entity_id is immutable in edit. Historical records keep their
+--   original business entity and cannot be rewritten through this RPC.
+-- - linked actual rows cannot change student/teacher/subject in V1.
 --
 -- Not supported:
 -- - Changing lesson_type.
@@ -185,10 +187,7 @@ begin
   end if;
 
   if p_business_entity_id is distinct from v_lesson.business_entity_id then
-    perform public.school_assert_new_business_entity_allowed(
-      p_business_entity_id,
-      '更新课时业务归属'
-    );
+    raise exception '课时业务归属不可在编辑中修改。历史记录请按原业务归属保留。';
   end if;
 
   v_status := nullif(trim(coalesce(p_status, v_lesson.status)), '');
@@ -212,7 +211,9 @@ begin
 
   if v_student_business_entity_id is not null
     and v_student_business_entity_id is distinct from p_business_entity_id then
-    raise exception '学生默认业务归属与课时业务归属不一致。';
+    if p_business_entity_id is not distinct from public.school_primary_business_entity_id() then
+      raise exception '学生默认业务归属与课时业务归属不一致。';
+    end if;
   end if;
 
   if not exists (
@@ -492,7 +493,7 @@ comment on function public.school_update_lesson_record_guarded(
   text,
   text
 ) is
-  'Guarded V1 update for one school lesson record. Preserves lesson_type and planned_lesson_id, blocks voided planned edits, linked planned edits, locked student settlement months, locked teacher wage months, wage detail snapshots, and downstream financial side effects.';
+  'Guarded V1 update for one school lesson record. Preserves lesson_type, planned_lesson_id, and business_entity_id; blocks voided planned edits, linked planned edits, locked student settlement months, locked teacher wage months, wage detail snapshots, and downstream financial side effects.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

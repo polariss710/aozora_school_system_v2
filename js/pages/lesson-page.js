@@ -21,7 +21,7 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.58-active-student-dialog-options";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.74-single-business-lesson-edit";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
