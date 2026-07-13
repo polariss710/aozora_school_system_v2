@@ -134,6 +134,13 @@ begin
     raise exception '收入记录不存在。';
   end if;
 
+  if p_business_entity_id is distinct from v_income.business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      p_business_entity_id,
+      '更新收入业务归属'
+    );
+  end if;
+
   if v_income.status = 'reversed'
     or v_income.reversed_at is not null
     or v_income.reversal_account_transaction_id is not null then

@@ -212,7 +212,7 @@ export async function fetchExpenseLookups() {
   const [businessEntitiesResult, accountsResult, teachersResult, studentsResult] = await Promise.all([
     supabase
       .from("school_business_entities")
-      .select("id,name,is_active")
+      .select("id,code,name,is_active")
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")

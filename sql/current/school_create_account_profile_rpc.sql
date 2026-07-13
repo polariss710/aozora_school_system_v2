@@ -97,6 +97,11 @@ begin
     raise exception '请选择业务归属。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '新增账户'
+  );
+
   if not exists (
     select 1
     from public.school_business_entities b

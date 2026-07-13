@@ -55,7 +55,7 @@ export async function fetchTeacherFilterOptions() {
 export async function fetchBusinessEntitiesForTeachers() {
   const { data, error } = await supabase
     .from("school_business_entities")
-    .select("id,name,is_active")
+    .select("id,code,name,is_active")
     .order("name", { ascending: true });
 
   if (error) {

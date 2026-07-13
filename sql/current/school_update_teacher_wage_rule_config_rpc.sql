@@ -131,6 +131,13 @@ begin
     raise exception '老师工资规则不存在。';
   end if;
 
+  if p_business_entity_id is distinct from v_rule.business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      p_business_entity_id,
+      '更新老师工资规则业务归属'
+    );
+  end if;
+
   if p_teacher_id <> v_rule.teacher_id and not exists (
     select 1
     from public.school_teachers t
@@ -167,6 +174,20 @@ begin
       and coalesce(s.app_type, '') = 'school'
   ) then
     raise exception '学生不存在。';
+  end if;
+
+  if (
+    p_student_id is distinct from v_rule.student_id
+    or p_business_entity_id is distinct from v_rule.business_entity_id
+  ) and exists (
+    select 1
+    from public.school_students s
+    where s.id = p_student_id
+      and coalesce(s.app_type, '') = 'school'
+      and s.business_entity_id is not null
+      and s.business_entity_id is distinct from p_business_entity_id
+  ) then
+    raise exception '学生默认业务归属与工资规则业务归属不一致。';
   end if;
 
   if p_subject_id <> v_rule.subject_id and not exists (

@@ -17,6 +17,12 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  historicalEditBusinessEntities,
+  isNewBusinessEntityId,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   appType: "school",
@@ -557,7 +563,8 @@ function openAccountCreateDialog() {
   dom.accountCreateNameInput.value = "";
   renderAccountCreateCurrencyOptions("CNY");
   renderAccountCreateTypeOptions("CNY");
-  renderAccountCreateBusinessEntityOptions(businessEntities.filter((entity) => entity.is_active !== false));
+  renderAccountCreateBusinessEntityOptions(newBusinessEntities(businessEntities));
+  dom.accountCreateBusinessEntitySelect.value = defaultNewBusinessEntityId(businessEntities);
   dom.accountCreateInitialBalanceInput.value = "0";
   dom.accountCreateCompanySelect.value = "false";
   dom.accountCreateActiveSelect.value = "true";
@@ -626,9 +633,9 @@ async function submitAccountCreate() {
 
   if (
     payload.appType === "school"
-    && !businessEntities.some((entity) => entity.id === payload.businessEntityId && entity.is_active !== false)
+    && !isNewBusinessEntityId(businessEntities, payload.businessEntityId)
   ) {
-    showAccountCreateError("请选择有效启用业务归属。", ["businessEntity"]);
+    showAccountCreateError("新建 School 账户只能归属青空进学塾。", ["businessEntity"]);
     return;
   }
 
@@ -788,7 +795,10 @@ function openAccountProfileDialog(accountId) {
   dom.accountProfileNameInput.value = account.name || "";
   renderAccountProfileCurrencyOptions(account.currency);
   renderAccountProfileTypeOptions(account.currency, account.account_type, account);
-  renderAccountProfileBusinessEntityOptions(businessEntities, account.business_entity_id);
+  renderAccountProfileBusinessEntityOptions(
+    historicalEditBusinessEntities(businessEntities, account.business_entity_id),
+    account.business_entity_id
+  );
   dom.accountProfileCompanySelect.value = account.is_company_account ? "true" : "false";
   dom.accountProfileActiveSelect.value = account.is_active ? "true" : "false";
   dom.accountProfileNoteInput.value = account.note || "";
@@ -1046,8 +1056,10 @@ function openAccountTransferDialog() {
   setTransferSubmitting(false);
 
   const filters = readFilters();
-  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
-  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const activeBusinessEntities = newBusinessEntities(businessEntities);
+  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
+    ? filters.businessEntityId
+    : defaultNewBusinessEntityId(businessEntities);
   const defaultFromAccountId = filters?.accountId || "";
 
   dom.accountTransferDateInput.value = currentDate();
@@ -1398,8 +1410,10 @@ function openAccountAdjustmentDialog() {
   setAdjustmentSubmitting(false);
 
   const filters = readFilters();
-  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
-  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const activeBusinessEntities = newBusinessEntities(businessEntities);
+  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
+    ? filters.businessEntityId
+    : defaultNewBusinessEntityId(businessEntities);
   const defaultAccountId = filters?.accountId || "";
 
   dom.accountAdjustmentDateInput.value = currentDate();
@@ -1710,7 +1724,7 @@ function isAllowedBusinessEntityForProfile(businessEntityId, account) {
     return false;
   }
 
-  return entity.is_active !== false || businessEntityId === account?.business_entity_id;
+  return businessEntityId === account?.business_entity_id || isNewBusinessEntityId(businessEntities, businessEntityId);
 }
 
 function accountTypeLabel(type) {

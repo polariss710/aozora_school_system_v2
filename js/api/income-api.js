@@ -274,7 +274,7 @@ export async function fetchIncomeLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_business_entities")
-      .select("id,name,entity_type,is_active")
+      .select("id,code,name,entity_type,is_active")
       .order("name", { ascending: true }),
     supabase
       .from("school_accounts")

@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initStudentPage } from "./pages/student-page.js?v=v10.1.16-student-management-ui-polish";
+import { initStudentPage } from "./pages/student-page.js?v=v10.3.73-single-business-entity";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

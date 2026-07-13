@@ -157,6 +157,13 @@ begin
     raise exception '支出记录不存在。';
   end if;
 
+  if p_business_entity_id is distinct from v_expense.business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      p_business_entity_id,
+      '更新支出业务归属'
+    );
+  end if;
+
   if v_expense.status = 'reversed'
     or v_expense.reversed_at is not null
     or v_expense.reversal_account_transaction_id is not null then

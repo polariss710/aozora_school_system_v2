@@ -83,6 +83,11 @@ begin
     raise exception '请选择业务归属。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '新增老师工资规则'
+  );
+
   if not exists (
     select 1
     from public.school_teachers t
@@ -101,6 +106,17 @@ begin
       and coalesce(s.status, '') not in ('inactive', 'graduated', 'withdrawn')
   ) then
     raise exception '学生不存在或不可用于新增工资规则。';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_students s
+    where s.id = p_student_id
+      and coalesce(s.app_type, '') = 'school'
+      and s.business_entity_id is not null
+      and s.business_entity_id is distinct from p_business_entity_id
+  ) then
+    raise exception '学生默认业务归属与工资规则业务归属不一致。';
   end if;
 
   if not exists (

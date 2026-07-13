@@ -54,6 +54,11 @@ begin
     raise exception '请选择业务归属。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '批量生成预定课时'
+  );
+
   if p_start_date is null or p_end_date is null then
     raise exception '请选择生成开始日期和结束日期。';
   end if;

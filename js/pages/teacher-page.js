@@ -8,6 +8,11 @@ import {
   updateTeacherProfile,
 } from "../api/teacher-api.js";
 import { formatDate, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  historicalEditBusinessEntities,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   keyword: "",
@@ -342,7 +347,7 @@ function openCreateDialog() {
   dom.createNameInput.value = "";
   renderCreateDepartmentOptions("常勤老师");
   renderCreateSubjectOptions("");
-  renderCreateBusinessEntityOptions("");
+  renderCreateBusinessEntityOptions(defaultNewBusinessEntityId(businessEntities));
   renderCreateStatusOptions("employed");
   dom.createNoteInput.value = "";
   dom.createAlipayAccountInput.value = "";
@@ -573,25 +578,28 @@ function subjectEditOptions() {
 }
 
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions();
+  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions(
+    historicalEditBusinessEntities(businessEntities, selectedBusinessEntityId),
+    true
+  );
   dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
 function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions();
+  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions(newBusinessEntities(businessEntities), false);
   dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
-function businessEntityEditOptions() {
-  const activeOptions = businessEntities
-    .filter((entity) => entity?.id && entity.is_active !== false)
+function businessEntityEditOptions(rows, allowUnset) {
+  const options = rows
+    .filter((entity) => entity?.id)
     .map((entity) =>
       `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
     );
 
   return [
-    '<option value="">未设置</option>',
-    ...activeOptions,
+    ...(allowUnset ? ['<option value="">未设置</option>'] : []),
+    ...options,
   ].join("");
 }
 

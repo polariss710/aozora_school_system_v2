@@ -91,6 +91,11 @@ begin
     raise exception '请选择业务归属。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '新增收入'
+  );
+
   if p_account_id is null then
     raise exception '请选择入账账户。';
   end if;

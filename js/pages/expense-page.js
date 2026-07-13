@@ -22,6 +22,11 @@ import {
   updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  isNewBusinessEntityId,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   studentId: "",
@@ -582,8 +587,10 @@ function openCreateExpenseDialog() {
   setCreateSubmitting(false);
 
   const filters = readFilters();
-  const activeBusinessEntities = businessEntities.filter((entity) => entity.is_active !== false);
-  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const activeBusinessEntities = newBusinessEntities(businessEntities);
+  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
+    ? filters.businessEntityId
+    : defaultNewBusinessEntityId(businessEntities);
   const defaultAccountId = filters?.accountId || "";
 
   dom.createExpenseDateInput.value = currentDate();

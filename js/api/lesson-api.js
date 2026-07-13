@@ -386,7 +386,7 @@ function nullSafeEqual(left, right) {
 export async function fetchLessonStudents() {
   const { data, error } = await supabase
     .from("school_students")
-    .select("id,name,display_name,status")
+    .select("id,name,display_name,status,business_entity_id")
     .eq("app_type", "school")
     .order("display_name", { ascending: true })
     .order("name", { ascending: true });
@@ -429,7 +429,7 @@ export async function fetchLessonSubjects() {
 export async function fetchLessonBusinessEntities() {
   const { data, error } = await supabase
     .from("school_business_entities")
-    .select("id,name,is_active")
+    .select("id,code,name,is_active")
     .order("name", { ascending: true });
 
   if (error) {

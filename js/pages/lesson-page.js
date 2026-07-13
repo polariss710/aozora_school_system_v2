@@ -31,6 +31,11 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  isNewBusinessEntityId,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   studentId: "",
@@ -1354,7 +1359,7 @@ function closeCreatePlannedLessonDialog(force = false) {
 function renderCreatePlannedLessonOptions() {
   renderEntityOptionsWithPlaceholder(
     dom.createPlannedLessonStudentSelect,
-    students.filter(isActiveStudent),
+    students.filter(isNewBusinessStudent),
     studentName,
     "请选择学生"
   );
@@ -1372,7 +1377,7 @@ function renderCreatePlannedLessonOptions() {
   );
   renderEntityOptionsWithPlaceholder(
     dom.createPlannedLessonBusinessEntitySelect,
-    businessEntities.filter((entity) => entity.is_active !== false),
+    newBusinessEntities(businessEntities),
     businessEntityName,
     "请选择业务归属"
   );
@@ -1385,7 +1390,13 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonStudentSelect.value = dom.studentSelect.value || "";
   dom.createPlannedLessonTeacherSelect.value = dom.teacherSelect.value || "";
   dom.createPlannedLessonSubjectSelect.value = dom.subjectSelect.value || "";
-  dom.createPlannedLessonBusinessEntitySelect.value = dom.businessEntitySelect.value || "";
+  const defaultBusinessEntityId = defaultNewBusinessEntityId(businessEntities);
+  dom.createPlannedLessonBusinessEntitySelect.value = isNewBusinessEntityId(businessEntities, dom.businessEntitySelect.value)
+    ? dom.businessEntitySelect.value
+    : defaultBusinessEntityId;
+  if (!students.some((student) => student.id === dom.createPlannedLessonStudentSelect.value && isNewBusinessStudent(student))) {
+    dom.createPlannedLessonStudentSelect.value = "";
+  }
   dom.createPlannedLessonStartTimeInput.value = "";
   dom.createPlannedLessonEndTimeInput.value = "";
   dom.createPlannedLessonDurationInput.value = "";
@@ -3660,13 +3671,13 @@ function closeLessonBatchGenerateDialog(force = false) {
 function renderLessonBatchGenerateMasterOptions() {
   renderEntityOptionsWithPlaceholder(
     dom.lessonBatchGenerateStudentSelect,
-    students.filter(isActiveStudent),
+    students.filter(isNewBusinessStudent),
     studentName,
     "请选择学生"
   );
   renderEntityOptionsWithPlaceholder(
     dom.lessonBatchGenerateBusinessEntitySelect,
-    businessEntities.filter((entity) => entity.is_active !== false),
+    newBusinessEntities(businessEntities),
     businessEntityName,
     "请选择业务归属"
   );
@@ -3675,7 +3686,12 @@ function renderLessonBatchGenerateMasterOptions() {
 function resetLessonBatchGenerateForm() {
   const selectedMonth = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
   dom.lessonBatchGenerateStudentSelect.value = dom.studentSelect.value || "";
-  dom.lessonBatchGenerateBusinessEntitySelect.value = dom.businessEntitySelect.value || "";
+  dom.lessonBatchGenerateBusinessEntitySelect.value = isNewBusinessEntityId(businessEntities, dom.businessEntitySelect.value)
+    ? dom.businessEntitySelect.value
+    : defaultNewBusinessEntityId(businessEntities);
+  if (!students.some((student) => student.id === dom.lessonBatchGenerateStudentSelect.value && isNewBusinessStudent(student))) {
+    dom.lessonBatchGenerateStudentSelect.value = "";
+  }
   dom.lessonBatchGenerateStartDateInput.value = firstDateOfMonth(selectedMonth);
   dom.lessonBatchGenerateEndDateInput.value = lastDateOfMonth(selectedMonth);
   dom.lessonBatchGenerateNoteInput.value = "批量生成预定课时";
@@ -5203,9 +5219,15 @@ function validateLessonImportPreviewRow(row, mode) {
   }
 
   validateLessonImportPreviewLookup(row, "student", students, studentName);
+  if (values.studentId && !isNewBusinessStudent(students.find((student) => student.id === values.studentId))) {
+    addLessonImportPreviewIssue(row, "error", "student", "新导入预定课时只能选择青空进学塾在籍学生。");
+  }
   validateLessonImportPreviewLookup(row, "teacher", teachers, teacherName);
   validateLessonImportPreviewLookup(row, "subject", subjects, subjectName);
   validateLessonImportPreviewLookup(row, "businessEntity", businessEntities, businessEntityName);
+  if (values.businessEntityId && !isNewBusinessEntityId(businessEntities, values.businessEntityId)) {
+    addLessonImportPreviewIssue(row, "error", "businessEntity", "新导入预定课时只能归属青空进学塾。个人名义仅保留历史处理。");
+  }
 
   if (mode === "planned" && values.lessonType !== "planned") {
     addLessonImportPreviewIssue(row, "error", "lessonType", "预定分栏只能预览为 planned。");
@@ -6500,6 +6522,10 @@ function studentName(student) {
 
 function isActiveStudent(student) {
   return safeText(student?.status) === "active";
+}
+
+function isNewBusinessStudent(student) {
+  return isActiveStudent(student) && isNewBusinessEntityId(businessEntities, student?.business_entity_id || "");
 }
 
 function teacherName(teacher) {

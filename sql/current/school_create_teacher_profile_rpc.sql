@@ -64,6 +64,7 @@ declare
   v_status text := nullif(trim(coalesce(p_status, 'employed')), '');
   v_department text := nullif(trim(coalesce(p_department, '')), '');
   v_note text := nullif(trim(coalesce(p_note, '')), '');
+  v_default_business_entity_id uuid;
   v_teacher_id uuid;
 begin
   if v_display_name is null then
@@ -80,15 +81,10 @@ begin
     raise exception '老师状态无效：%。', v_status;
   end if;
 
-  if p_default_business_entity_id is not null
-    and not exists (
-      select 1
-      from public.school_business_entities b
-      where b.id = p_default_business_entity_id
-        and coalesce(b.is_active, true) = true
-    ) then
-    raise exception '业务归属不存在或已停用。';
-  end if;
+  v_default_business_entity_id := public.school_assert_new_business_entity_allowed(
+    coalesce(p_default_business_entity_id, public.school_primary_business_entity_id()),
+    '新增老师'
+  );
 
   if v_teacher_code is not null and exists (
     select 1
@@ -116,7 +112,7 @@ begin
     v_display_name,
     v_department,
     v_status,
-    p_default_business_entity_id,
+    v_default_business_entity_id,
     v_note,
     'school'
   )
@@ -254,15 +250,10 @@ begin
     raise exception '默认科目不存在。';
   end if;
 
-  if v_default_business_entity_id is not null
-    and not exists (
-      select 1
-      from public.school_business_entities b
-      where b.id = v_default_business_entity_id
-        and coalesce(b.is_active, true) = true
-    ) then
-    raise exception '默认业务归属不存在或已停用。';
-  end if;
+  v_default_business_entity_id := public.school_assert_new_business_entity_allowed(
+    coalesce(v_default_business_entity_id, public.school_primary_business_entity_id()),
+    '新增老师'
+  );
 
   insert into public.school_teachers (
     name,

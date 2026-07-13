@@ -105,6 +105,11 @@ begin
     raise exception '请选择业务归属。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '新增预定课时'
+  );
+
   if v_status not in ('planned', 'pending_makeup') then
     raise exception '预定课时状态无效：%。', coalesce(v_status, '');
   end if;

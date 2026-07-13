@@ -68,6 +68,7 @@ declare
   v_phone text := nullif(trim(coalesce(p_phone, '')), '');
   v_note text := nullif(trim(coalesce(p_note, '')), '');
   v_preset_exchange_rate numeric := coalesce(p_preset_exchange_rate, 0);
+  v_business_entity_id uuid;
   v_target_school_count integer := 0;
   v_student_id uuid;
 begin
@@ -95,15 +96,10 @@ begin
     end if;
   end if;
 
-  if p_default_business_entity_id is not null
-    and not exists (
-      select 1
-      from public.school_business_entities b
-      where b.id = p_default_business_entity_id
-        and coalesce(b.is_active, true) = true
-    ) then
-    raise exception '默认业务归属不存在或已停用。';
-  end if;
+  v_business_entity_id := public.school_assert_new_business_entity_allowed(
+    coalesce(p_default_business_entity_id, public.school_primary_business_entity_id()),
+    '新增学生'
+  );
 
   insert into public.school_students (
     name,
@@ -126,7 +122,7 @@ begin
     'active',
     v_course_track,
     v_target_schools,
-    p_default_business_entity_id,
+    v_business_entity_id,
     'CNY',
     v_preset_exchange_rate,
     v_wechat,

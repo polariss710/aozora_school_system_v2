@@ -7,6 +7,11 @@ import {
   updateStudentProfile,
 } from "../api/student-api.js";
 import { formatDate, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  historicalEditBusinessEntities,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   keyword: "",
@@ -353,7 +358,7 @@ function openCreateDialog() {
   setCreateSubmitting(false);
   dom.createNameInput.value = "";
   renderCreateStudentStatusOptions("active");
-  renderCreateBusinessEntityOptions("");
+  renderCreateBusinessEntityOptions(defaultNewBusinessEntityId(businessEntities));
   renderCreateCourseTrackOptions("science");
   dom.createPresetExchangeRateInput.value = "0";
   dom.createWechatInput.value = "";
@@ -566,25 +571,28 @@ function courseTrackEditOptions() {
 }
 
 function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions();
+  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions(
+    historicalEditBusinessEntities(businessEntities, selectedBusinessEntityId),
+    true
+  );
   dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
 function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions();
+  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions(newBusinessEntities(businessEntities), false);
   dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
 }
 
-function businessEntityEditOptions() {
-  const activeOptions = businessEntities
-    .filter((entity) => entity?.id && entity.is_active !== false)
+function businessEntityEditOptions(rows, allowUnset) {
+  const options = rows
+    .filter((entity) => entity?.id)
     .map((entity) =>
       `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
     );
 
   return [
-    '<option value="">未设置</option>',
-    ...activeOptions,
+    ...(allowUnset ? ['<option value="">未设置</option>'] : []),
+    ...options,
   ].join("");
 }
 

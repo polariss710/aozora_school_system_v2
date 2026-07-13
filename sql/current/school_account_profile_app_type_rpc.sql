@@ -91,6 +91,11 @@ begin
       raise exception '请选择业务归属。';
     end if;
 
+    v_business_entity_id := public.school_assert_new_business_entity_allowed(
+      v_business_entity_id,
+      '新增账户'
+    );
+
     if not exists (
       select 1
       from public.school_business_entities b
@@ -304,6 +309,11 @@ begin
     end if;
 
     if v_business_entity_id is distinct from v_account.business_entity_id then
+      v_business_entity_id := public.school_assert_new_business_entity_allowed(
+        v_business_entity_id,
+        '更新账户业务归属'
+      );
+
       if not exists (
         select 1
         from public.school_business_entities b

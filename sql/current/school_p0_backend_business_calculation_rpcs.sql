@@ -262,6 +262,11 @@ begin
     raise exception '请选择业务归属。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '新增 Cash 待提交收入'
+  );
+
   if p_student_id is null then
     raise exception '请选择学生。';
   end if;

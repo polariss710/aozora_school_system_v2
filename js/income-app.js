@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomePage } from "./pages/income-page.js?v=v10.3.72-income-filter-nav";
+import { initIncomePage } from "./pages/income-page.js?v=v10.3.73-single-business-entity";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

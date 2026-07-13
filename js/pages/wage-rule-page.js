@@ -7,6 +7,11 @@ import {
   updateWageRuleConfig,
 } from "../api/wage-rule-api.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  isNewBusinessEntityId,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   keyword: "",
@@ -343,6 +348,7 @@ function openCreateDialog() {
   clearCreateErrors();
   setCreateSubmitting(false);
   renderCreateLookupOptions();
+  dom.createBusinessEntitySelect.value = defaultNewBusinessEntityId(businessEntities);
   dom.createSettlementTypeSelect.value = "jpy_hourly";
   dom.createHourlyRateJpyInput.value = "0";
   dom.createHourlyRateCnyInput.value = "0";
@@ -434,9 +440,9 @@ function validateCreatePayload(payload) {
 
 function renderCreateLookupOptions() {
   renderCreateEntityOptions(dom.createTeacherSelect, teachers.filter(isUsableTeacher), teacherName, "请选择老师");
-  renderCreateEntityOptions(dom.createStudentSelect, students.filter(isUsableStudent), studentName, "请选择学生");
+  renderCreateEntityOptions(dom.createStudentSelect, students.filter(isNewBusinessStudent), studentName, "请选择学生");
   renderCreateEntityOptions(dom.createSubjectSelect, subjects.filter(isUsableSubject), subjectName, "请选择科目");
-  renderCreateEntityOptions(dom.createBusinessEntitySelect, businessEntities.filter(isUsableBusinessEntity), businessEntityName, "请选择业务归属");
+  renderCreateEntityOptions(dom.createBusinessEntitySelect, newBusinessEntities(businessEntities), businessEntityName, "请选择业务归属");
 }
 
 function renderEditLookupOptions(rule) {
@@ -1220,12 +1226,16 @@ function isUsableStudent(student) {
   return safeText(student?.status) === "active";
 }
 
+function isNewBusinessStudent(student) {
+  return isUsableStudent(student) && isNewBusinessEntityId(businessEntities, student?.business_entity_id || "");
+}
+
 function isUsableSubject(subject) {
   return Boolean(subject && subject.is_active !== false);
 }
 
 function isUsableBusinessEntity(entity) {
-  return Boolean(entity && entity.is_active !== false);
+  return Boolean(entity && isNewBusinessEntityId(businessEntities, entity.id));
 }
 
 function uniqueFieldIds(fieldIds) {

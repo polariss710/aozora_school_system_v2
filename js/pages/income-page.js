@@ -24,6 +24,11 @@ import {
   updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  defaultNewBusinessEntityId,
+  isNewBusinessEntityId,
+  newBusinessEntities,
+} from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
   studentId: "",
@@ -1633,7 +1638,9 @@ function openCreateIncomeDialog() {
   setCreateSubmitting(false);
 
   const filters = readFilters();
-  const defaultBusinessEntityId = filters?.businessEntityId || "";
+  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
+    ? filters.businessEntityId
+    : defaultNewBusinessEntityId(businessEntities);
   const defaultStudentId = filters?.studentId || "";
   const defaultAccountId = filters?.accountId || "";
 
@@ -1922,8 +1929,7 @@ async function ensureCashEligibleAccountsLoaded() {
 }
 
 function filteredCreateBusinessEntities() {
-  const rows = businessEntities.filter((entity) => entity.is_active !== false);
-  return rows;
+  return newBusinessEntities(businessEntities);
 }
 
 function filteredCreateStudents() {

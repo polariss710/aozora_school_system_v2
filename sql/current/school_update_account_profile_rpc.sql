@@ -127,6 +127,11 @@ begin
   end if;
 
   if p_business_entity_id is distinct from v_account.business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      p_business_entity_id,
+      '更新账户业务归属'
+    );
+
     if not exists (
       select 1
       from public.school_business_entities b

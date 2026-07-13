@@ -53,6 +53,7 @@ declare
   v_phone text := nullif(trim(coalesce(p_phone, '')), '');
   v_note text := nullif(trim(coalesce(p_note, '')), '');
   v_preset_exchange_rate numeric := coalesce(p_preset_exchange_rate, 0);
+  v_business_entity_id uuid;
   v_target_school_count integer := 0;
   v_student_id uuid;
 begin
@@ -84,15 +85,10 @@ begin
     end if;
   end if;
 
-  if p_default_business_entity_id is not null
-    and not exists (
-      select 1
-      from public.school_business_entities b
-      where b.id = p_default_business_entity_id
-        and coalesce(b.is_active, true) = true
-    ) then
-    raise exception '默认业务归属不存在或已停用。';
-  end if;
+  v_business_entity_id := public.school_assert_new_business_entity_allowed(
+    coalesce(p_default_business_entity_id, public.school_primary_business_entity_id()),
+    '新增学生'
+  );
 
   insert into public.school_students (
     name,
@@ -115,7 +111,7 @@ begin
     v_status,
     v_course_track,
     v_target_schools,
-    p_default_business_entity_id,
+    v_business_entity_id,
     'CNY',
     v_preset_exchange_rate,
     v_wechat,
@@ -223,6 +219,7 @@ declare
   v_phone text := nullif(trim(coalesce(p_phone, '')), '');
   v_note text := nullif(trim(coalesce(p_note, '')), '');
   v_preset_exchange_rate numeric := coalesce(p_preset_exchange_rate, 0);
+  v_business_entity_id uuid;
   v_target_school_count integer := 0;
 begin
   if p_student_id is null then
@@ -279,6 +276,15 @@ begin
     raise exception '学生状态无效：%。', v_status;
   end if;
 
+  if p_default_business_entity_id is distinct from v_student.business_entity_id then
+    v_business_entity_id := public.school_assert_new_business_entity_allowed(
+      p_default_business_entity_id,
+      '更新学生默认业务归属'
+    );
+  else
+    v_business_entity_id := p_default_business_entity_id;
+  end if;
+
   update public.school_students s
   set
     name = v_name,
@@ -286,7 +292,7 @@ begin
     status = v_status,
     course_track = v_course_track,
     target_schools = v_target_schools,
-    business_entity_id = p_default_business_entity_id,
+    business_entity_id = v_business_entity_id,
     preset_exchange_rate = v_preset_exchange_rate,
     wechat = v_wechat,
     phone = v_phone,

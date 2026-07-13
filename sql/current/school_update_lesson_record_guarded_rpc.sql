@@ -184,6 +184,13 @@ begin
     raise exception '不支持编辑该课时类型：%。', coalesce(v_lesson.lesson_type, '');
   end if;
 
+  if p_business_entity_id is distinct from v_lesson.business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      p_business_entity_id,
+      '更新课时业务归属'
+    );
+  end if;
+
   v_status := nullif(trim(coalesce(p_status, v_lesson.status)), '');
   if v_status is null then
     raise exception '课时状态不能为空。';

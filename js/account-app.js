@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initAccountPage } from "./pages/account-page.js?v=v10.1.13-account-management-ui-polish";
+import { initAccountPage } from "./pages/account-page.js?v=v10.3.73-single-business-entity";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

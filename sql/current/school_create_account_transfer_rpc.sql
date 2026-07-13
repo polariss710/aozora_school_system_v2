@@ -112,6 +112,11 @@ begin
     raise exception '转账原因不能为空。';
   end if;
 
+  perform public.school_assert_new_business_entity_allowed(
+    p_business_entity_id,
+    '账户转账'
+  );
+
   select *
   into v_business_entity
   from public.school_business_entities be

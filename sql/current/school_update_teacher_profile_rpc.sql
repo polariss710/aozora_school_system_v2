@@ -130,6 +130,13 @@ begin
     raise exception '老师不存在。';
   end if;
 
+  if p_default_business_entity_id is distinct from v_teacher.default_business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      p_default_business_entity_id,
+      '更新老师默认业务归属'
+    );
+  end if;
+
   update public.school_teachers t
   set
     name = v_name,
@@ -310,6 +317,13 @@ begin
 
   if not found then
     raise exception '老师不存在。';
+  end if;
+
+  if v_default_business_entity_id is distinct from v_teacher.default_business_entity_id then
+    perform public.school_assert_new_business_entity_allowed(
+      v_default_business_entity_id,
+      '更新老师默认业务归属'
+    );
   end if;
 
   update public.school_teachers t

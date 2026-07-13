@@ -95,7 +95,7 @@ export async function fetchWageRuleLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_students")
-      .select("id,name,display_name,student_code,status")
+      .select("id,name,display_name,student_code,status,business_entity_id")
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),
@@ -106,7 +106,7 @@ export async function fetchWageRuleLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_business_entities")
-      .select("id,name,is_active")
+      .select("id,code,name,is_active")
       .order("name", { ascending: true }),
   ]);
 

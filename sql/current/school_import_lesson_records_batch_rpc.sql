@@ -412,6 +412,11 @@ begin
     );
 
   update lesson_import_rows r
+  set errors = r.errors || array['新导入预定课时只能归属青空进学塾。个人名义仅保留历史处理。']
+  where r.business_entity_id is not null
+    and r.business_entity_id is distinct from public.school_primary_business_entity_id();
+
+  update lesson_import_rows r
   set errors = r.errors || array['目标学生月度结算已锁定，不能导入预定课时。']
   where exists (
     select 1
