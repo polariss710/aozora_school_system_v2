@@ -1,3 +1,10 @@
+const REGUS_OFFICE_VENUE = "Regus办公室";
+
+export function detectRegusOfficeConflictIds(rows) {
+  const officeRows = (rows || []).filter((row) => String(row?.lesson_venue ?? "").trim() === REGUS_OFFICE_VENUE);
+  return detectClassroomCapacityConflictIds(officeRows, 1);
+}
+
 export function detectClassroomCapacityConflictIds(rows, capacity = 2) {
   const ids = new Set();
   const normalizedCapacity = Number.isInteger(capacity) && capacity > 0 ? capacity : 2;

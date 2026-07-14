@@ -4,7 +4,7 @@ import {
   fetchLessonSubjects,
   fetchLessonTeachers,
 } from "../api/lesson-api.js";
-import { detectClassroomCapacityConflictIds } from "../utils/classroom-capacity.js";
+import { detectRegusOfficeConflictIds } from "../utils/classroom-capacity.js";
 
 const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
 const state = { students: [], teachers: [], subjects: [], rows: [], visibleRows: [], conflictIds: new Set() };
@@ -73,7 +73,7 @@ async function loadSchedule() {
     state.rows = buildEffectiveOnsiteRows(rows, weekStart, weekEnd);
     renderVenueOptions();
     applyVenueFilter();
-    showMessage("info", state.rows.length ? "排班已刷新；全场同一时段超过 2 组时，相关课程会标红。" : "该周暂无已设置教室的线下课。");
+    showMessage("info", state.rows.length ? "排班已刷新；Regus办公室同一时段出现多组课程时会标红，公共区不限制组数。" : "该周暂无已设置教室的线下课。");
   } catch (error) {
     state.rows = [];
     applyVenueFilter();
@@ -97,7 +97,7 @@ function buildEffectiveOnsiteRows(rows, weekStart, weekEnd) {
 function applyVenueFilter() {
   const venue = dom.venueSelect.value;
   state.visibleRows = state.rows.filter((row) => !venue || normalizeVenue(row.lesson_venue) === venue);
-  state.conflictIds = detectClassroomCapacityConflictIds(state.rows, 2);
+  state.conflictIds = detectRegusOfficeConflictIds(state.rows);
   renderBoard();
 }
 
@@ -116,7 +116,7 @@ function renderBoard() {
   dom.venueCount.textContent = String(new Set(state.visibleRows.map((row) => normalizeVenue(row.lesson_venue))).size);
   const visibleConflictCount = state.visibleRows.filter((row) => state.conflictIds.has(row.id)).length;
   dom.conflictCount.textContent = String(visibleConflictCount);
-  dom.conflictSummary.textContent = visibleConflictCount ? `发现 ${visibleConflictCount} 节容量冲突课程：同一时段全场超过 2 组。` : "同一时段不超过 2 组，暂无容量冲突。";
+  dom.conflictSummary.textContent = visibleConflictCount ? `发现 ${visibleConflictCount} 节办公室时间冲突课程。` : "办公室同一时段最多 1 组，暂无冲突。";
   dom.emptyState.classList.toggle("is-hidden", state.visibleRows.length > 0);
   dom.board.innerHTML = days.map((day) => renderDay(day, state.visibleRows.filter((row) => row.lesson_date === dateValue(day)))).join("");
 }
@@ -127,7 +127,7 @@ function renderDay(day, rows) {
 
 function renderLessonCard(row) {
   const conflict = state.conflictIds.has(row.id);
-  return `<button class="classroom-schedule-lesson${conflict ? " is-conflict" : ""}" type="button" data-lesson-id="${escapeHtml(row.id)}"><span class="classroom-schedule-lesson-time">${escapeHtml(timeRange(row))}</span><strong>${escapeHtml(safeText(row.lesson_venue))}</strong><span>${escapeHtml(subjectName(row.subject_id))} / ${escapeHtml(studentName(row.student_id))}</span><span>${escapeHtml(teacherName(row.teacher_id))}</span>${conflict ? '<em>超过 2 组</em>' : ""}</button>`;
+  return `<button class="classroom-schedule-lesson${conflict ? " is-conflict" : ""}" type="button" data-lesson-id="${escapeHtml(row.id)}"><span class="classroom-schedule-lesson-time">${escapeHtml(timeRange(row))}</span><strong>${escapeHtml(safeText(row.lesson_venue))}</strong><span>${escapeHtml(subjectName(row.subject_id))} / ${escapeHtml(studentName(row.student_id))}</span><span>${escapeHtml(teacherName(row.teacher_id))}</span>${conflict ? '<em>办公室重叠</em>' : ""}</button>`;
 }
 
 function shiftWeek(days) { setWeek(addDays(parseDate(dom.weekStart.value) || new Date(), days)); loadSchedule(); }

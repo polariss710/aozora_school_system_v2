@@ -32,7 +32,7 @@
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>教室排班</h1>
-          <p class="page-subtitle">按课时日期、时间和线下场地自动汇总；全场同一时段最多容纳 2 组，第 3 组并发时提示冲突。</p>
+          <p class="page-subtitle">按课时日期、时间和线下场地自动汇总；Regus办公室同一时段最多 1 组，公共区不限制组数。</p>
         </div>
         <div class="header-meta"><span class="readonly-pill">Beta</span><span id="appVersion" class="app-version"></span></div>
       </header>
@@ -61,7 +61,7 @@
         </section>
 
         <section class="panel classroom-schedule-board-panel">
-          <div class="section-heading"><h2 id="classroomScheduleRangeTitle">本周排班</h2><p id="classroomScheduleConflictSummary" class="section-note">同一时段不超过 2 组。</p></div>
+          <div class="section-heading"><h2 id="classroomScheduleRangeTitle">本周排班</h2><p id="classroomScheduleConflictSummary" class="section-note">办公室同一时段最多 1 组。</p></div>
           <div id="classroomScheduleLoadingState" class="state-text is-hidden">正在读取课时...</div>
           <div id="classroomScheduleEmptyState" class="state-text">该周暂无已设置教室的线下课。</div>
           <div id="classroomScheduleBoard" class="classroom-schedule-board"></div>
@@ -69,6 +69,6 @@
       </main>
     </div>
 
-    <script type="module" src="./js/classroom-schedule-app.js?v=v10.3.80-fixed-venue-capacity"></script>
+    <script type="module" src="./js/classroom-schedule-app.js?v=v10.3.81-office-capacity"></script>
   </body>
 </html>
