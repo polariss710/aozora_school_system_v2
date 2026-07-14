@@ -77,6 +77,7 @@ const CASH_LINKAGE_STATUS_LABELS = {
   awaiting_cash_confirmation: "Cash待确认",
   pending: "Cash待同步",
   synced: "Cash已同步",
+  historical_confirmed: "历史已确认",
   cash_rejected: "Cash已拒绝",
   blocked: "Cash已阻止",
   failed: "Cash失败",
@@ -2259,6 +2260,10 @@ function isCashIncomeRow(row) {
 }
 
 function cashIncomeAccountName(event) {
+  if (event.sync_status === "historical_confirmed") {
+    return "历史人工确认（无 Cash 账户）";
+  }
+
   const name = safeText(event.cash_account_name_snapshot);
   const currency = safeText(event.currency);
   const suffix = currency ? ` / ${currency}` : "";
@@ -2351,7 +2356,7 @@ function cashLinkageStatusLabel(value) {
 
 function cashLinkageStatusClass(value) {
   if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "status-pending";
-  if (value === "synced") return "status-paid";
+  if (value === "synced" || value === "historical_confirmed") return "status-paid";
   if (value === "failed" || value === "cash_rejected" || value === "blocked") return "status-cancelled";
   return "status-neutral";
 }
@@ -2359,6 +2364,7 @@ function cashLinkageStatusClass(value) {
 function cashLinkageStatusHint(value) {
   if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "请求已生成";
   if (value === "synced") return "已生成流水";
+  if (value === "historical_confirmed") return "系统上线前人工确认";
   if (value === "failed" || value === "cash_rejected" || value === "blocked") return "需要处理";
   return "";
 }

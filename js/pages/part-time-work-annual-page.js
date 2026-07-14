@@ -208,7 +208,7 @@ function buildAnnualWorkplaceCell(settlement, incomeBySettlementId) {
   const income = settlement?.id ? incomeBySettlementId.get(settlement.id) : null;
   const event = income?.cashIncomeLinkageEvent || null;
   const isCnyReceived = event
-    && ["approved", "received", "settled", "synced"].includes(event.sync_status)
+    && ["approved", "received", "settled", "synced", "historical_confirmed"].includes(event.sync_status)
     && event.payment_currency === "CNY"
     && Number(event.payment_amount || 0) > 0;
 

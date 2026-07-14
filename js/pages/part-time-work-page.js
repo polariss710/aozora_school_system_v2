@@ -62,6 +62,7 @@ const INCOME_REQUEST_STATUS_LABELS = {
   received: "收入已确认",
   settled: "已结算",
   synced: "已同步",
+  historical_confirmed: "历史已确认",
   cancelled: "已作废",
   cancelled_regenerable: "已作废，可重新生成收入记录",
   voided: "已作废",
@@ -703,6 +704,7 @@ function isBlockingIncomeStatus(status) {
     "received",
     "settled",
     "synced",
+    "historical_confirmed",
   ].includes(String(status || ""));
 }
 
@@ -1624,7 +1626,7 @@ function incomeRequestStatusLabel(status) {
 }
 
 function incomeRequestStatusClass(status) {
-  if (["approved", "received", "settled", "synced"].includes(status)) return "status-paid";
+  if (["approved", "received", "settled", "synced", "historical_confirmed"].includes(status)) return "status-paid";
   if (["pending", "pending_cash_request", "cash_pending", "cash_submitted", "awaiting_cash_confirmation"].includes(status)) return "status-reversed";
   if (["cancelled", "cancelled_regenerable", "voided", "rejected", "cash_rejected", "reversed", "failed", "blocked"].includes(status)) return "status-cancelled";
   return "status-neutral";

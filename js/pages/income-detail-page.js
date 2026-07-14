@@ -50,6 +50,7 @@ const CASH_LINKAGE_STATUS_LABELS = {
   pending_cash_request: "Cash待提交",
   awaiting_cash_confirmation: "Cash待确认",
   synced: "已同步",
+  historical_confirmed: "历史已确认",
   cash_rejected: "Cash已拒绝",
   failed: "同步失败",
 };
@@ -1511,6 +1512,9 @@ function cashIncomeLinkageNotAllowedMessage(data) {
   if (event.sync_status === "synced") {
     return "已同步到 Cash，不能直接编辑或删除。请通过冲正/调整流程处理。";
   }
+  if (event.sync_status === "historical_confirmed") {
+    return "系统上线前历史收入已经人工确认并锁定，不能通过普通流程修改。";
+  }
   if (event.sync_status === "pending_cash_request" || event.sync_status === "awaiting_cash_confirmation" || event.cash_request_status === "pending") {
     return "该收入已有待确认 Cash 请求，不能直接编辑核心字段或撤销。";
   }
@@ -1526,6 +1530,7 @@ function cashLinkageStatusText(value) {
   if (value === "pending_cash_request") return "Cash 待提交";
   if (value === "awaiting_cash_confirmation") return "Cash 待确认";
   if (value === "synced") return "已同步到 Cash System";
+  if (value === "historical_confirmed") return "系统上线前历史人工确认";
   if (value === "cash_rejected") return "Cash 已拒绝";
   if (value === "failed") return "Cash 同步失败";
   return cashLinkageStatusLabel(value);
@@ -1541,12 +1546,16 @@ function cashRequestStatusText(value) {
 
 function cashLinkageStatusClass(value) {
   if (value === "pending" || value === "pending_cash_request" || value === "awaiting_cash_confirmation") return "status-pending";
-  if (value === "synced") return "status-paid";
+  if (value === "synced" || value === "historical_confirmed") return "status-paid";
   if (value === "failed" || value === "cash_rejected") return "status-cancelled";
   return "status-neutral";
 }
 
 function cashAccountBusinessLabel(event) {
+  if (event?.sync_status === "historical_confirmed") {
+    return "历史人工确认（无 Cash 账户）";
+  }
+
   const name = safeText(event?.cash_account_name_snapshot);
   if (name) {
     return name;
@@ -1556,6 +1565,10 @@ function cashAccountBusinessLabel(event) {
 }
 
 function cashAccountSnapshotLabel(event) {
+  if (event?.sync_status === "historical_confirmed") {
+    return "系统上线前历史人工确认，不存在 Cash 账户引用";
+  }
+
   return [
     event.cash_account_name_snapshot,
     shortId(event.cash_account_id),

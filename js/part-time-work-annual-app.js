@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=v10.3.70-part-time-annual-year-guard";
+import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=v10.3.83-historical-work-status";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

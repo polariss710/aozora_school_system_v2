@@ -6,7 +6,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 
 ## Current System State
 
-- v2 is currently focused on current/future operations. Historical maintenance remains in v1 or in separately authorized guarded migration/repair phases.
+- v2 is currently focused on current/future operations. Historical maintenance remains in v1 or in separately authorized guarded migration/repair phases. The first such guarded phase imported the approved 诺应教育 2025-12 through 2026-04 external part-time-work source as an immutable audited batch; it is not a general historical edit entry point.
 - v2 master-data policy: open create/edit where safe, keep delete/merge closed unless a future audit-safe workflow explicitly opens it.
 - P0 highest-priority business-calculation boundary: frontend/page JavaScript must not decide, derive, round, or otherwise compute persisted business facts or write-RPC parameter values. Monetary amounts, settlement differences, carryovers, wages, fees, exchange-derived amounts, locked totals, Cash request amounts, and similar business-result fields must come from DB/RPC or backend API authoritative results, or from explicit user input. Frontend may format display and may show non-persisted previews only when DB/RPC remains the authority for the saved value.
 - Core business writes are DB/RPC-backed. Page modules must not call Supabase `.rpc()` directly and must not directly insert/update/delete/upsert rows; page writes go through `js/api/*-api.js` wrappers and verified RPCs.
@@ -32,6 +32,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.83 guarded historical part-time-work import and display, 2026-07-14:
+   按独立受控历史导入流程完成诺应教育 2025-12 至 2026-04 外部授课历史数据。源 Excel SHA-256 固定为 `9b237d8fe76478e1a664b82c2f62ac1980f8b9aa8819ad516dca84275574fab9`；执行 `sql/current/school_historical_part_time_work_import_schema.sql` 和 `sql/current/school_import_historical_part_time_work_batch_rpc.sql`，RPC 仅允许该正式批次或 2099 年 `codex-test` 清单，按源文件课时由 DB 推导结束时间并复算课时工资，整批校验、写入、失败回滚。正式批次 id `b112fe87-f10f-4280-96cb-9bde752840a3`，写入 58 组 planned/actual 课时、5 个锁定结算及明细、5 条 received 收入和 5 条联动事件；合计 129.5 小时、课时工资 493,250 JPY、交通费 12,540 JPY、2 月留考报名费调整 12,000 JPY、总额 517,790 JPY、实际到账 22,531 CNY。原表第 74 行按确认修正为 2026-04-12，7 条起止时间与课时不一致记录均以开始时间加权威课时修正；顺天堂/普通一对一、物理/理数一对一等映射已验收，时间、工资、日期和科目 mismatch 均为 0。2025-12 至 2026-03 使用新状态 `historical_confirmed`，不保存 Cash 用户、账户、请求或交易并由 DB 触发器锁定普通收入写操作；2026-04 `81,270 JPY / 3,511 CNY` 只引用既存 Cash 交易 `7f565f20-4a63-4563-aa91-b5ff0bdf67ce`。Cash DB 仅只读复核，匹配交易执行前后均为 1，没有新增 Cash 入账。回滚测试 residue 0；白名单 commit test 仅写入 2099 年 `codex-test` 批次 `98e7e54d-ebcc-4d3d-b96f-0f6ce8d82fef`、planned `9edbd7ed-7551-41c2-bb64-7cbf63cd7cdc`、actual `2a8c9bf8-588b-4719-92f1-70f417bfe76b`、settlement `d51b45cc-7fca-4412-92ca-ce7f3500cae2`、income `8e64c639-4312-4452-b77a-6698cf62a9f3`、linkage `0fa83a4e-2515-4ead-8be5-493f2844c685`。年度汇总已将历史确认 CNY 计入实际到账，外部授课结算、收入列表和收入详情明确显示“历史已确认 / 历史人工确认（无 Cash 账户）”，不把它误标为 Cash 流水。
 
 1. v10.3.81 office-only classroom capacity, 2026-07-14:
    教室排班容量口径按实际使用方式修正：只检查 `Regus办公室`，同一时间区间出现第 2 组即将所有重叠的办公室课程标红；`Regus公共区` 不设置组数上限，也不参与容量冲突判断。场地固定选项及数据库约束没有变化，本次不执行 SQL、不调用写 RPC、不写数据库。
