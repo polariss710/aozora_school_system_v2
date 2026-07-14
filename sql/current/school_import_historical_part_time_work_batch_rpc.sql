@@ -1,8 +1,8 @@
 -- school_import_historical_part_time_work_batch_rpc.sql
--- Version: v10.3.82-historical-part-time-work-import-rpc-20260714
--- Status: executed on School DB 2026-07-14; rollback and 2099 codex-test commit tests passed.
+-- Version: v10.3.84-historical-part-time-work-import-rpc-20260715
+-- Status: v10.3.84 executed on School DB 2026-07-15; full Zhiyuan rollback and 2099 codex-test commit tests passed.
 -- Scope:
--- - Install one owner-only, all-or-nothing import RPC for the approved historical batch.
+-- - Install one owner-only, all-or-nothing import RPC for explicitly approved historical batches.
 -- - Derive end_time and lesson wage inside School DB from explicit paid hours and hourly rate.
 -- - Create planned/actual lessons, locked settlements, received income rows, and linkage evidence.
 -- - Protect historical_confirmed income rows from later ordinary writes.
@@ -159,14 +159,24 @@ begin
   from jsonb_array_elements(v_months) m;
 
   if v_import_kind = 'historical' then
-    if v_source_key <> 'historical-part-time-work:诺应教育:2025-12:2026-04'
-       or v_source_sha256 <> '9b237d8fe76478e1a664b82c2f62ac1980f8b9aa8819ad516dca84275574fab9'
-       or v_source_filename <> '诺应教育2025.12-2026.4.xlsx'
-       or v_workplace_name <> '诺应教育'
-       or v_period_start <> '2025-12'
+    if v_period_start <> '2025-12'
        or v_period_end <> '2026-04'
-       or v_month_count <> 5 then
-      raise exception '正式历史导入只允许已批准的诺应教育 2025-12 至 2026-04 批次。';
+       or v_month_count <> 5
+       or not (
+         (
+           v_source_key = 'historical-part-time-work:诺应教育:2025-12:2026-04'
+           and v_source_sha256 = '9b237d8fe76478e1a664b82c2f62ac1980f8b9aa8819ad516dca84275574fab9'
+           and v_source_filename = '诺应教育2025.12-2026.4.xlsx'
+           and v_workplace_name = '诺应教育'
+         )
+         or (
+           v_source_key = 'historical-part-time-work:致远教育:2025-12:2026-04'
+           and v_source_sha256 = '5b930dad5aa4badf9a9909f87a551d7e3ef88ce0e4590afab8213798adbd0188'
+           and v_source_filename = '致远教育2025.12-2026.4.xlsx'
+           and v_workplace_name = '致远教育'
+         )
+       ) then
+      raise exception '正式历史导入只允许已批准且证据完全匹配的 2025-12 至 2026-04 批次。';
     end if;
   elsif v_import_kind = 'test' then
     if v_source_key !~ '^codex-test:' or v_period_start !~ '^2099-' or v_period_end !~ '^2099-' then
