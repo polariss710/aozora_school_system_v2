@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=v10.3.77-lesson-venue";
+import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=v10.3.80-fixed-venue-capacity";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

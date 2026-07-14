@@ -21,7 +21,7 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.77-lesson-venue";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.80-fixed-venue-capacity";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
@@ -64,6 +64,8 @@ const LESSON_STATUS_LABELS = {
   makeup_completed: "已补课",
   cancelled: "已取消",
 };
+
+const FIXED_ONSITE_LESSON_VENUES = ["Regus公共区", "Regus办公室"];
 
 const LESSON_STATUS_FILTER_OPTIONS = [
   ["", "全部"],
@@ -137,7 +139,7 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
 ];
 
 const LESSON_IMPORT_TEMPLATE_ROWS = [
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "线下", "青空塾 A 教室", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "线下", "Regus公共区", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
   ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "线上", "Zoom", "预定", "待补课", 1, 2, 5000, "是", "待补课预定内容", "预定-待补课 示例"],
 ];
 
@@ -150,7 +152,7 @@ const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头；lookup 仅允许完全一致。"],
   ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
   ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
-  ["授课方式 / 上课场地", "建议", "授课方式可填 线下 / 线上；线下时上课场地必填，线上可填写平台。"],
+  ["授课方式 / 上课场地", "建议", "授课方式可填 线下 / 线上；线下时只能填写 Regus公共区 或 Regus办公室，线上可自由填写平台。"],
   ["课时类型", "是", "当前提交只支持 预定；preview 仍可识别 实际 / actual 但不会提交。"],
   ["状态", "是", "预定可填 待上课 / 待补课。"],
   ["状态英文兼容", "说明", "待上课兼容 pending / planned；待补课兼容 pending_makeup；已上课兼容 completed；取消兼容 cancelled；已补课兼容 makeup_completed。"],
@@ -467,7 +469,10 @@ function cacheDom() {
   dom.createPlannedLessonStartTimeInput = document.querySelector("#createPlannedLessonStartTimeInput");
   dom.createPlannedLessonEndTimeInput = document.querySelector("#createPlannedLessonEndTimeInput");
   dom.createPlannedLessonDeliveryModeSelect = document.querySelector("#createPlannedLessonDeliveryModeSelect");
-  dom.createPlannedLessonVenueInput = document.querySelector("#createPlannedLessonVenueInput");
+  dom.createPlannedLessonVenueField = document.querySelector("#createPlannedLessonVenueField");
+  dom.createPlannedLessonVenueSelect = document.querySelector("#createPlannedLessonVenueSelect");
+  dom.createPlannedLessonOnlinePlatformField = document.querySelector("#createPlannedLessonOnlinePlatformField");
+  dom.createPlannedLessonOnlinePlatformInput = document.querySelector("#createPlannedLessonOnlinePlatformInput");
   dom.createPlannedLessonDurationInput = document.querySelector("#createPlannedLessonDurationInput");
   dom.createPlannedLessonUnitPriceInput = document.querySelector("#createPlannedLessonUnitPriceInput");
   dom.createPlannedLessonFeeInput = document.querySelector("#createPlannedLessonFeeInput");
@@ -706,7 +711,8 @@ function bindEvents() {
     ["startTime", dom.createPlannedLessonStartTimeInput],
     ["endTime", dom.createPlannedLessonEndTimeInput],
     ["lessonDeliveryMode", dom.createPlannedLessonDeliveryModeSelect],
-    ["lessonVenue", dom.createPlannedLessonVenueInput],
+    ["lessonVenue", dom.createPlannedLessonVenueSelect],
+    ["lessonVenue", dom.createPlannedLessonOnlinePlatformInput],
     ["durationHours", dom.createPlannedLessonDurationInput],
     ["unitPrice", dom.createPlannedLessonUnitPriceInput],
     ["lessonFee", dom.createPlannedLessonFeeInput],
@@ -733,6 +739,7 @@ function bindEvents() {
   dom.createPlannedLessonFeeInput?.addEventListener("input", () => {
     isCreateLessonFeeManual = dom.createPlannedLessonFeeInput.value.trim() !== "";
   });
+  dom.createPlannedLessonDeliveryModeSelect?.addEventListener("change", syncCreatePlannedLessonVenueFields);
 
   dom.pairRows?.addEventListener("click", (event) => {
     const textToggleButton = event.target.closest("[data-lesson-pair-text-toggle]");
@@ -1409,13 +1416,15 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonStartTimeInput.value = "";
   dom.createPlannedLessonEndTimeInput.value = "";
   dom.createPlannedLessonDeliveryModeSelect.value = "";
-  dom.createPlannedLessonVenueInput.value = "";
+  dom.createPlannedLessonVenueSelect.value = "";
+  dom.createPlannedLessonOnlinePlatformInput.value = "";
   dom.createPlannedLessonDurationInput.value = "";
   dom.createPlannedLessonUnitPriceInput.value = "0";
   dom.createPlannedLessonFeeInput.value = "";
   dom.createPlannedLessonCountInput.value = "";
   dom.createPlannedLessonContentInput.value = "";
   dom.createPlannedLessonNoteInput.value = "";
+  syncCreatePlannedLessonVenueFields();
   isCreateLessonFeeManual = false;
   isCreatePlannedLessonCloseConfirmPending = false;
   createPlannedLessonInitialSnapshot = readCreatePlannedLessonFormSnapshot();
@@ -1432,7 +1441,8 @@ function readCreatePlannedLessonFormSnapshot() {
     startTime: dom.createPlannedLessonStartTimeInput.value,
     endTime: dom.createPlannedLessonEndTimeInput.value,
     lessonDeliveryMode: dom.createPlannedLessonDeliveryModeSelect.value,
-    lessonVenue: dom.createPlannedLessonVenueInput.value,
+    onsiteVenue: dom.createPlannedLessonVenueSelect.value,
+    onlinePlatform: dom.createPlannedLessonOnlinePlatformInput.value,
     durationHours: dom.createPlannedLessonDurationInput.value,
     unitPrice: dom.createPlannedLessonUnitPriceInput.value,
     lessonFee: dom.createPlannedLessonFeeInput.value,
@@ -1483,7 +1493,11 @@ function readCreatePlannedLessonPayload() {
   const startTime = dom.createPlannedLessonStartTimeInput.value;
   const endTime = dom.createPlannedLessonEndTimeInput.value;
   const lessonDeliveryMode = dom.createPlannedLessonDeliveryModeSelect.value;
-  const lessonVenue = dom.createPlannedLessonVenueInput.value.trim();
+  const lessonVenue = lessonDeliveryMode === "onsite"
+    ? dom.createPlannedLessonVenueSelect.value
+    : lessonDeliveryMode === "online"
+      ? dom.createPlannedLessonOnlinePlatformInput.value.trim()
+      : "";
   const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
   const inputLessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
@@ -1501,6 +1515,7 @@ function readCreatePlannedLessonPayload() {
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
   if (lessonVenue && !lessonDeliveryMode) invalidFields.push("lessonDeliveryMode", "lessonVenue");
   if (lessonDeliveryMode === "onsite" && !lessonVenue) invalidFields.push("lessonVenue");
+  if (lessonDeliveryMode === "onsite" && !FIXED_ONSITE_LESSON_VENUES.includes(lessonVenue)) invalidFields.push("lessonVenue");
   const timeValidation = validateLessonTimeRange(startTime, endTime);
   let validationMessage = "";
   if (timeValidation.status === "error") {
@@ -1610,6 +1625,16 @@ function hideCreatePlannedLessonErrorIfClean() {
   }
 }
 
+function syncCreatePlannedLessonVenueFields() {
+  const mode = dom.createPlannedLessonDeliveryModeSelect?.value || "";
+  const isOnsite = mode === "onsite";
+  const isOnline = mode === "online";
+  dom.createPlannedLessonVenueField?.classList.toggle("is-hidden", !isOnsite);
+  dom.createPlannedLessonOnlinePlatformField?.classList.toggle("is-hidden", !isOnline);
+  if (dom.createPlannedLessonVenueSelect) dom.createPlannedLessonVenueSelect.disabled = !isOnsite;
+  if (dom.createPlannedLessonOnlinePlatformInput) dom.createPlannedLessonOnlinePlatformInput.disabled = !isOnline;
+}
+
 function updateCreatePlannedLessonFeePreview() {
   if (isCreateLessonFeeManual) {
     return;
@@ -1644,6 +1669,12 @@ function openCreateActualLessonDialog(plannedLessonId) {
 
   if (isVoidedPlanned(plannedLesson)) {
     showMessage("error", "该预定课时已作废，不能生成 actual。");
+    return;
+  }
+
+  const venueMigrationReason = fixedOnsiteVenueMigrationReason(plannedLesson);
+  if (venueMigrationReason) {
+    showMessage("error", venueMigrationReason);
     return;
   }
 
@@ -1933,6 +1964,12 @@ function openCreateCancelledActualLessonDialog(plannedLessonId) {
     return;
   }
 
+  const venueMigrationReason = fixedOnsiteVenueMigrationReason(plannedLesson);
+  if (venueMigrationReason) {
+    showMessage("error", venueMigrationReason);
+    return;
+  }
+
   currentCancelledActualSourceLesson = plannedLesson;
   resetCreateCancelledActualLessonForm(plannedLesson);
   renderCreateCancelledActualLessonSummary(plannedLesson);
@@ -2171,6 +2208,12 @@ function openCreateMakeupActualLessonDialog(plannedLessonId) {
 
   if (isVoidedPlanned(plannedLesson)) {
     showMessage("error", "该预定课时已作废，不能生成 makeup_completed actual。");
+    return;
+  }
+
+  const venueMigrationReason = fixedOnsiteVenueMigrationReason(plannedLesson);
+  if (venueMigrationReason) {
+    showMessage("error", venueMigrationReason);
     return;
   }
 
@@ -2681,6 +2724,7 @@ function readCreateCrossMonthMakeupActualPayload() {
   const invalidFields = [];
 
   if (!source) invalidFields.push("sourceLesson");
+  if (source && fixedOnsiteVenueMigrationReason(source)) invalidFields.push("sourceLesson");
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
   if (source?.year_month && targetMonth && source.year_month >= targetMonth) invalidFields.push("sourceLesson");
@@ -2704,7 +2748,12 @@ function readCreateCrossMonthMakeupActualPayload() {
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
-    showCreateCrossMonthMakeupActualError(validationMessage || "开始时间、结束时间和内容为必填项；补课完成日期必须在当前页面月份，来源必须早于当前月份。", invalidFields);
+    showCreateCrossMonthMakeupActualError(
+      (source && fixedOnsiteVenueMigrationReason(source))
+        || validationMessage
+        || "开始时间、结束时间和内容为必填项；补课完成日期必须在当前页面月份，来源必须早于当前月份。",
+      invalidFields
+    );
     return null;
   }
 
@@ -3741,6 +3790,7 @@ function defaultLessonBatchGeneratePattern(patternIndex) {
     endTime: "",
     lessonDeliveryMode: "",
     lessonVenue: "",
+    onlinePlatform: "",
     durationHours: "2",
     unitPrice: "10000",
     occurrenceCount: "1",
@@ -3800,9 +3850,17 @@ function renderLessonBatchGeneratePatterns() {
           <option value="online" ${pattern.lessonDeliveryMode === "online" ? "selected" : ""}>线上</option>
         </select>
       </label>
-      <label class="field">
-        <span>上课场地 / 平台</span>
-        <input type="text" maxlength="100" value="${escapeAttribute(pattern.lessonVenue)}" data-batch-pattern-field="lessonVenue" placeholder="例：A 教室 / Zoom">
+      <label class="field ${pattern.lessonDeliveryMode === "onsite" ? "" : "is-hidden"}">
+        <span>上课场地</span>
+        <select data-batch-pattern-field="lessonVenue" ${pattern.lessonDeliveryMode === "onsite" ? "" : "disabled"}>
+          <option value="">请选择场地</option>
+          <option value="Regus公共区" ${pattern.lessonVenue === "Regus公共区" ? "selected" : ""}>Regus公共区</option>
+          <option value="Regus办公室" ${pattern.lessonVenue === "Regus办公室" ? "selected" : ""}>Regus办公室</option>
+        </select>
+      </label>
+      <label class="field ${pattern.lessonDeliveryMode === "online" ? "" : "is-hidden"}">
+        <span>线上平台</span>
+        <input type="text" maxlength="100" value="${escapeAttribute(pattern.onlinePlatform)}" data-batch-pattern-field="onlinePlatform" placeholder="例：Zoom" ${pattern.lessonDeliveryMode === "online" ? "" : "disabled"}>
       </label>
       <label class="field">
         <span>课时</span>
@@ -3871,6 +3929,8 @@ function handleLessonBatchGeneratePatternInput(event) {
   if (fieldName === "subjectId" && !pattern.lessonContent) {
     const subject = subjects.find((item) => item.id === field.value);
     pattern.lessonContent = subject ? subjectName(subject) : "";
+    renderLessonBatchGeneratePatterns();
+  } else if (fieldName === "lessonDeliveryMode") {
     renderLessonBatchGeneratePatterns();
   }
   clearLessonBatchGeneratePreviewState();
@@ -3966,6 +4026,9 @@ function readLessonBatchGenerateDraft(options = {}) {
     if (pattern.lessonDeliveryMode === "onsite" && !pattern.lessonVenue) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 的线下课程必须填写上课场地。`]);
     }
+    if (pattern.lessonDeliveryMode === "onsite" && !FIXED_ONSITE_LESSON_VENUES.includes(pattern.lessonVenue)) {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 的线下场地只能选择 Regus公共区 或 Regus办公室。`]);
+    }
     if (!Number.isInteger(pattern.weekday) || pattern.weekday < 0 || pattern.weekday > 6) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 请选择周几。`]);
     }
@@ -4037,6 +4100,12 @@ function readLessonBatchGenerateDraft(options = {}) {
 }
 
 function normalizeLessonBatchGeneratePattern(pattern) {
+  const lessonDeliveryMode = safeText(pattern.lessonDeliveryMode);
+  const lessonVenue = lessonDeliveryMode === "onsite"
+    ? safeText(pattern.lessonVenue)
+    : lessonDeliveryMode === "online"
+      ? safeText(pattern.onlinePlatform)
+      : "";
   return {
     patternIndex: Number(pattern.patternIndex),
     subjectId: safeText(pattern.subjectId),
@@ -4044,8 +4113,9 @@ function normalizeLessonBatchGeneratePattern(pattern) {
     weekday: Number(pattern.weekday),
     startTime: safeText(pattern.startTime),
     endTime: safeText(pattern.endTime),
-    lessonDeliveryMode: safeText(pattern.lessonDeliveryMode),
-    lessonVenue: safeText(pattern.lessonVenue),
+    lessonDeliveryMode,
+    lessonVenue,
+    onlinePlatform: safeText(pattern.onlinePlatform),
     startTimeForSave: safeText(pattern.startTime),
     endTimeForSave: safeText(pattern.endTime),
     durationHours: numberFromInput(pattern.durationHours),
@@ -5330,13 +5400,16 @@ function validateLessonImportPreviewRow(row, mode) {
   }
 
   if (hasLessonImportPreviewValue(row.raw.lessonDeliveryMode) && !values.lessonDeliveryMode) {
-    addLessonImportPreviewIssue(row, "error", "lessonDeliveryMode", "授课方式只支持线下 / 线上。 ");
+    addLessonImportPreviewIssue(row, "error", "lessonDeliveryMode", "授课方式只支持线下 / 线上。");
   }
   if (values.lessonVenue && !values.lessonDeliveryMode) {
-    addLessonImportPreviewIssue(row, "error", "lessonVenue", "填写上课场地前，请先填写授课方式。 ");
+    addLessonImportPreviewIssue(row, "error", "lessonVenue", "填写上课场地前，请先填写授课方式。");
   }
   if (values.lessonDeliveryMode === "onsite" && !values.lessonVenue) {
-    addLessonImportPreviewIssue(row, "error", "lessonVenue", "线下课程必须填写上课场地。 ");
+    addLessonImportPreviewIssue(row, "error", "lessonVenue", "线下课程必须填写上课场地。");
+  }
+  if (values.lessonDeliveryMode === "onsite" && values.lessonVenue && !FIXED_ONSITE_LESSON_VENUES.includes(values.lessonVenue)) {
+    addLessonImportPreviewIssue(row, "error", "lessonVenue", "线下上课场地只能填写 Regus公共区 或 Regus办公室。");
   }
 
   if (hasLessonImportPreviewValue(row.raw.lessonCount) && (!Number.isInteger(values.lessonCount) || values.lessonCount <= 0)) {
@@ -6700,6 +6773,13 @@ function formatTimeRange(start, end) {
 function formatLessonVenue(mode, venue) {
   const label = mode === "onsite" ? "线下" : mode === "online" ? "线上" : "未设置";
   return safeText(venue) ? `${label} / ${safeText(venue)}` : label;
+}
+
+function fixedOnsiteVenueMigrationReason(lesson) {
+  if (lesson?.lesson_delivery_mode === "onsite" && !FIXED_ONSITE_LESSON_VENUES.includes(safeText(lesson.lesson_venue))) {
+    return "该预定课时仍使用旧线下场地。请先编辑课时，并明确选择 Regus公共区 或 Regus办公室，再生成实际课时。";
+  }
+  return "";
 }
 
 function formatTime(value) {

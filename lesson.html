@@ -350,9 +350,18 @@
               </select>
             </label>
 
-            <label class="field" data-create-planned-lesson-field="lessonVenue">
-              <span>上课场地 / 平台</span>
-              <input id="createPlannedLessonVenueInput" type="text" maxlength="100" placeholder="例：青空塾 A 教室 / Zoom">
+            <label class="field is-hidden" id="createPlannedLessonVenueField" data-create-planned-lesson-field="lessonVenue">
+              <span>上课场地</span>
+              <select id="createPlannedLessonVenueSelect">
+                <option value="">请选择场地</option>
+                <option value="Regus公共区">Regus公共区</option>
+                <option value="Regus办公室">Regus办公室</option>
+              </select>
+            </label>
+
+            <label class="field is-hidden" id="createPlannedLessonOnlinePlatformField" data-create-planned-lesson-field="lessonVenue">
+              <span>线上平台</span>
+              <input id="createPlannedLessonOnlinePlatformInput" type="text" maxlength="100" placeholder="例：Zoom">
             </label>
 
             <label class="field" data-create-planned-lesson-field="durationHours">
@@ -950,9 +959,18 @@
               </select>
             </label>
 
-            <label class="field" data-edit-lesson-field="lessonVenue">
-              <span>上课场地 / 平台</span>
-              <input id="editLessonVenueInput" type="text" maxlength="100" placeholder="例：青空塾 A 教室 / Zoom">
+            <label class="field is-hidden" id="editLessonVenueField" data-edit-lesson-field="lessonVenue">
+              <span>上课场地</span>
+              <select id="editLessonVenueSelect">
+                <option value="">请选择场地</option>
+                <option value="Regus公共区">Regus公共区</option>
+                <option value="Regus办公室">Regus办公室</option>
+              </select>
+            </label>
+
+            <label class="field is-hidden" id="editLessonOnlinePlatformField" data-edit-lesson-field="lessonVenue">
+              <span>线上平台</span>
+              <input id="editLessonOnlinePlatformInput" type="text" maxlength="100" placeholder="例：Zoom">
             </label>
 
             <label class="field" data-edit-lesson-field="durationHours">
@@ -1058,6 +1076,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.77-lesson-venue"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.3.80-fixed-venue-capacity"></script>
   </body>
 </html>

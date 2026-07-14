@@ -14,6 +14,8 @@ const LESSON_STATUS_LABELS = {
   cancelled: "已取消",
 };
 
+const FIXED_ONSITE_LESSON_VENUES = ["Regus公共区", "Regus办公室"];
+
 const EDIT_LESSON_FIELD_IDS = [
   "lessonDate",
   "status",
@@ -49,7 +51,10 @@ export function cacheLessonEditDialogDom(root = document) {
     startTimeInput: root.querySelector("#editLessonStartTimeInput"),
     endTimeInput: root.querySelector("#editLessonEndTimeInput"),
     deliveryModeSelect: root.querySelector("#editLessonDeliveryModeSelect"),
-    venueInput: root.querySelector("#editLessonVenueInput"),
+    venueField: root.querySelector("#editLessonVenueField"),
+    venueSelect: root.querySelector("#editLessonVenueSelect"),
+    onlinePlatformField: root.querySelector("#editLessonOnlinePlatformField"),
+    onlinePlatformInput: root.querySelector("#editLessonOnlinePlatformInput"),
     durationInput: root.querySelector("#editLessonDurationInput"),
     unitPriceInput: root.querySelector("#editLessonUnitPriceInput"),
     feeInput: root.querySelector("#editLessonFeeInput"),
@@ -113,7 +118,8 @@ export function createLessonEditDialogController(options) {
       ["startTime", dom.startTimeInput],
       ["endTime", dom.endTimeInput],
       ["lessonDeliveryMode", dom.deliveryModeSelect],
-      ["lessonVenue", dom.venueInput],
+      ["lessonVenue", dom.venueSelect],
+      ["lessonVenue", dom.onlinePlatformInput],
       ["durationHours", dom.durationInput],
       ["unitPrice", dom.unitPriceInput],
       ["lessonFee", dom.feeInput],
@@ -143,6 +149,7 @@ export function createLessonEditDialogController(options) {
       isFeeManual = dom.feeInput.value.trim() !== "";
     });
     dom.billableSelect?.addEventListener("change", handleBillableChange);
+    dom.deliveryModeSelect?.addEventListener("change", syncVenueFieldModes);
   }
 
   function open(lessonId) {
@@ -288,7 +295,8 @@ export function createLessonEditDialogController(options) {
     dom.startTimeInput.value = formatInputTime(lesson.start_time);
     dom.endTimeInput.value = formatInputTime(lesson.end_time);
     dom.deliveryModeSelect.value = safeText(lesson.lesson_delivery_mode);
-    dom.venueInput.value = safeText(lesson.lesson_venue);
+    dom.venueSelect.value = lesson.lesson_delivery_mode === "onsite" ? safeText(lesson.lesson_venue) : "";
+    dom.onlinePlatformInput.value = lesson.lesson_delivery_mode === "online" ? safeText(lesson.lesson_venue) : "";
     dom.durationInput.value = displayInputNumber(lesson.duration_hours);
     dom.unitPriceInput.value = displayInputNumber(lesson.unit_price || 0);
     dom.feeInput.value = displayInputNumber(lesson.lesson_fee);
@@ -300,6 +308,7 @@ export function createLessonEditDialogController(options) {
     isFeeManual = false;
     closeConfirmPending = false;
     syncFieldModes();
+    syncVenueFieldModes();
     initialFormSnapshot = readFormSnapshot();
   }
 
@@ -411,7 +420,11 @@ export function createLessonEditDialogController(options) {
     const startTime = dom.startTimeInput.value;
     const endTime = dom.endTimeInput.value;
     const lessonDeliveryMode = dom.deliveryModeSelect.value;
-    const lessonVenue = dom.venueInput.value.trim();
+    const lessonVenue = lessonDeliveryMode === "onsite"
+      ? dom.venueSelect.value
+      : lessonDeliveryMode === "online"
+        ? dom.onlinePlatformInput.value.trim()
+        : "";
     const durationHours = numberFromInput(dom.durationInput.value);
     const unitPrice = numberFromInput(dom.unitPriceInput.value);
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
@@ -444,6 +457,7 @@ export function createLessonEditDialogController(options) {
     if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
     if (lessonVenue && !lessonDeliveryMode) invalidFields.push("lessonDeliveryMode", "lessonVenue");
     if (lessonDeliveryMode === "onsite" && !lessonVenue) invalidFields.push("lessonVenue");
+    if (lessonDeliveryMode === "onsite" && !FIXED_ONSITE_LESSON_VENUES.includes(lessonVenue)) invalidFields.push("lessonVenue");
     if (requiresActualRequiredFields) {
       if (!startTime) invalidFields.push("startTime");
       if (!endTime) invalidFields.push("endTime");
@@ -622,7 +636,8 @@ export function createLessonEditDialogController(options) {
       startTime: dom.startTimeInput.value,
       endTime: dom.endTimeInput.value,
       lessonDeliveryMode: dom.deliveryModeSelect.value,
-      lessonVenue: dom.venueInput.value,
+      onsiteVenue: dom.venueSelect.value,
+      onlinePlatform: dom.onlinePlatformInput.value,
       durationHours: dom.durationInput.value,
       unitPrice: dom.unitPriceInput.value,
       lessonFee: dom.feeInput.value,
@@ -634,6 +649,16 @@ export function createLessonEditDialogController(options) {
 
   function hasFormChanged() {
     return Boolean(initialFormSnapshot && readFormSnapshot() !== initialFormSnapshot);
+  }
+
+  function syncVenueFieldModes() {
+    const mode = dom.deliveryModeSelect?.value || "";
+    const isOnsite = mode === "onsite";
+    const isOnline = mode === "online";
+    dom.venueField?.classList.toggle("is-hidden", !isOnsite);
+    dom.onlinePlatformField?.classList.toggle("is-hidden", !isOnline);
+    if (dom.venueSelect) dom.venueSelect.disabled = !isOnsite;
+    if (dom.onlinePlatformInput) dom.onlinePlatformInput.disabled = !isOnline;
   }
 
   function syncDurationFromTimeRange() {

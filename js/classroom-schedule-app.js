@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initClassroomSchedulePage } from "./pages/classroom-schedule-page.js?v=v10.3.77-classroom-schedule";
+import { initClassroomSchedulePage } from "./pages/classroom-schedule-page.js?v=v10.3.80-fixed-venue-capacity";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
