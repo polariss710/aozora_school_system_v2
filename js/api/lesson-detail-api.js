@@ -28,6 +28,8 @@ const LESSON_COLUMNS = [
   "lesson_count",
   "actual_minutes",
   "teacher_settlement_month",
+  "lesson_delivery_mode",
+  "lesson_venue",
   "voided_at",
   "void_reason",
 ].join(",");

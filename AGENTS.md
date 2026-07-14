@@ -7,7 +7,7 @@
 - For write-operation SQL/RPC work, use the full autopilot workflow by default: analysis, DB verification, schema/RPC design, SQL draft, static review, SQL/RPC execution, rollback test, whitelist commit test, verified SQL commit, frontend implementation, checkpoint, current-status update, commit, and push.
 - Page modules must not call Supabase `.rpc()` directly.
 - Write operations must go through the API layer and/or verified RPCs. Page modules must not directly insert, update, delete, or upsert database rows.
-- Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
+- V2 / V3 must not use `SUPABASE_DB_URL`. School DB uses `SCHOOL_SUPABASE_DB_URL`; Cash DB uses `CASH_SUPABASE_DB_URL`. If available, run `load_both_db >/dev/null` first. Never print, save, or commit any DB URL or secret.
 - Each turn report must state whether files were changed, executed SQL files and called RPCs if any, whether the database was written, whether writes were limited to test whitelist data, test record ids when relevant, whether commit/push happened, commit hashes when relevant, the current git status, and whether the workflow completed or stopped.
 
 ## Full Autopilot
@@ -18,15 +18,15 @@
 - Automatically run read-only DB verification, schema SQL execution, RPC SQL execution, rollback tests, and commit tests when the commit test candidate is proven to match the test data whitelist.
 - If rollback or commit test candidates do not match the test data whitelist, Codex may create narrowly scoped test data with explicit markers such as `codex-test`, `v2-test`, `sandbox`, the current phase id, `测试账户`, `测试学生`, or `测试业务归属`.
 - Automatically commit and push document updates, verified SQL archives, frontend static checkpoints, feature checkpoints, and `docs/current-status.md` updates after required checks pass.
-- Stop immediately and report when any hard stop condition occurs: missing `SUPABASE_DB_URL`, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for non-whitelisted real business data, frontend/page JS computing persisted business-result values instead of DB/RPC or backend API authority, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical data repair, broad backfill, secrets exposure, broad permission changes, production irreversible action, or a request/documentation conflict that cannot be safely interpreted.
+- Stop immediately and report when any hard stop condition occurs: the phase-required `SCHOOL_SUPABASE_DB_URL` or `CASH_SUPABASE_DB_URL` is missing, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, uncertain test-data ownership that cannot be solved by creating safe test data, need for non-whitelisted real business data, frontend/page JS computing persisted business-result values instead of DB/RPC or backend API authority, broad refactor, non-target module changes, `delete`, `truncate`, `drop`, destructive cleanup, broad historical-data modification, historical data repair, broad backfill, secrets exposure, broad permission changes, production irreversible action, or a request/documentation conflict that cannot be safely interpreted.
 - If full autopilot shows clear problems, stop at the hard stop and tighten the documented workflow before continuing.
 
 ## Schema And RPC Execution Workflow
 
 - Before running schema or RPC SQL, check `git status --short` and the latest commit.
 - Confirm the target SQL file matches the current phase: schema-only files must not contain RPC/function creation; RPC files must not include unrelated schema or data repair.
-- Execute SQL files with `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
-- Never print, save, or commit `SUPABASE_DB_URL`.
+- Execute School DB SQL files with `psql "$SCHOOL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` and Cash DB SQL files with `psql "$CASH_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
+- Never print, save, or commit any DB URL or secret; `SUPABASE_DB_URL` is not authoritative for V2 / V3 and must not be used.
 - After schema execution, run read-only verification for columns, nullable flags, FK/constraints, indexes, comments, and unchanged historical data.
 - After RPC execution, smoke test function existence, run rollback tests, then run a commit test only against whitelisted test data.
 - Report SQL output summaries, verification results, git status, and whether the workflow completed or stopped.
@@ -46,7 +46,7 @@
 
 - For write-operation feature work, default to the full autopilot workflow in `docs/workflows/write-rpc-flow.md`.
 - For non-write-operation tasks, keep the requested scope narrow and do not edit unrelated modules.
-- Never print, save, or commit `SUPABASE_DB_URL` or any other secret.
+- Never print, save, or commit any DB URL or other secret. Use only the phase-specific School / Cash variables above.
 - Do not use real business data for automatic rollback or commit tests. Tests must prove whitelisted test scope before writing, or create clearly marked test data first.
 - Do not run `delete`, `truncate`, `drop`, historical data repair, broad backfill, or cleanup automatically.
 - Do not skip static review, rollback test, commit test, final checkpoint, or current-status update for a write-operation feature.

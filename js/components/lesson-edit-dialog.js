@@ -23,6 +23,8 @@ const EDIT_LESSON_FIELD_IDS = [
   "businessEntity",
   "startTime",
   "endTime",
+  "lessonDeliveryMode",
+  "lessonVenue",
   "durationHours",
   "unitPrice",
   "lessonFee",
@@ -46,6 +48,8 @@ export function cacheLessonEditDialogDom(root = document) {
     businessEntitySelect: root.querySelector("#editLessonBusinessEntitySelect"),
     startTimeInput: root.querySelector("#editLessonStartTimeInput"),
     endTimeInput: root.querySelector("#editLessonEndTimeInput"),
+    deliveryModeSelect: root.querySelector("#editLessonDeliveryModeSelect"),
+    venueInput: root.querySelector("#editLessonVenueInput"),
     durationInput: root.querySelector("#editLessonDurationInput"),
     unitPriceInput: root.querySelector("#editLessonUnitPriceInput"),
     feeInput: root.querySelector("#editLessonFeeInput"),
@@ -108,6 +112,8 @@ export function createLessonEditDialogController(options) {
       ["businessEntity", dom.businessEntitySelect],
       ["startTime", dom.startTimeInput],
       ["endTime", dom.endTimeInput],
+      ["lessonDeliveryMode", dom.deliveryModeSelect],
+      ["lessonVenue", dom.venueInput],
       ["durationHours", dom.durationInput],
       ["unitPrice", dom.unitPriceInput],
       ["lessonFee", dom.feeInput],
@@ -281,6 +287,8 @@ export function createLessonEditDialogController(options) {
     dom.businessEntitySelect.value = safeText(lesson.business_entity_id);
     dom.startTimeInput.value = formatInputTime(lesson.start_time);
     dom.endTimeInput.value = formatInputTime(lesson.end_time);
+    dom.deliveryModeSelect.value = safeText(lesson.lesson_delivery_mode);
+    dom.venueInput.value = safeText(lesson.lesson_venue);
     dom.durationInput.value = displayInputNumber(lesson.duration_hours);
     dom.unitPriceInput.value = displayInputNumber(lesson.unit_price || 0);
     dom.feeInput.value = displayInputNumber(lesson.lesson_fee);
@@ -402,6 +410,8 @@ export function createLessonEditDialogController(options) {
     const businessEntityId = dom.businessEntitySelect.value;
     const startTime = dom.startTimeInput.value;
     const endTime = dom.endTimeInput.value;
+    const lessonDeliveryMode = dom.deliveryModeSelect.value;
+    const lessonVenue = dom.venueInput.value.trim();
     const durationHours = numberFromInput(dom.durationInput.value);
     const unitPrice = numberFromInput(dom.unitPriceInput.value);
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
@@ -432,6 +442,8 @@ export function createLessonEditDialogController(options) {
     }
     if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
     if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+    if (lessonVenue && !lessonDeliveryMode) invalidFields.push("lessonDeliveryMode", "lessonVenue");
+    if (lessonDeliveryMode === "onsite" && !lessonVenue) invalidFields.push("lessonVenue");
     if (requiresActualRequiredFields) {
       if (!startTime) invalidFields.push("startTime");
       if (!endTime) invalidFields.push("endTime");
@@ -475,6 +487,8 @@ export function createLessonEditDialogController(options) {
       businessEntityId,
       startTime,
       endTime,
+      lessonDeliveryMode,
+      lessonVenue,
       durationHours,
       unitPrice,
       lessonFee,
@@ -521,6 +535,8 @@ export function createLessonEditDialogController(options) {
     if (text.includes("业务归属")) fields.push("businessEntity");
     if (text.includes("开始时间")) fields.push("startTime");
     if (text.includes("结束时间")) fields.push("endTime");
+    if (text.includes("授课方式")) fields.push("lessonDeliveryMode");
+    if (text.includes("场地") || text.includes("平台")) fields.push("lessonVenue");
     if (text.includes("时长")) fields.push("durationHours");
     if (text.includes("单价")) fields.push("unitPrice");
     if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
@@ -605,6 +621,8 @@ export function createLessonEditDialogController(options) {
       businessEntity: dom.businessEntitySelect.value,
       startTime: dom.startTimeInput.value,
       endTime: dom.endTimeInput.value,
+      lessonDeliveryMode: dom.deliveryModeSelect.value,
+      lessonVenue: dom.venueInput.value,
       durationHours: dom.durationInput.value,
       unitPrice: dom.unitPriceInput.value,
       lessonFee: dom.feeInput.value,

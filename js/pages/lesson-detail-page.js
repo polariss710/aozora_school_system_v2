@@ -1,6 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.58-active-student-dialog-options";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.77-lesson-venue";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
@@ -361,6 +361,8 @@ function renderLessonDetail(data) {
     ["结算年月", formatMonth(lesson.year_month)],
     ["开始时间", formatTime(lesson.start_time)],
     ["结束时间", formatTime(lesson.end_time)],
+    ["授课方式", lesson.lesson_delivery_mode === "onsite" ? "线下" : lesson.lesson_delivery_mode === "online" ? "线上" : "-"],
+    ["上课场地 / 平台", displayValue(lesson.lesson_venue)],
     ["时长", displayValue(lesson.duration_hours)],
     ["实际分钟", displayValue(lesson.actual_minutes)],
     ["课次数", displayValue(lesson.lesson_count)],

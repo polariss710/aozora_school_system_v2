@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 教室排班</title>
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.77-classroom-schedule">
+  </head>
+  <body>
+    <aside class="app-sidebar" aria-label="主导航侧边栏">
+      <div class="sidebar-brand"><strong>青空进学塾</strong><span>管理后台</span></div>
+      <nav class="page-nav page-nav--grouped sidebar-nav" aria-label="主导航">
+        <details class="page-nav-group page-nav-group--beta is-active-group" open>
+          <summary>Beta功能</summary>
+          <div class="page-nav-group-links">
+            <a href="./quote-plan.html">报价单生成</a>
+            <a href="./contract-generator.html">合同生成</a>
+            <a href="./weekly-schedule-image.html">周课表图片</a>
+            <a class="is-active" href="./classroom-schedule.html">教室排班</a>
+          </div>
+        </details>
+        <details class="page-nav-group"><summary>学生</summary><div class="page-nav-group-links"><a href="./student.html">学生管理</a><a href="./lesson.html">课时管理</a><a href="./settlement.html">月度结算</a></div></details>
+        <details class="page-nav-group"><summary>老师</summary><div class="page-nav-group-links"><a href="./teacher.html">老师管理</a><a href="./wage.html">工资结算</a><a href="./wage-rule.html">工资规则</a></div></details>
+        <details class="page-nav-group"><summary>外部授课</summary><div class="page-nav-group-links"><a href="./part-time-work.html?view=lessons">授课记录</a><a href="./part-time-work.html?view=settlement">授课结算</a><a href="./part-time-work-annual.html">年度汇总</a></div></details>
+        <details class="page-nav-group"><summary>财务</summary><div class="page-nav-group-links"><a href="./profit-summary.html">利润分析</a><a href="./income.html">收入记录</a><a href="./expense.html">支出记录</a><a href="./reimbursement.html">报销管理</a></div></details>
+        <details class="page-nav-group"><summary>设置</summary><div class="page-nav-group-links"><a href="./business-entity.html">业务归属</a><a href="./account.html">账户</a><a href="./subject.html">科目</a></div></details>
+      </nav>
+    </aside>
+
+    <div class="app-shell app-shell--dense app-shell--classroom-schedule">
+      <header class="page-header">
+        <div>
+          <p class="page-kicker">青空塾 管理系统 v2</p>
+          <h1>教室排班</h1>
+          <p class="page-subtitle">按课时日期、时间和线下场地自动汇总；时间重叠仅提示，不阻止课时保存。</p>
+        </div>
+        <div class="header-meta"><span class="readonly-pill">Beta</span><span id="appVersion" class="app-version"></span></div>
+      </header>
+
+      <main class="page-main">
+        <section id="classroomScheduleMessageArea" class="message is-hidden" aria-live="polite"></section>
+
+        <section class="panel classroom-schedule-filter-panel">
+          <div class="section-heading"><h2>排班条件</h2><p class="section-note">只读展示线下课；线上课和未设置场地的历史课时不占用教室。</p></div>
+          <form id="classroomScheduleForm" class="classroom-schedule-filter-grid">
+            <label class="field"><span>周一日期</span><input id="classroomScheduleWeekStart" type="date" required></label>
+            <label class="field"><span>教室</span><select id="classroomScheduleVenueSelect"><option value="">全部教室</option></select></label>
+            <div class="filter-actions classroom-schedule-filter-actions">
+              <button id="classroomSchedulePreviousButton" class="button" type="button">上一周</button>
+              <button id="classroomScheduleCurrentButton" class="button" type="button">本周</button>
+              <button id="classroomScheduleNextButton" class="button" type="button">下一周</button>
+              <button id="classroomScheduleLoadButton" class="button button-primary" type="submit">刷新排班</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="classroom-schedule-stat-grid" aria-label="排班摘要">
+          <article class="stat-card"><span>线下课</span><strong id="classroomScheduleLessonCount">0</strong></article>
+          <article class="stat-card"><span>使用教室</span><strong id="classroomScheduleVenueCount">0</strong></article>
+          <article class="stat-card classroom-schedule-conflict-stat"><span>冲突课程</span><strong id="classroomScheduleConflictCount">0</strong></article>
+        </section>
+
+        <section class="panel classroom-schedule-board-panel">
+          <div class="section-heading"><h2 id="classroomScheduleRangeTitle">本周排班</h2><p id="classroomScheduleConflictSummary" class="section-note">暂无冲突。</p></div>
+          <div id="classroomScheduleLoadingState" class="state-text is-hidden">正在读取课时...</div>
+          <div id="classroomScheduleEmptyState" class="state-text">该周暂无已设置教室的线下课。</div>
+          <div id="classroomScheduleBoard" class="classroom-schedule-board"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./js/classroom-schedule-app.js?v=v10.3.77-classroom-schedule"></script>
+  </body>
+</html>

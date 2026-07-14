@@ -21,7 +21,7 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.74-single-business-lesson-edit";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.77-lesson-venue";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
@@ -124,6 +124,8 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
   "日期",
   "开始时间",
   "结束时间",
+  "授课方式",
+  "上课场地",
   "课时类型",
   "状态",
   "课时",
@@ -135,8 +137,8 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
 ];
 
 const LESSON_IMPORT_TEMPLATE_ROWS = [
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "预定", "待补课", 1, 2, 5000, "是", "待补课预定内容", "预定-待补课 示例"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "线下", "青空塾 A 教室", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
+  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "线上", "Zoom", "预定", "待补课", 1, 2, 5000, "是", "待补课预定内容", "预定-待补课 示例"],
 ];
 
 const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
@@ -148,6 +150,7 @@ const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头；lookup 仅允许完全一致。"],
   ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
   ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
+  ["授课方式 / 上课场地", "建议", "授课方式可填 线下 / 线上；线下时上课场地必填，线上可填写平台。"],
   ["课时类型", "是", "当前提交只支持 预定；preview 仍可识别 实际 / actual 但不会提交。"],
   ["状态", "是", "预定可填 待上课 / 待补课。"],
   ["状态英文兼容", "说明", "待上课兼容 pending / planned；待补课兼容 pending_makeup；已上课兼容 completed；取消兼容 cancelled；已补课兼容 makeup_completed。"],
@@ -190,6 +193,8 @@ const CREATE_PLANNED_LESSON_FIELD_IDS = [
   "businessEntity",
   "startTime",
   "endTime",
+  "lessonDeliveryMode",
+  "lessonVenue",
   "durationHours",
   "unitPrice",
   "lessonFee",
@@ -461,6 +466,8 @@ function cacheDom() {
   dom.createPlannedLessonBusinessEntitySelect = document.querySelector("#createPlannedLessonBusinessEntitySelect");
   dom.createPlannedLessonStartTimeInput = document.querySelector("#createPlannedLessonStartTimeInput");
   dom.createPlannedLessonEndTimeInput = document.querySelector("#createPlannedLessonEndTimeInput");
+  dom.createPlannedLessonDeliveryModeSelect = document.querySelector("#createPlannedLessonDeliveryModeSelect");
+  dom.createPlannedLessonVenueInput = document.querySelector("#createPlannedLessonVenueInput");
   dom.createPlannedLessonDurationInput = document.querySelector("#createPlannedLessonDurationInput");
   dom.createPlannedLessonUnitPriceInput = document.querySelector("#createPlannedLessonUnitPriceInput");
   dom.createPlannedLessonFeeInput = document.querySelector("#createPlannedLessonFeeInput");
@@ -698,6 +705,8 @@ function bindEvents() {
     ["businessEntity", dom.createPlannedLessonBusinessEntitySelect],
     ["startTime", dom.createPlannedLessonStartTimeInput],
     ["endTime", dom.createPlannedLessonEndTimeInput],
+    ["lessonDeliveryMode", dom.createPlannedLessonDeliveryModeSelect],
+    ["lessonVenue", dom.createPlannedLessonVenueInput],
     ["durationHours", dom.createPlannedLessonDurationInput],
     ["unitPrice", dom.createPlannedLessonUnitPriceInput],
     ["lessonFee", dom.createPlannedLessonFeeInput],
@@ -1399,6 +1408,8 @@ function resetCreatePlannedLessonForm() {
   }
   dom.createPlannedLessonStartTimeInput.value = "";
   dom.createPlannedLessonEndTimeInput.value = "";
+  dom.createPlannedLessonDeliveryModeSelect.value = "";
+  dom.createPlannedLessonVenueInput.value = "";
   dom.createPlannedLessonDurationInput.value = "";
   dom.createPlannedLessonUnitPriceInput.value = "0";
   dom.createPlannedLessonFeeInput.value = "";
@@ -1420,6 +1431,8 @@ function readCreatePlannedLessonFormSnapshot() {
     businessEntity: dom.createPlannedLessonBusinessEntitySelect.value,
     startTime: dom.createPlannedLessonStartTimeInput.value,
     endTime: dom.createPlannedLessonEndTimeInput.value,
+    lessonDeliveryMode: dom.createPlannedLessonDeliveryModeSelect.value,
+    lessonVenue: dom.createPlannedLessonVenueInput.value,
     durationHours: dom.createPlannedLessonDurationInput.value,
     unitPrice: dom.createPlannedLessonUnitPriceInput.value,
     lessonFee: dom.createPlannedLessonFeeInput.value,
@@ -1469,6 +1482,8 @@ function readCreatePlannedLessonPayload() {
   const businessEntityId = dom.createPlannedLessonBusinessEntitySelect.value;
   const startTime = dom.createPlannedLessonStartTimeInput.value;
   const endTime = dom.createPlannedLessonEndTimeInput.value;
+  const lessonDeliveryMode = dom.createPlannedLessonDeliveryModeSelect.value;
+  const lessonVenue = dom.createPlannedLessonVenueInput.value.trim();
   const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
   const inputLessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
@@ -1484,6 +1499,8 @@ function readCreatePlannedLessonPayload() {
   if (!businessEntityId) invalidFields.push("businessEntity");
   if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
+  if (lessonVenue && !lessonDeliveryMode) invalidFields.push("lessonDeliveryMode", "lessonVenue");
+  if (lessonDeliveryMode === "onsite" && !lessonVenue) invalidFields.push("lessonVenue");
   const timeValidation = validateLessonTimeRange(startTime, endTime);
   let validationMessage = "";
   if (timeValidation.status === "error") {
@@ -1515,6 +1532,8 @@ function readCreatePlannedLessonPayload() {
     businessEntityId,
     startTime,
     endTime,
+    lessonDeliveryMode,
+    lessonVenue,
     durationHours,
     unitPrice,
     lessonFee,
@@ -1565,6 +1584,8 @@ function createPlannedLessonFieldIdsForError(message) {
   if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("开始时间")) fields.push("startTime");
   if (text.includes("结束时间")) fields.push("endTime");
+  if (text.includes("授课方式")) fields.push("lessonDeliveryMode");
+  if (text.includes("场地") || text.includes("平台")) fields.push("lessonVenue");
   if (text.includes("时长")) fields.push("durationHours");
   if (text.includes("单价")) fields.push("unitPrice");
   if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
@@ -1696,6 +1717,7 @@ function renderCreateActualLessonSummary(plannedLesson) {
     ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
+    ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["学生结算月", formatMonth(plannedLesson.year_month)],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
@@ -1982,6 +2004,7 @@ function renderCreateCancelledActualLessonSummary(plannedLesson) {
     ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
+    ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["学生结算月", formatMonth(plannedLesson.year_month)],
     ["取消课口径", "不计费 / 课时费 0 / 实际分钟 0"],
   ].map(([label, value]) => `
@@ -2227,6 +2250,7 @@ function renderCreateMakeupActualLessonSummary(plannedLesson) {
     ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
+    ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["学生结算月", formatMonth(plannedLesson.year_month)],
     ["补课完成口径", "计费可选；不计费时课时费固定 0"],
   ].map(([label, value]) => `
@@ -2606,6 +2630,7 @@ function renderCreateCrossMonthMakeupActualSummary() {
     ["老师", nameById(teachers, source.teacher_id, teacherName)],
     ["科目", nameById(subjects, source.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, source.business_entity_id, businessEntityName)],
+    ["授课方式 / 场地", formatLessonVenue(source.lesson_delivery_mode, source.lesson_venue)],
     ["planned id", shortId(source.id)],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
@@ -3714,6 +3739,8 @@ function defaultLessonBatchGeneratePattern(patternIndex) {
     weekday: "1",
     startTime: "",
     endTime: "",
+    lessonDeliveryMode: "",
+    lessonVenue: "",
     durationHours: "2",
     unitPrice: "10000",
     occurrenceCount: "1",
@@ -3764,6 +3791,18 @@ function renderLessonBatchGeneratePatterns() {
       <label class="field">
         <span>结束</span>
         <input type="time" value="${escapeAttribute(pattern.endTime)}" data-batch-pattern-field="endTime">
+      </label>
+      <label class="field">
+        <span>授课方式</span>
+        <select data-batch-pattern-field="lessonDeliveryMode">
+          <option value="" ${!pattern.lessonDeliveryMode ? "selected" : ""}>未设置</option>
+          <option value="onsite" ${pattern.lessonDeliveryMode === "onsite" ? "selected" : ""}>线下</option>
+          <option value="online" ${pattern.lessonDeliveryMode === "online" ? "selected" : ""}>线上</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>上课场地 / 平台</span>
+        <input type="text" maxlength="100" value="${escapeAttribute(pattern.lessonVenue)}" data-batch-pattern-field="lessonVenue" placeholder="例：A 教室 / Zoom">
       </label>
       <label class="field">
         <span>课时</span>
@@ -3921,6 +3960,12 @@ function readLessonBatchGenerateDraft(options = {}) {
     if (!pattern.teacherId) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 请选择老师。`]);
     }
+    if (pattern.lessonVenue && !pattern.lessonDeliveryMode) {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 填写场地前请选择授课方式。`]);
+    }
+    if (pattern.lessonDeliveryMode === "onsite" && !pattern.lessonVenue) {
+      errors.push(["patterns", `规则 ${pattern.patternIndex} 的线下课程必须填写上课场地。`]);
+    }
     if (!Number.isInteger(pattern.weekday) || pattern.weekday < 0 || pattern.weekday > 6) {
       errors.push(["patterns", `规则 ${pattern.patternIndex} 请选择周几。`]);
     }
@@ -3999,6 +4044,8 @@ function normalizeLessonBatchGeneratePattern(pattern) {
     weekday: Number(pattern.weekday),
     startTime: safeText(pattern.startTime),
     endTime: safeText(pattern.endTime),
+    lessonDeliveryMode: safeText(pattern.lessonDeliveryMode),
+    lessonVenue: safeText(pattern.lessonVenue),
     startTimeForSave: safeText(pattern.startTime),
     endTimeForSave: safeText(pattern.endTime),
     durationHours: numberFromInput(pattern.durationHours),
@@ -4019,6 +4066,8 @@ function buildLessonBatchGeneratePatternDuplicateKey(pattern) {
     pattern.subjectId,
     pattern.startTimeForSave || "",
     pattern.endTimeForSave || "",
+    pattern.lessonDeliveryMode,
+    pattern.lessonVenue,
     Number.isFinite(pattern.durationHours) ? Number(pattern.durationHours).toFixed(4) : "",
     Number.isFinite(pattern.unitPrice) ? Number(pattern.unitPrice).toFixed(4) : "",
     pattern.occurrenceCount,
@@ -4053,6 +4102,8 @@ function buildLessonBatchGeneratePreviewRows(draft) {
           teacherId: pattern.teacherId,
           startTime: hasValidTime ? pattern.startTime : null,
           endTime: hasValidTime ? pattern.endTime : null,
+          lessonDeliveryMode: pattern.lessonDeliveryMode,
+          lessonVenue: pattern.lessonVenue,
           durationHours: hasValidTime ? timeCheck.durationHours : pattern.durationHours,
           unitPrice: pattern.unitPrice,
           lessonCount: pattern.lessonCount === null ? occurrenceIndex : pattern.lessonCount + occurrenceIndex - 1,
@@ -4126,6 +4177,7 @@ function renderLessonBatchGeneratePreview() {
         <td>${escapeHtml(subject ? subjectName(subject) : "-")}</td>
         <td>${escapeHtml(entity ? businessEntityName(entity) : "-")}</td>
         <td>${escapeHtml(formatTimeRange(row.startTime, row.endTime))}</td>
+        <td>${escapeHtml(formatLessonVenue(row.lessonDeliveryMode, row.lessonVenue))}</td>
         <td>${escapeHtml(row.durationHours ? `${row.durationHours} h` : "-")}</td>
         <td>${escapeHtml(formatCurrency(row.unitPrice, "JPY"))}</td>
         <td>${escapeHtml(row.lessonCount ?? "-")}</td>
@@ -4219,6 +4271,8 @@ async function handleLessonBatchGenerateSubmit() {
         subject_id: pattern.subjectId,
         start_time: pattern.startTimeForSave || null,
         end_time: pattern.endTimeForSave || null,
+        lesson_delivery_mode: pattern.lessonDeliveryMode || null,
+        lesson_venue: pattern.lessonVenue || null,
         duration_hours: pattern.durationHours,
         unit_price: pattern.unitPrice,
         occurrence_count: pattern.occurrenceCount,
@@ -4966,6 +5020,8 @@ function buildLessonImportPreviewColumnMap(header) {
     if (/^(开始时间|开始|開始|start|starttime|start_time)$/.test(key)) set("startTime");
     if (/^(结束时间|结束|終了|end|endtime|end_time)$/.test(key)) set("endTime");
     if (/^(时间|时间段|时段|時間|時間帯|time|timerange|time_range)$/.test(key)) set("timeRange");
+    if (/^(授课方式|上课方式|课程形式|授業形式|deliverymode|delivery_mode|lessondeliverymode|lesson_delivery_mode)$/.test(key)) set("lessonDeliveryMode");
+    if (/^(上课场地|场地|教室|授業場所|venue|lessonvenue|lesson_venue|平台)$/.test(key)) set("lessonVenue");
     if (/^(课时|课时时长|时长|時間数|授業時間|hours|hour|duration|durationhours|duration_hours)$/.test(key)) set("durationHours");
     if (/^(回数|回次|课次|課次|lessoncount|lesson_count)$/.test(key)) set("lessonCount");
     if (/^(单价|课程单价|単価|unitprice|unit_price)$/.test(key)) set("unitPrice");
@@ -5062,6 +5118,8 @@ function buildLessonImportPreviewColumnMap(header) {
       map.startTime,
       map.endTime,
       map.timeRange,
+      map.lessonDeliveryMode,
+      map.lessonVenue,
       map.durationHours,
       map.lessonCount,
       map.lessonFee,
@@ -5123,6 +5181,8 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
     timeRange: paired
       ? (mode === "planned" ? columnMap.plannedTimeRange : columnMap.actualTimeRange)
       : columnMap.timeRange,
+    lessonDeliveryMode: columnMap.lessonDeliveryMode,
+    lessonVenue: columnMap.lessonVenue,
     durationHours: paired
       ? (mode === "planned" ? columnMap.plannedDurationHours : columnMap.actualDurationHours)
       : columnMap.durationHours,
@@ -5157,6 +5217,8 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
     startTime: readLessonImportPreviewCell(rawRow, fieldIndexes.startTime),
     endTime: readLessonImportPreviewCell(rawRow, fieldIndexes.endTime),
     timeRange: readLessonImportPreviewCell(rawRow, fieldIndexes.timeRange),
+    lessonDeliveryMode: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonDeliveryMode),
+    lessonVenue: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonVenue),
     durationHours: readLessonImportPreviewCell(rawRow, fieldIndexes.durationHours),
     lessonCount: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonCount),
     unitPrice: readLessonImportPreviewCell(rawRow, fieldIndexes.unitPrice),
@@ -5182,6 +5244,8 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
       lessonDate: parseLessonImportPreviewDate(raw.lessonDate, baseYear),
       startTime: parseLessonImportPreviewTime(raw.startTime),
       endTime: parseLessonImportPreviewTime(raw.endTime),
+      lessonDeliveryMode: normalizeLessonDeliveryMode(raw.lessonDeliveryMode),
+      lessonVenue: importPreviewCellText(raw.lessonVenue),
       durationHours: parseLessonImportPreviewNumber(raw.durationHours),
       lessonCount: parseLessonImportPreviewInteger(raw.lessonCount),
       unitPrice: parseLessonImportPreviewNumber(raw.unitPrice),
@@ -5263,6 +5327,16 @@ function validateLessonImportPreviewRow(row, mode) {
 
   if (hasLessonImportPreviewValue(row.raw.durationHours) && (!Number.isFinite(values.durationHours) || values.durationHours <= 0)) {
     addLessonImportPreviewIssue(row, "error", "durationHours", "课时必须是大于 0 的数字。");
+  }
+
+  if (hasLessonImportPreviewValue(row.raw.lessonDeliveryMode) && !values.lessonDeliveryMode) {
+    addLessonImportPreviewIssue(row, "error", "lessonDeliveryMode", "授课方式只支持线下 / 线上。 ");
+  }
+  if (values.lessonVenue && !values.lessonDeliveryMode) {
+    addLessonImportPreviewIssue(row, "error", "lessonVenue", "填写上课场地前，请先填写授课方式。 ");
+  }
+  if (values.lessonDeliveryMode === "onsite" && !values.lessonVenue) {
+    addLessonImportPreviewIssue(row, "error", "lessonVenue", "线下课程必须填写上课场地。 ");
   }
 
   if (hasLessonImportPreviewValue(row.raw.lessonCount) && (!Number.isInteger(values.lessonCount) || values.lessonCount <= 0)) {
@@ -5433,6 +5507,7 @@ function renderLessonImportPreviewRow(row) {
       ${renderLessonImportPreviewCell(row, "businessEntity", values.businessEntity)}
       ${renderLessonImportPreviewCell(row, "lessonDate", values.lessonDate)}
       <td class="lesson-nowrap">${escapeHtml(formatLessonImportPreviewTime(values.startTime, values.endTime))}</td>
+      ${renderLessonImportPreviewCell(row, "lessonVenue", formatLessonVenue(values.lessonDeliveryMode, values.lessonVenue))}
       ${renderLessonImportPreviewCell(row, "lessonType", values.lessonType)}
       ${renderLessonImportPreviewCell(row, "status", values.status ? lessonStatusLabel(values.status) : "")}
       ${renderLessonImportPreviewCell(row, "isBillable", displayLessonImportPreviewBillable(values))}
@@ -5549,6 +5624,8 @@ function buildLessonImportSubmitRows(rows) {
     lesson_date: row.values.lessonDate,
     start_time: row.values.startTime || null,
     end_time: row.values.endTime || null,
+    lesson_delivery_mode: row.values.lessonDeliveryMode || null,
+    lesson_venue: row.values.lessonVenue || null,
     duration_hours: hasLessonImportPreviewValue(row.raw.durationHours) && Number.isFinite(row.values.durationHours) ? row.values.durationHours : null,
     lesson_count: Number.isInteger(row.values.lessonCount) ? row.values.lessonCount : null,
     unit_price: Number.isFinite(row.values.unitPrice) ? row.values.unitPrice : 0,
@@ -5708,6 +5785,13 @@ function normalizeLessonImportPreviewType(value) {
   }
 
   return text;
+}
+
+function normalizeLessonDeliveryMode(value) {
+  const normalized = normalizeLessonImportLookup(importPreviewCellText(value));
+  if (["线下", "現地", "onsite", "offline", "教室"].includes(normalized)) return "onsite";
+  if (["线上", "線上", "online", "zoom", "远程", "遠隔"].includes(normalized)) return "online";
+  return "";
 }
 
 function normalizeLessonImportPreviewStatus(value) {
@@ -6611,6 +6695,11 @@ function formatTimeRange(start, end) {
   }
 
   return `${startText} - ${endText}`;
+}
+
+function formatLessonVenue(mode, venue) {
+  const label = mode === "onsite" ? "线下" : mode === "online" ? "线上" : "未设置";
+  return safeText(venue) ? `${label} / ${safeText(venue)}` : label;
 }
 
 function formatTime(value) {

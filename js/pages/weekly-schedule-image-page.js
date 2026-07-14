@@ -309,6 +309,7 @@ function drawLessonRow(ctx, lesson, x, y, width) {
   const meta = [
     teacherNameById(lesson.teacher_id),
     formatDuration(lesson.duration_hours),
+    formatLessonVenue(lesson.lesson_delivery_mode, lesson.lesson_venue),
     safeText(lesson.lesson_content || lesson.note),
   ].filter(Boolean).join(" / ");
   ctx.fillText(truncateText(ctx, meta, width - 520), x + 510, y + 48);
@@ -440,6 +441,13 @@ function formatDuration(value) {
   if (!Number.isFinite(number) || number <= 0) return "";
   const text = Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   return `${text}H`;
+}
+
+function formatLessonVenue(mode, venue) {
+  const value = safeText(venue);
+  if (!mode && !value) return "";
+  const label = mode === "onsite" ? "线下" : mode === "online" ? "线上" : "场地";
+  return value ? `${label} ${value}` : label;
 }
 
 function buildImageFilename(schedule) {

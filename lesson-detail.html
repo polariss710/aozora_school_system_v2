@@ -19,6 +19,7 @@
                       <a href="./quote-plan.html">报价单生成</a>
             <a href="./contract-generator.html">合同生成</a>
                       <a href="./weekly-schedule-image.html">周课表图片</a>
+                      <a href="./classroom-schedule.html">教室排班</a>
                     </div>
                   </details>
                   <details class="page-nav-group is-active-group" open>
@@ -271,6 +272,20 @@
               <input id="editLessonEndTimeInput" type="time">
             </label>
 
+            <label class="field" data-edit-lesson-field="lessonDeliveryMode">
+              <span>授课方式</span>
+              <select id="editLessonDeliveryModeSelect">
+                <option value="">未设置</option>
+                <option value="onsite">线下</option>
+                <option value="online">线上</option>
+              </select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="lessonVenue">
+              <span>上课场地 / 平台</span>
+              <input id="editLessonVenueInput" type="text" maxlength="100" placeholder="例：青空塾 A 教室 / Zoom">
+            </label>
+
             <label class="field" data-edit-lesson-field="durationHours">
               <span>时长</span>
               <input id="editLessonDurationInput" type="number" min="0" step="0.25" inputmode="decimal">
@@ -349,6 +364,6 @@
       </div>
     </div>
 
-    <script type="module" src="./js/lesson-detail-app.js?v=v10.3.58-active-student-dialog-options"></script>
+    <script type="module" src="./js/lesson-detail-app.js?v=v10.3.77-lesson-venue"></script>
   </body>
 </html>

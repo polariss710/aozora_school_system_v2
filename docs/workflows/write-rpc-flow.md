@@ -15,7 +15,7 @@ This document is the project standard for write-operation RPC development. It de
 - Page modules must not call Supabase `.rpc()` directly.
 - Page modules must not directly insert, update, delete, or upsert database rows.
 - Write operations must go through the API layer and verified RPCs.
-- Never print, save, or commit `SUPABASE_DB_URL` or other secrets.
+- V2 / V3 must not use `SUPABASE_DB_URL`. School DB uses `SCHOOL_SUPABASE_DB_URL`; Cash DB uses `CASH_SUPABASE_DB_URL`. If available, run `load_both_db >/dev/null` first. Never print, save, or commit any DB URL or secret.
 - Start the workflow by checking `git status --short`; SQL execution and commit phases must also confirm the latest commit.
 - Progress reports should be concise phase summaries, not confirmation requests.
 - Final reports must state: files changed, executed SQL files, called RPCs, whether DB was written, whether writes were limited to test whitelist data, test record ids, commit hashes, push results, current git status, remaining risks, and whether the workflow completed or stopped.
@@ -101,7 +101,7 @@ Default git authorization:
 
 Hard stop conditions:
 
-- `SUPABASE_DB_URL` is missing or `psql` is unavailable.
+- The phase-required `SCHOOL_SUPABASE_DB_URL` or `CASH_SUPABASE_DB_URL` is missing, or `psql` is unavailable.
 - `git status --short` shows unrelated or ambiguous changes that cannot be safely isolated.
 - Static review, `git diff --check`, `node --check`, page-boundary scans, rollback test, or commit test fails.
 - A DB command does not fit the current phase-level authorization.
@@ -290,7 +290,7 @@ Goal: execute verified schema-only SQL and verify the DB state.
 
 Allowed in full autopilot after schema static review passes:
 
-- Execute `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
+- Execute School DB files with `psql "$SCHOOL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`; execute Cash DB files with `psql "$CASH_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
 - Run read-only verification for created/changed schema objects.
 
 Forbidden:
@@ -1030,7 +1030,7 @@ Use these checklists before reporting a phase complete.
 
 - Latest commit checked before execution.
 - SQL file confirmed schema-only.
-- `psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` used.
+- The correct phase-specific command was used: `psql "$SCHOOL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` for School DB or `psql "$CASH_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` for Cash DB.
 - Columns, nullable flags, defaults, FK/check/index/comment verified.
 - Historical data unchanged where relevant.
 - No unexpected RPC/function created.

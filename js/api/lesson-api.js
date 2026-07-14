@@ -26,6 +26,8 @@ const LESSON_COLUMNS = [
   "lesson_count",
   "actual_minutes",
   "teacher_settlement_month",
+  "lesson_delivery_mode",
+  "lesson_venue",
   "voided_at",
   "void_reason",
   "created_at",
@@ -440,7 +442,7 @@ export async function fetchLessonBusinessEntities() {
 }
 
 export async function createPlannedLessonRecord(payload) {
-  const { data, error } = await supabase.rpc("school_create_planned_lesson_record", {
+  const { data, error } = await supabase.rpc("school_create_planned_lesson_record_with_venue", {
     p_lesson_date: payload.lessonDate,
     p_student_id: payload.studentId,
     p_teacher_id: payload.teacherId,
@@ -455,6 +457,8 @@ export async function createPlannedLessonRecord(payload) {
     p_lesson_count: payload.lessonCount,
     p_lesson_content: payload.lessonContent || null,
     p_note: payload.note || null,
+    p_lesson_delivery_mode: payload.lessonDeliveryMode || null,
+    p_lesson_venue: payload.lessonVenue || null,
   });
 
   if (error) {
@@ -470,7 +474,7 @@ export async function createPlannedLessonRecord(payload) {
 }
 
 export async function importPlannedLessonRecordsBatch(payload) {
-  const { data, error } = await supabase.rpc("school_import_lesson_records_batch", {
+  const { data, error } = await supabase.rpc("school_import_lesson_records_batch_with_venue", {
     p_import_batch_id: payload.importBatchId,
     p_source_file_name: payload.sourceFileName,
     p_source_file_hash: payload.sourceFileHash,
@@ -486,7 +490,7 @@ export async function importPlannedLessonRecordsBatch(payload) {
 }
 
 export async function generatePlannedLessonRecordsBatch(payload) {
-  const { data, error } = await supabase.rpc("school_generate_planned_lessons_batch", {
+  const { data, error } = await supabase.rpc("school_generate_planned_lessons_batch_with_venue", {
     p_generation_id: payload.generationId,
     p_student_id: payload.studentId,
     p_business_entity_id: payload.businessEntityId,
@@ -505,7 +509,7 @@ export async function generatePlannedLessonRecordsBatch(payload) {
 }
 
 export async function updateLessonRecordGuarded(payload) {
-  const { data, error } = await supabase.rpc("school_update_lesson_record_guarded", {
+  const { data, error } = await supabase.rpc("school_update_lesson_record_guarded_with_venue", {
     p_lesson_id: payload.lessonId,
     p_expected_updated_at: payload.expectedUpdatedAt,
     p_lesson_date: payload.lessonDate,
@@ -523,6 +527,8 @@ export async function updateLessonRecordGuarded(payload) {
     p_lesson_count: payload.lessonCount,
     p_lesson_content: payload.lessonContent || null,
     p_note: payload.note || null,
+    p_lesson_delivery_mode: payload.lessonDeliveryMode || null,
+    p_lesson_venue: payload.lessonVenue || null,
   });
 
   if (error) {

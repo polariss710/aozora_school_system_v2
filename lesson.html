@@ -19,6 +19,7 @@
                       <a href="./quote-plan.html">报价单生成</a>
             <a href="./contract-generator.html">合同生成</a>
                       <a href="./weekly-schedule-image.html">周课表图片</a>
+                      <a href="./classroom-schedule.html">教室排班</a>
                     </div>
                   </details>
                   <details class="page-nav-group is-active-group" open>
@@ -338,6 +339,20 @@
             <label class="field" data-create-planned-lesson-field="endTime">
               <span>结束时间</span>
               <input id="createPlannedLessonEndTimeInput" type="time">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="lessonDeliveryMode">
+              <span>授课方式</span>
+              <select id="createPlannedLessonDeliveryModeSelect">
+                <option value="">未设置</option>
+                <option value="onsite">线下</option>
+                <option value="online">线上</option>
+              </select>
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="lessonVenue">
+              <span>上课场地 / 平台</span>
+              <input id="createPlannedLessonVenueInput" type="text" maxlength="100" placeholder="例：青空塾 A 教室 / Zoom">
             </label>
 
             <label class="field" data-create-planned-lesson-field="durationHours">
@@ -755,6 +770,7 @@
                     <th>科目</th>
                     <th>业务归属</th>
                     <th>时间</th>
+                    <th>授课方式 / 场地</th>
                     <th>课时</th>
                     <th>单价 JPY</th>
                     <th>第几回</th>
@@ -791,7 +807,7 @@
             <div class="lesson-import-preview-guide">
               <div>
                 <h3>预定课时模板字段</h3>
-                <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、课时类型、状态、课时、回数、课时费总额 JPY、是否计费、内容、备注。</p>
+                <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、授课方式、上课场地、课时类型、状态、课时、回数、课时费总额 JPY、是否计费、内容、备注。</p>
               </div>
               <div class="lesson-import-preview-guide-grid">
                 <div><strong>课时类型</strong><span>主模板填写预定；actual 仅用于 preview / future backlog。</span></div>
@@ -827,6 +843,7 @@
                     <th>业务归属</th>
                     <th>日期</th>
                     <th>时间</th>
+                    <th>授课方式 / 场地</th>
                     <th>课时类型</th>
                     <th>状态</th>
                     <th>计费</th>
@@ -922,6 +939,20 @@
             <label class="field" data-edit-lesson-field="endTime">
               <span>结束时间</span>
               <input id="editLessonEndTimeInput" type="time">
+            </label>
+
+            <label class="field" data-edit-lesson-field="lessonDeliveryMode">
+              <span>授课方式</span>
+              <select id="editLessonDeliveryModeSelect">
+                <option value="">未设置</option>
+                <option value="onsite">线下</option>
+                <option value="online">线上</option>
+              </select>
+            </label>
+
+            <label class="field" data-edit-lesson-field="lessonVenue">
+              <span>上课场地 / 平台</span>
+              <input id="editLessonVenueInput" type="text" maxlength="100" placeholder="例：青空塾 A 教室 / Zoom">
             </label>
 
             <label class="field" data-edit-lesson-field="durationHours">
@@ -1027,6 +1058,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.74-single-business-lesson-edit"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.3.77-lesson-venue"></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-13
+Status date: 2026-07-14
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -20,6 +20,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 - Income/teacher-wage Cash linkage statuses are not interchangeable. Legacy `pending` belongs to the old manual personal tuition / teacher-wage sync outbox and is kept only for historical RPC/tool compatibility. The current Cash request workflow uses `pending_cash_request` before Cash request submission, `awaiting_cash_confirmation` while Cash approval is pending, `synced` after Cash approve callback, `cash_rejected` after Cash reject, and `failed` / `blocked` for technical/operator failures. New UI copy should avoid presenting legacy `pending` as the recommended main-flow state.
 - Current or unclosed real business months must not be used for real wage generation, snapshot generation, student settlement closing, locking, or lock-style write validation. Validation should use transaction rollback or clearly marked whitelist data such as `codex-test`, `v2-test`, `sandbox`, `测试学生`, `测试老师`, or `测试业务归属`.
 - Field narrowing policy: create/edit dialogs should expose only fields actually used in current operations. Historical, reserved, low-frequency, generated, derived, financial-chain, and audit fields stay hidden/readonly but are not physically removed from DB unless a separate cleanup phase is designed. Repeated master-data dialog narrowing tasks should follow `docs/workflows/v2-master-dialog-simplification.md`.
+- Lesson venue scheduling is available as a Beta workflow. `school_lesson_records.lesson_delivery_mode` / `lesson_venue` are nullable for historical compatibility; onsite lessons require a venue, online lessons may optionally record a platform. Planned-to-actual creation inherits these fields. The classroom schedule is read-only and warns on same-venue overlapping times without blocking lesson writes.
 
 ## Hard Stops
 
@@ -31,6 +32,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.77 lesson venue and Beta classroom schedule, 2026-07-14:
+   课时记录新增可空的 `lesson_delivery_mode`（线下 / 线上）与 `lesson_venue`（上课场地 / 平台），598 条历史课时保持空值且未回填。已执行 `sql/current/school_lesson_schedule_venue_schema.sql` 与 `sql/current/school_lesson_schedule_venue_rpcs.sql`：单条新增、受保护编辑、批量生成、planned-only 导入统一经 venue-aware RPC wrapper 写入；从 planned 生成 actual 时由触发器继承授课方式和场地。课时新增/编辑、批量生成、导入模板、课时详情和 Beta 周课表图片均显示/接收场地。新增只读 Beta `教室排班` 页面，按周和教室汇总已设置场地的线下课，同一教室时间区间重叠时标红提示但不阻止保存。Rollback 测试覆盖 4 条临时课时并确认 residue 0；白名单 commit test 仅写入 codex-test planned lesson `fdbae3f3-a6e3-42a1-9639-47232e742963`，受保护结算、工资、付款、收支、账户和账户流水计数不变。School DB 全程使用 `SCHOOL_SUPABASE_DB_URL`；未连接或写入 Cash DB。浏览器控制组件因运行时属性冲突未能初始化，本地 HTTP、DOM selector、模块语法、API 边界与静态检查已通过。
 
 1. v10.3.74 lesson edit business entity immutable, 2026-07-13:
    课时管理编辑弹窗补齐单一业务归属收口细节：编辑已有课时时，`业务归属` 只显示当前课时自己的归属并设为不可修改，不再把 `个人名义` 暴露为可选入口。同步更新并执行 `sql/current/school_update_lesson_record_guarded_rpc.sql`，RPC `school_update_lesson_record_guarded(...)` 现在拒绝任何通过课时编辑修改 `business_entity_id` 的请求，历史个人名义课时继续按原归属保留；针对已手动把学生默认归属改为青空的情况，历史非青空课时在不改业务归属时不再因学生默认归属不一致而被该项校验阻断。前端不新增页面层 `.rpc()`，不计算持久化业务金额；本阶段不批量修改任何历史课时、学生、老师、工资、收入、支出或 Cash 数据。
