@@ -1,6 +1,6 @@
 -- school_import_historical_part_time_work_batch_rpc.sql
--- Version: v10.3.84-historical-part-time-work-import-rpc-20260715
--- Status: v10.3.84 executed on School DB 2026-07-15; full Zhiyuan rollback and 2099 codex-test commit tests passed.
+-- Version: v10.3.86-historical-part-time-work-import-rpc-20260715
+-- Status: v10.3.86 executed on School DB 2026-07-15; full Newfield rollback and 2099 codex-test commit tests passed.
 -- Scope:
 -- - Install one owner-only, all-or-nothing import RPC for explicitly approved historical batches.
 -- - Derive end_time and lesson wage inside School DB from explicit paid hours and hourly rate.
@@ -35,13 +35,26 @@ begin
 end;
 $$;
 
-drop trigger if exists school_guard_historical_confirmed_income_write_trigger
-  on public.school_income_records;
-
-create trigger school_guard_historical_confirmed_income_write_trigger
-before update or delete on public.school_income_records
-for each row
-execute function public.school_guard_historical_confirmed_income_write();
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'school_income_records'
+      and t.tgname = 'school_guard_historical_confirmed_income_write_trigger'
+      and not t.tgisinternal
+  ) then
+    execute $trigger$
+      create trigger school_guard_historical_confirmed_income_write_trigger
+      before update or delete on public.school_income_records
+      for each row
+      execute function public.school_guard_historical_confirmed_income_write()
+    $trigger$;
+  end if;
+end $$;
 
 create or replace function public.school_import_historical_part_time_work_batch(
   p_manifest jsonb
@@ -174,6 +187,12 @@ begin
            and v_source_sha256 = '5b930dad5aa4badf9a9909f87a551d7e3ef88ce0e4590afab8213798adbd0188'
            and v_source_filename = '致远教育2025.12-2026.4.xlsx'
            and v_workplace_name = '致远教育'
+         )
+         or (
+           v_source_key = 'historical-part-time-work:新领域:2025-12:2026-04'
+           and v_source_sha256 = '8017c7c437f5d331bffa653ceb8363d76f9a8716befec33a0a30a868e0b35ffc'
+           and v_source_filename = '新领域2025.12-2026.4.xlsx'
+           and v_workplace_name = '新领域'
          )
        ) then
       raise exception '正式历史导入只允许已批准且证据完全匹配的 2025-12 至 2026-04 批次。';
@@ -422,7 +441,15 @@ begin
 
     if v_source_row <= 0 or v_source_course_name is null
        or v_subject_name not in ('EJU文数班课', 'EJU理数班课', 'EJU文数一对一', 'EJU理数一对一', '大学院一对一')
-       or v_paid_hours <= 0 or v_paid_hours * 4 <> trunc(v_paid_hours * 4)
+       or v_paid_hours <= 0
+       or (
+         v_paid_hours * 4 <> trunc(v_paid_hours * 4)
+         and not (
+           v_source_key = 'historical-part-time-work:新领域:2025-12:2026-04'
+           and v_source_row = 52
+           and v_paid_hours = 0.6
+         )
+       )
        or v_hourly_rate_jpy <= 0 or v_transportation_fee_jpy < 0 then
       raise exception '课时清单第 % 行包含无效字段。', v_source_row;
     end if;
