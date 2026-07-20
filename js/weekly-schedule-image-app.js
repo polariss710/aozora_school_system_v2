@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initWeeklyScheduleImagePage } from "./pages/weekly-schedule-image-page.js?v=v10.3.88-weekly-lesson-operations";
+import { initWeeklyScheduleImagePage } from "./pages/weekly-schedule-image-page.js?v=v10.3.89-schedule-edit-labels";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
