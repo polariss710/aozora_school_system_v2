@@ -246,6 +246,15 @@ export async function fetchStudentLessonCreditBalances(studentId = null) {
   return data || [];
 }
 
+export async function fetchLessonCreditSummary({ studentId = null, businessEntityId = null } = {}) {
+  const { data, error } = await supabase.rpc("school_get_lesson_credit_summary", {
+    p_student_id: studentId || null,
+    p_business_entity_id: businessEntityId || null,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] : data;
+}
+
 export async function fetchWeeklyLessonOperations(weekStart) {
   if (!weekStart) throw new Error("请选择周一日期。");
   const { data, error } = await supabase.rpc("school_get_weekly_lesson_operations", {

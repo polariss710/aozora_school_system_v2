@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.88-weekly-lesson-operations";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.90-lesson-credit-cards";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

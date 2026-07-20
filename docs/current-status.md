@@ -34,6 +34,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.90 lesson-management open-credit cards, 2026-07-21:
+   保留“完成跨月补课次数 / 课时”供工资核对，将课时管理顶部的“已上课数量 / 未上课数量”替换为“待补课来源（累计）/ 待补余额（累计）”。新增并执行只读 RPC `school_get_lesson_credit_summary`，直接汇总 `pending_makeup` 来源的未履约条数与小时数；按学生、业务归属筛选收窄，不受月、周、老师、科目筛选影响，因此不会把允许换老师/科目的余额误归类。未写入业务课时、结算、工资或 Cash。
+
 1. v10.3.88 weekly lesson operations and lesson-credit workflow, 2026-07-20:
    新增 School DB 课时余额与周运营 RPC：部分完成会将来源 planned 标为 `pending_makeup`，取消课同样留下全部未履约余额；补课完成只能消费余额，固定 `is_billable=false` / `lesson_fee=0`，可更换老师和科目但继承学生与业务归属，余额耗尽后来源标记 `makeup_completed`。学生未锁定月结应收改以 planned 课时费加结转减已收计算，actual 费用保留履约展示，不把取消/补课变成退款或追加学费；已锁定历史不回写。课时管理新增周一开始周筛选、单学生一键进入周课表；Beta 新增 `weekly-lesson-dashboard.html`，DB 返回每位在籍学生本周预定/登记/取消/待登记及待补课余额；周课表图片支持 URL 预选并在图片旁直达课时编辑。已执行 School SQL：`school_create_actual_lesson_from_planned_rpc.sql`、`school_create_cancelled_actual_lesson_from_planned_rpc.sql`、`school_student_settlement_cny_rounding_rpcs.sql`、`school_lesson_credit_operations_rpcs.sql`、`school_weekly_lesson_operations_read_rpcs.sql`、`school_lesson_management_week_filter_stats_rpc.sql`；rollback 与 commit 白名单测试均覆盖部分完成、取消、换老师/科目补课和周统计，固定 `97000000-...` 测试数据提交后清理为 0。未连接或写入 Cash DB、真实业务课时、结算、工资、账单或收支。
 

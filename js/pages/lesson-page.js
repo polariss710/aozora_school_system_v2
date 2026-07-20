@@ -10,6 +10,7 @@ import {
   fetchCrossMonthMakeupReferences,
   fetchCrossMonthMakeupSourceLessons,
   fetchLessonBusinessEntities,
+  fetchLessonCreditSummary,
   fetchLessonImportLockPrecheck,
   fetchLessonImportPlannedReferences,
   fetchLessonManagementStats,
@@ -427,8 +428,8 @@ function cacheDom() {
   dom.statsActualFee = document.querySelector("#lessonStatsActualFee");
   dom.statsCrossMonthMakeupCompletedCount = document.querySelector("#lessonStatsCrossMonthMakeupCompletedCount");
   dom.statsCrossMonthMakeupCompletedHours = document.querySelector("#lessonStatsCrossMonthMakeupCompletedHours");
-  dom.statsCompletedLessonCount = document.querySelector("#lessonStatsCompletedLessonCount");
-  dom.statsPlannedUncompletedCount = document.querySelector("#lessonStatsPlannedUncompletedCount");
+  dom.statsOpenCreditSourceCount = document.querySelector("#lessonStatsOpenCreditSourceCount");
+  dom.statsOpenCreditHours = document.querySelector("#lessonStatsOpenCreditHours");
   dom.lessonPdfExportDialog = document.querySelector("#lessonPdfExportDialog");
   dom.lessonPdfExportError = document.querySelector("#lessonPdfExportError");
   dom.lessonPdfExportStudentSelect = document.querySelector("#lessonPdfExportStudentSelect");
@@ -1275,11 +1276,14 @@ async function refreshLessonManagementStats(filters) {
   renderLessonStats(null, { loading: true });
 
   try {
-    const stats = await fetchLessonManagementStats(filters);
+    const [stats, creditSummary] = await Promise.all([
+      fetchLessonManagementStats(filters),
+      fetchLessonCreditSummary(filters),
+    ]);
     if (requestId !== lessonStatsRequestId) {
       return;
     }
-    renderLessonStats(stats || {});
+    renderLessonStats(stats || {}, { creditSummary: creditSummary || {} });
   } catch (error) {
     if (requestId !== lessonStatsRequestId) {
       return;
@@ -1298,8 +1302,9 @@ function renderLessonStats(stats, options = {}) {
   setText(dom.statsActualFee, stats ? formatCurrency(values.actual_fee_jpy, "JPY") : loadingText);
   setText(dom.statsCrossMonthMakeupCompletedCount, stats ? displayValue(values.cross_month_makeup_completed_count) : loadingText);
   setText(dom.statsCrossMonthMakeupCompletedHours, stats ? displayValue(values.cross_month_makeup_completed_hours) : loadingText);
-  setText(dom.statsCompletedLessonCount, stats ? displayValue(values.completed_lesson_count) : loadingText);
-  setText(dom.statsPlannedUncompletedCount, stats ? displayValue(values.planned_uncompleted_count) : loadingText);
+  const credit = options.creditSummary || {};
+  setText(dom.statsOpenCreditSourceCount, stats ? displayValue(credit.open_source_count) : loadingText);
+  setText(dom.statsOpenCreditHours, stats ? `${displayValue(credit.open_credit_hours)} 小时` : loadingText);
 }
 
 function setText(element, value) {
