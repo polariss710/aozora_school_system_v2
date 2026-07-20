@@ -228,7 +228,7 @@ function renderSchedules() {
       <p class="section-note">调整日期或时间后，返回此页重新生成图片。</p>
       ${schedule.lessons.map((lesson) => `
         <a class="button table-action-button" href="${escapeAttribute(buildLessonEditUrl(lesson.id, schedule))}">
-          编辑 ${escapeHtml(formatDateOnly(lesson.lesson_date))} ${escapeHtml(formatTimeRange(lesson.start_time, lesson.end_time))}
+          编辑 ${escapeHtml(formatDateOnly(lesson.lesson_date))} ${escapeHtml(formatTimeRange(lesson))}
         </a>
       `).join("")}
     `;
@@ -426,6 +426,11 @@ function toDateInputValue(date) {
 
 function formatDateRange(start, end) {
   return `${formatFullDate(start)} - ${formatFullDate(end)}`;
+}
+
+function formatDateOnly(value) {
+  const date = parseDateInput(value);
+  return date ? formatFullDate(date) : "日期未定";
 }
 
 function formatFullDate(date) {
