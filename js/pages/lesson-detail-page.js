@@ -42,6 +42,7 @@ let currentLessonId = "";
 let lessonEditController = null;
 let lessonVoidController = null;
 let isLessonDetailPageInitialized = false;
+let shouldAutoOpenEdit = false;
 
 export function initLessonDetailPage() {
   if (isLessonDetailPageInitialized) {
@@ -63,6 +64,7 @@ export function initLessonDetailPage() {
   }
 
   currentLessonId = readLessonId();
+  shouldAutoOpenEdit = new URLSearchParams(window.location.search).get("edit") === "1";
   if (!currentLessonId) {
     showMessage("error", "缺少课时记录 ID，请从课时管理一览进入详情页。");
     setContentVisible(false);
@@ -153,6 +155,17 @@ function syncReturnLink() {
   }
 
   const params = new URLSearchParams(window.location.search);
+  if (params.get("return_to") === "weekly_schedule") {
+    const target = new URLSearchParams();
+    const weekStart = safeText(params.get("week_start"));
+    const studentId = safeText(params.get("student_id"));
+    if (/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) target.set("week_start", weekStart);
+    if (/^[0-9a-fA-F-]{36}$/.test(studentId)) target.set("student_id", studentId);
+    target.set("auto_preview", "1");
+    dom.returnLink.href = `./weekly-schedule-image.html?${target.toString()}`;
+    dom.returnLink.textContent = "返回周课表图片";
+    return;
+  }
   const wageReturnQuery = readWageReturnQuery(params);
   if (wageReturnQuery) {
     dom.returnLink.href = `./wage.html?${wageReturnQuery}`;
@@ -338,6 +351,10 @@ async function loadLessonDetail(lessonId) {
     currentLessonDetailData = data;
     renderLessonDetail(data);
     setContentVisible(true);
+    if (shouldAutoOpenEdit) {
+      shouldAutoOpenEdit = false;
+      lessonEditController?.open(lessonId);
+    }
     showMessage("success", "课时详情已加载。");
   } catch (error) {
     setContentVisible(false);

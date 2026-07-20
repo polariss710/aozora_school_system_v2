@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 本周课时待处理</title>
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.88-weekly-lesson-operations">
+  </head>
+  <body>
+    <aside class="app-sidebar" aria-label="主导航侧边栏">
+      <div class="sidebar-brand"><strong>青空进学塾</strong><span>管理后台</span></div>
+      <nav class="page-nav page-nav--grouped sidebar-nav" aria-label="主导航">
+        <details class="page-nav-group page-nav-group--beta is-active-group" open>
+          <summary>Beta功能</summary>
+          <div class="page-nav-group-links">
+            <a href="./quote-plan.html">报价单生成</a>
+            <a href="./contract-generator.html">合同生成</a>
+            <a class="is-active" href="./weekly-lesson-dashboard.html">本周课时待处理</a>
+            <a href="./weekly-schedule-image.html">周课表图片</a>
+            <a href="./classroom-schedule.html">教室排班</a>
+          </div>
+        </details>
+        <details class="page-nav-group"><summary>学生</summary><div class="page-nav-group-links"><a href="./student.html">学生管理</a><a href="./lesson.html">课时管理</a><a href="./settlement.html">月度结算</a></div></details>
+        <details class="page-nav-group"><summary>老师</summary><div class="page-nav-group-links"><a href="./teacher.html">老师管理</a><a href="./wage.html">工资结算</a><a href="./wage-rule.html">工资规则</a></div></details>
+      </nav>
+    </aside>
+    <div class="app-shell app-shell--dense">
+      <header class="page-header"><div><p class="page-kicker">青空塾 管理系统 v2</p><h1>本周课时待处理</h1><p class="page-subtitle">按周查看每位在籍学生的预定、登记与待补课余额。</p></div><div class="header-meta"><span class="readonly-pill">Beta</span><span id="appVersion" class="app-version"></span></div></header>
+      <main class="page-main">
+        <section id="weeklyLessonDashboardMessage" class="message is-hidden" aria-live="polite"></section>
+        <section class="panel"><form id="weeklyLessonDashboardForm" class="filter-grid"><label class="field"><span>周一日期</span><input id="weeklyLessonDashboardWeekStart" type="date" required></label><div class="filter-actions"><button class="button" id="weeklyLessonDashboardPrevious" type="button">上一周</button><button class="button button-primary" type="submit">查询本周</button><button class="button" id="weeklyLessonDashboardNext" type="button">下一周</button></div></form></section>
+        <section class="summary-grid" aria-label="本周汇总"><div class="summary-card"><span>本周预定课时</span><strong id="weeklyLessonDashboardPlannedHours">-</strong></div><div class="summary-card"><span>待登记课程</span><strong id="weeklyLessonDashboardUnregisteredCount">-</strong></div><div class="summary-card"><span>全体待补课余额</span><strong id="weeklyLessonDashboardCreditHours">-</strong></div></section>
+        <section class="panel"><div class="section-heading"><h2>学生明细</h2><p class="section-note">待补课余额仅统计已收未履约的正式预定课时；补课完成不会新增学生学费。</p></div><div id="weeklyLessonDashboardLoading" class="state-text is-hidden">正在读取本周课时...</div><div class="table-scroll"><table class="payment-table"><thead><tr><th>学生</th><th>本周预定</th><th>已登记</th><th>完成时长</th><th>待登记</th><th>取消</th><th>待补来源</th><th>待补余额</th><th>最早来源</th><th>操作</th></tr></thead><tbody id="weeklyLessonDashboardRows"></tbody></table></div><div id="weeklyLessonDashboardEmpty" class="state-text is-hidden">暂无在籍学生。</div></section>
+      </main>
+    </div>
+    <script type="module" src="./js/weekly-lesson-dashboard-app.js?v=v10.3.88-weekly-lesson-operations"></script>
+  </body>
+</html>

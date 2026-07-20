@@ -19,7 +19,8 @@
 -- - Free actual creation without planned_lesson_id.
 -- - completed or makeup_completed actual creation.
 -- - Editing, deleting, copying, importing, or batch generation.
--- - Modifying the source planned row.
+-- - Other source modifications beyond marking the cancelled source as
+--   pending_makeup, so its unfulfilled hours remain available as credit.
 -- - Modifying student monthly settlement snapshots, teacher wage locks,
 --   wage lock details, payment requests, income, expense, accounts, or
 --   account transactions.
@@ -33,8 +34,8 @@
 -- - Commit test inserted only whitelisted codex-test / v2-test / sandbox
 --   planned lesson 557214bb-0826-42e1-b3cb-52953045f4b5 and cancelled actual
 --   lesson 8ac46deb-259b-4967-b33d-411d3b40fd8c.
--- - Source planned lesson 557214bb-0826-42e1-b3cb-52953045f4b5 kept status
---   planned. Cancelled actual lesson 8ac46deb-259b-4967-b33d-411d3b40fd8c
+-- - Source planned lesson 557214bb-0826-42e1-b3cb-52953045f4b5 is marked
+--   pending_makeup. Cancelled actual lesson 8ac46deb-259b-4967-b33d-411d3b40fd8c
 --   has is_billable = false, lesson_fee = 0, and actual_minutes = 0.
 -- - No wage lock detail, payment request, income, expense, account, or account
 --   transaction was generated.
@@ -301,6 +302,10 @@ begin
   )
   returning id into v_actual_id;
 
+  update public.school_lesson_records
+     set status = 'pending_makeup'
+   where id = v_planned.id;
+
   return query
   select
     a.id,
@@ -342,7 +347,7 @@ comment on function public.school_create_cancelled_actual_lesson_from_planned(
   text,
   text
 ) is
-  'Creates one non-billable cancelled actual school lesson linked to one planned lesson. Rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not modify planned records or generate settlement, wage, payment, income, expense, account, or account transaction rows.';
+  'Creates one non-billable cancelled actual school lesson linked to one planned lesson and marks the source pending_makeup so its full unfulfilled hours remain usable as student lesson credit. Rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not generate settlement, wage, payment, income, expense, account, or account transaction rows.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

@@ -2,6 +2,7 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createActualLessonFromPlanned,
+  createPartialCompletedActualFromPlanned,
   createCancelledActualLessonFromPlanned,
   createCrossMonthMakeupCompletedActualFromPlanned,
   createMakeupCompletedActualLessonFromPlanned,
@@ -38,6 +39,7 @@ import {
 } from "../utils/business-entity-policy.js";
 
 const DEFAULT_FILTERS = {
+  weekStart: "",
   studentId: "",
   teacherId: "",
   subjectId: "",
@@ -225,7 +227,8 @@ const CREATE_CANCELLED_ACTUAL_LESSON_FIELD_IDS = [
 
 const CREATE_MAKEUP_ACTUAL_LESSON_FIELD_IDS = [
   "lessonDate",
-  "isBillable",
+  "teacher",
+  "subject",
   "startTime",
   "endTime",
   "durationHours",
@@ -238,6 +241,8 @@ const CREATE_CROSS_MONTH_MAKEUP_ACTUAL_FIELD_IDS = [
   "sourceMonthFrom",
   "sourceMonthTo",
   "sourceLesson",
+  "teacher",
+  "subject",
   "lessonDate",
   "startTime",
   "endTime",
@@ -312,6 +317,7 @@ export function initLessonPage() {
   setupLessonDeleteController();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
+  renderWeekFilterOptions(currentYearMonth());
   [
     dom.crossMonthMakeupSourceFromYearSelect,
     dom.crossMonthMakeupSourceToYearSelect,
@@ -391,6 +397,7 @@ function cacheDom() {
   dom.filterForm = document.querySelector("#lessonFilterForm");
   dom.yearFilter = document.querySelector("#lessonYearFilter");
   dom.monthFilter = document.querySelector("#lessonMonthFilter");
+  dom.weekFilter = document.querySelector("#lessonWeekFilter");
   dom.studentSelect = document.querySelector("#lessonStudentSelect");
   dom.teacherSelect = document.querySelector("#lessonTeacherSelect");
   dom.subjectSelect = document.querySelector("#lessonSubjectSelect");
@@ -405,6 +412,7 @@ function cacheDom() {
   dom.openLessonImportPreviewButton = document.querySelector("#openLessonImportPreviewButton");
   dom.openLessonBatchGenerateButton = document.querySelector("#openLessonBatchGenerateButton");
   dom.openLessonPdfExportButton = document.querySelector("#openLessonPdfExportButton");
+  dom.openWeeklyScheduleForStudentButton = document.querySelector("#openWeeklyScheduleForStudentButton");
   dom.openCrossMonthMakeupDialogButton = document.querySelector("#openCrossMonthMakeupDialogButton");
   dom.openCreatePlannedLessonButton = document.querySelector("#openCreatePlannedLessonButton");
   dom.listView = document.querySelector("#lessonListView");
@@ -488,6 +496,7 @@ function cacheDom() {
   dom.createActualLessonStartTimeInput = document.querySelector("#createActualLessonStartTimeInput");
   dom.createActualLessonEndTimeInput = document.querySelector("#createActualLessonEndTimeInput");
   dom.createActualLessonDurationInput = document.querySelector("#createActualLessonDurationInput");
+  dom.createActualLessonPartialInput = document.querySelector("#createActualLessonPartialInput");
   dom.createActualLessonUnitPriceInput = document.querySelector("#createActualLessonUnitPriceInput");
   dom.createActualLessonFeeInput = document.querySelector("#createActualLessonFeeInput");
   dom.createActualLessonCountInput = document.querySelector("#createActualLessonCountInput");
@@ -514,6 +523,8 @@ function cacheDom() {
   dom.createMakeupActualLessonError = document.querySelector("#createMakeupActualLessonError");
   dom.createMakeupActualLessonDateInput = document.querySelector("#createMakeupActualLessonDateInput");
   dom.createMakeupActualLessonBillableSelect = document.querySelector("#createMakeupActualLessonBillableSelect");
+  dom.createMakeupActualLessonTeacherSelect = document.querySelector("#createMakeupActualLessonTeacherSelect");
+  dom.createMakeupActualLessonSubjectSelect = document.querySelector("#createMakeupActualLessonSubjectSelect");
   dom.createMakeupActualLessonStartTimeInput = document.querySelector("#createMakeupActualLessonStartTimeInput");
   dom.createMakeupActualLessonEndTimeInput = document.querySelector("#createMakeupActualLessonEndTimeInput");
   dom.createMakeupActualLessonDurationInput = document.querySelector("#createMakeupActualLessonDurationInput");
@@ -536,6 +547,8 @@ function cacheDom() {
   dom.crossMonthMakeupSourceSelect = document.querySelector("#crossMonthMakeupSourceSelect");
   dom.crossMonthMakeupSourceCount = document.querySelector("#crossMonthMakeupSourceCount");
   dom.createCrossMonthMakeupActualDateInput = document.querySelector("#createCrossMonthMakeupActualDateInput");
+  dom.createCrossMonthMakeupActualTeacherSelect = document.querySelector("#createCrossMonthMakeupActualTeacherSelect");
+  dom.createCrossMonthMakeupActualSubjectSelect = document.querySelector("#createCrossMonthMakeupActualSubjectSelect");
   dom.createCrossMonthMakeupActualStartTimeInput = document.querySelector("#createCrossMonthMakeupActualStartTimeInput");
   dom.createCrossMonthMakeupActualEndTimeInput = document.querySelector("#createCrossMonthMakeupActualEndTimeInput");
   dom.createCrossMonthMakeupActualDurationInput = document.querySelector("#createCrossMonthMakeupActualDurationInput");
@@ -582,6 +595,14 @@ function bindEvents() {
     clearLessonQueryUrl();
     applyQuery({ updateUrl: false });
   });
+
+  [dom.yearFilter, dom.monthFilter].forEach((select) => {
+    select?.addEventListener("change", () => {
+      const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+      renderWeekFilterOptions(month, dom.weekFilter?.value);
+    });
+  });
+  dom.openWeeklyScheduleForStudentButton?.addEventListener("click", openWeeklyScheduleForSelectedStudent);
 
   [dom.listViewButton, dom.pairViewButton].forEach((button) => {
     button?.addEventListener("click", () => {
@@ -786,6 +807,11 @@ function bindEvents() {
 
   dom.createActualLessonCancelButton?.addEventListener("click", () => closeCreateActualLessonDialog());
   dom.createActualLessonSubmitButton?.addEventListener("click", handleCreateActualLessonSubmit);
+  dom.createActualLessonPartialInput?.addEventListener("change", () => {
+    isCreateActualLessonCloseConfirmPending = false;
+    clearCreateActualLessonFieldInvalid("durationHours");
+    hideCreateActualLessonErrorIfClean();
+  });
 
   dom.createActualLessonDialog?.addEventListener("click", (event) => {
     if (event.target === dom.createActualLessonDialog) {
@@ -870,6 +896,8 @@ function bindEvents() {
 
   [
     ["lessonDate", dom.createMakeupActualLessonDateInput],
+    ["teacher", dom.createMakeupActualLessonTeacherSelect],
+    ["subject", dom.createMakeupActualLessonSubjectSelect],
     ["isBillable", dom.createMakeupActualLessonBillableSelect],
     ["startTime", dom.createMakeupActualLessonStartTimeInput],
     ["endTime", dom.createMakeupActualLessonEndTimeInput],
@@ -919,6 +947,8 @@ function bindEvents() {
     ["sourceMonthTo", dom.crossMonthMakeupSourceToYearSelect],
     ["sourceMonthTo", dom.crossMonthMakeupSourceToMonthSelect],
     ["sourceLesson", dom.crossMonthMakeupSourceSelect],
+    ["teacher", dom.createCrossMonthMakeupActualTeacherSelect],
+    ["subject", dom.createCrossMonthMakeupActualSubjectSelect],
     ["lessonDate", dom.createCrossMonthMakeupActualDateInput],
     ["startTime", dom.createCrossMonthMakeupActualStartTimeInput],
     ["endTime", dom.createCrossMonthMakeupActualEndTimeInput],
@@ -963,6 +993,7 @@ function readInitialLessonQuery() {
   const params = new URLSearchParams(window.location.search);
   const filters = defaultLessonFilters();
   filters.month = readLessonQueryMonth(params);
+  filters.weekStart = normalizeWeekStart(params.get("week_start") || params.get("weekStart"));
   filters.view = normalizeLessonView(params.get("view"));
   filters.studentId = readLessonQueryValue(params, "student_id", "studentId");
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
@@ -1035,6 +1066,7 @@ function buildLessonListQueryParams(filters) {
   if (filters.status) params.set("status", filters.status);
   if (filters.isBillable) params.set("is_billable", filters.isBillable);
   if (filters.keyword) params.set("keyword", filters.keyword);
+  if (filters.weekStart) params.set("week_start", filters.weekStart);
 
   return params;
 }
@@ -1122,7 +1154,10 @@ async function applyQuery(options = {}) {
 
 async function loadLessonMonth(month, filters = {}) {
   const queryMode = lessonRecordQueryMode(filters);
-  lessonRecords = sortLessonRecords(await fetchLessonRecords(month, { status: filters.status }));
+  lessonRecords = sortLessonRecords(await fetchLessonRecords(month, {
+    status: filters.status,
+    weekStart: filters.weekStart || "",
+  }));
   crossMonthMakeupReferences = buildCrossMonthMakeupReferenceMaps(
     await fetchCrossMonthMakeupReferences(month, lessonRecords)
   );
@@ -1132,7 +1167,73 @@ async function loadLessonMonth(month, filters = {}) {
 }
 
 function lessonRecordQueryMode(filters = {}) {
-  return filters.status === "voided" ? "voided" : "active";
+  return `${filters.status === "voided" ? "voided" : "active"}:${filters.weekStart || "month"}`;
+}
+
+function normalizeWeekStart(value) {
+  const text = safeText(value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return "";
+  const date = new Date(`${text}T00:00:00`);
+  if (Number.isNaN(date.getTime()) || date.getDay() !== 1) return "";
+  return text;
+}
+
+function renderWeekFilterOptions(yearMonth, selectedWeekStart = "") {
+  if (!dom.weekFilter) return;
+  const match = safeText(yearMonth).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+  const options = ['<option value="">整月</option>'];
+  if (!match) {
+    dom.weekFilter.innerHTML = options.join("");
+    return;
+  }
+  const firstDay = new Date(`${yearMonth}-01T00:00:00`);
+  const lastDay = new Date(Number(match[1]), Number(match[2]), 0);
+  const monday = new Date(firstDay);
+  monday.setDate(firstDay.getDate() - ((firstDay.getDay() + 6) % 7));
+  while (monday <= lastDay) {
+    const start = formatDateInput(monday);
+    const end = new Date(monday);
+    end.setDate(end.getDate() + 6);
+    options.push(`<option value="${escapeAttribute(start)}">${escapeHtml(`${formatMonthDay(monday)} – ${formatMonthDay(end)}`)}</option>`);
+    monday.setDate(monday.getDate() + 7);
+  }
+  dom.weekFilter.innerHTML = options.join("");
+  const normalized = normalizeWeekStart(selectedWeekStart);
+  dom.weekFilter.value = Array.from(dom.weekFilter.options).some((option) => option.value === normalized)
+    ? normalized
+    : "";
+}
+
+function formatDateInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatMonthDay(date) {
+  return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function updateWeeklyScheduleButton(filters = readFilters()) {
+  if (!dom.openWeeklyScheduleForStudentButton) return;
+  const canOpen = Boolean(filters?.weekStart && filters?.studentId);
+  dom.openWeeklyScheduleForStudentButton.disabled = !canOpen;
+  dom.openWeeklyScheduleForStudentButton.title = canOpen ? "打开该学生本周周课表" : "请先选择一周和一位学生";
+}
+
+function openWeeklyScheduleForSelectedStudent() {
+  const filters = readFilters();
+  if (!filters?.weekStart || !filters.studentId) {
+    showMessage("error", "请先选择一周和一位学生，再生成周课表。");
+    return;
+  }
+  const params = new URLSearchParams({
+    week_start: filters.weekStart,
+    student_id: filters.studentId,
+    auto_preview: "1",
+  });
+  window.location.href = `./weekly-schedule-image.html?${params.toString()}`;
 }
 
 function emptyCrossMonthMakeupReferences() {
@@ -1216,6 +1317,7 @@ function readFilters() {
 
   return {
     month,
+    weekStart: normalizeWeekStart(dom.weekFilter?.value),
     view: activeView,
     studentId: dom.studentSelect.value,
     teacherId: dom.teacherSelect.value,
@@ -1230,6 +1332,8 @@ function readFilters() {
 
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
+  renderWeekFilterOptions(filters.month, filters.weekStart);
+  dom.weekFilter.value = filters.weekStart || "";
   dom.studentSelect.value = filters.studentId || "";
   dom.teacherSelect.value = filters.teacherId || "";
   dom.subjectSelect.value = filters.subjectId || "";
@@ -1240,6 +1344,7 @@ function restoreFilterSelections(filters) {
   dom.keywordInput.value = filters.keyword || "";
   activeView = normalizeLessonView(filters.view || activeView);
   syncViewVisibility();
+  updateWeeklyScheduleButton(filters);
 }
 
 function renderMasterOptions() {
@@ -1662,7 +1767,7 @@ function openCreateActualLessonDialog(plannedLessonId) {
     return;
   }
 
-  if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
+  if (plannedLesson.status !== "planned") {
     showMessage("error", "当前 planned 状态不能生成 completed actual。");
     return;
   }
@@ -1713,6 +1818,7 @@ function resetCreateActualLessonForm(plannedLesson) {
   dom.createActualLessonStartTimeInput.value = formatInputTime(plannedLesson.start_time);
   dom.createActualLessonEndTimeInput.value = formatInputTime(plannedLesson.end_time);
   dom.createActualLessonDurationInput.value = displayInputNumber(plannedLesson.duration_hours);
+  dom.createActualLessonPartialInput.checked = false;
   dom.createActualLessonUnitPriceInput.value = displayInputNumber(plannedLesson.unit_price || 0);
   dom.createActualLessonFeeInput.value = displayInputNumber(plannedLesson.lesson_fee || 0);
   dom.createActualLessonCountInput.value = plannedLesson.lesson_count ? String(plannedLesson.lesson_count) : "";
@@ -1729,6 +1835,7 @@ function readCreateActualLessonFormSnapshot() {
     startTime: dom.createActualLessonStartTimeInput.value,
     endTime: dom.createActualLessonEndTimeInput.value,
     durationHours: dom.createActualLessonDurationInput.value,
+    partial: dom.createActualLessonPartialInput.checked,
     unitPrice: dom.createActualLessonUnitPriceInput.value,
     lessonFee: dom.createActualLessonFeeInput.value,
     lessonCount: dom.createActualLessonCountInput.value,
@@ -1773,7 +1880,9 @@ async function handleCreateActualLessonSubmit() {
 
   try {
     const filtersBeforeSubmit = readFilters();
-    const createdLesson = await createActualLessonFromPlanned(payload);
+    const createdLesson = payload.partial
+      ? await createPartialCompletedActualFromPlanned(payload)
+      : await createActualLessonFromPlanned(payload);
     closeCreateActualLessonDialog(true);
     await refreshAfterCreateActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `实际课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
@@ -1834,6 +1943,7 @@ function readCreateActualLessonPayload() {
     startTime,
     endTime,
     durationHours,
+    partial: dom.createActualLessonPartialInput.checked,
     unitPrice,
     lessonFee,
     lessonCount,
@@ -1954,7 +2064,7 @@ function openCreateCancelledActualLessonDialog(plannedLessonId) {
     return;
   }
 
-  if (!["planned", "pending_makeup"].includes(plannedLesson.status)) {
+  if (plannedLesson.status !== "pending_makeup") {
     showMessage("error", "当前 planned 状态不能生成 cancelled actual。");
     return;
   }
@@ -2248,8 +2358,12 @@ function closeCreateMakeupActualLessonDialog(force = false) {
 }
 
 function resetCreateMakeupActualLessonForm(plannedLesson) {
+  renderEntityOptionsWithPlaceholder(dom.createMakeupActualLessonTeacherSelect, teachers, teacherName, "请选择老师");
+  renderEntityOptionsWithPlaceholder(dom.createMakeupActualLessonSubjectSelect, subjects, subjectName, "请选择科目");
   dom.createMakeupActualLessonDateInput.value = safeText(plannedLesson.lesson_date);
-  dom.createMakeupActualLessonBillableSelect.value = "true";
+  dom.createMakeupActualLessonBillableSelect.value = "false";
+  dom.createMakeupActualLessonTeacherSelect.value = plannedLesson.teacher_id || "";
+  dom.createMakeupActualLessonSubjectSelect.value = plannedLesson.subject_id || "";
   dom.createMakeupActualLessonStartTimeInput.value = formatInputTime(plannedLesson.start_time);
   dom.createMakeupActualLessonEndTimeInput.value = formatInputTime(plannedLesson.end_time);
   dom.createMakeupActualLessonDurationInput.value = displayInputNumber(plannedLesson.duration_hours);
@@ -2267,6 +2381,8 @@ function resetCreateMakeupActualLessonForm(plannedLesson) {
 function readCreateMakeupActualLessonFormSnapshot() {
   return JSON.stringify({
     lessonDate: dom.createMakeupActualLessonDateInput.value,
+    teacherId: dom.createMakeupActualLessonTeacherSelect.value,
+    subjectId: dom.createMakeupActualLessonSubjectSelect.value,
     isBillable: dom.createMakeupActualLessonBillableSelect.value,
     startTime: dom.createMakeupActualLessonStartTimeInput.value,
     endTime: dom.createMakeupActualLessonEndTimeInput.value,
@@ -2295,7 +2411,7 @@ function renderCreateMakeupActualLessonSummary(plannedLesson) {
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["学生结算月", formatMonth(plannedLesson.year_month)],
-    ["补课完成口径", "计费可选；不计费时课时费固定 0"],
+    ["补课完成口径", "不新增学生学费；工资按本次老师、科目、日期和时长结算"],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -2338,7 +2454,9 @@ function readCreateMakeupActualLessonPayload() {
   }
 
   const lessonDate = dom.createMakeupActualLessonDateInput.value;
-  const isBillable = dom.createMakeupActualLessonBillableSelect.value !== "false";
+  const isBillable = false;
+  const teacherId = dom.createMakeupActualLessonTeacherSelect.value;
+  const subjectId = dom.createMakeupActualLessonSubjectSelect.value;
   const startTime = dom.createMakeupActualLessonStartTimeInput.value;
   const endTime = dom.createMakeupActualLessonEndTimeInput.value;
   const durationHours = numberFromInput(dom.createMakeupActualLessonDurationInput.value);
@@ -2352,7 +2470,8 @@ function readCreateMakeupActualLessonPayload() {
   const invalidFields = [];
 
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
-  if (!["true", "false"].includes(dom.createMakeupActualLessonBillableSelect.value)) invalidFields.push("isBillable");
+  if (!teacherId) invalidFields.push("teacher");
+  if (!subjectId) invalidFields.push("subject");
   if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
   if (!endTime || !isTimeValue(endTime)) invalidFields.push("endTime");
   if (!lessonContent) invalidFields.push("lessonContent");
@@ -2381,6 +2500,8 @@ function readCreateMakeupActualLessonPayload() {
   return {
     plannedLessonId: currentMakeupActualSourceLesson.id,
     lessonDate,
+    teacherId,
+    subjectId,
     startTime,
     endTime,
     durationHours,
@@ -2427,7 +2548,8 @@ function createMakeupActualLessonFieldIdsForError(message) {
   const text = safeText(message);
   const fields = [];
   if (text.includes("日期") || text.includes("学生月度结算") || text.includes("老师工资月份")) fields.push("lessonDate");
-  if (text.includes("计费")) fields.push("isBillable");
+  if (text.includes("老师")) fields.push("teacher");
+  if (text.includes("科目")) fields.push("subject");
   if (text.includes("开始时间")) fields.push("startTime");
   if (text.includes("结束时间")) fields.push("endTime");
   if (text.includes("时长")) fields.push("durationHours");
@@ -2537,12 +2659,16 @@ function closeCreateCrossMonthMakeupActualDialog(force = false) {
 }
 
 function resetCreateCrossMonthMakeupActualForm(targetMonth) {
+  renderEntityOptionsWithPlaceholder(dom.createCrossMonthMakeupActualTeacherSelect, teachers, teacherName, "请选择老师");
+  renderEntityOptionsWithPlaceholder(dom.createCrossMonthMakeupActualSubjectSelect, subjects, subjectName, "请选择科目");
   const previousMonth = addMonthsToYearMonth(targetMonth, -1) || targetMonth;
   const defaultFromMonth = addMonthsToYearMonth(targetMonth, -3) || previousMonth;
   setYearMonthSelectValue(dom.crossMonthMakeupSourceFromYearSelect, dom.crossMonthMakeupSourceFromMonthSelect, defaultFromMonth);
   setYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect, previousMonth);
   dom.crossMonthMakeupSourceSelect.value = "";
   dom.createCrossMonthMakeupActualDateInput.value = firstDateOfMonth(targetMonth);
+  dom.createCrossMonthMakeupActualTeacherSelect.value = "";
+  dom.createCrossMonthMakeupActualSubjectSelect.value = "";
   dom.createCrossMonthMakeupActualStartTimeInput.value = "";
   dom.createCrossMonthMakeupActualEndTimeInput.value = "";
   dom.createCrossMonthMakeupActualDurationInput.value = "";
@@ -2641,6 +2767,8 @@ function handleCrossMonthMakeupSourceSelectionChange() {
 }
 
 function fillCreateCrossMonthMakeupActualFromSource(sourceLesson) {
+  dom.createCrossMonthMakeupActualTeacherSelect.value = sourceLesson.teacher_id || "";
+  dom.createCrossMonthMakeupActualSubjectSelect.value = sourceLesson.subject_id || "";
   dom.createCrossMonthMakeupActualStartTimeInput.value = formatInputTime(sourceLesson.start_time);
   dom.createCrossMonthMakeupActualEndTimeInput.value = formatInputTime(sourceLesson.end_time);
   dom.createCrossMonthMakeupActualDurationInput.value = displayInputNumber(sourceLesson.duration_hours);
@@ -2656,7 +2784,7 @@ function renderCreateCrossMonthMakeupActualSummary() {
   dom.createCrossMonthMakeupActualSummary.innerHTML = [
     ["补课月份", formatMonth(targetMonth)],
     ["写入结果", "只在当前月份生成一条补课完成 actual"],
-    ["计费", "默认不计费；课时费固定 0"],
+    ["计费", "不新增学生学费；老师工资按本次登记老师、科目、日期和时长结算"],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -2715,6 +2843,8 @@ function readCreateCrossMonthMakeupActualPayload() {
   const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
   const lessonDate = dom.createCrossMonthMakeupActualDateInput.value;
   const lessonMonth = safeText(lessonDate).slice(0, 7);
+  const teacherId = dom.createCrossMonthMakeupActualTeacherSelect.value;
+  const subjectId = dom.createCrossMonthMakeupActualSubjectSelect.value;
   const startTime = dom.createCrossMonthMakeupActualStartTimeInput.value;
   const endTime = dom.createCrossMonthMakeupActualEndTimeInput.value;
   const durationHours = numberFromInput(dom.createCrossMonthMakeupActualDurationInput.value);
@@ -2728,6 +2858,8 @@ function readCreateCrossMonthMakeupActualPayload() {
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
   if (source?.year_month && targetMonth && source.year_month >= targetMonth) invalidFields.push("sourceLesson");
+  if (!teacherId) invalidFields.push("teacher");
+  if (!subjectId) invalidFields.push("subject");
   if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
   if (!endTime || !isTimeValue(endTime)) invalidFields.push("endTime");
   if (!lessonContent) invalidFields.push("lessonContent");
@@ -2760,6 +2892,8 @@ function readCreateCrossMonthMakeupActualPayload() {
   return {
     plannedLessonId: source.id,
     lessonDate,
+    teacherId,
+    subjectId,
     startTime,
     endTime,
     durationHours,
@@ -2812,6 +2946,8 @@ function readCreateCrossMonthMakeupActualFormSnapshot() {
     sourceMonthFrom: getYearMonthSelectValue(dom.crossMonthMakeupSourceFromYearSelect, dom.crossMonthMakeupSourceFromMonthSelect),
     sourceMonthTo: getYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect),
     sourceLesson: dom.crossMonthMakeupSourceSelect.value,
+    teacherId: dom.createCrossMonthMakeupActualTeacherSelect.value,
+    subjectId: dom.createCrossMonthMakeupActualSubjectSelect.value,
     lessonDate: dom.createCrossMonthMakeupActualDateInput.value,
     startTime: dom.createCrossMonthMakeupActualStartTimeInput.value,
     endTime: dom.createCrossMonthMakeupActualEndTimeInput.value,
@@ -2851,6 +2987,8 @@ function createCrossMonthMakeupActualFieldIdsForError(message) {
   const text = safeText(message);
   const fields = [];
   if (text.includes("来源") || text.includes("planned") || text.includes("关联 actual")) fields.push("sourceLesson");
+  if (text.includes("老师")) fields.push("teacher");
+  if (text.includes("科目")) fields.push("subject");
   if (text.includes("日期") || text.includes("月份") || text.includes("学生月度结算") || text.includes("老师工资")) fields.push("lessonDate");
   if (text.includes("开始时间")) fields.push("startTime");
   if (text.includes("结束时间")) fields.push("endTime");
@@ -6353,12 +6491,13 @@ function renderOtherLessonRow(record) {
 
 function renderMissingActualCard(planned) {
   const statusText = planned.status === "pending_makeup" ? "待补课，尚无实际课时" : "尚无实际课时";
-  const actionHtml = canGenerateActualFromPlanned(planned)
+  const actionHtml = planned.status === "planned" && canGenerateActualFromPlanned(planned)
     ? [
         `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成实际</button>`,
         `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">标记取消</button>`,
-        `<button class="button table-action-button" type="button" data-generate-makeup-actual-id="${escapeAttribute(planned.id)}">补课完成</button>`,
       ].join("")
+    : planned.status === "pending_makeup" && canGenerateActualFromPlanned(planned)
+      ? `<button class="button button-primary table-action-button" type="button" data-generate-makeup-actual-id="${escapeAttribute(planned.id)}">登记补课完成</button>`
     : "";
   return `
     <div class="lesson-pair-placeholder">

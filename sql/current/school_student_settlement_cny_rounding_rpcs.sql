@@ -192,16 +192,16 @@ as $$
     r.received_jpy,
     r.received_cny,
     r.received_equivalent_cny,
-    round(r.actual_fee_cny + r.carryover_cny - r.received_equivalent_cny, 2)::numeric as final_due_cny,
+    round(r.planned_fee_cny + r.carryover_cny - r.received_equivalent_cny, 2)::numeric as final_due_cny,
     coalesce(
       (select round(l.carryover_amount_cny, 2) from locked l),
-      round(r.actual_fee_cny + r.carryover_cny - r.received_equivalent_cny, 2)
+      round(r.planned_fee_cny + r.carryover_cny - r.received_equivalent_cny, 2)
     )::numeric as locked_carryover_cny
   from rounded r;
 $$;
 
 comment on function public.school_get_student_monthly_settlement_summary(uuid, text) is
-  'Returns student monthly settlement summary with externally returned CNY amounts rounded to 2 decimals. Soft-voided planned lessons are excluded. Carryover priority: explicit active carryover row, previous locked monthly settlement carryover, student fallback previous_balance.';
+  'Returns student monthly settlement summary with CNY amounts rounded to 2 decimals. Student amount due is based on active planned lesson fees plus carryover less received tuition; actual lesson fees remain fulfilment display values and do not turn cancelled or makeup credit into refunds or extra tuition. Soft-voided planned lessons are excluded. Carryover priority: explicit active carryover row, previous locked monthly settlement carryover, student fallback previous_balance.';
 
 create or replace function public.school_get_student_monthly_settlement_preview(
   p_student_id uuid,

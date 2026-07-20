@@ -17,7 +17,8 @@
 -- - Free actual creation without planned_lesson_id.
 -- - cancelled or makeup_completed actual creation.
 -- - Editing, deleting, copying, importing, or batch generation.
--- - Modifying the source planned row.
+-- - Modifying the source planned row (except the dedicated partial-completion
+--   flow, which is intentionally handled by another RPC).
 -- - Modifying student monthly settlement snapshots, teacher wage locks,
 --   wage lock details, payment requests, income, expense, accounts, or
 --   account transactions.
@@ -171,6 +172,10 @@ begin
 
   if v_duration_hours <= 0 then
     raise exception '实际课时时长必须大于 0。';
+  end if;
+
+  if v_duration_hours <> v_planned.duration_hours then
+    raise exception '实际完成时长与预定不一致；部分完成请使用“部分完成，剩余转待补”流程。';
   end if;
 
   if v_unit_price < 0 then
@@ -365,7 +370,7 @@ comment on function public.school_create_actual_lesson_from_planned(
   text,
   text
 ) is
-  'Creates one completed actual school lesson linked to one planned lesson. Rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not modify planned records or generate settlement, wage, payment, income, expense, account, or account transaction rows.';
+  'Creates one completed actual school lesson whose duration exactly equals its planned source. Rejects partial duration so the dedicated partial-completion RPC can preserve the remaining student lesson credit. Also rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; it does not generate settlement, wage, payment, income, expense, account, or account transaction rows.';
 
 -- Permission note:
 -- Keep execute permission management explicit. Review permissions separately

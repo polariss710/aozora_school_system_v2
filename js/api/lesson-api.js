@@ -56,8 +56,19 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
   let query = supabase
     .from("school_lesson_records")
     .select(LESSON_COLUMNS)
-    .eq("app_type", "school")
-    .eq("year_month", yearMonth);
+    .eq("app_type", "school");
+
+  if (options.weekStart) {
+    const weekEnd = addDaysToDateValue(options.weekStart, 7);
+    if (!weekEnd) {
+      throw new Error("周筛选日期无效。");
+    }
+    query = query
+      .gte("lesson_date", options.weekStart)
+      .lt("lesson_date", weekEnd);
+  } else {
+    query = query.eq("year_month", yearMonth);
+  }
 
   if (options.status === "voided") {
     query = query
@@ -91,6 +102,7 @@ export async function fetchLessonManagementStats(filters = {}) {
     p_business_entity_id: filters.businessEntityId || null,
     p_is_billable: parseBillableFilter(filters.isBillable),
     p_keyword: filters.keyword || null,
+    p_week_start: filters.weekStart || null,
   });
 
   if (error) {
@@ -223,14 +235,24 @@ export async function fetchCrossMonthMakeupSourceLessons({ fromMonth, toMonth, t
     throw error;
   }
 
-  const candidates = data || [];
-  if (!candidates.length) {
-    return [];
-  }
+  return data || [];
+}
 
-  const linkedActuals = await fetchActualLessonsByPlannedIds(candidates.map((row) => row.id));
-  const linkedPlannedIds = new Set(linkedActuals.map((row) => row.planned_lesson_id).filter(Boolean));
-  return candidates.filter((row) => !linkedPlannedIds.has(row.id));
+export async function fetchStudentLessonCreditBalances(studentId = null) {
+  const { data, error } = await supabase.rpc("school_list_student_lesson_credit_balances", {
+    p_student_id: studentId || null,
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchWeeklyLessonOperations(weekStart) {
+  if (!weekStart) throw new Error("请选择周一日期。");
+  const { data, error } = await supabase.rpc("school_get_weekly_lesson_operations", {
+    p_week_start: weekStart,
+  });
+  if (error) throw error;
+  return data || [];
 }
 
 export async function fetchCrossMonthMakeupReferences(yearMonth, records = []) {
@@ -369,6 +391,14 @@ function uniqueTextList(values) {
 function normalizeYearMonth(value) {
   const text = String(value || "").trim();
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(text) ? text : "";
+}
+
+function addDaysToDateValue(value, days) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() + days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function parseBillableFilter(value) {
@@ -633,18 +663,19 @@ export async function createCancelledActualLessonFromPlanned(payload) {
 }
 
 export async function createMakeupCompletedActualLessonFromPlanned(payload) {
-  const { data, error } = await supabase.rpc("school_create_makeup_completed_actual_lesson_from_planned", {
+  const { data, error } = await supabase.rpc("school_create_lesson_credit_makeup_actual", {
     p_planned_lesson_id: payload.plannedLessonId,
     p_lesson_date: payload.lessonDate,
+    p_teacher_id: payload.teacherId || null,
+    p_subject_id: payload.subjectId || null,
     p_start_time: payload.startTime || null,
     p_end_time: payload.endTime || null,
     p_duration_hours: payload.durationHours,
-    p_unit_price: payload.unitPrice,
-    p_lesson_fee: payload.lessonFee,
-    p_is_billable: payload.isBillable,
     p_lesson_count: payload.lessonCount,
     p_lesson_content: payload.lessonContent || null,
     p_note: payload.note || null,
+    p_lesson_delivery_mode: payload.lessonDeliveryMode || null,
+    p_lesson_venue: payload.lessonVenue || null,
   });
 
   if (error) {
@@ -660,28 +691,21 @@ export async function createMakeupCompletedActualLessonFromPlanned(payload) {
 }
 
 export async function createCrossMonthMakeupCompletedActualFromPlanned(payload) {
-  const { data, error } = await supabase.rpc("school_create_cross_month_makeup_completed_actual_from_planned", {
+  return createMakeupCompletedActualLessonFromPlanned(payload);
+}
+
+export async function createPartialCompletedActualFromPlanned(payload) {
+  const { data, error } = await supabase.rpc("school_create_partial_completed_actual_from_planned", {
     p_planned_lesson_id: payload.plannedLessonId,
     p_lesson_date: payload.lessonDate,
     p_start_time: payload.startTime || null,
     p_end_time: payload.endTime || null,
     p_duration_hours: payload.durationHours,
-    p_unit_price: payload.unitPrice,
-    p_lesson_fee: 0,
-    p_is_billable: false,
-    p_lesson_count: payload.lessonCount,
     p_lesson_content: payload.lessonContent || null,
     p_note: payload.note || null,
   });
-
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   const result = Array.isArray(data) ? data[0] : data;
-  if (!result) {
-    throw new Error("跨月补课完成登记失败：RPC 没有返回结果。");
-  }
-
+  if (!result) throw new Error("部分完成实际课时生成失败：RPC 没有返回结果。");
   return result;
 }

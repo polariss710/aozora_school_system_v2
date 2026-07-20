@@ -17,12 +17,15 @@ const state = {
   subjects: [],
   businessEntities: [],
   schedules: [],
+  initialWeekStart: "",
+  initialStudentId: "",
 };
 
 const dom = {};
 
 export function initWeeklyScheduleImagePage() {
   cacheDom();
+  readInitialQuery();
   bindEvents();
   setDefaultWeek();
   loadLookups()
@@ -68,12 +71,25 @@ function bindEvents() {
 }
 
 function setDefaultWeek() {
+  if (state.initialWeekStart) {
+    dom.weekStartInput.value = state.initialWeekStart;
+    return;
+  }
   const today = startOfLocalDay(new Date());
   const nextMonday = getMonday(today);
   if (nextMonday <= today) {
     nextMonday.setDate(nextMonday.getDate() + 7);
   }
   dom.weekStartInput.value = toDateInputValue(nextMonday);
+}
+
+function readInitialQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const weekStart = String(params.get("week_start") || "");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(weekStart) && toDateInputValue(getMonday(parseDateInput(weekStart))) === weekStart) {
+    state.initialWeekStart = weekStart;
+  }
+  state.initialStudentId = String(params.get("student_id") || "");
 }
 
 async function loadLookups() {
@@ -141,6 +157,9 @@ function renderStudentOptions() {
     options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
   });
   dom.studentSelect.innerHTML = options.join("");
+  if (state.initialStudentId && state.students.some((student) => student.id === state.initialStudentId)) {
+    dom.studentSelect.value = state.initialStudentId;
+  }
 }
 
 function buildSchedules(rows, weekStart, weekEnd, selectedStudentId) {
@@ -203,8 +222,30 @@ function renderSchedules() {
     drawScheduleCanvas(canvas, schedule);
 
     panel.append(header, canvas);
+    const editList = document.createElement("div");
+    editList.className = "weekly-schedule-edit-list";
+    editList.innerHTML = `
+      <p class="section-note">调整日期或时间后，返回此页重新生成图片。</p>
+      ${schedule.lessons.map((lesson) => `
+        <a class="button table-action-button" href="${escapeAttribute(buildLessonEditUrl(lesson.id, schedule))}">
+          编辑 ${escapeHtml(formatDateOnly(lesson.lesson_date))} ${escapeHtml(formatTimeRange(lesson.start_time, lesson.end_time))}
+        </a>
+      `).join("")}
+    `;
+    panel.append(editList);
     dom.preview.append(panel);
   });
+}
+
+function buildLessonEditUrl(lessonId, schedule) {
+  const params = new URLSearchParams({
+    id: lessonId,
+    edit: "1",
+    return_to: "weekly_schedule",
+    week_start: toDateInputValue(schedule.weekStart),
+    student_id: schedule.student.id || "",
+  });
+  return `./lesson-detail.html?${params.toString()}`;
 }
 
 function downloadAllImages() {

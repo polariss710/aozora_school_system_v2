@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-15
+Status date: 2026-07-20
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -21,6 +21,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 - Current or unclosed real business months must not be used for real wage generation, snapshot generation, student settlement closing, locking, or lock-style write validation. Validation should use transaction rollback or clearly marked whitelist data such as `codex-test`, `v2-test`, `sandbox`, `测试学生`, `测试老师`, or `测试业务归属`.
 - Field narrowing policy: create/edit dialogs should expose only fields actually used in current operations. Historical, reserved, low-frequency, generated, derived, financial-chain, and audit fields stay hidden/readonly but are not physically removed from DB unless a separate cleanup phase is designed. Repeated master-data dialog narrowing tasks should follow `docs/workflows/v2-master-dialog-simplification.md`.
 - Lesson venue scheduling is available as a Beta workflow. `school_lesson_records.lesson_delivery_mode` / `lesson_venue` are nullable for historical compatibility; new or updated onsite lessons must use `Regus公共区` or `Regus办公室`, while online lessons may optionally record a free-text platform. Planned-to-actual creation inherits these fields after legacy onsite venues are explicitly migrated. The classroom schedule is read-only: `Regus办公室` allows at most one group in the same time range, while `Regus公共区` has no group-count conflict limit; warnings do not block lesson writes.
+- Lesson-credit policy is unified: cancellation and partial completion leave paid-but-unfulfilled credit on the original planned lesson; no student refund or extra tuition is created. A makeup actual is always non-billable to the student and may switch teacher/subject while preserving the original student and business entity. Teacher wage attribution follows the makeup actual’s teacher, subject, date and duration.
 
 ## Hard Stops
 
@@ -32,6 +33,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. v10.3.88 weekly lesson operations and lesson-credit workflow, 2026-07-20:
+   新增 School DB 课时余额与周运营 RPC：部分完成会将来源 planned 标为 `pending_makeup`，取消课同样留下全部未履约余额；补课完成只能消费余额，固定 `is_billable=false` / `lesson_fee=0`，可更换老师和科目但继承学生与业务归属，余额耗尽后来源标记 `makeup_completed`。学生未锁定月结应收改以 planned 课时费加结转减已收计算，actual 费用保留履约展示，不把取消/补课变成退款或追加学费；已锁定历史不回写。课时管理新增周一开始周筛选、单学生一键进入周课表；Beta 新增 `weekly-lesson-dashboard.html`，DB 返回每位在籍学生本周预定/登记/取消/待登记及待补课余额；周课表图片支持 URL 预选并在图片旁直达课时编辑。已执行 School SQL：`school_create_actual_lesson_from_planned_rpc.sql`、`school_create_cancelled_actual_lesson_from_planned_rpc.sql`、`school_student_settlement_cny_rounding_rpcs.sql`、`school_lesson_credit_operations_rpcs.sql`、`school_weekly_lesson_operations_read_rpcs.sql`、`school_lesson_management_week_filter_stats_rpc.sql`；rollback 与 commit 白名单测试均覆盖部分完成、取消、换老师/科目补课和周统计，固定 `97000000-...` 测试数据提交后清理为 0。未连接或写入 Cash DB、真实业务课时、结算、工资、账单或收支。
 
 1. v10.3.87 single-entity whitelist test residue cleanup, 2026-07-15:
    按用户明确授权清理学生管理中的白名单测试残留 `codex-test-single-entity-default-student-20260713`。新增并执行 `sql/current/school_cleanup_single_entity_default_student_20260713.sql`：脚本固定学生 `f8db8d17-6a14-4f5b-9a21-2ac5f3b8c0af` 与唯一关联 planned lesson `fdbae3f3-a6e3-42a1-9639-47232e742963`，删除前核对完整业务指纹、测试标记唯一性，并动态扫描全部 public 基础表 UUID 列，任何非预期引用都会拒绝执行。默认 rollback 测试确认事务内仅命中这 2 条记录且回滚后均恢复为 1；正式模式按 lesson、student 顺序各删除 1 条并提交。最终验收确认两个目标 UUID 在全部 public 基础表中均无残留，学生/课时测试标记均为 0；共享的青空塾业务归属、老师、科目各仍为 1，未修改 Cash DB、结算、工资、账单、收入、支出、账户或真实业务数据。本次为固定白名单测试数据的独立清理，不开放通用删除入口。

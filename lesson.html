@@ -17,7 +17,8 @@
                     <summary>Beta功能</summary>
                     <div class="page-nav-group-links">
                       <a href="./quote-plan.html">报价单生成</a>
-            <a href="./contract-generator.html">合同生成</a>
+                      <a href="./contract-generator.html">合同生成</a>
+                      <a href="./weekly-lesson-dashboard.html">本周课时待处理</a>
                       <a href="./weekly-schedule-image.html">周课表图片</a>
                       <a href="./classroom-schedule.html">教室排班</a>
                     </div>
@@ -92,6 +93,13 @@
                 <select id="lessonYearFilter" name="year" aria-label="年份"></select>
                 <select id="lessonMonthFilter" name="month" aria-label="月份"></select>
               </div>
+            </label>
+
+            <label class="field">
+              <span>周（周一开始）</span>
+              <select id="lessonWeekFilter" name="weekStart">
+                <option value="">整月</option>
+              </select>
             </label>
 
             <label class="field">
@@ -212,6 +220,7 @@
               <button class="button" id="openLessonImportPreviewButton" type="button">导入预定课时</button>
               <button class="button" id="openLessonBatchGenerateButton" type="button">批量生成预定课时</button>
               <button class="button" id="openLessonPdfExportButton" type="button">导出学生课时 PDF</button>
+              <button class="button" id="openWeeklyScheduleForStudentButton" type="button" disabled>生成本周学生课表</button>
               <button class="button" id="openCrossMonthMakeupDialogButton" type="button">登记跨月补课完成</button>
               <button class="button button-primary lesson-create-primary-button" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
             </div>
@@ -406,11 +415,16 @@
         <section class="dialog-panel lesson-create-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createActualLessonTitle">
           <div class="section-heading">
             <h2 id="createActualLessonTitle">生成实际课时</h2>
-            <p class="section-note">第一版只从单条 planned 生成 completed actual，不修改原 planned，不生成结算、工资、收入、支出或账户流水。</p>
+            <p class="section-note">完整完成会生成 completed actual；勾选部分完成后，剩余时长会进入待补课余额。不会新增学生学费。</p>
           </div>
 
           <div id="createActualLessonSummary" class="dialog-summary"></div>
           <div id="createActualLessonError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+          <label class="checkbox-field">
+            <input id="createActualLessonPartialInput" type="checkbox">
+            <span>本次为部分完成，剩余时长转为待补课</span>
+          </label>
 
           <div class="lesson-create-field-grid">
             <label class="field" data-create-actual-lesson-field="lessonDate">
@@ -566,12 +580,20 @@
               <input id="createMakeupActualLessonStatusInput" type="text" value="补课完成" readonly>
             </label>
 
-            <label class="field" data-create-makeup-actual-lesson-field="isBillable">
-              <span>计费</span>
-              <select id="createMakeupActualLessonBillableSelect">
-                <option value="true">计费</option>
-                <option value="false">不计费</option>
-              </select>
+            <label class="field">
+              <span>学生学费</span>
+              <input type="text" value="不新增学费" readonly>
+              <select id="createMakeupActualLessonBillableSelect" class="is-hidden" aria-hidden="true" tabindex="-1"><option value="false">不计费</option></select>
+            </label>
+
+            <label class="field" data-create-makeup-actual-lesson-field="teacher">
+              <span>补课老师</span>
+              <select id="createMakeupActualLessonTeacherSelect"></select>
+            </label>
+
+            <label class="field" data-create-makeup-actual-lesson-field="subject">
+              <span>补课科目</span>
+              <select id="createMakeupActualLessonSubjectSelect"></select>
             </label>
 
             <label class="field" data-create-makeup-actual-lesson-field="startTime">
@@ -658,6 +680,16 @@
             </div>
 
             <div id="createCrossMonthMakeupActualSourceSummary" class="dialog-summary lesson-create-wide-field"></div>
+
+            <label class="field" data-create-cross-month-makeup-field="teacher">
+              <span>补课老师</span>
+              <select id="createCrossMonthMakeupActualTeacherSelect"></select>
+            </label>
+
+            <label class="field" data-create-cross-month-makeup-field="subject">
+              <span>补课科目</span>
+              <select id="createCrossMonthMakeupActualSubjectSelect"></select>
+            </label>
 
             <label class="field" data-create-cross-month-makeup-field="lessonDate">
               <span>补课完成日期</span>
