@@ -228,7 +228,7 @@ function renderSchedules() {
       <p class="section-note">调整日期或时间后，返回此页重新生成图片。</p>
       ${schedule.lessons.map((lesson) => `
         <a class="button table-action-button" href="${escapeAttribute(buildLessonEditUrl(lesson.id, schedule))}">
-          编辑 ${escapeHtml(formatDateOnly(lesson.lesson_date))} ${escapeHtml(formatTimeRange(lesson))}
+          ${escapeHtml(buildLessonEditLabel(lesson))}
         </a>
       `).join("")}
     `;
@@ -246,6 +246,13 @@ function buildLessonEditUrl(lessonId, schedule) {
     student_id: schedule.student.id || "",
   });
   return `./lesson-detail.html?${params.toString()}`;
+}
+
+function buildLessonEditLabel(lesson) {
+  const timeText = formatTimeRange(lesson);
+  const subjectText = subjectNameById(lesson.subject_id);
+  const teacherText = teacherNameById(lesson.teacher_id) || "未设置老师";
+  return `编辑 ${formatDateOnly(lesson.lesson_date)} · ${timeText} · ${subjectText} · ${teacherText}`;
 }
 
 function downloadAllImages() {
