@@ -8,7 +8,7 @@ import {
   createMakeupCompletedActualLessonFromPlanned,
   createPlannedLessonRecord,
   fetchCrossMonthMakeupReferences,
-  fetchCrossMonthMakeupSourceLessons,
+  fetchOpenMakeupSourceLessons,
   fetchLessonBusinessEntities,
   fetchLessonCreditSummary,
   fetchLessonImportLockPrecheck,
@@ -2716,7 +2716,7 @@ async function loadCrossMonthMakeupSourceCandidates() {
   dom.crossMonthMakeupSourceCount.textContent = "正在读取来源...";
 
   try {
-    crossMonthMakeupSourceLessons = sortLessonRecords(await fetchCrossMonthMakeupSourceLessons({
+    crossMonthMakeupSourceLessons = sortLessonRecords(await fetchOpenMakeupSourceLessons({
       fromMonth,
       toMonth,
       targetMonth,
@@ -2749,6 +2749,7 @@ function renderCrossMonthMakeupSourceOptions() {
       nameById(students, lesson.student_id, studentName),
       nameById(teachers, lesson.teacher_id, teacherName),
       nameById(subjects, lesson.subject_id, subjectName),
+      `剩余 ${displayInputNumber(lesson.remaining_hours)} 小时`,
       shortId(lesson.id),
     ].filter((value) => safeText(value) && value !== "-").join(" / ");
     options.push(`<option value="${escapeAttribute(lesson.id)}">${escapeHtml(label)}</option>`);
@@ -2775,7 +2776,9 @@ function fillCreateCrossMonthMakeupActualFromSource(sourceLesson) {
   dom.createCrossMonthMakeupActualSubjectSelect.value = sourceLesson.subject_id || "";
   dom.createCrossMonthMakeupActualStartTimeInput.value = formatInputTime(sourceLesson.start_time);
   dom.createCrossMonthMakeupActualEndTimeInput.value = formatInputTime(sourceLesson.end_time);
-  dom.createCrossMonthMakeupActualDurationInput.value = displayInputNumber(sourceLesson.duration_hours);
+  dom.createCrossMonthMakeupActualDurationInput.value = displayInputNumber(
+    sourceLesson.remaining_hours ?? sourceLesson.duration_hours
+  );
   dom.createCrossMonthMakeupActualUnitPriceInput.value = displayInputNumber(sourceLesson.unit_price || 0);
   dom.createCrossMonthMakeupActualFeeInput.value = "0";
   dom.createCrossMonthMakeupActualCountInput.value = sourceLesson.lesson_count ? String(sourceLesson.lesson_count) : "";
@@ -2801,6 +2804,7 @@ function renderCreateCrossMonthMakeupActualSummary() {
   dom.createCrossMonthMakeupActualSourceSummary.innerHTML = source ? [
     ["来源月份", formatMonth(source.year_month)],
     ["来源日期", formatDateOnly(source.lesson_date)],
+    ["来源剩余时长", `${displayInputNumber(source.remaining_hours)} 小时`],
     ["学生", nameById(students, source.student_id, studentName)],
     ["老师", nameById(teachers, source.teacher_id, teacherName)],
     ["科目", nameById(subjects, source.subject_id, subjectName)],

@@ -208,7 +208,7 @@ export async function fetchLessonImportLockPrecheck(targets) {
   };
 }
 
-export async function fetchCrossMonthMakeupSourceLessons({ fromMonth, toMonth, targetMonth } = {}) {
+export async function fetchOpenMakeupSourceLessons({ fromMonth, toMonth, targetMonth } = {}) {
   const normalizedFrom = normalizeYearMonth(fromMonth);
   const normalizedTo = normalizeYearMonth(toMonth);
   const normalizedTarget = normalizeYearMonth(targetMonth);
@@ -216,20 +216,11 @@ export async function fetchCrossMonthMakeupSourceLessons({ fromMonth, toMonth, t
     return [];
   }
 
-  const { data, error } = await supabase
-    .from("school_lesson_records")
-    .select(LESSON_COLUMNS)
-    .eq("app_type", "school")
-    .eq("lesson_type", "planned")
-    .eq("status", "pending_makeup")
-    .is("voided_at", null)
-    .gte("year_month", normalizedFrom)
-    .lte("year_month", normalizedTo)
-    .lte("year_month", normalizedTarget)
-    .order("year_month", { ascending: true })
-    .order("lesson_date", { ascending: true })
-    .order("lesson_count", { ascending: true, nullsFirst: false })
-    .order("start_time", { ascending: true, nullsFirst: false });
+  const { data, error } = await supabase.rpc("school_list_open_lesson_credit_sources", {
+    p_from_month: normalizedFrom,
+    p_to_month: normalizedTo,
+    p_target_month: normalizedTarget,
+  });
 
   if (error) {
     throw error;

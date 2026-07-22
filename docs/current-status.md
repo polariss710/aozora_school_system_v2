@@ -34,6 +34,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.92 open makeup-source filtering, 2026-07-22:
+   “登记待补课完成”的来源下拉现改为调用 School DB 只读 RPC `school_list_open_lesson_credit_sources(...)`，只返回仍有正数权威剩余课时的 `pending_makeup` 来源，并将剩余小时显示在选项和表单中；已被历史补课完全消耗、或历史上超额关联的来源不再可选。此修复不回写那 10 条历史状态遗留，也不自动处理 1 条超额关联记录；课时、工资、结算和 Cash 业务数据均不修改。
+
 1. v10.3.91 unified current/prior-month makeup entry, 2026-07-22:
    课时管理全局入口由“登记跨月补课完成”改为“登记待补课完成”。来源月份范围现在可包含当前补课月份和以前月份，因此部分完成后在同月补完剩余课时，也可从该入口选择来源登记；仍拒绝未来月份来源。既有 DB 的课时余额与目标月锁定守卫不变，补课仍不新增学生学费，可按实际老师/科目/日期结算工资。本次只改页面读取范围和文案，未执行 SQL、未写业务数据或 Cash。
 
