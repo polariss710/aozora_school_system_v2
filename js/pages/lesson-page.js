@@ -592,9 +592,11 @@ function bindEvents() {
   });
 
   dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters(defaultLessonFilters());
-    clearLessonQueryUrl();
-    applyQuery({ updateUrl: false });
+    restoreFilterSelections({
+      ...defaultLessonFilters(),
+      view: activeView,
+    });
+    showMessage("info", "已重置筛选条件；点击“查询”后刷新结果。");
   });
 
   [dom.yearFilter, dom.monthFilter].forEach((select) => {
@@ -1070,12 +1072,6 @@ function buildLessonListQueryParams(filters) {
   if (filters.weekStart) params.set("week_start", filters.weekStart);
 
   return params;
-}
-
-function clearLessonQueryUrl() {
-  if (window.history?.replaceState) {
-    window.history.replaceState(null, "", window.location.pathname);
-  }
 }
 
 async function loadInitialData() {

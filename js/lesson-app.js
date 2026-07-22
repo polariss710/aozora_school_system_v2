@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.92-open-makeup-sources";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.93-query-only-reset";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

@@ -34,6 +34,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.93 lesson-filter reset requires query, 2026-07-22:
+   课时管理顶部“重置”现在只恢复筛选控件的默认值，不清 URL、不重新读取或重绘当前查询结果；筛选结果必须由后续点击“查询”才更新。列表/配对展示方式不是筛选条件，重置时保持当前展示方式不变。
+
 1. v10.3.92 open makeup-source filtering, 2026-07-22:
    “登记待补课完成”的来源下拉现改为调用 School DB 只读 RPC `school_list_open_lesson_credit_sources(...)`，只返回仍有正数权威剩余课时的 `pending_makeup` 来源，并将剩余小时显示在选项和表单中；已被历史补课完全消耗、或历史上超额关联的来源不再可选。此修复不回写那 10 条历史状态遗留，也不自动处理 1 条超额关联记录；课时、工资、结算和 Cash 业务数据均不修改。
 
