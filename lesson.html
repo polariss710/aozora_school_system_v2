@@ -221,7 +221,7 @@
               <button class="button" id="openLessonBatchGenerateButton" type="button">批量生成预定课时</button>
               <button class="button" id="openLessonPdfExportButton" type="button">导出学生课时 PDF</button>
               <button class="button" id="openWeeklyScheduleForStudentButton" type="button" disabled>生成本周学生课表</button>
-              <button class="button" id="openCrossMonthMakeupDialogButton" type="button">登记跨月补课完成</button>
+              <button class="button" id="openCrossMonthMakeupDialogButton" type="button">登记待补课完成</button>
               <button class="button button-primary lesson-create-primary-button" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
             </div>
           </div>
@@ -647,7 +647,8 @@
       <div class="dialog-backdrop is-hidden" id="createCrossMonthMakeupActualDialog" aria-hidden="true">
         <section class="dialog-panel lesson-create-dialog-panel lesson-cross-month-makeup-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createCrossMonthMakeupActualTitle">
           <div class="section-heading">
-            <h2 id="createCrossMonthMakeupActualTitle">登记跨月补课完成</h2>
+            <h2 id="createCrossMonthMakeupActualTitle">登记待补课完成</h2>
+            <p class="section-note">可登记本月或以前月份的待补课来源；补课不新增学生学费。</p>
           </div>
 
           <div id="createCrossMonthMakeupActualSummary" class="dialog-summary"></div>
@@ -655,18 +656,18 @@
 
           <div class="lesson-create-field-grid">
             <label class="field" data-create-cross-month-makeup-field="sourceMonthFrom">
-              <span>原月份起</span>
+              <span>来源月份起</span>
               <div class="month-select-group">
-                <select id="crossMonthMakeupSourceFromYearSelect" aria-label="原月份起年份"></select>
-                <select id="crossMonthMakeupSourceFromMonthSelect" aria-label="原月份起月份"></select>
+                <select id="crossMonthMakeupSourceFromYearSelect" aria-label="来源月份起年份"></select>
+                <select id="crossMonthMakeupSourceFromMonthSelect" aria-label="来源月份起月份"></select>
               </div>
             </label>
 
             <label class="field" data-create-cross-month-makeup-field="sourceMonthTo">
-              <span>原月份止</span>
+              <span>来源月份止</span>
               <div class="month-select-group">
-                <select id="crossMonthMakeupSourceToYearSelect" aria-label="原月份止年份"></select>
-                <select id="crossMonthMakeupSourceToMonthSelect" aria-label="原月份止月份"></select>
+                <select id="crossMonthMakeupSourceToYearSelect" aria-label="来源月份止年份"></select>
+                <select id="crossMonthMakeupSourceToMonthSelect" aria-label="来源月份止月份"></select>
               </div>
             </label>
 
@@ -748,7 +749,7 @@
           </div>
 
           <div class="dialog-actions">
-            <button class="button button-primary" id="createCrossMonthMakeupActualSubmitButton" type="button">登记跨月补课完成</button>
+            <button class="button button-primary" id="createCrossMonthMakeupActualSubmitButton" type="button">登记待补课完成</button>
             <button class="button" id="createCrossMonthMakeupActualCancelButton" type="button">取消</button>
           </div>
         </section>
@@ -1108,6 +1109,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.90-lesson-credit-cards"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.3.91-unified-makeup-entry"></script>
   </body>
 </html>

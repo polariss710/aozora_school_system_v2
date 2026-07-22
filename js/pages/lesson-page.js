@@ -2619,7 +2619,7 @@ function updateCreateMakeupActualLessonFeePreview() {
 
 function openCreateCrossMonthMakeupActualDialog() {
   if (!hasSupabaseConfig()) {
-    showMessage("error", "当前 Supabase 配置不可用，不能登记跨月补课完成。");
+    showMessage("error", "当前 Supabase 配置不可用，不能登记待补课完成。");
     return;
   }
 
@@ -2666,10 +2666,9 @@ function closeCreateCrossMonthMakeupActualDialog(force = false) {
 function resetCreateCrossMonthMakeupActualForm(targetMonth) {
   renderEntityOptionsWithPlaceholder(dom.createCrossMonthMakeupActualTeacherSelect, teachers, teacherName, "请选择老师");
   renderEntityOptionsWithPlaceholder(dom.createCrossMonthMakeupActualSubjectSelect, subjects, subjectName, "请选择科目");
-  const previousMonth = addMonthsToYearMonth(targetMonth, -1) || targetMonth;
-  const defaultFromMonth = addMonthsToYearMonth(targetMonth, -3) || previousMonth;
+  const defaultFromMonth = addMonthsToYearMonth(targetMonth, -3) || targetMonth;
   setYearMonthSelectValue(dom.crossMonthMakeupSourceFromYearSelect, dom.crossMonthMakeupSourceFromMonthSelect, defaultFromMonth);
-  setYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect, previousMonth);
+  setYearMonthSelectValue(dom.crossMonthMakeupSourceToYearSelect, dom.crossMonthMakeupSourceToMonthSelect, targetMonth);
   dom.crossMonthMakeupSourceSelect.value = "";
   dom.createCrossMonthMakeupActualDateInput.value = firstDateOfMonth(targetMonth);
   dom.createCrossMonthMakeupActualTeacherSelect.value = "";
@@ -2700,14 +2699,14 @@ async function loadCrossMonthMakeupSourceCandidates() {
   if (!fromMonth) invalidFields.push("sourceMonthFrom");
   if (!toMonth) invalidFields.push("sourceMonthTo");
   if (fromMonth && toMonth && fromMonth > toMonth) invalidFields.push("sourceMonthFrom", "sourceMonthTo");
-  if (toMonth && targetMonth && toMonth >= targetMonth) invalidFields.push("sourceMonthTo");
+  if (toMonth && targetMonth && toMonth > targetMonth) invalidFields.push("sourceMonthTo");
 
   if (invalidFields.length) {
     crossMonthMakeupSourceLessons = [];
     currentCrossMonthMakeupSourceLesson = null;
     renderCrossMonthMakeupSourceOptions();
     renderCreateCrossMonthMakeupActualSummary();
-    showCreateCrossMonthMakeupActualError("原月份范围必须早于当前补课月份。", invalidFields);
+    showCreateCrossMonthMakeupActualError("来源月份范围不能晚于当前补课月份。", invalidFields);
     return;
   }
 
@@ -2731,7 +2730,7 @@ async function loadCrossMonthMakeupSourceCandidates() {
     currentCrossMonthMakeupSourceLesson = null;
     renderCrossMonthMakeupSourceOptions();
     renderCreateCrossMonthMakeupActualSummary();
-    showCreateCrossMonthMakeupActualError(`读取跨月补课来源失败：${error.message || error}`);
+    showCreateCrossMonthMakeupActualError(`读取待补课来源失败：${error.message || error}`);
   } finally {
     isCrossMonthMakeupSourceLoading = false;
     dom.crossMonthMakeupSourceRefreshButton.disabled = false;
@@ -2741,7 +2740,7 @@ async function loadCrossMonthMakeupSourceCandidates() {
 }
 
 function renderCrossMonthMakeupSourceOptions() {
-  const options = ['<option value="">请选择原月份待补课 planned</option>'];
+  const options = ['<option value="">请选择待补课来源</option>'];
   for (const lesson of crossMonthMakeupSourceLessons) {
     const label = [
       lesson.year_month,
@@ -2834,7 +2833,7 @@ async function handleCreateCrossMonthMakeupActualSubmit() {
     const createdLesson = await createCrossMonthMakeupCompletedActualFromPlanned(payload);
     closeCreateCrossMonthMakeupActualDialog(true);
     await refreshAfterCreateCrossMonthMakeupActual(createdLesson, filtersBeforeSubmit);
-    showMessage("success", `跨月补课完成已登记：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
+    showMessage("success", `待补课完成已登记：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
     const message = error.message || String(error);
     showCreateCrossMonthMakeupActualError(message, createCrossMonthMakeupActualFieldIdsForError(message));
@@ -2862,7 +2861,7 @@ function readCreateCrossMonthMakeupActualPayload() {
   if (source && fixedOnsiteVenueMigrationReason(source)) invalidFields.push("sourceLesson");
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
-  if (source?.year_month && targetMonth && source.year_month >= targetMonth) invalidFields.push("sourceLesson");
+  if (source?.year_month && targetMonth && source.year_month > targetMonth) invalidFields.push("sourceLesson");
   if (!teacherId) invalidFields.push("teacher");
   if (!subjectId) invalidFields.push("subject");
   if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
@@ -2888,7 +2887,7 @@ function readCreateCrossMonthMakeupActualPayload() {
     showCreateCrossMonthMakeupActualError(
       (source && fixedOnsiteVenueMigrationReason(source))
         || validationMessage
-        || "开始时间、结束时间和内容为必填项；补课完成日期必须在当前页面月份，来源必须早于当前月份。",
+        || "开始时间、结束时间和内容为必填项；补课完成日期必须在当前页面月份，来源不能晚于当前月份。",
       invalidFields
     );
     return null;
@@ -2943,7 +2942,7 @@ function setCreateCrossMonthMakeupActualSubmitting(isSubmitting) {
   dom.crossMonthMakeupSourceSelect.disabled = isSubmitting || isCrossMonthMakeupSourceLoading;
   dom.openCreatePlannedLessonButton.disabled = isSubmitting;
   dom.openCrossMonthMakeupDialogButton.disabled = isSubmitting;
-  dom.createCrossMonthMakeupActualSubmitButton.textContent = isSubmitting ? "登记中..." : "登记跨月补课完成";
+  dom.createCrossMonthMakeupActualSubmitButton.textContent = isSubmitting ? "登记中..." : "登记待补课完成";
 }
 
 function readCreateCrossMonthMakeupActualFormSnapshot() {

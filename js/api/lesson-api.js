@@ -225,7 +225,7 @@ export async function fetchCrossMonthMakeupSourceLessons({ fromMonth, toMonth, t
     .is("voided_at", null)
     .gte("year_month", normalizedFrom)
     .lte("year_month", normalizedTo)
-    .lt("year_month", normalizedTarget)
+    .lte("year_month", normalizedTarget)
     .order("year_month", { ascending: true })
     .order("lesson_date", { ascending: true })
     .order("lesson_count", { ascending: true, nullsFirst: false })
