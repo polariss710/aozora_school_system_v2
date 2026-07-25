@@ -1,4 +1,4 @@
-import { APP_VERSION } from "./config.js";
+import { APP_VERSION } from "./config.js?v=v10.3.94-prefer-effective-income";
 import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=v10.3.94-prefer-effective-income";
 
 document.addEventListener("DOMContentLoaded", async () => {
