@@ -34,6 +34,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.94 annual part-time income canonical-record selection, 2026-07-26:
+   私塾打工年度汇总对同一 settlement 关联的多条收入记录不再按最早创建记录固定取值。页面现排除 `cancelled/voided/rejected/cash_rejected/reversed` 终态记录，优先选择有效且已有 Cash 确认的收入，最后才以创建时间取较新记录。修复 2026-06 致远教育旧 cancelled 收入遮蔽正式 Cash 已确认收入的问题；不修改历史收入、结算或 Cash 数据。
+
 1. v10.3.93 lesson-filter reset requires query, 2026-07-22:
    课时管理顶部“重置”现在只恢复筛选控件的默认值，不清 URL、不重新读取或重绘当前查询结果；筛选结果必须由后续点击“查询”才更新。列表/配对展示方式不是筛选条件，重置时保持当前展示方式不变。
 

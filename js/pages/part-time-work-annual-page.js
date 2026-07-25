@@ -8,6 +8,8 @@ import { formatCurrency } from "../utils/format.js";
 const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];
 const MIN_FISCAL_YEAR = PAYMENT_MONTH_FILTER_YEAR_RANGE.start;
 const MAX_FISCAL_YEAR = PAYMENT_MONTH_FILTER_YEAR_RANGE.end;
+const TERMINAL_INCOME_STATUSES = new Set(["cancelled", "voided", "rejected", "cash_rejected", "reversed"]);
+const CASH_CONFIRMED_STATUSES = new Set(["approved", "received", "settled", "synced", "historical_confirmed"]);
 const dom = {};
 
 export async function initPartTimeWorkAnnualPage() {
@@ -152,12 +154,7 @@ function buildAnnualSummaryViewModel(summary, fiscalYear) {
     `${row.year_month || ""}::${row.workplace_name || ""}`,
     row,
   ]));
-  const incomeBySettlementId = new Map();
-  for (const income of summary?.incomeRecords || []) {
-    if (income.source_id && !incomeBySettlementId.has(income.source_id)) {
-      incomeBySettlementId.set(income.source_id, income);
-    }
-  }
+  const incomeBySettlementId = buildAnnualIncomeBySettlementId(summary?.incomeRecords || []);
 
   const monthRows = months.map((yearMonth) => {
     const workplaces = WORKPLACE_OPTIONS.map((workplaceName) => {
@@ -203,12 +200,51 @@ function buildAnnualSummaryViewModel(summary, fiscalYear) {
   };
 }
 
+function buildAnnualIncomeBySettlementId(incomeRecords) {
+  const incomeBySettlementId = new Map();
+  for (const income of incomeRecords) {
+    if (!income?.source_id) {
+      continue;
+    }
+    const current = incomeBySettlementId.get(income.source_id);
+    if (!current || shouldPreferAnnualIncomeRecord(income, current)) {
+      incomeBySettlementId.set(income.source_id, income);
+    }
+  }
+  return incomeBySettlementId;
+}
+
+function shouldPreferAnnualIncomeRecord(candidate, current) {
+  const candidateRank = annualIncomeRecordRank(candidate);
+  const currentRank = annualIncomeRecordRank(current);
+  if (candidateRank !== currentRank) {
+    return candidateRank > currentRank;
+  }
+  return String(candidate?.created_at || "") > String(current?.created_at || "");
+}
+
+function annualIncomeRecordRank(income) {
+  if (TERMINAL_INCOME_STATUSES.has(String(income?.status || ""))) {
+    return 0;
+  }
+  return hasConfirmedAnnualCashIncome(income) ? 2 : 1;
+}
+
+function hasConfirmedAnnualCashIncome(income) {
+  const event = income?.cashIncomeLinkageEvent;
+  return Boolean(
+    event
+    && CASH_CONFIRMED_STATUSES.has(event.sync_status)
+    && Number(event.payment_amount || 0) > 0
+  );
+}
+
 function buildAnnualWorkplaceCell(settlement, incomeBySettlementId) {
   const isOfficial = Boolean(settlement?.id) && ["locked", "income_request_created"].includes(settlement.status);
   const income = settlement?.id ? incomeBySettlementId.get(settlement.id) : null;
   const event = income?.cashIncomeLinkageEvent || null;
   const isCnyReceived = event
-    && ["approved", "received", "settled", "synced", "historical_confirmed"].includes(event.sync_status)
+    && CASH_CONFIRMED_STATUSES.has(event.sync_status)
     && event.payment_currency === "CNY"
     && Number(event.payment_amount || 0) > 0;
 
