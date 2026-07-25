@@ -1,5 +1,5 @@
-import { APP_VERSION } from "./config.js?v=v10.3.94-prefer-effective-income";
-import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=v10.3.94-prefer-effective-income";
+import { APP_VERSION } from "./config.js?v=v10.3.94-annual-version-cache";
+import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=v10.3.94-annual-version-cache";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");
