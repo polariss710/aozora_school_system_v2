@@ -34,6 +34,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. v10.3.95 part-time-work DB progress calculation, 2026-07-26:
+   私塾打工授课记录的回数与累计课时改为 School DB 读取时实时计算：按 record kind（预定/实际分别统计）和“机构 + 科目 + 工作内容”分组，再按日期、开始时间排序计算序号与累计时长。页面移除两个手填字段，复制、新建、编辑、生成实际课时均不再提交它们；保存后读取权威结果。既有存储字段与已锁定结算/Excel 快照不回写，工资、交通费、月度结算和 Cash 口径不变。
+
 1. v10.3.94 annual part-time income canonical-record selection, 2026-07-26:
    私塾打工年度汇总对同一 settlement 关联的多条收入记录不再按最早创建记录固定取值。页面现排除 `cancelled/voided/rejected/cash_rejected/reversed` 终态记录，优先选择有效且已有 Cash 确认的收入，最后才以创建时间取较新记录。修复 2026-06 致远教育旧 cancelled 收入遮蔽正式 Cash 已确认收入的问题；不修改历史收入、结算或 Cash 数据。
 

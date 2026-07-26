@@ -206,17 +206,8 @@
               <span id="partTimeWorkHoursLabel">课时</span>
               <input id="partTimeWorkHoursInput" type="number" step="0.01" min="0" inputmode="decimal" readonly>
             </label>
-
-            <label class="field" data-part-time-work-field="lessonCount">
-              <span>回数</span>
-              <input id="partTimeWorkLessonCountInput" type="number" step="1" min="1" inputmode="numeric" required>
-            </label>
-
-            <label class="field" data-part-time-work-field="cumulativeHours">
-              <span>累计课时</span>
-              <input id="partTimeWorkCumulativeHoursInput" type="number" step="0.01" min="0" inputmode="decimal" required>
-            </label>
           </div>
+          <p class="section-note">回数和累计课时会在保存后，按相同机构、科目和工作内容由系统自动计算。</p>
 
           <label class="field" data-part-time-work-field="hourlyRateJpy">
             <span>时给 JPY</span>
@@ -265,6 +256,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/part-time-work-app.js?v=v10.3.83-historical-work-status"></script>
+    <script type="module" src="./js/part-time-work-app.js?v=v10.3.95-db-progress"></script>
   </body>
 </html>

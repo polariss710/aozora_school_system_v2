@@ -156,8 +156,6 @@ function cacheDom() {
   dom.endTimeInput = document.querySelector("#partTimeWorkEndTimeInput");
   dom.hoursLabel = document.querySelector("#partTimeWorkHoursLabel");
   dom.hoursInput = document.querySelector("#partTimeWorkHoursInput");
-  dom.lessonCountInput = document.querySelector("#partTimeWorkLessonCountInput");
-  dom.cumulativeHoursInput = document.querySelector("#partTimeWorkCumulativeHoursInput");
   dom.hourlyRateInput = document.querySelector("#partTimeWorkHourlyRateInput");
   dom.transportationFeeInput = document.querySelector("#partTimeWorkTransportationFeeInput");
   dom.memoInput = document.querySelector("#partTimeWorkMemoInput");
@@ -220,8 +218,6 @@ function bindEvents() {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
-    dom.lessonCountInput,
-    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -805,8 +801,6 @@ function fillDialogFromLesson(lesson, hours) {
   dom.startTimeInput.value = formatTimeInput(lesson.start_time);
   dom.endTimeInput.value = formatTimeInput(lesson.end_time);
   dom.hoursInput.value = hours ?? 0;
-  dom.lessonCountInput.value = String(lessonCount(lesson));
-  dom.cumulativeHoursInput.value = formatHours(cumulativeHours(lesson));
   dom.hourlyRateInput.value = lesson.hourly_rate_jpy ?? 0;
   dom.transportationFeeInput.value = lesson.transportation_fee_jpy ?? 0;
   dom.memoInput.value = lesson.memo || "";
@@ -1272,8 +1266,6 @@ function readDialogPayload() {
     startTime: dom.startTimeInput.value,
     endTime: dom.endTimeInput.value,
     hours: calculateHoursFromTimes(dom.startTimeInput.value, dom.endTimeInput.value),
-    lessonCount: parseInteger(dom.lessonCountInput.value),
-    cumulativeHours: parseDecimal(dom.cumulativeHoursInput.value),
     hourlyRateJpy: parseInteger(dom.hourlyRateInput.value),
     transportationFeeJpy: parseInteger(dom.transportationFeeInput.value),
     memo: dom.memoInput.value.trim(),
@@ -1313,16 +1305,6 @@ function validatePayload(payload) {
     return "结束时间必须晚于开始时间。";
   }
 
-  if (!Number.isInteger(payload.lessonCount) || payload.lessonCount < 1) {
-    markFieldInvalid(dom.lessonCountInput);
-    return "请输入大于等于 1 的整数回数。";
-  }
-
-  if (!Number.isFinite(payload.cumulativeHours) || payload.cumulativeHours < 0) {
-    markFieldInvalid(dom.cumulativeHoursInput);
-    return "请输入大于等于 0 的累计课时。";
-  }
-
   if (!Number.isInteger(payload.hourlyRateJpy) || payload.hourlyRateJpy < 0) {
     markFieldInvalid(dom.hourlyRateInput);
     return "时给必须是大于等于 0 的整数。";
@@ -1339,13 +1321,11 @@ function validatePayload(payload) {
 function updatePreview() {
   const payload = readDialogPayload();
   const hours = Number.isFinite(payload.hours) ? payload.hours : 0;
-  const count = Number.isInteger(payload.lessonCount) && payload.lessonCount > 0 ? payload.lessonCount : 1;
-  const cumulativeHourValue = Number.isFinite(payload.cumulativeHours) ? payload.cumulativeHours : 0;
   const hourlyRate = Number.isFinite(payload.hourlyRateJpy) ? payload.hourlyRateJpy : 0;
   const transportationFee = Number.isFinite(payload.transportationFeeJpy) ? payload.transportationFeeJpy : 0;
   const lessonWageJpy = Math.round(hours * hourlyRate);
   dom.hoursInput.value = Number.isFinite(payload.hours) ? formatHours(payload.hours) : "0";
-  dom.preview.textContent = `预览：工资课时 ${formatHours(hours)} h / 回数 ${formatLessonCount(count)} / 累计课时 ${formatHours(cumulativeHourValue)} h / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
+  dom.preview.textContent = `预览：工资课时 ${formatHours(hours)} h / 回数与累计课时将在保存后自动计算 / 课时工资 ${formatCurrency(lessonWageJpy, "JPY")} / 交通费 ${formatCurrency(transportationFee, "JPY")}`;
 }
 
 function clearDialog() {
@@ -1357,8 +1337,6 @@ function clearDialog() {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
-    dom.lessonCountInput,
-    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -1366,8 +1344,6 @@ function clearDialog() {
     input.value = "";
   }
   dom.hoursInput.value = "0";
-  dom.lessonCountInput.value = "1";
-  dom.cumulativeHoursInput.value = "0";
   dom.startTimeInput.value = "";
   dom.endTimeInput.value = "";
   dom.hourlyRateInput.value = "0";
@@ -1402,8 +1378,6 @@ function setDialogReadonly(readonly) {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
-    dom.lessonCountInput,
-    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
     dom.memoInput,
@@ -1431,6 +1405,7 @@ function renderReadonlyDetail(lesson) {
     ["业务归属", lesson.business_entity_name || lesson.workplace_name || "-"],
     [hoursLabel, `${formatHours(hours)} h`],
     ["回数", formatLessonCount(lessonCount(lesson))],
+    ["累计课时", `${formatHours(cumulativeHours(lesson))} h`],
     ["交通费", formatCurrency(lesson.transportation_fee_jpy, "JPY")],
     ["课时工资", formatCurrency(lesson.lesson_wage_jpy, "JPY")],
     ["时给", formatCurrency(lesson.hourly_rate_jpy, "JPY")],
@@ -1509,8 +1484,6 @@ function clearInvalidFields() {
     dom.startTimeInput,
     dom.endTimeInput,
     dom.hoursInput,
-    dom.lessonCountInput,
-    dom.cumulativeHoursInput,
     dom.hourlyRateInput,
     dom.transportationFeeInput,
   ]) {
