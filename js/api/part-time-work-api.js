@@ -102,7 +102,7 @@ export async function fetchPartTimeWorkAnnualSummary(year) {
 
 async function fetchPartTimeWorkAnnualIncomeRecords(startMonth, endMonth) {
   const { data, error } = await supabase
-    .from("school_income_records")
+    .from("school_operational_income_records")
     .select(ANNUAL_INCOME_COLUMNS)
     .eq("app_type", "school")
     .eq("source_type", "part_time_work")

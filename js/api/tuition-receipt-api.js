@@ -51,7 +51,7 @@ export async function fetchTuitionReceiptSource(incomeRecordId) {
   const incomeId = requireUuid(incomeRecordId, "income_record_id");
 
   const { data: income, error: incomeError } = await supabase
-    .from("school_income_records")
+    .from("school_operational_income_records")
     .select(RECEIPT_INCOME_COLUMNS)
     .eq("app_type", "school")
     .eq("id", incomeId)

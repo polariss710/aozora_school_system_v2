@@ -54,7 +54,7 @@ const CASH_INCOME_LINKAGE_COLUMNS = [
 
 export async function fetchIncomeRecords(month) {
   const { data, error } = await supabase
-    .from("school_income_records")
+    .from("school_operational_income_records")
     .select(INCOME_COLUMNS)
     .eq("app_type", "school")
     .eq("year_month", month)

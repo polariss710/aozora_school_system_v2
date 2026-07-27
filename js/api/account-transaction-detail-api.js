@@ -285,7 +285,7 @@ async function fetchRelatedSource(transaction) {
 function relatedSourceConfig(table) {
   const configs = {
     school_income_records: {
-      table,
+      table: "school_operational_income_records",
       columns: INCOME_COLUMNS,
     },
     school_expense_records: {

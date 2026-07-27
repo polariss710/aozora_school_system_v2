@@ -158,7 +158,7 @@ async function fetchLessonReferences(settlement) {
 
 async function fetchIncomeReferences(settlement) {
   const { data, error } = await supabase
-    .from("school_income_records")
+    .from("school_operational_income_records")
     .select(INCOME_COLUMNS)
     .eq("app_type", "school")
     .eq("student_id", settlement.student_id)

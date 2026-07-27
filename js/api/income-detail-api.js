@@ -286,7 +286,7 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
 
 async function fetchIncomeDetail(incomeId) {
   const { data, error } = await supabase
-    .from("school_income_records")
+    .from("school_operational_income_records")
     .select(INCOME_DETAIL_COLUMNS)
     .eq("app_type", "school")
     .eq("id", incomeId)

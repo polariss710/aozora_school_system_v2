@@ -95,7 +95,7 @@ export async function fetchProfitSummaryPageData(filters) {
       .from("school_business_entities")
       .select(BUSINESS_ENTITY_COLUMNS)
       .order("name", { ascending: true }),
-    buildMonthEntityQuery("school_income_records", INCOME_COLUMNS, "year_month", filters)
+    buildMonthEntityQuery("school_operational_income_records", INCOME_COLUMNS, "year_month", filters)
       .order("income_date", { ascending: false })
       .order("created_at", { ascending: false }),
     buildMonthEntityQuery("school_expense_records", EXPENSE_COLUMNS, "year_month", filters)
