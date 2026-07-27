@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-27
+Status date: 2026-07-28
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -33,6 +33,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. School V2 tuition P0 R1C-C-B fixed 66-ID future planned-lesson business-entity migration, 2026-07-28:
+   在R0三个gate继续保持`validation_preview_only / blocked / blocked`下，以R1C-C-A报告6.1–6.3冻结的固定66 UUID及完整行哈希，将张倬闻2026-09至11月planned课时从个人名义定向迁移为青空进学塾：9月24/52/JPY520,000、10月24/52/JPY520,000、11月18/41/JPY410,000，合计66/145/JPY1,450,000。相同SHA-256执行SQL先完成单事务rollback，batch/item/目标归属残留0，再正式提交精确66个`business_entity_id`更新及1+66条immutable审计；66/66原`updated_at`不变，授权字段外逐月哈希相同。李天伦固定11-ID逐行完整哈希不变且继续`scope_mismatch`排除；R1C-A 52-ID候选回归仍为张倬闻30/65/JPY650,000及孙陈锋22/44/JPY374,000。9 bill、42 income、7 identity、121 relation、R1C-A审计、School下游、229 actual及Cash 34/59/31前后count/hash一致；四个生成入口、Cash gate和事故Cash入口继续拒绝。永久DDL为0；正式业务DML仅66 lesson实体更新和1+66迁移审计，未开始R1D。详见`docs/school-v2-r1c-c-b-business-entity-migration-report-20260728.md`。
 
 1. School V2 tuition P0 R1C-C-A future lesson inventory read-only audit, 2026-07-27:
    严格只读调查 2026-09 以后课时范围，确认历史“68”在仓库、Git 历史、SQL manifest、旧审计材料及任务原文中只有汇总数字，没有固定 UUID 或原始逐行哈希，必须标记为 `68-ID manifest unavailable`。当前 R1C-B 原始范围为 77 行/167 小时/JPY 1,736,000，其中 73 planned + 4 actual；当前可复现的 active、billable、字段完整且无 linked actual 的 planned 子集恰为 68 行/149 小时/JPY 1,502,000，但只是当前推断，不能冒充原 68。77 与当前重建 68 的净 9 行全部为李天伦，来自 2026-05 测试导入/补课链，包括4 actual、3已有 linked actual 的 planned及2条其他 pending_makeup；另发现同业务指纹不同ID和一条planned关联两条actual。建议仅将张倬闻66条/145小时/JPY 1,450,000提交业务确认；李天伦4条人工审查、7条排除未来迁移，均未获迁移批准。77行无bill/income/Cash/工资/月结关系，School/Cash前后哈希、229 actual及R0 `validation_preview_only / blocked / blocked`不变；本阶段DDL/DML均为0，未开始R1C-C-B。详见`docs/school-v2-r1c-c-a-future-lesson-inventory-report-20260727.md`。
