@@ -4,10 +4,8 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createIncomeRecord,
   createPendingCashIncomeRecord,
-  createStudentTuitionBillIncomeRecord,
   fetchIncomeLookups,
   fetchIncomeRecords,
-  generateStudentTuitionBill,
   previewStudentTuitionBill,
   requestCashIncomeConfirmationForRecord,
 } from "../api/income-api.js";
@@ -1434,43 +1432,7 @@ async function handlePreviewTuitionBill() {
 }
 
 async function submitGenerateTuitionBill() {
-  if (isTuitionBillSubmitting) {
-    return;
-  }
-
-  clearTuitionBillErrors();
-  const payload = readGenerateTuitionBillPayload();
-  if (!payload) {
-    return;
-  }
-  if (!tuitionBillPreview || tuitionBillPreviewSignature !== buildTuitionBillPreviewSignature(payload)) {
-    showTuitionBillError("请先生成并确认当前学生、月份和通知汇率的预览。", ["student", "billingMonth", "billingRate"]);
-    return;
-  }
-
-  setTuitionBillSubmitting(true);
-  try {
-    const bill = await generateStudentTuitionBill({
-      studentId: payload.studentId,
-      billingMonth: payload.billingMonth,
-      billingExchangeRate: payload.billingExchangeRate,
-      note: payload.note,
-    });
-    const income = await createStudentTuitionBillIncomeRecord({
-      tuitionBillId: bill.tuition_bill_id,
-      incomeDate: payload.incomeDate,
-      note: payload.note,
-    });
-    setTuitionBillSubmitting(false);
-    closeGenerateTuitionBillDialog();
-    await refreshCurrentIncomeList();
-    showTuitionBillSuccess(bill, income);
-  } catch (error) {
-    console.error(error);
-    showTuitionBillError(`生成学费应收失败：${error.message || error}`, tuitionBillFieldIdsForError(error.message || ""));
-  } finally {
-    setTuitionBillSubmitting(false);
-  }
+  showTuitionBillError("学费应收生成功能正在进行资金一致性整改，当前仅允许预览，禁止生成正式账单或收入。");
 }
 
 function readGenerateTuitionBillPayload(options = {}) {
@@ -1527,15 +1489,15 @@ function renderTuitionBillStudentOptions(selectedStudentId = "", businessEntityI
 function setTuitionBillSubmitting(isSubmitting) {
   isTuitionBillSubmitting = isSubmitting;
   dom.generateTuitionBillPreviewButton.disabled = isSubmitting || isTuitionBillPreviewLoading;
-  dom.generateTuitionBillSubmitButton.disabled = isSubmitting || isTuitionBillPreviewLoading || !tuitionBillPreview;
+  dom.generateTuitionBillSubmitButton.disabled = true;
   dom.generateTuitionBillCancelButton.disabled = isSubmitting;
-  dom.generateTuitionBillSubmitButton.textContent = isSubmitting ? "生成中..." : "生成应收";
+  dom.generateTuitionBillSubmitButton.textContent = "生成应收（维护中）";
 }
 
 function setTuitionBillPreviewLoading(isLoading) {
   isTuitionBillPreviewLoading = isLoading;
   dom.generateTuitionBillPreviewButton.disabled = isLoading || isTuitionBillSubmitting;
-  dom.generateTuitionBillSubmitButton.disabled = isLoading || isTuitionBillSubmitting || !tuitionBillPreview;
+  dom.generateTuitionBillSubmitButton.disabled = true;
   dom.generateTuitionBillPreviewButton.textContent = isLoading ? "预览中..." : "生成预览";
 }
 
@@ -1562,6 +1524,7 @@ function renderTuitionBillPreview(preview) {
     ? `${preview.existing_tuition_bill_status || "-"} / ${preview.existing_income_status || "-"}`
     : "无";
   dom.generateTuitionBillPreview.innerHTML = `
+    <div><dt>预览状态</dt><dd>validation_preview_only（整改验证预览，不可正式生成）</dd></div>
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
     <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
@@ -1612,21 +1575,6 @@ function setTuitionBillFieldInvalid(fieldId, invalid) {
 
 function clearTuitionBillFieldInvalid(fieldId) {
   setTuitionBillFieldInvalid(fieldId, false);
-}
-
-function showTuitionBillSuccess(bill, income) {
-  const incomeId = income?.income_id;
-  const amountText = formatCurrency(bill?.bill_amount_jpy || income?.amount, "JPY");
-  const carryoverText = formatCurrency(bill?.previous_carryover_cny || 0, "CNY");
-  const billingText = formatCurrency(bill?.billing_amount_cny || income?.billing_amount_cny, "CNY");
-  const rateText = formatRateValue(bill?.billing_exchange_rate || income?.billing_exchange_rate);
-  const message = `学费应收已生成：${amountText}，上月结转 ${carryoverText}，通知金额 ${billingText}${rateText ? `，通知汇率 ${rateText}` : ""}。`;
-  dom.messageArea.className = "message message-success";
-  if (incomeId) {
-    dom.messageArea.innerHTML = `${escapeHtml(message)}<a href="./income-detail.html?id=${encodeURIComponent(incomeId)}">查看收入记录</a>`;
-  } else {
-    dom.messageArea.textContent = message;
-  }
 }
 
 function openCreateIncomeDialog() {
@@ -2134,6 +2082,10 @@ function canRequestCashIncome(row) {
     return false;
   }
 
+  if (row.source_type === "student_tuition_bill") {
+    return false;
+  }
+
   const event = row.cashIncomeLinkageEvent;
   if (!event) {
     return true;
@@ -2163,6 +2115,7 @@ function canGenerateTuitionReceipt(row) {
 
 function cashIncomeRequestNotAllowedMessage(row) {
   if (!row) return "收入记录不存在，请刷新后重试。";
+  if (row.source_type === "student_tuition_bill") return "学费 Cash 提交正在整改，当前禁止提交。";
   if (row.status === "cancelled") return "已作废收入不能提交 Cash。";
   if (row.status !== "pending") return "只有待确认收入记录可以提交 Cash 收入确认。";
   const event = row.cashIncomeLinkageEvent;

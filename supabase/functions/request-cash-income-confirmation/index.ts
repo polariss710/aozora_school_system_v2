@@ -85,6 +85,8 @@ const corsHeaders = {
 const CASH_EXTERNAL_SOURCE = "aozora_school";
 const CASH_REFERENCE_TYPE = "school_income_records";
 const CASH_TRANSACTION_TYPE = "income";
+const TUITION_BILL_SOURCE_TYPE = "student_tuition_bill";
+const TUITION_CASH_GATE_KEY = "student_tuition_cash_submit";
 const SUPPORTED_CURRENCIES = new Set(["JPY", "CNY"]);
 const INCOME_CATEGORY_LABELS: Record<string, string> = {
   tuition: "学费收入",
@@ -369,7 +371,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       const { data: incomeData, error: incomeError } = await schoolClient
         .from("school_income_records")
-        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_label,currency,amount,amount_jpy")
+        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_type,source_label,currency,amount,amount_jpy")
         .eq("id", existingIncomeRecordId)
         .maybeSingle();
 
@@ -381,6 +383,39 @@ Deno.serve(async (request: Request): Promise<Response> => {
             details: incomeError?.message ?? null,
           },
           404,
+        );
+      }
+
+      if (
+        optionalText((incomeData as { source_type?: string | null }).source_type) ===
+          TUITION_BILL_SOURCE_TYPE
+      ) {
+        const { data: gateData, error: gateError } = await schoolClient
+          .from("school_feature_gates")
+          .select("state,reason,release_version")
+          .eq("feature_key", TUITION_CASH_GATE_KEY)
+          .maybeSingle();
+
+        if (gateError || gateData?.state !== "enabled") {
+          return jsonResponse(
+            {
+              ok: false,
+              code: "TUITION_CASH_SUBMISSION_BLOCKED",
+              message: "学费收入 Cash 提交正在进行资金一致性整改，当前禁止提交。",
+              gate_state: gateData?.state ?? "unavailable",
+              release_version: gateData?.release_version ?? null,
+            },
+            423,
+          );
+        }
+
+        return jsonResponse(
+          {
+            ok: false,
+            code: "TUITION_CASH_SUBMISSION_BLOCKED",
+            message: "R0 不提供学费 Cash enabled 路径。",
+          },
+          423,
         );
       }
 

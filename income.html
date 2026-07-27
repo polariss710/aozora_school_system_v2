@@ -163,7 +163,7 @@
               <p class="section-note">按业务归属月管理收入，Cash 流水按实际到账日同步。</p>
             </div>
             <div class="table-actions">
-              <button class="button" id="openGenerateTuitionBillButton" type="button">生成学费应收</button>
+              <button class="button" id="openGenerateTuitionBillButton" type="button">学费整改验证预览</button>
               <button class="button button-primary" id="openCreateIncomeButton" type="button">新增收入</button>
               <button class="button" id="openBatchCashIncomeButton" type="button" disabled>批量提交 Cash</button>
               <span id="incomeCount" class="record-count">0 条</span>
@@ -393,8 +393,8 @@
     <div id="generateTuitionBillDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
         <div class="section-heading">
-          <h2 id="generateTuitionBillTitle">生成学费应收</h2>
-          <p class="section-note">生成后会创建一条待提交 Cash 的学费收入记录。</p>
+          <h2 id="generateTuitionBillTitle">学费整改验证预览</h2>
+          <p class="section-note">整改验证预览，不可正式生成；不会创建账单、收入或 Cash 请求。</p>
         </div>
 
         <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
@@ -430,11 +430,11 @@
         <div class="dialog-actions">
           <button class="button" id="generateTuitionBillCancelButton" type="button">取消</button>
           <button class="button" id="generateTuitionBillPreviewButton" type="button">生成预览</button>
-          <button class="button button-primary" id="generateTuitionBillSubmitButton" type="button">生成应收</button>
+          <button class="button button-primary" id="generateTuitionBillSubmitButton" type="button" disabled title="R0 学费链整改期间禁止正式生成">生成应收（维护中）</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v10.3.83-historical-work-status"></script>
+    <script type="module" src="./js/income-app.js?v=v10.4.0-tuition-r0-fail-closed"></script>
   </body>
 </html>

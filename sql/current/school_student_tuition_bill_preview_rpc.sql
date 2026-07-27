@@ -4,6 +4,8 @@
 -- - Mirrors the DB/RPC authoritative tuition bill calculation without creating
 --   or updating tuition bills, income records, Cash requests, settlements,
 --   lessons, account transactions, or balances.
+-- - R0 requires the authoritative preview gate to be exactly
+--   validation_preview_only; missing/unreadable/unexpected gate state rejects.
 
 create or replace function public.school_preview_student_tuition_bill(
   p_student_id uuid,
@@ -52,6 +54,13 @@ declare
   v_existing_income_status text := null;
   v_message text := 'tuition bill preview';
 begin
+  perform public.school_require_feature_gate_state(
+    'student_tuition_preview',
+    'validation_preview_only',
+    'TUITION_PREVIEW_BLOCKED',
+    '学费预览 gate 不可用，已按 fail-closed 拒绝。'
+  );
+
   if p_student_id is null then
     raise exception '请选择学生。';
   end if;
@@ -197,7 +206,7 @@ end;
 $$;
 
 comment on function public.school_preview_student_tuition_bill(uuid, text, numeric) is
-  'Read-only preview for student tuition bill generation. Calculates planned JPY tuition, previous locked CNY carryover, and CNY notification amount from the operator-entered exchange rate without writing tuition bills, income records, Cash requests, settlements, lessons, account transactions, or balances.';
+  'R0 validation_preview_only read-only preview. Requires the authoritative preview gate and writes no tuition bill, income, Cash, settlement, lesson, account transaction, or balance data.';
 
 revoke all on function public.school_preview_student_tuition_bill(uuid, text, numeric)
   from public, anon, authenticated;

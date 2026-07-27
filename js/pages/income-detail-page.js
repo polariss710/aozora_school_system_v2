@@ -454,6 +454,10 @@ function canRequestCashIncome(data) {
     return false;
   }
 
+  if (income.source_type === "student_tuition_bill") {
+    return false;
+  }
+
   const event = cashIncomeLinkageEvent(data);
   if (!event) {
     return true;
@@ -1502,6 +1506,9 @@ function cashIncomeLinkageEvent(data) {
 }
 
 function cashIncomeLinkageNotAllowedMessage(data) {
+  if (data?.income?.source_type === "student_tuition_bill") {
+    return "学费 Cash 提交正在整改，当前禁止提交。";
+  }
   const event = cashIncomeLinkageEvent(data);
   if (!event) {
     return "";
