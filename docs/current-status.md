@@ -34,6 +34,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. School V2 tuition P0 R1C-C-A future lesson inventory read-only audit, 2026-07-27:
+   严格只读调查 2026-09 以后课时范围，确认历史“68”在仓库、Git 历史、SQL manifest、旧审计材料及任务原文中只有汇总数字，没有固定 UUID 或原始逐行哈希，必须标记为 `68-ID manifest unavailable`。当前 R1C-B 原始范围为 77 行/167 小时/JPY 1,736,000，其中 73 planned + 4 actual；当前可复现的 active、billable、字段完整且无 linked actual 的 planned 子集恰为 68 行/149 小时/JPY 1,502,000，但只是当前推断，不能冒充原 68。77 与当前重建 68 的净 9 行全部为李天伦，来自 2026-05 测试导入/补课链，包括4 actual、3已有 linked actual 的 planned及2条其他 pending_makeup；另发现同业务指纹不同ID和一条planned关联两条actual。建议仅将张倬闻66条/145小时/JPY 1,450,000提交业务确认；李天伦4条人工审查、7条排除未来迁移，均未获迁移批准。77行无bill/income/Cash/工资/月结关系，School/Cash前后哈希、229 actual及R0 `validation_preview_only / blocked / blocked`不变；本阶段DDL/DML均为0，未开始R1C-C-B。详见`docs/school-v2-r1c-c-a-future-lesson-inventory-report-20260727.md`。
+
 1. School V2 tuition P0 R1C-B DB-authoritative candidate rule and validation preview, 2026-07-27:
    在R0三个gate继续保持`validation_preview_only / blocked / blocked`下，新增service-role-only结构化候选审计函数并保持现有preview RPC/API/page调用签名不变；preview现在只聚合DB返回的candidate，不由前端补充、过滤或重算。normalized bill lesson与兼容账单JSON证据在lesson当前status/is_billable等可变字段之前永久排除，JSON格式不安全或normalized/JSON不一致时fail-closed；稳定原因区分canonical、incident、legacy、snapshot conflict、void/inactive、non-billable、invalid/incomplete与scope mismatch。相同DDL先完成单事务rollback，精确52-ID、跨月、85/24/12、synthetic conflict与范围负向测试通过，回滚后新对象/业务残留0，再正式部署。孙陈锋2026-08由旧预览24条/48小时/JPY 408,000修正为22条/44小时/JPY 374,000；张倬闻保持30条/65小时/JPY 650,000；合计52/109/JPY 1,024,000且UUID集合与R1C-A audit 52/52相同。两条July canonical跨月课以`already_canonical_charged`排除且完整行哈希不变；85 canonical、24 incident、12 legacy均不能重开。9 bill、42 income、7 identity、121 relation、School下游、当前229 actual、R1C-A审计/52 lesson与Cash 34/59/31前后哈希一致；四个生成入口与Cash gate继续拒绝。本阶段只有School函数DDL系统目录写入，无业务DML、无API/page改动、无Git交付；未开始R1C-C。详见`docs/school-v2-r1c-b-tuition-candidate-rule-report-20260727.md`。
 
