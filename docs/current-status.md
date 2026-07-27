@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-20
+Status date: 2026-07-27
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -33,6 +33,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. School V2 tuition P0 R1A identity/schema and read-only backfill simulation, 2026-07-27:
+   在R0三个学费gate继续保持`validation_preview_only / blocked / blocked`的前提下，完成收费事故隔离、永久billing identity及normalized bill lesson加法型结构。School DB新增income incident nullable字段、bill nullable `billing_role`、nullable income→bill反向FK及两个不可更新/删除的新空表；commit前加固把incident字段改为严格双向一致check，identity source固定为`historical_backfill / atomic_charge`，两张新表对public/anon/authenticated完全无权限、service_role仅SELECT/INSERT，页面以后必须通过受控只读RPC读取。没有修改42条income、9张bill、625条lesson或任何Cash业务数据；新表均0行、9张bill角色仍全NULL。SELECT-only模拟从9张bill JSON展开121条关系，准确得到7 canonical / 1 incident / 1 legacy及85 / 24 / 12；bill JSON关系身份为high，当前planned补充字段统一标记medium且账单聚合已验证。张倬闻24条incident和陈加恩12条legacy均全部命中canonical，9/9 bill-income精确互指。当前planned与bill冻结证据差异单独记录：42条业务归属差异及孙陈锋2条跨月lesson，不回写、不伪造历史日期。DDL rollback、不可变/partial unique/source rollback、权限、前后业务hash和五个R0阻断入口均通过；未执行正式历史回填、commit或push。详见`docs/school-v2-r1a-tuition-identity-backfill-simulation-report-20260727.md`。
 
 1. v10.3.95 part-time-work DB progress calculation, 2026-07-26:
    私塾打工授课记录的回数与累计课时改为 School DB 读取时实时计算：按 record kind（预定/实际分别统计）和“机构 + 科目 + 工作内容”分组，再按日期、开始时间排序计算序号与累计时长。页面移除两个手填字段，复制、新建、编辑、生成实际课时均不再提交它们；保存后读取权威结果。既有存储字段与已锁定结算/Excel 快照不回写，工资、交通费、月度结算和 Cash 口径不变。
