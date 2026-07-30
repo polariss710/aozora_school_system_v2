@@ -170,6 +170,28 @@ export async function previewStudentTuitionBill(payload) {
   return result;
 }
 
+export async function fetchStudentTuitionValidationPreviewDetails(payload) {
+  const { data, error } = await supabase.rpc(
+    "school_get_student_tuition_validation_preview_details",
+    {
+      p_student_id: payload.studentId,
+      p_billing_month: payload.billingMonth,
+      p_billing_exchange_rate: payload.billingExchangeRate,
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.student_id || !Array.isArray(result.candidates)) {
+    throw new Error("学费验证预览失败：RPC 没有返回权威candidate明细。");
+  }
+
+  return result;
+}
+
 export async function createStudentTuitionBillIncomeRecord(payload) {
   const tuitionBillId = requireUuid(payload.tuitionBillId, "tuition_bill_id");
 

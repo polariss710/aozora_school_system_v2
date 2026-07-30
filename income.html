@@ -391,7 +391,7 @@
     </div>
 
     <div id="generateTuitionBillDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
+      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
         <div class="section-heading">
           <h2 id="generateTuitionBillTitle">学费整改验证预览</h2>
           <p class="section-note">整改验证预览，不可正式生成；不会创建账单、收入或 Cash 请求。</p>
@@ -399,6 +399,29 @@
 
         <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
         <div id="generateTuitionBillPreview" class="dialog-summary tuition-bill-preview-summary is-hidden" aria-live="polite"></div>
+        <details id="tuitionBillCandidateDetails" class="tuition-preview-candidates is-hidden">
+          <summary>
+            权威candidate明细
+            <span id="tuitionBillCandidateCount" class="record-count">0 条</span>
+          </summary>
+          <p class="section-note">仅展示同一次validation-only RPC返回的权威学费月份、自然周和服务端费用；页面不按预计上课日期重新归月或计费。</p>
+          <div class="table-scroll">
+            <table class="payment-table tuition-preview-candidate-table">
+              <thead>
+                <tr>
+                  <th>planned lesson UUID</th>
+                  <th>学费月份</th>
+                  <th>自然周（周一～周日）</th>
+                  <th>预计上课日期</th>
+                  <th>课次数</th>
+                  <th>时长</th>
+                  <th>服务端费用 JPY</th>
+                </tr>
+              </thead>
+              <tbody id="tuitionBillCandidateRows"></tbody>
+            </table>
+          </div>
+        </details>
 
         <div class="income-create-field-grid">
           <label class="field" data-tuition-bill-field="incomeDate">
@@ -435,6 +458,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v10.4.0-tuition-r0-fail-closed"></script>
+    <script type="module" src="./js/income-app.js?v=v10.4.1-authoritative-tuition-preview"></script>
   </body>
 </html>
