@@ -1,8 +1,12 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.81-office-capacity";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.96-authoritative-overage-ui";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  buildActualOverageDisplay,
+  buildLessonMonthSemantics,
+} from "../utils/actual-overage.js";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",
@@ -366,6 +370,11 @@ async function loadLessonDetail(lessonId) {
 
 function renderLessonDetail(data) {
   const { lesson, lookups, sourceChain, settlements, wageReferences } = data;
+  const sourcePlanned = lesson.planned_lesson_id
+    ? sourceChain.find((row) => row.lesson?.id === lesson.planned_lesson_id)?.lesson || null
+    : null;
+  const monthSemantics = buildLessonMonthSemantics(lesson);
+  const overage = buildActualOverageDisplay(lesson, sourcePlanned);
 
   syncReturnLink();
   renderEditAction(lesson);
@@ -374,8 +383,9 @@ function renderLessonDetail(data) {
     ["课时类型", lessonTypeLabel(lesson.lesson_type)],
     ["状态", isVoidedPlanned(lesson) ? `${lessonStatusLabel(lesson.status)} / 已作废` : lessonStatusLabel(lesson.status)],
     ["作废时间", formatDate(lesson.voided_at)],
-    ["课时日期", formatDateOnly(lesson.lesson_date)],
-    ["结算年月", formatMonth(lesson.year_month)],
+    [lesson.lesson_type === "actual" ? "实际发生日期" : "预计上课日期", formatDateOnly(lesson.lesson_date)],
+    ["学生结算月（DB 权威）", formatMonth(monthSemantics.studentSettlementMonth)],
+    [lesson.lesson_type === "planned" ? "计划课时账期（billing_month）" : "来源计划账期（billing_month）", formatMonth(lesson.billing_month)],
     ["开始时间", formatTime(lesson.start_time)],
     ["结束时间", formatTime(lesson.end_time)],
     ["授课方式", lesson.lesson_delivery_mode === "onsite" ? "线下" : lesson.lesson_delivery_mode === "online" ? "线上" : "-"],
@@ -400,7 +410,18 @@ function renderLessonDetail(data) {
     ["是否计费", booleanLabel(lesson.is_billable)],
     ["单价", formatCurrency(lesson.unit_price, "JPY")],
     ["课时费", formatCurrency(lesson.lesson_fee, "JPY")],
-    ["老师结算月", formatMonth(lesson.teacher_settlement_month)],
+    ["老师工资归属月", formatMonth(monthSemantics.teacherWageMonth)],
+    ...(overage ? [
+      ["计划时长", `${displayValue(overage.plannedDurationHours)} 小时`],
+      ["实际时长", `${displayValue(overage.actualDurationHours)} 小时`],
+      ["超出时长", `${displayValue(overage.overageMinutes)} 分钟`],
+      ["冻结超额金额", formatCurrency(overage.frozenFeeJpy, "JPY")],
+      ["超额来源学生月", formatMonth(overage.sourceStudentMonth)],
+      ["下一学生结算月（来源月锁定后结转）", formatMonth(overage.nextStudentSettlementMonth)],
+      ["冻结策略", displayValue(overage.policyVersion)],
+      ["冻结来源", displayValue(overage.source)],
+      ["冻结时间", formatDate(overage.decidedAt)],
+    ] : []),
   ]);
 
   dom.textBlock.textContent = [
@@ -520,7 +541,7 @@ function renderSettlementReferences(rows) {
         <span class="status-badge ${escapeAttribute(settlementStatusClass(settlement.settlement_status))}">${escapeHtml(settlementStatusLabel(settlement.settlement_status))}</span>
       </div>
       ${renderDefinitionList([
-        ["结算年月", formatMonth(settlement.year_month)],
+        ["学生结算月", formatMonth(settlement.year_month)],
         ["预定学费 JPY", formatCurrency(settlement.planned_lesson_fee_jpy, "JPY")],
         ["预定学费 CNY", formatCurrency(settlement.planned_lesson_fee_cny, "CNY")],
         ["实际学费 JPY", formatCurrency(settlement.actual_lesson_fee_jpy, "JPY")],

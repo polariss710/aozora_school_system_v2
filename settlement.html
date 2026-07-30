@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生月度结算</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.26-weekly-schedule-image">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.96-authoritative-overage-ui">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -131,7 +131,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="settlementListTitle">学生月度结算记录</h2>
-              <p class="section-note">本页合并显示已保存的结算快照与未锁定实时预览；差额调整应先在未锁定预览中保存，再随锁定一起固化。</p>
+              <p class="section-note">本页按后端权威学生结算月显示已保存快照与未锁定实时预览；系统差额已包含后端冻结超额，页面不自行重算。</p>
             </div>
             <span id="settlementCount" class="record-count">0 条</span>
           </div>
@@ -161,7 +161,7 @@
               <thead>
                 <tr>
                   <th>操作</th>
-                  <th>年月</th>
+                  <th>学生结算月</th>
                   <th>学生</th>
                   <th>业务归属</th>
                   <th>结算状态</th>
@@ -173,7 +173,7 @@
                   <th>实际课时费 CNY</th>
                   <th>已收学费 JPY</th>
                   <th>已收学费 CNY</th>
-                  <th>实际差额 CNY</th>
+                  <th>系统差额 CNY（含冻结超额）</th>
                   <th>本月结转 CNY</th>
                   <th>锁定时间</th>
                 </tr>
@@ -298,6 +298,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=v10.3.6-simplify-student-settlement-list-columns"></script>
+    <script type="module" src="./js/settlement-app.js?v=v10.3.96-authoritative-overage-ui"></script>
   </body>
 </html>

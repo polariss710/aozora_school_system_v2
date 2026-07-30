@@ -5,6 +5,11 @@ import {
   unlockStudentMonthlySettlement,
 } from "../api/settlement-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import {
+  buildActualOverageDisplay,
+  buildLessonMonthSemantics,
+  hasFrozenSettlementOverage,
+} from "../utils/actual-overage.js";
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
@@ -179,13 +184,24 @@ function renderSettlementDetail(data) {
     ["更新时间", formatDate(settlement.updated_at)],
   ]);
 
-  dom.feeInfo.innerHTML = renderDefinitionList([
+  const feeRows = [
     ["预定学费 JPY", formatCurrency(settlement.planned_lesson_fee_jpy, "JPY")],
     ["预定学费 CNY", formatCurrency(settlement.planned_lesson_fee_cny, "CNY")],
     ["实际学费 JPY", formatCurrency(settlement.actual_lesson_fee_jpy, "JPY")],
     ["实际学费 CNY", formatCurrency(settlement.actual_lesson_fee_cny, "CNY")],
     ["预设汇率", displayValue(settlement.preset_exchange_rate)],
-  ]);
+  ];
+  if (hasFrozenSettlementOverage(settlement)) {
+    feeRows.push(
+      ["冻结超出时长", `${displayValue(settlement.duration_overage_minutes)} 分钟`],
+      ["冻结超额金额 JPY", formatCurrency(settlement.duration_overage_fee_jpy, "JPY")],
+      ["冻结超额金额 CNY", formatCurrency(settlement.duration_overage_fee_cny, "CNY")],
+      ["超额 actual 数", displayValue(settlement.duration_overage_actual_count)],
+      ["超额策略版本", displayValue(settlement.duration_overage_policy_version)],
+      ["超额快照来源", displayValue(settlement.duration_overage_source)]
+    );
+  }
+  dom.feeInfo.innerHTML = renderDefinitionList(feeRows);
 
   dom.receiptInfo.innerHTML = renderDefinitionList([
     ["收款 JPY", formatCurrency(settlement.received_jpy, "JPY")],
@@ -272,25 +288,39 @@ function renderLessonReferences(rows) {
     return;
   }
 
-  dom.lessonRows.innerHTML = rows.map((row) => `
-    <tr>
-      <td class="settlement-nowrap">${escapeHtml(formatDateOnly(row.lesson_date))}</td>
-      <td class="settlement-nowrap">${escapeHtml(lessonTypeLabel(row.lesson_type))}</td>
-      <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(lessonStatusLabel(row.status))}</span></td>
-      <td>${escapeHtml(teacherNameById(row.teacher_id))}</td>
-      <td>${escapeHtml(subjectNameById(row.subject_id))}</td>
-      <td class="settlement-nowrap">${escapeHtml(displayValue(row.start_time))}</td>
-      <td class="settlement-nowrap">${escapeHtml(displayValue(row.end_time))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.duration_hours))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.actual_minutes))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.lesson_count))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.unit_price, "JPY"))}</td>
-      <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.lesson_fee, "JPY"))}</td>
-      <td class="settlement-nowrap">${escapeHtml(booleanLabel(row.is_billable))}</td>
-      <td class="settlement-nowrap">${escapeHtml(shortId(row.planned_lesson_id))}</td>
-      <td class="settlement-detail-text-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.lesson_content))}</span></td>
-    </tr>
-  `).join("");
+  const lessonById = new Map(rows.map((row) => [row.id, row]));
+  dom.lessonRows.innerHTML = rows.map((row) => {
+    const monthSemantics = buildLessonMonthSemantics(row);
+    const plannedLesson = row.lesson_type === "actual"
+      ? lessonById.get(row.planned_lesson_id)
+      : null;
+    const overage = buildActualOverageDisplay(row, plannedLesson);
+    return `
+      <tr>
+        <td class="settlement-nowrap">${escapeHtml(formatDateOnly(row.lesson_date))}</td>
+        <td class="settlement-nowrap">${escapeHtml(formatMonth(monthSemantics.studentSettlementMonth))}</td>
+        <td class="settlement-nowrap">${escapeHtml(formatMonth(monthSemantics.teacherWageMonth))}</td>
+        <td class="settlement-nowrap">${escapeHtml(lessonTypeLabel(row.lesson_type))}</td>
+        <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(lessonStatusLabel(row.status))}</span></td>
+        <td>${escapeHtml(teacherNameById(row.teacher_id))}</td>
+        <td>${escapeHtml(subjectNameById(row.subject_id))}</td>
+        <td class="settlement-nowrap">${escapeHtml(displayValue(row.start_time))}</td>
+        <td class="settlement-nowrap">${escapeHtml(displayValue(row.end_time))}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.duration_hours))}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.actual_minutes))}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(displayValue(row.lesson_count))}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.unit_price, "JPY"))}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.lesson_fee, "JPY"))}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(overage ? displayValue(overage.plannedDurationHours) : "-")}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(overage ? displayValue(overage.overageMinutes) : "-")}</td>
+        <td class="number-cell settlement-nowrap">${escapeHtml(overage ? formatCurrency(overage.frozenFeeJpy, "JPY") : "-")}</td>
+        <td class="settlement-nowrap">${escapeHtml(overage ? formatMonth(overage.nextStudentSettlementMonth) : "-")}</td>
+        <td class="settlement-nowrap">${escapeHtml(booleanLabel(row.is_billable))}</td>
+        <td class="settlement-nowrap">${escapeHtml(shortId(row.planned_lesson_id))}</td>
+        <td class="settlement-detail-text-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.lesson_content))}</span></td>
+      </tr>
+    `;
+  }).join("");
 }
 
 function renderIncomeReferences(rows) {

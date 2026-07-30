@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initSettlementPage } from "./pages/settlement-page.js?v=v10.3.6-simplify-student-settlement-list-columns";
+import { initSettlementPage } from "./pages/settlement-page.js?v=v10.3.96-authoritative-overage-ui";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

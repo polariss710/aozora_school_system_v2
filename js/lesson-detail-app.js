@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=v10.3.88-weekly-lesson-operations";
+import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=v10.3.96-authoritative-overage-ui";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

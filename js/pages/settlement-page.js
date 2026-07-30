@@ -17,6 +17,7 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
+import { hasFrozenSettlementOverage } from "../utils/actual-overage.js";
 
 const DEFAULT_FILTERS = {
   studentId: "",
@@ -519,16 +520,17 @@ function closeLockDialog(force = false) {
 }
 
 function renderLockSummary(row) {
-  dom.lockSummary.innerHTML = [
+  const rows = [
     ["学生", nameById(students, row.student_id, studentName)],
-    ["结算月份", formatMonth(row.year_month)],
+    ["学生结算月（后端权威）", formatMonth(row.year_month)],
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["预定课时费", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
     ["实际课时费", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
-    ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
+    ["系统差额（含后端冻结超额）", formatCurrency(row.system_difference_cny, "CNY")],
     ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
     ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
-  ].map(([label, value]) => `
+  ];
+  dom.lockSummary.innerHTML = rows.map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
       <span>${escapeHtml(displayValue(value))}</span>
@@ -696,17 +698,25 @@ function renderStatusActionDialog(row, action) {
 }
 
 function renderStatusActionSummary(row) {
-  dom.statusActionSummary.innerHTML = [
+  const rows = [
     ["学生", nameById(students, row.student_id, studentName)],
-    ["结算月份", formatMonth(row.year_month)],
+    ["学生结算月（后端权威）", formatMonth(row.year_month)],
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["当前状态", settlementStatusLabel(row.settlement_status)],
     ["锁定时间", formatDate(row.locked_at)],
     ["撤销时间", formatDate(row.unlocked_at)],
-    ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
+    ["系统差额（含后端冻结超额）", formatCurrency(row.system_difference_cny, "CNY")],
     ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
     ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
-  ].map(([label, value]) => `
+  ];
+  if (hasFrozenSettlementOverage(row)) {
+    rows.push(
+      ["冻结超出时长", `${displayValue(row.duration_overage_minutes)} 分钟`],
+      ["冻结超额金额 JPY", formatCurrency(row.duration_overage_fee_jpy, "JPY")],
+      ["冻结超额金额 CNY", formatCurrency(row.duration_overage_fee_cny, "CNY")]
+    );
+  }
+  dom.statusActionSummary.innerHTML = rows.map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
       <span>${escapeHtml(displayValue(value))}</span>

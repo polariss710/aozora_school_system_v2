@@ -23,7 +23,7 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.81-office-capacity";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.96-authoritative-overage-ui";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
@@ -33,6 +33,12 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
+import {
+  buildActualOverageDisplay,
+  buildLessonMonthSemantics,
+  hasFrozenActualOverage,
+  validateActualDurationForFlow,
+} from "../utils/actual-overage.js";
 import {
   defaultNewBusinessEntityId,
   isNewBusinessEntityId,
@@ -1857,7 +1863,9 @@ function renderCreateActualLessonSummary(plannedLesson) {
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
-    ["学生结算月", formatMonth(plannedLesson.year_month)],
+    ["预计上课日期", formatDateOnly(plannedLesson.lesson_date)],
+    ["学生结算月（DB 权威）", formatMonth(plannedLesson.year_month)],
+    ["计划时长", `${displayValue(plannedLesson.duration_hours)} 小时`],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -1929,6 +1937,17 @@ function readCreateActualLessonPayload() {
     validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
   }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
+  const durationFlow = validateActualDurationForFlow({
+    actualDurationHours: durationHours,
+    plannedDurationHours: currentActualSourceLesson.duration_hours,
+    isPartial: dom.createActualLessonPartialInput.checked,
+  });
+  if (!durationFlow.valid) {
+    invalidFields.push("durationHours");
+    if (!validationMessage) {
+      validationMessage = durationFlow.message;
+    }
+  }
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
   if (isActualLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
@@ -6306,7 +6325,10 @@ function renderLessonRecords(records) {
       <td class="number-cell">${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</td>
       <td class="lesson-content-cell">${escapeHtml(displayValue(record.lesson_content))}</td>
       <td class="lesson-note-cell">${escapeHtml(displayValue(record.note))}</td>
+      <td class="lesson-nowrap">${escapeHtml(formatMonth(record.year_month))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatMonth(record.teacher_settlement_month))}</td>
+      <td class="number-cell">${escapeHtml(hasFrozenActualOverage(record) ? `${displayValue(record.student_duration_overage_minutes)} 分钟` : "-")}</td>
+      <td class="number-cell">${escapeHtml(hasFrozenActualOverage(record) ? formatCurrency(record.student_duration_overage_fee_jpy, "JPY") : "-")}</td>
     </tr>
   `).join("");
 
@@ -6429,6 +6451,7 @@ function renderUnlinkedActualRow(actual) {
 }
 
 function renderCrossMonthMakeupCompletedReferenceCard(actual) {
+  const monthSemantics = buildLessonMonthSemantics(actual);
   return `
     <article class="lesson-pair-card lesson-pair-card-makeup lesson-pair-card-reference">
       <div class="lesson-pair-card-header">
@@ -6446,7 +6469,8 @@ function renderCrossMonthMakeupCompletedReferenceCard(actual) {
         <div><dt>计费</dt><dd>${escapeHtml(actualBillableSummary(actual))}</dd></div>
         <div><dt>时长</dt><dd>${escapeHtml(displayValue(actual.duration_hours))}</dd></div>
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(actual.lesson_fee, "JPY"))}</dd></div>
-        <div><dt>老师结算月</dt><dd>${escapeHtml(formatMonth(actual.teacher_settlement_month))}</dd></div>
+        <div><dt>学生结算月</dt><dd>${escapeHtml(formatMonth(monthSemantics.studentSettlementMonth))}</dd></div>
+        <div><dt>老师工资月</dt><dd>${escapeHtml(formatMonth(monthSemantics.teacherWageMonth))}</dd></div>
       </dl>
       <div class="lesson-pair-reference-note">来源：跨月补课；原月份预定课时保持不变。</div>
     </article>
@@ -6555,6 +6579,8 @@ function renderLessonPairCard(record, side) {
     isActual && record.is_billable === false ? "lesson-pair-card-nonbillable" : "",
   ].filter(Boolean).join(" ");
   const billableText = isActual ? actualBillableSummary(record) : billableLabel(record.is_billable);
+  const monthSemantics = buildLessonMonthSemantics(record);
+  const sourcePlanned = isActual ? plannedLessonForActual(record) : null;
 
   return `
     <article class="lesson-pair-card ${escapeAttribute(modifierClass)}">
@@ -6578,10 +6604,40 @@ function renderLessonPairCard(record, side) {
         <div><dt>计费</dt><dd>${escapeHtml(billableText)}</dd></div>
         <div><dt>时长</dt><dd>${escapeHtml(displayValue(record.duration_hours))}</dd></div>
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>
+        <div><dt>${isActual ? "学生结算月" : "学生收费月"}</dt><dd>${escapeHtml(formatMonth(monthSemantics.studentSettlementMonth))}</dd></div>
+        ${isActual ? `<div><dt>老师工资月</dt><dd>${escapeHtml(formatMonth(monthSemantics.teacherWageMonth))}</dd></div>` : ""}
         <div><dt>关联</dt><dd>${escapeHtml(lessonPairRelationLabel(record))}</dd></div>
       </dl>
+      ${isActual ? renderActualOverageDetails(record, sourcePlanned) : ""}
       ${renderLessonPairText(record)}
     </article>
+  `;
+}
+
+function plannedLessonForActual(actual) {
+  if (!actual?.planned_lesson_id) {
+    return null;
+  }
+  return lessonRecords.find((record) => record.id === actual.planned_lesson_id)
+    || crossMonthMakeupReferences.sourcePlannedById.get(actual.planned_lesson_id)
+    || null;
+}
+
+function renderActualOverageDetails(actual, planned) {
+  const overage = buildActualOverageDisplay(actual, planned);
+  if (!overage) {
+    return "";
+  }
+
+  return `
+    <div class="lesson-overage-summary">
+      <strong>冻结超额收费</strong>
+      <span>计划 ${escapeHtml(displayValue(overage.plannedDurationHours))} 小时 / 实际 ${escapeHtml(displayValue(overage.actualDurationHours))} 小时</span>
+      <span>超出 ${escapeHtml(displayValue(overage.overageMinutes))} 分钟</span>
+      <span>冻结金额 ${escapeHtml(formatCurrency(overage.frozenFeeJpy, "JPY"))}</span>
+      <span>来源学生月 ${escapeHtml(formatMonth(overage.sourceStudentMonth))}</span>
+      <span>下一学生结算月（来源月锁定后结转）${escapeHtml(formatMonth(overage.nextStudentSettlementMonth))}</span>
+    </div>
   `;
 }
 

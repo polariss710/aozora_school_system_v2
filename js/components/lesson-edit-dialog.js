@@ -1,5 +1,6 @@
 import { updateLessonRecordGuarded } from "../api/lesson-api.js";
 import { formatMonth, safeText } from "../utils/format.js";
+import { buildActualOverageDisplay } from "../utils/actual-overage.js";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",
@@ -338,6 +339,13 @@ export function createLessonEditDialogController(options) {
     dom.businessEntitySelect.disabled = true;
     dom.businessEntitySelect.title = "课时业务归属不可在编辑中修改；历史记录按原归属保留。";
 
+    [dom.startTimeInput, dom.endTimeInput, dom.durationInput, dom.unitPriceInput].forEach((element) => {
+      element.readOnly = isLinkedActual;
+      element.title = isLinkedActual
+        ? "既有 actual 的时间、时长和单价已冻结；超额时长只能在创建 actual 时由后端判定。"
+        : "";
+    });
+
     dom.billableSelect.disabled = isPlanned || isCancelledActual;
     dom.billableSelect.title = isPlanned
       ? "planned 课时固定按计费课时处理；是否实际收费由 actual 和后续结算口径决定。"
@@ -359,15 +367,28 @@ export function createLessonEditDialogController(options) {
   }
 
   function renderSummary(lesson) {
-    dom.summary.innerHTML = [
+    const plannedLesson = lesson.lesson_type === "actual" && lesson.planned_lesson_id
+      ? findLesson(lesson.planned_lesson_id)
+      : null;
+    const overage = buildActualOverageDisplay(lesson, plannedLesson);
+    const rows = [
       ["课时类型", lessonTypeLabel(lesson.lesson_type)],
       ["当前状态", lessonStatusLabel(lesson.status)],
-      ["课时日期", safeText(lesson.lesson_date)],
+      [lesson.lesson_type === "actual" ? "实际发生日期" : "预计上课日期", safeText(lesson.lesson_date)],
       ["学生", selectedOptionText(dom.studentSelect)],
       ["老师", selectedOptionText(dom.teacherSelect)],
-      ["学生结算月", formatMonth(lesson.year_month)],
-      ["老师结算月", formatMonth(lesson.teacher_settlement_month)],
-    ].map(([label, value]) => `
+      ["学生结算月（DB 权威）", formatMonth(lesson.year_month)],
+      ["老师工资月", formatMonth(lesson.teacher_settlement_month)],
+    ];
+    if (overage) {
+      rows.push(
+        ["计划 / 实际时长", `${displayValue(overage.plannedDurationHours)} / ${displayValue(overage.actualDurationHours)} 小时`],
+        ["冻结超出时长", `${displayValue(overage.overageMinutes)} 分钟`],
+        ["冻结超额金额", `${displayValue(overage.frozenFeeJpy)} JPY`],
+        ["超额费用下一学生结算月", formatMonth(overage.nextStudentSettlementMonth)]
+      );
+    }
+    dom.summary.innerHTML = rows.map(([label, value]) => `
       <div class="dialog-summary-row">
         <span class="dialog-summary-label">${escapeHtml(label)}</span>
         <span>${escapeHtml(displayValue(value))}</span>
@@ -476,6 +497,15 @@ export function createLessonEditDialogController(options) {
       validationMessage = `时长必须按开始/结束时间自动计算为 ${displayInputNumber(timeValidation.durationHours)}。`;
     }
     if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
+    if (isLinkedActual && (
+      startTime !== formatInputTime(lesson.start_time)
+      || endTime !== formatInputTime(lesson.end_time)
+      || !numbersEqual(durationHours, Number(lesson.duration_hours))
+      || !numbersEqual(unitPrice, Number(lesson.unit_price || 0))
+    )) {
+      invalidFields.push("startTime", "endTime", "durationHours", "unitPrice");
+      validationMessage = "既有 actual 的时间、时长和单价已冻结；如需记录新的超额时长，请从 planned 创建 actual。";
+    }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
     if (isFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
     if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");

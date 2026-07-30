@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生月度结算详情</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.26-weekly-schedule-image">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.96-authoritative-overage-ui">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -169,7 +169,7 @@
             <div class="section-heading section-heading-row">
               <div>
                 <h2 id="settlementDetailLessonTitle">原始课时参考</h2>
-                <p class="section-note">以下为按学生、月份、业务归属筛选出的原始课时记录参考，不用于本页重新计算结算结果。表格可横向滚动查看更多列。</p>
+                <p class="section-note">以下记录由后端按权威学生结算月筛选，仅展示数据库冻结值，不在本页重新计算结算或超额金额。</p>
               </div>
               <span id="settlementDetailLessonCount" class="record-count">0 条</span>
             </div>
@@ -178,7 +178,9 @@
               <table class="payment-table settlement-detail-lesson-table">
                 <thead>
                   <tr>
-                    <th>课时日期</th>
+                    <th>实际 / 预计日期</th>
+                    <th>学生结算月</th>
+                    <th>老师工资月</th>
                     <th>lesson_type</th>
                     <th>状态</th>
                     <th>老师</th>
@@ -190,6 +192,10 @@
                     <th>课次数</th>
                     <th>单价</th>
                     <th>课时费</th>
+                    <th>计划小时</th>
+                    <th>超出分钟</th>
+                    <th>冻结超额金额</th>
+                    <th>超额费用下一学生结算月</th>
                     <th>计费</th>
                     <th>planned ID</th>
                     <th>课程内容</th>
@@ -273,6 +279,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-detail-app.js?v=v10.3.5-improve-settlement-adjustment-dialog"></script>
+    <script type="module" src="./js/settlement-detail-app.js?v=v10.3.96-authoritative-overage-ui"></script>
   </body>
 </html>

@@ -2827,6 +2827,22 @@ h2 {
   font-weight: 700;
 }
 
+.lesson-overage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  border: 1px solid #f0c36a;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #fff8e7;
+  color: #7c4a03;
+  font-size: 12px;
+}
+
+.lesson-overage-summary strong {
+  flex-basis: 100%;
+}
+
 .lesson-pair-placeholder {
   display: grid;
   min-height: 100%;
