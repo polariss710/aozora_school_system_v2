@@ -64,7 +64,8 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
   let query = supabase
     .from("school_lesson_records")
     .select(LESSON_COLUMNS)
-    .eq("app_type", "school");
+    .eq("app_type", "school")
+    .eq("year_month", yearMonth);
 
   if (options.weekStart) {
     const weekEnd = addDaysToDateValue(options.weekStart, 7);
@@ -74,8 +75,6 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
     query = query
       .gte("lesson_date", options.weekStart)
       .lt("lesson_date", weekEnd);
-  } else {
-    query = query.eq("year_month", yearMonth);
   }
 
   if (options.status === "voided") {

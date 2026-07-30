@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=v10.3.96-authoritative-overage-ui";
+import { initLessonPage } from "./pages/lesson-page.js?v=v10.4.2-r2-c-settlement-filter";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

@@ -88,7 +88,7 @@
 
           <form id="lessonFilterForm" class="filter-grid">
             <label class="field month-select-field">
-              <span>月份</span>
+              <span>学生结算月</span>
               <div class="month-select-group">
                 <select id="lessonYearFilter" name="year" aria-label="年份"></select>
                 <select id="lessonMonthFilter" name="month" aria-label="月份"></select>
@@ -96,7 +96,7 @@
             </label>
 
             <label class="field">
-              <span>周（周一开始）</span>
+              <span>自然周（按周一归属学生结算月）</span>
               <select id="lessonWeekFilter" name="weekStart">
                 <option value="">整月</option>
               </select>
@@ -210,7 +210,7 @@
           <div class="section-heading section-heading-row lesson-list-heading">
             <div>
               <h2 id="lessonListTitle">课时记录</h2>
-              <p class="section-note">默认按预定课时 / 实际课时左右对应查看原始课时记录；普通列表作为辅助视图，可横向滚动查看更多列。</p>
+              <p class="section-note">月份按数据库学生结算月筛选；自然周归属周一所在月份。实际发生日期单独显示，不改变学生结算月。</p>
             </div>
             <div class="lesson-list-tools">
               <div class="view-toggle" role="group" aria-label="课时视图">
@@ -1112,6 +1112,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=v10.3.96-authoritative-overage-ui"></script>
+    <script type="module" src="./js/lesson-app.js?v=v10.4.2-r2-c-settlement-filter"></script>
   </body>
 </html>

@@ -40,6 +40,13 @@ import {
   validateActualDurationForFlow,
 } from "../utils/actual-overage.js";
 import {
+  createLatestRequestGate,
+  listStudentSettlementMonthWeeks,
+  normalizeStudentSettlementWeekStart,
+  validateAuthoritativeLessonRecords,
+  validateUniqueLessonRecordIds,
+} from "../utils/lesson-settlement-filter.js";
+import {
   defaultNewBusinessEntityId,
   isNewBusinessEntityId,
   newBusinessEntities,
@@ -264,6 +271,7 @@ let teachers = [];
 let subjects = [];
 let businessEntities = [];
 let lessonRecords = [];
+const lessonRecordsRequestGate = createLatestRequestGate();
 let crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
 let loadedMonth = "";
 let loadedLessonRecordMode = "";
@@ -602,6 +610,7 @@ function bindEvents() {
       ...defaultLessonFilters(),
       view: activeView,
     });
+    beginLessonRecordsRequest();
     showMessage("info", "已重置筛选条件；点击“查询”后刷新结果。");
   });
 
@@ -609,7 +618,11 @@ function bindEvents() {
     select?.addEventListener("change", () => {
       const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
       renderWeekFilterOptions(month, dom.weekFilter?.value);
+      beginLessonRecordsRequest();
     });
+  });
+  [dom.weekFilter, dom.studentSelect].forEach((select) => {
+    select?.addEventListener("change", () => beginLessonRecordsRequest());
   });
   dom.openWeeklyScheduleForStudentButton?.addEventListener("click", openWeeklyScheduleForSelectedStudent);
 
@@ -1002,7 +1015,10 @@ function readInitialLessonQuery() {
   const params = new URLSearchParams(window.location.search);
   const filters = defaultLessonFilters();
   filters.month = readLessonQueryMonth(params);
-  filters.weekStart = normalizeWeekStart(params.get("week_start") || params.get("weekStart"));
+  filters.weekStart = normalizeStudentSettlementWeekStart(
+    filters.month,
+    normalizeWeekStart(params.get("week_start") || params.get("weekStart"))
+  );
   filters.view = normalizeLessonView(params.get("view"));
   filters.studentId = readLessonQueryValue(params, "student_id", "studentId");
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
@@ -1081,6 +1097,7 @@ function buildLessonListQueryParams(filters) {
 }
 
 async function loadInitialData() {
+  const requestToken = beginLessonRecordsRequest();
   setLoading(true);
   showMessage("info", "正在加载课时管理数据...");
 
@@ -1094,11 +1111,13 @@ async function loadInitialData() {
 
     renderMasterOptions();
     const filters = initialLessonQueryFilters || readFilters();
-    await loadLessonMonth(filters.month, filters);
+    const applied = await loadLessonMonth(filters.month, filters, requestToken);
+    if (!applied) return;
     restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "课时管理数据已加载。");
   } catch (error) {
+    if (!lessonRecordsRequestGate.isCurrent(requestToken)) return;
     students = [];
     teachers = [];
     subjects = [];
@@ -1112,7 +1131,7 @@ async function loadInitialData() {
     renderLessonStats(null);
     showMessage("error", `读取课时管理数据失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
   }
 }
 
@@ -1131,15 +1150,18 @@ async function applyQuery(options = {}) {
   }
 
   if (filters.month !== loadedMonth || lessonRecordQueryMode(filters) !== loadedLessonRecordMode) {
+    const requestToken = beginLessonRecordsRequest();
     setLoading(true);
     showMessage("info", "正在加载课时记录...");
 
     try {
-      await loadLessonMonth(filters.month, filters);
+      const applied = await loadLessonMonth(filters.month, filters, requestToken);
+      if (!applied) return;
       restoreFilterSelections(filters);
       applyCurrentFilters();
       showMessage("success", "课时记录已加载。");
     } catch (error) {
+      if (!lessonRecordsRequestGate.isCurrent(requestToken)) return;
       lessonRecords = [];
       crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
       loadedMonth = "";
@@ -1147,7 +1169,7 @@ async function applyQuery(options = {}) {
       renderLessonRecords([]);
       showMessage("error", `读取课时记录失败：${error.message || error}`);
     } finally {
-      setLoading(false);
+      if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
     }
     return;
   }
@@ -1155,18 +1177,50 @@ async function applyQuery(options = {}) {
   applyCurrentFilters();
 }
 
-async function loadLessonMonth(month, filters = {}) {
+function beginLessonRecordsRequest() {
+  const requestToken = lessonRecordsRequestGate.begin();
+  lessonStatsRequestId += 1;
+  lessonRecords = [];
+  crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
+  loadedMonth = "";
+  loadedLessonRecordMode = "";
+  renderLessonRecords([]);
+  renderLessonStats(null);
+  return requestToken;
+}
+
+async function loadLessonMonth(month, filters = {}, requestToken) {
   const queryMode = lessonRecordQueryMode(filters);
-  lessonRecords = sortLessonRecords(await fetchLessonRecords(month, {
-    status: filters.status,
-    weekStart: filters.weekStart || "",
-  }));
-  crossMonthMakeupReferences = buildCrossMonthMakeupReferenceMaps(
-    await fetchCrossMonthMakeupReferences(month, lessonRecords)
-  );
+  try {
+    const records = sortLessonRecords(validateAuthoritativeLessonRecords(
+      await fetchLessonRecords(month, {
+        status: filters.status,
+        weekStart: filters.weekStart || "",
+      }),
+      { yearMonth: month, weekStart: filters.weekStart || "" }
+    ));
+    const rawReferences = await fetchCrossMonthMakeupReferences(month, records);
+    const references = buildCrossMonthMakeupReferenceMaps({
+      sourceMonthActuals: validateUniqueLessonRecordIds(
+        rawReferences.sourceMonthActuals || [],
+        "跨月补课实际课时读取结果"
+      ),
+      targetMonthSources: validateUniqueLessonRecordIds(
+        rawReferences.targetMonthSources || [],
+        "跨月补课来源课时读取结果"
+      ),
+    });
+    if (!lessonRecordsRequestGate.isCurrent(requestToken)) return false;
+    lessonRecords = records;
+    crossMonthMakeupReferences = references;
+  } catch (error) {
+    if (!lessonRecordsRequestGate.isCurrent(requestToken)) return false;
+    throw error;
+  }
   loadedMonth = month;
   loadedLessonRecordMode = queryMode;
   renderDataOptions(lessonRecords);
+  return true;
 }
 
 function lessonRecordQueryMode(filters = {}) {
@@ -1183,39 +1237,16 @@ function normalizeWeekStart(value) {
 
 function renderWeekFilterOptions(yearMonth, selectedWeekStart = "") {
   if (!dom.weekFilter) return;
-  const match = safeText(yearMonth).match(/^(\d{4})-(0[1-9]|1[0-2])$/);
   const options = ['<option value="">整月</option>'];
-  if (!match) {
-    dom.weekFilter.innerHTML = options.join("");
-    return;
-  }
-  const firstDay = new Date(`${yearMonth}-01T00:00:00`);
-  const lastDay = new Date(Number(match[1]), Number(match[2]), 0);
-  const monday = new Date(firstDay);
-  monday.setDate(firstDay.getDate() - ((firstDay.getDay() + 6) % 7));
-  while (monday <= lastDay) {
-    const start = formatDateInput(monday);
-    const end = new Date(monday);
-    end.setDate(end.getDate() + 6);
-    options.push(`<option value="${escapeAttribute(start)}">${escapeHtml(`${formatMonthDay(monday)} – ${formatMonthDay(end)}`)}</option>`);
-    monday.setDate(monday.getDate() + 7);
+  for (const week of listStudentSettlementMonthWeeks(yearMonth)) {
+    options.push(`<option value="${escapeAttribute(week.weekStart)}">${escapeHtml(`${formatMonthDayValue(week.weekStart)} – ${formatMonthDayValue(week.weekEnd)}`)}</option>`);
   }
   dom.weekFilter.innerHTML = options.join("");
-  const normalized = normalizeWeekStart(selectedWeekStart);
-  dom.weekFilter.value = Array.from(dom.weekFilter.options).some((option) => option.value === normalized)
-    ? normalized
-    : "";
+  dom.weekFilter.value = normalizeStudentSettlementWeekStart(yearMonth, selectedWeekStart);
 }
 
-function formatDateInput(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function formatMonthDay(date) {
-  return `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
+function formatMonthDayValue(value) {
+  return `${value.slice(5, 7)}/${value.slice(8, 10)}`;
 }
 
 function updateWeeklyScheduleButton(filters = readFilters()) {
@@ -1322,9 +1353,16 @@ function readFilters() {
     return null;
   }
 
+  const rawWeekStart = normalizeWeekStart(dom.weekFilter?.value);
+  const weekStart = normalizeStudentSettlementWeekStart(month, rawWeekStart);
+  if (rawWeekStart && !weekStart) {
+    showMessage("error", "所选自然周不属于当前学生结算月，请重新选择。");
+    return null;
+  }
+
   return {
     month,
-    weekStart: normalizeWeekStart(dom.weekFilter?.value),
+    weekStart,
     view: activeView,
     studentId: dom.studentSelect.value,
     teacherId: dom.teacherSelect.value,
@@ -1339,8 +1377,8 @@ function readFilters() {
 
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
-  renderWeekFilterOptions(filters.month, filters.weekStart);
-  dom.weekFilter.value = filters.weekStart || "";
+  const weekStart = normalizeStudentSettlementWeekStart(filters.month, filters.weekStart);
+  renderWeekFilterOptions(filters.month, weekStart);
   dom.studentSelect.value = filters.studentId || "";
   dom.teacherSelect.value = filters.teacherId || "";
   dom.subjectSelect.value = filters.subjectId || "";
@@ -1351,7 +1389,7 @@ function restoreFilterSelections(filters) {
   dom.keywordInput.value = filters.keyword || "";
   activeView = normalizeLessonView(filters.view || activeView);
   syncViewVisibility();
-  updateWeeklyScheduleButton(filters);
+  updateWeeklyScheduleButton({ ...filters, weekStart });
 }
 
 function renderMasterOptions() {
