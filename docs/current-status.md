@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-28
+Status date: 2026-07-30
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -22,6 +22,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 - Field narrowing policy: create/edit dialogs should expose only fields actually used in current operations. Historical, reserved, low-frequency, generated, derived, financial-chain, and audit fields stay hidden/readonly but are not physically removed from DB unless a separate cleanup phase is designed. Repeated master-data dialog narrowing tasks should follow `docs/workflows/v2-master-dialog-simplification.md`.
 - Lesson venue scheduling is available as a Beta workflow. `school_lesson_records.lesson_delivery_mode` / `lesson_venue` are nullable for historical compatibility; new or updated onsite lessons must use `Regus公共区` or `Regus办公室`, while online lessons may optionally record a free-text platform. Planned-to-actual creation inherits these fields after legacy onsite venues are explicitly migrated. The classroom schedule is read-only: `Regus办公室` allows at most one group in the same time range, while `Regus公共区` has no group-count conflict limit; warnings do not block lesson writes.
 - Lesson-credit policy is unified: cancellation and partial completion leave paid-but-unfulfilled credit on the original planned lesson; no student refund or extra tuition is created. A makeup actual is always non-billable to the student and may switch teacher/subject while preserving the original student and business entity. Teacher wage attribution follows the makeup actual’s teacher, subject, date and duration.
+- Actual duration overage S1-A is at `S1-A_SCHEMA_VALIDATED`: the nullable schema foundation is deployed and validated but is not activated. All 630 lesson snapshots and 15 settlement snapshots remain NULL, including the fixed legacy 19 `actual > planned` records; there was no migration, backfill, or collection. Actual overage is still unavailable: ordinary/partial/makeup writers and settlement reader/candidate are unchanged, R0 remains `student_tuition_preview = validation_preview_only`, `student_tuition_generate = blocked`, and `student_tuition_cash_submit = blocked`. The next implementation phase remains blocked until R1D actual writer and settlement reader complete their authoritative month cutover.
 
 ## Hard Stops
 
@@ -33,6 +34,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. School V2 actual duration overage S1-A nullable schema foundation, 2026-07-30:
+   已部署并验收`school_lesson_records` 5个nullable overage snapshot字段、`school_student_monthly_settlements` 6个nullable月结snapshot字段、6个validated CHECK及2个partial index；全部字段无default，未激活writer/reader，未执行历史backfill。首次只读postdeploy因内联`IF ... <> CASE ... END THEN`的PL/pgSQL解析错误停止并回滚，拆分期望MD5赋值并完成离线静态检查后，修复版postdeploy一次通过；rollback测试仅使用`pg_temp`并全部回滚。630 lesson、15 settlement新增字段全NULL，固定历史19条继续NULL且投影哈希`352e72ac33d648a23be84bb27b3580d1`不变；bill/income/relation、writer/reader/helper MD5、aircon/planned fee component和planned整数时长规则均未变化。R0继续`validation_preview_only / blocked / blocked`。actual overage业务仍不可用，必须先完成R1D actual writer及settlement reader的权威月份切换，才能实施overage writer和月结/下一周期逻辑。详见`docs/school-v2-actual-duration-overage-s1-a-schema-report-20260730.md`。
 
 1. School V2 tuition P0 R1D-C-C-C candidate attribution cutover, 2026-07-28:
    将`school_list_student_tuition_candidates(uuid,uuid,text,boolean)`权威scope从旧`year_month`切换为显式`billing_month`，要求ISO周一合法period、明确`business_entity_id`、`student_settlement_month=billing_month`、已批准A1/A2 source及非NULL decided_at；不读取scheduled date、技术时间戳或旧月份/date作fallback，并显式以`historical_paid_exclusion`排除R1D-C-C-B固定42证据。参数、22列返回契约、postgres owner、SECURITY DEFINER、service-role-only ACL及公开preview/API/page保持兼容；candidate hash由`1d9149f6e3ff02305d0963f81af9f0b9`变为`8981a2ce07abf8c28231bfaf05451368`，preview/classifier hash不变。相同最终cutover SQL先以commit=0完成ROLLBACK：160→118、差集精确42、target-only 0；固定42临时补齐新字段仍拒绝、证据DELETE拒绝、缺字段/非法period/缺decided_at/非批准source拒绝、scheduled变化不影响归属、旧字段变化不重开候选，6条pending_makeup不变；四生成入口、Cash gate和事故入口全部拒绝，rollback后函数/字段/updated_at/权限/临时对象残留0。正式部署仅替换candidate函数定义/comment/ACL，业务DML 0；五组candidate为孙陈锋Aug 22/44/JPY374,000、张倬闻Aug 30/65/JPY650,000及Sep/Oct/Nov 24/52/520,000、24/52/520,000、18/41/410,000，总计118/254/JPY2,474,000，UUID与A1 52+A2 66精确一致；固定42命中0。626 lesson/229 actual、42不可变证据、9 bill、42 income、7 identity、121 relation、月结/工资/School资金链及Cash 34/59/31前后count/hash一致；五个归属字段仍各118，scheduled仍0。R0继续`validation_preview_only / blocked / blocked`；未改writer、actual、scheduled、pending_makeup、generate/Cash业务逻辑、API/page或后续阶段。详见`docs/school-v2-r1d-c-c-c-tuition-candidate-cutover-report-20260728.md`。
