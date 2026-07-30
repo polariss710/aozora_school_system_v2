@@ -3,6 +3,9 @@
 日期：2026-07-30（Asia/Tokyo）
 阶段：S1-B canonical ordinary actual overage writer
 停止点：`S1-B_DATABASE_REVIEW_POINT`
+最终状态（2026-07-31）：`ACTUAL_DURATION_OVERAGE_COMPLETE`
+
+> 2026-07-31补充：本报告记录原S1-B canonical-only部署。后续`S1-B_LEGACY_SOURCE_COMPAT_DATABASE_REVIEW_POINT`兼容补丁已将overage source资格扩展为“完整canonical R1D bundle”或“全NULL bundle + 唯一R1D-E-B1 approved legacy evidence + E-B2 resolver权威月”；其他规则不变。详见本文第10节。
 
 ## 1. 结论
 
@@ -147,3 +150,19 @@ S1-C未来必须直接读取已冻结的`student_duration_overage_fee_jpy`，不
 ## 9. Git状态
 
 截至数据库验收停止点，本阶段文件保持未暂存，尚未执行Git add、commit或push；受保护未跟踪文件未读取、修改、移动或暂存。Git交付由后续独立授权完成。
+
+## 10. 2026-07-31 approved legacy source兼容补丁
+
+页面真实验证使用planned `20533154-0de9-49b7-bbbd-907aa2a254ee`时，原S1-B canonical-only gate返回`S1_B_OVERAGE_CANONICAL_SOURCE_REQUIRED`。只读确认该planned的R1D五字段全NULL，但存在唯一且identity匹配的R1D-E-B1 approved legacy evidence，E-B2 resolver权威返回`2026-07`；它同时满足青空进学塾、billable、2小时、JPY10,000、无关联actual、来源月未锁定。
+
+兼容补丁只再次替换ordinary writer：MD5从`e3d9dd24f3fd7c533301bb5c1a27fa4f`变为`149634304f5407de81f23717b913be7e`。完整canonical branch保持；全NULL branch必须唯一命中`r1d_e_b1_fixed_legacy_279 / legacy_settlement_evidence_v1`并通过现有E-B2 resolver；1–4字段、无证据、resolver不一致、非青空、non-billable、duplicate、voided/cancelled及locked source month继续拒绝。补丁不UPDATE planned、不回填R1D字段、不修改guarded updater、E-B2/F1、S1-C、candidate、bill、income、Cash或R0。
+
+Rollback测试使用全事务`codex-test`合成legacy evidence夹具证明2h→2.25h生成15分钟/JPY2,500并继承resolver月份，全部测试行与临时trigger状态变更均ROLLBACK；补丁部署验收停止时真实planned仍无actual，之后已由页面完成真实生成并通过第11节最终只读验收。
+
+## 11. 最终真实业务验收与完成状态
+
+业务负责人确认页面已从planned `20533154-0de9-49b7-bbbd-907aa2a254ee`生成actual `4a1b74c6-65f0-4513-9c1e-4a094b7bb393`。最终School DB `REPEATABLE READ READ ONLY`验收并明确`ROLLBACK`，确认：关联actual精确1条；actual为`completed / 2.25h / 135分钟 / JPY10,000 / JPY22,500 / 2026-07 / 青空进学塾`；冻结overage为`15分钟 / JPY2,500 / student_duration_overage_v1 / ordinary_actual_rpc`且decided_at非NULL。planned仍为`2h / JPY10,000 / JPY20,000`，canonical_charge仍1条，pending_makeup为0。
+
+S1-C live aggregate为`15分钟 / JPY2,500 / CNY107.50 / 1条`；preview保持planned base `JPY520,000 / CNY22,360.00`，无overage final due为0，DB final due为`CNY107.50`。真实2026-07月结没有snapshot，未执行lock/relock；未来按正常月结锁定后，该正向余额才会通过既有carryover进入下一自然月。原canonical bill、income及School侧Cash关联均未因actual新增或修改；candidate、bill、income和Cash不直接扫描overage。历史旧actual继续不回填、不追收。
+
+`actual < planned`仍必须走partial；canonical planned与唯一approved E-B1 legacy planned均可为新生成overage actual提供权威来源月。V2无登录且`school_lesson_records`宽松ACL/RLS是业务已接受的内部系统技术债务，本次未整改；V3已有正式安全登录。R0保持`validation_preview_only / blocked / blocked`。最终结论：`ACTUAL_DURATION_OVERAGE_COMPLETE`。
