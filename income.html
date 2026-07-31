@@ -394,7 +394,7 @@
       <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
         <div class="section-heading">
           <h2 id="generateTuitionBillTitle">学费应收预览</h2>
-          <p class="section-note">金额和candidate均来自数据库权威预览。当前R0仅开放验证预览，不会创建账单、收入或Cash请求。</p>
+          <p class="section-note">金额和candidate均来自数据库权威预览。正式生成只使用同一次预览返回的atomic manifest；不会自动提交Cash。</p>
         </div>
 
         <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
@@ -404,7 +404,7 @@
             权威candidate明细
             <span id="tuitionBillCandidateCount" class="record-count">0 条</span>
           </summary>
-          <p class="section-note">仅展示同一次validation-only RPC返回的权威学费月份、自然周和服务端费用；页面不按预计上课日期重新归月或计费。</p>
+          <p class="section-note">仅展示同一次权威preview RPC返回的学费月份、自然周和服务端费用；页面不按预计上课日期重新归月或计费。</p>
           <div class="table-scroll">
             <table class="payment-table tuition-preview-candidate-table">
               <thead>
@@ -451,7 +451,7 @@
         <div class="dialog-actions">
           <button class="button" id="generateTuitionBillCancelButton" type="button">取消</button>
           <button class="button" id="generateTuitionBillPreviewButton" type="button">生成预览</button>
-          <button class="button button-primary" id="generateTuitionBillSubmitButton" type="button" disabled title="R0 学费链整改期间禁止正式生成">生成应收（维护中）</button>
+          <button class="button button-primary" id="generateTuitionBillSubmitButton" type="button" disabled title="请先生成权威预览">请先生成预览</button>
         </div>
       </section>
     </div>

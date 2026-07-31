@@ -8,7 +8,8 @@ import {
 } from "../js/utils/tuition-validation-preview.js";
 
 const preview = {
-  feature_state: "validation_preview_only",
+  feature_state: "enabled",
+  generate_feature_state: "enabled",
   student_id: "11111111-1111-4111-8111-111111111111",
   business_entity_id: "22222222-2222-4222-8222-222222222222",
   billing_month: "2026-08",
@@ -51,8 +52,13 @@ assert.equal(state.beginSubmission(), true);
 assert.equal(state.beginSubmission(), false);
 state.endSubmission();
 
-// 7. Current R0 preview has no explicit DB-backed generate enablement.
-assert.equal(isAtomicTuitionGenerateEnabled(preview), false);
+// 7. Both DB-backed gates are required; validation-only remains disabled.
+assert.equal(isAtomicTuitionGenerateEnabled(preview), true);
+assert.equal(isAtomicTuitionGenerateEnabled({
+  ...preview,
+  feature_state: "validation_preview_only",
+  generate_feature_state: "blocked",
+}), false);
 assert.deepEqual(
   mapAtomicTuitionGenerateError(new Error("TUITION_GENERATION_BLOCKED: blocked")),
   {
@@ -68,7 +74,7 @@ assert.equal(mapAtomicTuitionGenerateError(new Error("R2_F_C_TUITION_SOURCE_BUSY
 
 // 10. An idempotent success consumes the preview and does not create a second call.
 let generateCalls = 0;
-state.storePreview({ ...preview, generate_feature_state: "enabled" });
+state.storePreview(preview);
 if (state.beginSubmission()) {
   generateCalls += 1;
   state.endSubmission({ consumePreview: true });

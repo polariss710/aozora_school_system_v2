@@ -43,7 +43,8 @@ function candidate(
 
 function response(billingMonth, candidates, overrides = {}) {
   return {
-    feature_state: "validation_preview_only",
+    feature_state: "enabled",
+    generate_feature_state: "enabled",
     student_id: STUDENT_ID,
     business_entity_id: ENTITY_ID,
     billing_month: billingMonth,
@@ -166,6 +167,7 @@ const pageSource = readFileSync(new URL("../js/pages/income-page.js", import.met
 const apiSource = readFileSync(new URL("../js/api/income-api.js", import.meta.url), "utf8");
 const htmlSource = readFileSync(new URL("../income.html", import.meta.url), "utf8");
 const sqlSource = readFileSync(new URL("../sql/current/school_tuition_r2_e_planned_aircon_fee_cutover.sql", import.meta.url), "utf8");
+const r2ffPolicySource = readFileSync(new URL("../sql/current/school_tuition_r2_f_f_aircon_policy_cutover.sql", import.meta.url), "utf8");
 
 assert.doesNotMatch(pageSource, /\.rpc\s*\(/);
 assert.doesNotMatch(pageSource, /supabase\.(?:from|rpc)\s*\(/);
@@ -178,14 +180,18 @@ assert.doesNotMatch(pageSource, /innerHTML \+= preview\.candidates|\.concat\(pre
 assert.match(pageSource, /formatCurrency\(preview\.total_fee_jpy, "JPY"\)/);
 assert.match(pageSource, /formatCurrency\(preview\.total_aircon_fee_jpy, "JPY"\)/);
 assert.doesNotMatch(pageSource, /total_fee_jpy\s*=|duration_hours\s*\*\s*.*unit_price/);
-assert.match(htmlSource, /validation-only RPC返回的权威学费月份/);
+assert.match(htmlSource, /同一次权威preview RPC返回的学费月份/);
 assert.match(htmlSource, /generateTuitionBillSubmitButton[^>]*disabled/);
-assert.match(pageSource, /学费应收生成功能维护中，当前只能预览/);
+assert.match(pageSource, /preview\.generate_feature_state/);
 assert.match(pageSource, /学费 Cash 提交正在整改，当前禁止提交/);
 assert.match(pageSource, /generateStudentTuitionBillAtomic/);
 assert.doesNotMatch(apiSource, /\.rpc\("school_generate_student_tuition_bill"/);
 assert.doesNotMatch(apiSource, /school_create_student_tuition_bill_income_record/);
 assert.match(sqlSource, /school_list_student_tuition_charge_candidates/);
 assert.match(sqlSource, /GRANT EXECUTE ON FUNCTION public\.school_list_student_tuition_charge_candidates\([\s\S]*?\) TO service_role;/i);
+assert.match(r2ffPolicySource, /planned_weekend_venue_whole_hour_aircon_v2/);
+assert.match(r2ffPolicySource, /floor\(v_duration\)/);
+assert.match(r2ffPolicySource, /venue\.code=v_venue_code/);
+assert.doesNotMatch(r2ffPolicySource, /ILIKE|SIMILAR TO/);
 
 console.log("authoritative tuition validation preview UI fixtures: PASS");

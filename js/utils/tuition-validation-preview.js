@@ -1,8 +1,12 @@
-const VALIDATION_PREVIEW_STATE = "validation_preview_only";
+const PREVIEW_STATES = new Set(["validation_preview_only", "enabled"]);
+const GENERATE_STATES = new Set(["blocked", "enabled"]);
 
 export function validateTuitionValidationPreviewDetails(response, expected = {}) {
-  if (!response || response.feature_state !== VALIDATION_PREVIEW_STATE) {
-    throw new Error("学费预览状态不是 validation_preview_only，已拒绝显示。");
+  if (!response || !PREVIEW_STATES.has(response.feature_state)) {
+    throw new Error("学费预览状态无效，已拒绝显示。");
+  }
+  if (!GENERATE_STATES.has(response.generate_feature_state)) {
+    throw new Error("学费生成状态无效，已拒绝显示。");
   }
   if (response.student_id !== expected.studentId) {
     throw new Error("学费预览学生与当前选择不一致，请重新加载。");
@@ -152,7 +156,8 @@ export function buildAtomicTuitionGeneratePayload(preview, note = "") {
 }
 
 export function isAtomicTuitionGenerateEnabled(preview) {
-  return preview?.generate_feature_state === "enabled";
+  return preview?.feature_state === "enabled"
+    && preview?.generate_feature_state === "enabled";
 }
 
 export function mapAtomicTuitionGenerateError(error) {

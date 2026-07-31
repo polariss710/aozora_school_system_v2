@@ -1544,7 +1544,7 @@ function setTuitionBillSubmitting(isSubmitting) {
   dom.generateTuitionBillCancelButton.disabled = isSubmitting;
   dom.generateTuitionBillSubmitButton.textContent = isAtomicTuitionGenerateEnabled(preview)
     ? "生成学费应收"
-    : "生成应收（维护中）";
+    : "请先生成预览";
   dom.confirmGenerateTuitionBillCancelButton.disabled = isSubmitting;
   dom.confirmGenerateTuitionBillSubmitButton.disabled = isSubmitting;
   dom.confirmGenerateTuitionBillSubmitButton.textContent = isSubmitting
@@ -1583,7 +1583,8 @@ function renderTuitionBillPreview(preview) {
     ? `${preview.existing_tuition_bill_status || "-"} / ${preview.existing_income_status || "-"}`
     : "无";
   dom.generateTuitionBillPreview.innerHTML = `
-    <div><dt>预览状态</dt><dd>${escapeHtml(preview.feature_state)}（当前R0仅允许验证预览）</dd></div>
+    <div><dt>预览状态</dt><dd>${escapeHtml(preview.feature_state)}</dd></div>
+    <div><dt>原子生成状态</dt><dd>${escapeHtml(preview.generate_feature_state)}</dd></div>
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
     <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
@@ -1645,7 +1646,7 @@ function clearTuitionBillPreview({ invalidateRequest = true } = {}) {
   }
   if (dom.generateTuitionBillSubmitButton) {
     dom.generateTuitionBillSubmitButton.disabled = true;
-    dom.generateTuitionBillSubmitButton.textContent = "生成应收（维护中）";
+    dom.generateTuitionBillSubmitButton.textContent = "请先生成预览";
   }
 }
 

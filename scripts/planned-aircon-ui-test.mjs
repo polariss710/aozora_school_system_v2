@@ -9,6 +9,7 @@ const lessonDetailApi = readFileSync(new URL("../js/api/lesson-detail-api.js", i
 const editDialog = readFileSync(new URL("../js/components/lesson-edit-dialog.js", import.meta.url), "utf8");
 const incomeHtml = readFileSync(new URL("../income.html", import.meta.url), "utf8");
 const incomePage = readFileSync(new URL("../js/pages/income-page.js", import.meta.url), "utf8");
+const r2ffPolicy = readFileSync(new URL("../sql/current/school_tuition_r2_f_f_aircon_policy_cutover.sql", import.meta.url), "utf8");
 
 assert.match(lessonHtml, /createPlannedLessonAirconRateInput/);
 assert.match(lessonHtml, /lessonBatchGenerateAirconRateInput/);
@@ -45,5 +46,11 @@ assert.match(incomePage, /candidate\.base_lesson_fee_jpy/);
 assert.match(incomePage, /candidate\.aircon_rate_jpy_per_hour/);
 assert.match(incomePage, /candidate\.aircon_fee_jpy/);
 assert.match(incomePage, /candidate\.course_total_jpy/);
+
+assert.match(r2ffPolicy, /'Regus办公室','Regus办公室',[\s\S]*?'onsite',true/);
+assert.match(r2ffPolicy, /'Regus公共区','Regus公共区',[\s\S]*?'onsite',false/);
+assert.match(r2ffPolicy, /v_whole_hours:=floor\(v_duration\)/);
+assert.match(r2ffPolicy, /venue\.code=v_venue_code/);
+assert.doesNotMatch(r2ffPolicy, /ILIKE|SIMILAR TO/);
 
 console.log("planned aircon UI/API boundary fixtures: PASS");
