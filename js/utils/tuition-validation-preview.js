@@ -23,6 +23,8 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
   const ids = new Set();
   let totalLessonCount = 0;
   let totalDurationHours = 0;
+  let totalBaseLessonFeeJpy = 0;
+  let totalAirconFeeJpy = 0;
   let totalFeeJpy = 0;
   let previousOrderKey = "";
 
@@ -47,13 +49,26 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
 
     const lessonCount = finiteNumber(candidate.lesson_count, "课次数", plannedLessonId);
     const durationHours = finiteNumber(candidate.duration_hours, "时长", plannedLessonId);
-    const lessonFee = finiteNumber(candidate.lesson_fee, "服务端费用", plannedLessonId);
-    if (lessonCount <= 0 || durationHours <= 0 || lessonFee <= 0) {
+    const baseLessonFee = finiteNumber(candidate.base_lesson_fee_jpy, "基础课时费", plannedLessonId);
+    const airconRate = finiteNumber(candidate.aircon_rate_jpy_per_hour, "空调费率", plannedLessonId);
+    const airconFee = finiteNumber(candidate.aircon_fee_jpy, "空调费", plannedLessonId);
+    const lessonTotalFee = finiteNumber(candidate.lesson_total_fee_jpy, "课程总价", plannedLessonId);
+    if (lessonCount <= 0
+        || durationHours <= 0
+        || baseLessonFee <= 0
+        || !Number.isInteger(airconRate)
+        || airconRate < 0
+        || airconFee < 0
+        || lessonTotalFee <= 0
+        || !numbersEqual(lessonTotalFee, baseLessonFee + airconFee)
+        || !numbersEqual(candidate.lesson_fee, lessonTotalFee)) {
       throw new Error(`学费预览candidate数值无效：${plannedLessonId}`);
     }
     totalLessonCount += lessonCount;
     totalDurationHours += durationHours;
-    totalFeeJpy += lessonFee;
+    totalBaseLessonFeeJpy += baseLessonFee;
+    totalAirconFeeJpy += airconFee;
+    totalFeeJpy += lessonTotalFee;
 
     const orderKey = [
       candidate.billing_week_start_date,
@@ -72,7 +87,10 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
   }
   if (Number(response.total_lesson_count) !== totalLessonCount
       || !numbersEqual(response.total_duration_hours, totalDurationHours)
+      || !numbersEqual(response.total_base_lesson_fee_jpy, totalBaseLessonFeeJpy)
+      || !numbersEqual(response.total_aircon_fee_jpy, totalAirconFeeJpy)
       || !numbersEqual(response.total_fee_jpy, totalFeeJpy)
+      || !numbersEqual(response.total_fee_jpy, Number(response.total_base_lesson_fee_jpy) + Number(response.total_aircon_fee_jpy))
       || !numbersEqual(response.bill_amount_jpy, response.total_fee_jpy)) {
     throw new Error("学费预览汇总与candidate明细不一致，已拒绝显示。");
   }

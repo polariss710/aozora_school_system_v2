@@ -36,6 +36,9 @@ Stop and report immediately for:
 
 ## Latest Key Updates
 
+1. School V2 tuition R2-E planned lesson aircon fee charging, 2026-07-31:
+   已完成数据库、前端及最终验收并进入Git交付。planned lesson独立保存每小时空调费率，DB按学生结算月、周末规则和权威planned时长分别计算基础课时费、空调费及课程总价；`lesson_fee`继续只表示基础课时费，actual、partial、cancelled、makeup、overage、老师工资及历史收费事实不包含或重算空调费。原cutover已部署一次，validation preview details和guarded lesson update两个已部署RPC的PL/pgSQL列名歧义分别通过独立最小纠正SQL修复；同字节rehearsal回滚、正式COMMIT、完整postdeploy、rollback tests、前端测试及planned-only import非planned定向验收均通过。候选30条对应35课次、65小时、基础费JPY650,000，billing identity唯一且无重复累计；正式业务表、历史19条overage、bill、income、snapshot及Cash均零漂移。R0保持`student_tuition_preview = validation_preview_only`、`student_tuition_generate = blocked`、`student_tuition_cash_submit = blocked`；formal generate及Cash仍未开放，历史canonical化尚未开始。详见`docs/school-v2-r2-e-planned-aircon-fee-report-20260731.md`。
+
 1. School V2 actual duration overage final acceptance, 2026-07-31:
    最终状态`ACTUAL_DURATION_OVERAGE_COMPLETE`。真实页面生成planned `20533154-0de9-49b7-bbbd-907aa2a254ee`→actual `4a1b74c6-65f0-4513-9c1e-4a094b7bb393`成功；最终READ ONLY验收确认唯一关联、`completed / 2.25h / 135分钟 / JPY22,500 / 2026-07 / 青空进学塾`及冻结overage `15分钟 / JPY2,500`正确。S1-C live aggregate为`15分钟 / JPY2,500 / CNY107.50 / 1条`，preview在planned base不变时把final due从无overage的0正向增加到`CNY107.50`。原canonical关系、bill、income及School侧Cash关联未因actual改变，pending_makeup与真实settlement snapshot均为0；未lock/relock、未生成补充账单或资金记录、未连接Cash DB。canonical与approved E-B1 legacy source均受支持，历史旧actual不回填、不追收；candidate/bill/income/Cash不扫描overage，未来正常来源月锁定后由既有carryover承接下一自然月。V2无登录及宽松ACL/RLS作为已接受的内部系统技术债务，V3已有正式安全登录。R0保持`validation_preview_only / blocked / blocked`。
 

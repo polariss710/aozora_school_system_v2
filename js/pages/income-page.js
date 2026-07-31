@@ -1569,7 +1569,9 @@ function renderTuitionBillPreview(preview) {
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
     <div><dt>candidate / 课次数</dt><dd>${escapeHtml(`${preview.candidate_count} 条 / ${preview.total_lesson_count} 次`)}</dd></div>
     <div><dt>总时长</dt><dd>${escapeHtml(`${formatDecimal(preview.total_duration_hours, 2)} h`)}</dd></div>
-    <div><dt>JPY 学费（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.total_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>基础课时费（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.total_base_lesson_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>空调费（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.total_aircon_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>课程总价（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.total_fee_jpy, "JPY"))}</dd></div>
     <div><dt>上月结转</dt><dd>${escapeHtml(formatCurrency(preview.previous_carryover_cny, "CNY"))}</dd></div>
     <div><dt>通知汇率</dt><dd>${escapeHtml(formatRateValue(preview.billing_exchange_rate))}</dd></div>
     <div><dt>通知金额（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.billing_amount_cny, "CNY"))}</dd></div>
@@ -1586,7 +1588,10 @@ function renderTuitionBillPreview(preview) {
       <td class="income-nowrap">${escapeHtml(formatDateOnly(candidate.lesson_date))}</td>
       <td class="number-cell">${escapeHtml(String(candidate.lesson_count))}</td>
       <td class="number-cell">${escapeHtml(formatDecimal(candidate.duration_hours, 2))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(candidate.lesson_fee, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatCurrency(candidate.base_lesson_fee_jpy, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatCurrency(candidate.aircon_rate_jpy_per_hour, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatCurrency(candidate.aircon_fee_jpy, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatCurrency(candidate.lesson_total_fee_jpy, "JPY"))}</td>
     </tr>
   `).join("");
   dom.tuitionBillCandidateDetails.classList.remove("is-hidden");

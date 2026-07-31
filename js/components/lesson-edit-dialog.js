@@ -31,6 +31,7 @@ const EDIT_LESSON_FIELD_IDS = [
   "durationHours",
   "unitPrice",
   "lessonFee",
+  "airconRate",
   "lessonCount",
   "lessonContent",
   "isBillable",
@@ -59,6 +60,7 @@ export function cacheLessonEditDialogDom(root = document) {
     durationInput: root.querySelector("#editLessonDurationInput"),
     unitPriceInput: root.querySelector("#editLessonUnitPriceInput"),
     feeInput: root.querySelector("#editLessonFeeInput"),
+    airconRateInput: root.querySelector("#editLessonAirconRateInput"),
     countInput: root.querySelector("#editLessonCountInput"),
     plannedIdInput: root.querySelector("#editLessonPlannedIdInput"),
     importSourceInput: root.querySelector("#editLessonImportSourceInput"),
@@ -124,6 +126,7 @@ export function createLessonEditDialogController(options) {
       ["durationHours", dom.durationInput],
       ["unitPrice", dom.unitPriceInput],
       ["lessonFee", dom.feeInput],
+      ["airconRate", dom.airconRateInput],
       ["lessonCount", dom.countInput],
       ["lessonContent", dom.contentInput],
       ["isBillable", dom.billableSelect],
@@ -301,6 +304,9 @@ export function createLessonEditDialogController(options) {
     dom.durationInput.value = displayInputNumber(lesson.duration_hours);
     dom.unitPriceInput.value = displayInputNumber(lesson.unit_price || 0);
     dom.feeInput.value = displayInputNumber(lesson.lesson_fee);
+    dom.airconRateInput.value = lesson.lesson_type === "planned"
+      ? displayInputNumber(lesson.aircon_unit_price_jpy_snapshot ?? 0)
+      : "";
     dom.countInput.value = lesson.lesson_count ? String(lesson.lesson_count) : "";
     dom.plannedIdInput.value = safeText(lesson.planned_lesson_id);
     dom.importSourceInput.value = displayImportSource(lesson);
@@ -351,6 +357,13 @@ export function createLessonEditDialogController(options) {
       ? "planned 课时固定按计费课时处理；是否实际收费由 actual 和后续结算口径决定。"
       : "";
     dom.feeInput.readOnly = isCancelledActual || (isActual && dom.billableSelect.value === "false");
+    const isAirconLocked = Boolean(lesson.fee_components_frozen_at);
+    dom.airconRateInput.readOnly = !isPlanned || isAirconLocked;
+    dom.airconRateInput.title = !isPlanned
+      ? "actual 只能展示来源 planned 的空调收费事实，不能修改。"
+      : isAirconLocked
+        ? "该 planned 的收费组件已冻结，空调费率只读。"
+        : "只提交每条 planned 的独立费率；空调费和课程总价由数据库决定。";
     dom.typeInput.title = "课时类型不可在此修改。";
     dom.plannedIdInput.title = "关联来源不可在此修改。";
     dom.importSourceInput.title = "导入来源不可在此修改。";
@@ -448,6 +461,9 @@ export function createLessonEditDialogController(options) {
         : "";
     const durationHours = numberFromInput(dom.durationInput.value);
     const unitPrice = numberFromInput(dom.unitPriceInput.value);
+    const airconRateJpyPerHour = isPlanned
+      ? numberFromInput(dom.airconRateInput.value)
+      : null;
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
     const inputLessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.feeInput.value);
     const lessonFee = isActual && !isBillable
@@ -507,6 +523,9 @@ export function createLessonEditDialogController(options) {
       validationMessage = "既有 actual 的时间、时长和单价已冻结；如需记录新的超额时长，请从 planned 创建 actual。";
     }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
+    if (isPlanned && (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0)) {
+      invalidFields.push("airconRate");
+    }
     if (isFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
     if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
@@ -522,6 +541,7 @@ export function createLessonEditDialogController(options) {
 
     return {
       lessonId: lesson.id,
+      lessonType: lesson.lesson_type,
       expectedUpdatedAt: lesson.updated_at,
       lessonDate,
       status,
@@ -536,6 +556,7 @@ export function createLessonEditDialogController(options) {
       durationHours,
       unitPrice,
       lessonFee,
+      airconRateJpyPerHour,
       isBillable,
       lessonCount,
       lessonContent,
@@ -584,6 +605,7 @@ export function createLessonEditDialogController(options) {
     if (text.includes("时长")) fields.push("durationHours");
     if (text.includes("单价")) fields.push("unitPrice");
     if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
+    if (text.includes("空调") || text.includes("AIRCON")) fields.push("airconRate");
     if (text.includes("回数")) fields.push("lessonCount");
     if (text.includes("内容") || text.includes("课程内容")) fields.push("lessonContent");
     if (text.includes("计费")) fields.push("isBillable");
@@ -671,6 +693,7 @@ export function createLessonEditDialogController(options) {
       durationHours: dom.durationInput.value,
       unitPrice: dom.unitPriceInput.value,
       lessonFee: dom.feeInput.value,
+      airconRate: dom.airconRateInput.value,
       lessonCount: dom.countInput.value,
       lessonContent: dom.contentInput.value,
       note: dom.noteInput.value,

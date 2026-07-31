@@ -20,6 +20,16 @@ const LESSON_COLUMNS = [
   "planned_lesson_id",
   "unit_price",
   "lesson_fee",
+  "base_lesson_fee_jpy",
+  "aircon_charge_status",
+  "aircon_unit_price_jpy_snapshot",
+  "aircon_billable_hours_snapshot",
+  "aircon_fee_jpy",
+  "aircon_calculated_at",
+  "fee_calculation_version",
+  "fee_block_reason_code",
+  "fee_components_frozen_at",
+  "lesson_total_fee_jpy",
   "import_batch_id",
   "import_source",
   "imported_at",
@@ -496,6 +506,7 @@ export async function createPlannedLessonRecord(payload) {
     p_note: payload.note || null,
     p_lesson_delivery_mode: payload.lessonDeliveryMode || null,
     p_lesson_venue: payload.lessonVenue || null,
+    p_aircon_rate_jpy_per_hour: payload.airconRateJpyPerHour,
   });
 
   if (error) {
@@ -546,7 +557,7 @@ export async function generatePlannedLessonRecordsBatch(payload) {
 }
 
 export async function updateLessonRecordGuarded(payload) {
-  const { data, error } = await supabase.rpc("school_update_lesson_record_guarded_with_venue", {
+  const args = {
     p_lesson_id: payload.lessonId,
     p_expected_updated_at: payload.expectedUpdatedAt,
     p_lesson_date: payload.lessonDate,
@@ -566,7 +577,14 @@ export async function updateLessonRecordGuarded(payload) {
     p_note: payload.note || null,
     p_lesson_delivery_mode: payload.lessonDeliveryMode || null,
     p_lesson_venue: payload.lessonVenue || null,
-  });
+  };
+  if (payload.lessonType === "planned") {
+    args.p_aircon_rate_jpy_per_hour = payload.airconRateJpyPerHour;
+  }
+  const { data, error } = await supabase.rpc(
+    "school_update_lesson_record_guarded_with_venue",
+    args
+  );
 
   if (error) {
     throw error;

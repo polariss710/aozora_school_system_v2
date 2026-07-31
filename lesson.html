@@ -248,6 +248,7 @@
                   <th>实际分钟</th>
                   <th>单价</th>
                   <th>金额</th>
+                  <th>学生收费构成</th>
                   <th>内容</th>
                   <th>备注</th>
                   <th>学生结算月</th>
@@ -389,6 +390,11 @@
             <label class="field" data-create-planned-lesson-field="lessonFee">
               <span>课时费 JPY</span>
               <input id="createPlannedLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-create-planned-lesson-field="airconRate">
+              <span>空调费率 JPY / planned小时</span>
+              <input id="createPlannedLessonAirconRateInput" type="number" min="0" step="1" inputmode="numeric" value="0">
             </label>
 
             <label class="field" data-create-planned-lesson-field="lessonCount">
@@ -789,6 +795,11 @@
                 <input id="lessonBatchGenerateEndDateInput" type="date">
               </label>
 
+              <label class="field" data-batch-generate-field="airconRate">
+                <span>默认空调费率 JPY / planned小时</span>
+                <input id="lessonBatchGenerateAirconRateInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </label>
+
               <label class="field lesson-create-wide-field">
                 <span>批次备注</span>
                 <input id="lessonBatchGenerateNoteInput" type="text" placeholder="可选，会写入每条生成课时的备注">
@@ -817,8 +828,9 @@
                     <th>时间</th>
                     <th>授课方式 / 场地</th>
                     <th>课时</th>
-                    <th>单价 JPY</th>
-                    <th>第几回</th>
+                  <th>单价 JPY</th>
+                  <th>空调费率 JPY / h</th>
+                  <th>第几回</th>
                     <th>内容</th>
                     <th>操作</th>
                   </tr>
@@ -1022,6 +1034,11 @@
             <label class="field" data-edit-lesson-field="lessonFee">
               <span>课时费 JPY</span>
               <input id="editLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+
+            <label class="field" data-edit-lesson-field="airconRate">
+              <span>空调费率 JPY / planned小时</span>
+              <input id="editLessonAirconRateInput" type="number" min="0" step="1" inputmode="numeric">
             </label>
 
             <label class="field" data-edit-lesson-field="lessonCount">

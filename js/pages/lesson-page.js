@@ -200,6 +200,7 @@ const LESSON_BATCH_FIELD_IDS = [
   "businessEntity",
   "startDate",
   "endDate",
+  "airconRate",
 ];
 
 const CREATE_PLANNED_LESSON_FIELD_IDS = [
@@ -216,6 +217,7 @@ const CREATE_PLANNED_LESSON_FIELD_IDS = [
   "durationHours",
   "unitPrice",
   "lessonFee",
+  "airconRate",
   "lessonCount",
 ];
 
@@ -469,6 +471,7 @@ function cacheDom() {
   dom.lessonBatchGenerateBusinessEntitySelect = document.querySelector("#lessonBatchGenerateBusinessEntitySelect");
   dom.lessonBatchGenerateStartDateInput = document.querySelector("#lessonBatchGenerateStartDateInput");
   dom.lessonBatchGenerateEndDateInput = document.querySelector("#lessonBatchGenerateEndDateInput");
+  dom.lessonBatchGenerateAirconRateInput = document.querySelector("#lessonBatchGenerateAirconRateInput");
   dom.lessonBatchGenerateNoteInput = document.querySelector("#lessonBatchGenerateNoteInput");
   dom.lessonBatchGenerateAddPatternButton = document.querySelector("#lessonBatchGenerateAddPatternButton");
   dom.lessonBatchGeneratePatternList = document.querySelector("#lessonBatchGeneratePatternList");
@@ -499,6 +502,7 @@ function cacheDom() {
   dom.createPlannedLessonDurationInput = document.querySelector("#createPlannedLessonDurationInput");
   dom.createPlannedLessonUnitPriceInput = document.querySelector("#createPlannedLessonUnitPriceInput");
   dom.createPlannedLessonFeeInput = document.querySelector("#createPlannedLessonFeeInput");
+  dom.createPlannedLessonAirconRateInput = document.querySelector("#createPlannedLessonAirconRateInput");
   dom.createPlannedLessonCountInput = document.querySelector("#createPlannedLessonCountInput");
   dom.createPlannedLessonContentInput = document.querySelector("#createPlannedLessonContentInput");
   dom.createPlannedLessonNoteInput = document.querySelector("#createPlannedLessonNoteInput");
@@ -677,6 +681,7 @@ function bindEvents() {
     ["businessEntity", dom.lessonBatchGenerateBusinessEntitySelect],
     ["startDate", dom.lessonBatchGenerateStartDateInput],
     ["endDate", dom.lessonBatchGenerateEndDateInput],
+    ["airconRate", dom.lessonBatchGenerateAirconRateInput],
     ["note", dom.lessonBatchGenerateNoteInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
@@ -759,6 +764,7 @@ function bindEvents() {
     ["durationHours", dom.createPlannedLessonDurationInput],
     ["unitPrice", dom.createPlannedLessonUnitPriceInput],
     ["lessonFee", dom.createPlannedLessonFeeInput],
+    ["airconRate", dom.createPlannedLessonAirconRateInput],
     ["lessonCount", dom.createPlannedLessonCountInput],
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
@@ -1571,6 +1577,7 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonDurationInput.value = "";
   dom.createPlannedLessonUnitPriceInput.value = "0";
   dom.createPlannedLessonFeeInput.value = "";
+  dom.createPlannedLessonAirconRateInput.value = "0";
   dom.createPlannedLessonCountInput.value = "";
   dom.createPlannedLessonContentInput.value = "";
   dom.createPlannedLessonNoteInput.value = "";
@@ -1596,6 +1603,7 @@ function readCreatePlannedLessonFormSnapshot() {
     durationHours: dom.createPlannedLessonDurationInput.value,
     unitPrice: dom.createPlannedLessonUnitPriceInput.value,
     lessonFee: dom.createPlannedLessonFeeInput.value,
+    airconRate: dom.createPlannedLessonAirconRateInput.value,
     lessonCount: dom.createPlannedLessonCountInput.value,
     lessonContent: dom.createPlannedLessonContentInput.value,
     note: dom.createPlannedLessonNoteInput.value,
@@ -1652,6 +1660,7 @@ function readCreatePlannedLessonPayload() {
   const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
   const inputLessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
   const lessonFee = isCreateLessonFeeManual ? inputLessonFee : null;
+  const airconRateJpyPerHour = numberFromInput(dom.createPlannedLessonAirconRateInput.value);
   const lessonCount = nullableIntegerFromInput(dom.createPlannedLessonCountInput.value);
   const invalidFields = [];
 
@@ -1681,6 +1690,7 @@ function readCreatePlannedLessonPayload() {
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
   if (isCreateLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
+  if (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0) invalidFields.push("airconRate");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
@@ -1702,6 +1712,7 @@ function readCreatePlannedLessonPayload() {
     durationHours,
     unitPrice,
     lessonFee,
+    airconRateJpyPerHour,
     lessonCount,
     lessonContent: dom.createPlannedLessonContentInput.value.trim(),
     note: dom.createPlannedLessonNoteInput.value.trim(),
@@ -1754,6 +1765,7 @@ function createPlannedLessonFieldIdsForError(message) {
   if (text.includes("时长")) fields.push("durationHours");
   if (text.includes("单价")) fields.push("unitPrice");
   if (text.includes("课时费") || text.includes("金额")) fields.push("lessonFee");
+  if (text.includes("空调") || text.includes("AIRCON")) fields.push("airconRate");
   if (text.includes("回数")) fields.push("lessonCount");
   return fields;
 }
@@ -3967,6 +3979,7 @@ function resetLessonBatchGenerateForm() {
   }
   dom.lessonBatchGenerateStartDateInput.value = firstDateOfMonth(selectedMonth);
   dom.lessonBatchGenerateEndDateInput.value = lastDateOfMonth(selectedMonth);
+  dom.lessonBatchGenerateAirconRateInput.value = "0";
   dom.lessonBatchGenerateNoteInput.value = "批量生成预定课时";
   batchGeneratePatterns = [defaultLessonBatchGeneratePattern(1)];
   batchGeneratePreviewRows = [];
@@ -4189,6 +4202,7 @@ function readLessonBatchGenerateDraft(options = {}) {
   const businessEntityId = dom.lessonBatchGenerateBusinessEntitySelect.value;
   const startDate = dom.lessonBatchGenerateStartDateInput.value;
   const endDate = dom.lessonBatchGenerateEndDateInput.value;
+  const airconRateJpyPerHour = numberFromInput(dom.lessonBatchGenerateAirconRateInput.value);
   const errors = [];
 
   if (!studentId) {
@@ -4205,6 +4219,9 @@ function readLessonBatchGenerateDraft(options = {}) {
   }
   if (isDateInputValue(startDate) && isDateInputValue(endDate) && startDate > endDate) {
     errors.push(["endDate", "结束日期不能早于开始日期。"]);
+  }
+  if (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0) {
+    errors.push(["airconRate", "默认空调费率必须是非负整数。"]);
   }
 
   const normalizedPatterns = batchGeneratePatterns.map((pattern) => normalizeLessonBatchGeneratePattern(pattern));
@@ -4292,6 +4309,7 @@ function readLessonBatchGenerateDraft(options = {}) {
     businessEntityId,
     startDate,
     endDate,
+    airconRateJpyPerHour,
     note: dom.lessonBatchGenerateNoteInput.value.trim(),
     patterns: normalizedPatterns,
     warnings: normalizedPatterns.flatMap((pattern) => pattern.warnings),
@@ -4363,7 +4381,8 @@ function buildLessonBatchGeneratePreviewRows(draft) {
           patternIndex: pattern.patternIndex,
           occurrenceIndex,
           sourceDate: lessonDate,
-          lessonDate: weekLessonDate,
+          lessonDate,
+          billingWeekDate: weekLessonDate,
           weekday,
           studentId: draft.studentId,
           businessEntityId: draft.businessEntityId,
@@ -4375,6 +4394,7 @@ function buildLessonBatchGeneratePreviewRows(draft) {
           lessonVenue: pattern.lessonVenue,
           durationHours: hasValidTime ? timeCheck.durationHours : pattern.durationHours,
           unitPrice: pattern.unitPrice,
+          airconRateJpyPerHour: draft.airconRateJpyPerHour,
           lessonCount: pattern.lessonCount === null ? occurrenceIndex : pattern.lessonCount + occurrenceIndex - 1,
           lessonContent: pattern.lessonContent,
         });
@@ -4449,6 +4469,7 @@ function renderLessonBatchGeneratePreview() {
         <td>${escapeHtml(formatLessonVenue(row.lessonDeliveryMode, row.lessonVenue))}</td>
         <td>${escapeHtml(row.durationHours ? `${row.durationHours} h` : "-")}</td>
         <td>${escapeHtml(formatCurrency(row.unitPrice, "JPY"))}</td>
+        <td>${escapeHtml(formatCurrency(row.airconRateJpyPerHour, "JPY"))}</td>
         <td>${escapeHtml(row.lessonCount ?? "-")}</td>
         <td>${escapeHtml(row.lessonContent || "-")}</td>
         <td><button class="table-action-button" type="button" data-batch-preview-remove-key="${escapeAttribute(row.rowKey)}">移除</button></td>
@@ -4544,6 +4565,7 @@ async function handleLessonBatchGenerateSubmit() {
         lesson_venue: pattern.lessonVenue || null,
         duration_hours: pattern.durationHours,
         unit_price: pattern.unitPrice,
+        aircon_rate_jpy_per_hour: draft.airconRateJpyPerHour,
         occurrence_count: pattern.occurrenceCount,
         lesson_count: pattern.lessonCount,
         lesson_content: pattern.lessonContent || null,
@@ -4700,6 +4722,7 @@ function readLessonBatchGenerateFormSnapshot() {
     businessEntity: dom.lessonBatchGenerateBusinessEntitySelect.value,
     startDate: dom.lessonBatchGenerateStartDateInput.value,
     endDate: dom.lessonBatchGenerateEndDateInput.value,
+    airconRate: dom.lessonBatchGenerateAirconRateInput.value,
     note: dom.lessonBatchGenerateNoteInput.value,
     patterns: batchGeneratePatterns,
     removed: [...batchGenerateRemovedKeys].sort(),
@@ -6361,6 +6384,7 @@ function renderLessonRecords(records) {
       <td class="number-cell">${escapeHtml(displayValue(record.actual_minutes))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(record.unit_price, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</td>
+      <td class="lesson-note-cell">${renderPlannedChargeBreakdown(plannedChargeSource(record))}</td>
       <td class="lesson-content-cell">${escapeHtml(displayValue(record.lesson_content))}</td>
       <td class="lesson-note-cell">${escapeHtml(displayValue(record.note))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatMonth(record.year_month))}</td>
@@ -6642,6 +6666,7 @@ function renderLessonPairCard(record, side) {
         <div><dt>计费</dt><dd>${escapeHtml(billableText)}</dd></div>
         <div><dt>时长</dt><dd>${escapeHtml(displayValue(record.duration_hours))}</dd></div>
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>
+        ${renderPlannedChargeMeta(isActual ? sourcePlanned : record, isActual)}
         <div><dt>${isActual ? "学生结算月" : "学生收费月"}</dt><dd>${escapeHtml(formatMonth(monthSemantics.studentSettlementMonth))}</dd></div>
         ${isActual ? `<div><dt>老师工资月</dt><dd>${escapeHtml(formatMonth(monthSemantics.teacherWageMonth))}</dd></div>` : ""}
         <div><dt>关联</dt><dd>${escapeHtml(lessonPairRelationLabel(record))}</dd></div>
@@ -6659,6 +6684,67 @@ function plannedLessonForActual(actual) {
   return lessonRecords.find((record) => record.id === actual.planned_lesson_id)
     || crossMonthMakeupReferences.sourcePlannedById.get(actual.planned_lesson_id)
     || null;
+}
+
+function plannedChargeSource(record) {
+  if (record?.lesson_type === "planned") {
+    return record;
+  }
+  return record?.lesson_type === "actual" ? plannedLessonForActual(record) : null;
+}
+
+function hasR2EPlannedCharge(record) {
+  return Boolean(
+    record
+    && record.lesson_type === "planned"
+    && record.fee_calculation_version === "planned_weekend_aircon_v1"
+    && record.base_lesson_fee_jpy !== null
+    && record.aircon_unit_price_jpy_snapshot !== null
+    && record.aircon_fee_jpy !== null
+    && record.lesson_total_fee_jpy !== null
+  );
+}
+
+function renderPlannedChargeBreakdown(record) {
+  if (!hasR2EPlannedCharge(record)) {
+    return escapeHtml(`基础课时费 ${formatCurrency(record?.lesson_fee, "JPY")}`);
+  }
+  const applicability = record.aircon_charge_status === "not_applicable"
+    ? "本课非周末 / 未达生效月"
+    : record.aircon_charge_status === "configured_zero"
+      ? "周末 / 费率为 0"
+      : "周末计费";
+  return [
+    `基础 ${formatCurrency(record.base_lesson_fee_jpy, "JPY")}`,
+    `费率 ${formatCurrency(record.aircon_unit_price_jpy_snapshot, "JPY")} / h`,
+    applicability,
+    `空调 ${formatCurrency(record.aircon_fee_jpy, "JPY")}`,
+    `总价 ${formatCurrency(record.lesson_total_fee_jpy, "JPY")}`,
+  ].map((value) => `<div>${escapeHtml(value)}</div>`).join("");
+}
+
+function renderPlannedChargeMeta(record, isSourcePlanned = false) {
+  if (!record) {
+    return isSourcePlanned
+      ? '<div><dt>来源 planned 空调费</dt><dd>-</dd></div>'
+      : "";
+  }
+  if (!hasR2EPlannedCharge(record)) {
+    return `<div><dt>${isSourcePlanned ? "来源 planned 基础课时费" : "基础课时费"}</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>`;
+  }
+  const prefix = isSourcePlanned ? "来源 planned " : "";
+  const applicability = record.aircon_charge_status === "not_applicable"
+    ? "本课非周末 / 未达生效月"
+    : record.aircon_charge_status === "configured_zero"
+      ? "周末 / 费率为 0"
+      : "周末计费";
+  return `
+    <div><dt>${prefix}基础课时费</dt><dd>${escapeHtml(formatCurrency(record.base_lesson_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>${prefix}空调费率</dt><dd>${escapeHtml(`${formatCurrency(record.aircon_unit_price_jpy_snapshot, "JPY")} / h`)}</dd></div>
+    <div><dt>${prefix}空调条件</dt><dd>${escapeHtml(applicability)}</dd></div>
+    <div><dt>${prefix}空调费</dt><dd>${escapeHtml(formatCurrency(record.aircon_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>${prefix}课程总价</dt><dd>${escapeHtml(formatCurrency(record.lesson_total_fee_jpy, "JPY"))}</dd></div>
+  `;
 }
 
 function renderActualOverageDetails(actual, planned) {

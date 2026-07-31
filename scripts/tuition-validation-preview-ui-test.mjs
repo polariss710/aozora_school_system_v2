@@ -9,7 +9,18 @@ import {
 const STUDENT_ID = "11111111-1111-4111-8111-111111111111";
 const ENTITY_ID = "22222222-2222-4222-8222-222222222222";
 
-function candidate(id, billingMonth, weekStart, lessonDate, lessonCount, durationHours, lessonFee) {
+function candidate(
+  id,
+  billingMonth,
+  weekStart,
+  lessonDate,
+  lessonCount,
+  durationHours,
+  baseLessonFee,
+  airconRate = 0,
+  airconFee = 0
+) {
+  const lessonTotalFee = baseLessonFee + airconFee;
   return {
     planned_lesson_id: id,
     student_id: STUDENT_ID,
@@ -19,7 +30,11 @@ function candidate(id, billingMonth, weekStart, lessonDate, lessonCount, duratio
     lesson_date: lessonDate,
     lesson_count: lessonCount,
     duration_hours: durationHours,
-    lesson_fee: lessonFee,
+    base_lesson_fee_jpy: baseLessonFee,
+    aircon_rate_jpy_per_hour: airconRate,
+    aircon_fee_jpy: airconFee,
+    lesson_total_fee_jpy: lessonTotalFee,
+    lesson_fee: lessonTotalFee,
   };
 }
 
@@ -35,8 +50,10 @@ function response(billingMonth, candidates, overrides = {}) {
     candidate_count: candidates.length,
     total_lesson_count: candidates.reduce((sum, row) => sum + row.lesson_count, 0),
     total_duration_hours: candidates.reduce((sum, row) => sum + row.duration_hours, 0),
-    total_fee_jpy: candidates.reduce((sum, row) => sum + row.lesson_fee, 0),
-    bill_amount_jpy: candidates.reduce((sum, row) => sum + row.lesson_fee, 0),
+    total_base_lesson_fee_jpy: candidates.reduce((sum, row) => sum + row.base_lesson_fee_jpy, 0),
+    total_aircon_fee_jpy: candidates.reduce((sum, row) => sum + row.aircon_fee_jpy, 0),
+    total_fee_jpy: candidates.reduce((sum, row) => sum + row.lesson_total_fee_jpy, 0),
+    bill_amount_jpy: candidates.reduce((sum, row) => sum + row.lesson_total_fee_jpy, 0),
     currency: "JPY",
     billing_exchange_rate: 0.05,
     billing_amount_cny: 1700,
@@ -74,14 +91,16 @@ assert.equal(july.candidates.every((row) => row.billing_month === "2026-07"), tr
 assert.equal(formatAuthoritativeBillingWeek("2026-07-27"), "2026-07-27～2026-08-02");
 
 const augustCandidates = [
-  candidate("40000000-0000-4000-8000-000000000001", "2026-08", "2026-08-03", "2026-08-03", 1, 2.5, 18001),
-  candidate("40000000-0000-4000-8000-000000000002", "2026-08", "2026-08-31", "2026-09-06", 1, 1.5, 15999),
+  candidate("40000000-0000-4000-8000-000000000001", "2026-08", "2026-08-03", "2026-08-08", 1, 2, 17000, 330, 660),
+  candidate("40000000-0000-4000-8000-000000000002", "2026-08", "2026-08-31", "2026-09-06", 1, 3, 15000, 660, 1980),
 ];
 const august = validateTuitionValidationPreviewDetails(
   response("2026-08", augustCandidates),
   expected("2026-08")
 );
-assert.equal(august.total_fee_jpy, 34000);
+assert.equal(august.total_base_lesson_fee_jpy, 32000);
+assert.equal(august.total_aircon_fee_jpy, 2640);
+assert.equal(august.total_fee_jpy, 34640);
 assert.equal(august.candidates.some((row) => row.billing_week_start_date === "2026-07-27"), false);
 assert.equal(august.candidates.some((row) => row.billing_week_start_date === "2026-08-31"), true);
 assert.equal(formatAuthoritativeBillingWeek("2026-08-31"), "2026-08-31～2026-09-06");
@@ -112,16 +131,22 @@ const serverFeeAuthority = response("2026-08", [{
   ...augustCandidates[0],
   unit_price: 999999,
   student_duration_overage_fee_jpy: 888888,
-  lesson_fee: 18001,
+  base_lesson_fee_jpy: 17000,
+  aircon_rate_jpy_per_hour: 330,
+  aircon_fee_jpy: 660,
+  lesson_total_fee_jpy: 17660,
+  lesson_fee: 17660,
 }], {
   total_lesson_count: 1,
-  total_duration_hours: 2.5,
-  total_fee_jpy: 18001,
-  bill_amount_jpy: 18001,
+  total_duration_hours: 2,
+  total_base_lesson_fee_jpy: 17000,
+  total_aircon_fee_jpy: 660,
+  total_fee_jpy: 17660,
+  bill_amount_jpy: 17660,
 });
 assert.equal(
   validateTuitionValidationPreviewDetails(serverFeeAuthority, expected("2026-08")).total_fee_jpy,
-  18001,
+  17660,
   "UI contract must consume the server fee without duration, unit price, or overage recomputation"
 );
 
@@ -136,7 +161,7 @@ assert.equal(gate.isCurrent(augustRequest, "student|2026-08|0.05"), false);
 const pageSource = readFileSync(new URL("../js/pages/income-page.js", import.meta.url), "utf8");
 const apiSource = readFileSync(new URL("../js/api/income-api.js", import.meta.url), "utf8");
 const htmlSource = readFileSync(new URL("../income.html", import.meta.url), "utf8");
-const sqlSource = readFileSync(new URL("../sql/current/school_tuition_r2_a_validation_preview_details.sql", import.meta.url), "utf8");
+const sqlSource = readFileSync(new URL("../sql/current/school_tuition_r2_e_planned_aircon_fee_cutover.sql", import.meta.url), "utf8");
 
 assert.doesNotMatch(pageSource, /\.rpc\s*\(/);
 assert.doesNotMatch(pageSource, /supabase\.(?:from|rpc)\s*\(/);
@@ -147,13 +172,14 @@ assert.match(pageSource, /isTuitionBillSubmitting \|\| isTuitionBillPreviewLoadi
 assert.match(pageSource, /innerHTML = preview\.candidates\.map/);
 assert.doesNotMatch(pageSource, /innerHTML \+= preview\.candidates|\.concat\(preview\.candidates\)/);
 assert.match(pageSource, /formatCurrency\(preview\.total_fee_jpy, "JPY"\)/);
+assert.match(pageSource, /formatCurrency\(preview\.total_aircon_fee_jpy, "JPY"\)/);
 assert.doesNotMatch(pageSource, /total_fee_jpy\s*=|duration_hours\s*\*\s*.*unit_price/);
 assert.match(htmlSource, /validation-only RPC返回的权威学费月份/);
 assert.match(htmlSource, /generateTuitionBillSubmitButton[^>]*disabled/);
 assert.match(pageSource, /学费应收生成功能正在进行资金一致性整改，当前仅允许预览/);
 assert.match(pageSource, /学费 Cash 提交正在整改，当前禁止提交/);
 assert.doesNotMatch(pageSource, /generateStudentTuitionBill/);
-assert.match(sqlSource, /school_list_student_tuition_candidates/);
-assert.doesNotMatch(sqlSource, /GRANT EXECUTE ON FUNCTION\s+public\.school_list_student_tuition_candidates/i);
+assert.match(sqlSource, /school_list_student_tuition_charge_candidates/);
+assert.match(sqlSource, /GRANT EXECUTE ON FUNCTION public\.school_list_student_tuition_charge_candidates\([\s\S]*?\) TO service_role;/i);
 
 console.log("authoritative tuition validation preview UI fixtures: PASS");

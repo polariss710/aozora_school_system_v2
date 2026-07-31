@@ -410,6 +410,10 @@ function renderLessonDetail(data) {
     ["是否计费", booleanLabel(lesson.is_billable)],
     ["单价", formatCurrency(lesson.unit_price, "JPY")],
     ["课时费", formatCurrency(lesson.lesson_fee, "JPY")],
+    ...plannedAirconDetailRows(
+      lesson.lesson_type === "planned" ? lesson : sourcePlanned,
+      lesson.lesson_type === "actual"
+    ),
     ["老师工资归属月", formatMonth(monthSemantics.teacherWageMonth)],
     ...(overage ? [
       ["计划时长", `${displayValue(overage.plannedDurationHours)} 小时`],
@@ -435,6 +439,34 @@ function renderLessonDetail(data) {
   renderSourceChain(sourceChain);
   renderSettlementReferences(settlements);
   renderWageReferences(wageReferences);
+}
+
+function plannedAirconDetailRows(planned, isSource = false) {
+  const prefix = isSource ? "来源 planned " : "";
+  if (!planned || planned.lesson_type !== "planned") {
+    return isSource ? [[`${prefix}空调收费事实`, "-"]] : [];
+  }
+  if (planned.fee_calculation_version !== "planned_weekend_aircon_v1"
+      || planned.base_lesson_fee_jpy === null
+      || planned.aircon_unit_price_jpy_snapshot === null
+      || planned.aircon_fee_jpy === null
+      || planned.lesson_total_fee_jpy === null) {
+    return [[`${prefix}基础课时费`, formatCurrency(planned.lesson_fee, "JPY")]];
+  }
+  const condition = planned.aircon_charge_status === "not_applicable"
+    ? "本课非周末 / 未达生效月"
+    : planned.aircon_charge_status === "configured_zero"
+      ? "周末 / 费率为 0"
+      : "周末计费";
+  return [
+    [`${prefix}基础课时费`, formatCurrency(planned.base_lesson_fee_jpy, "JPY")],
+    [`${prefix}空调费率`, `${formatCurrency(planned.aircon_unit_price_jpy_snapshot, "JPY")} / planned小时`],
+    [`${prefix}空调条件`, condition],
+    [`${prefix}空调费`, formatCurrency(planned.aircon_fee_jpy, "JPY")],
+    [`${prefix}课程总价`, formatCurrency(planned.lesson_total_fee_jpy, "JPY")],
+    [`${prefix}空调策略`, displayValue(planned.fee_calculation_version)],
+    [`${prefix}决定时间`, formatDate(planned.aircon_calculated_at)],
+  ];
 }
 
 function getDetailLessonRecords() {
