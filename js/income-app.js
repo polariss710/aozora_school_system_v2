@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomePage } from "./pages/income-page.js?v=v10.4.1-authoritative-tuition-preview";
+import { initIncomePage } from "./pages/income-page.js?v=r2-f-d-atomic-tuition-generate-ui";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

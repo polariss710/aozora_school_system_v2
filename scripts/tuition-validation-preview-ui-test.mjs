@@ -30,11 +30,14 @@ function candidate(
     lesson_date: lessonDate,
     lesson_count: lessonCount,
     duration_hours: durationHours,
+    unit_price_jpy: baseLessonFee / durationHours,
     base_lesson_fee_jpy: baseLessonFee,
     aircon_rate_jpy_per_hour: airconRate,
+    aircon_billable_hours: airconRate ? durationHours : 0,
     aircon_fee_jpy: airconFee,
-    lesson_total_fee_jpy: lessonTotalFee,
-    lesson_fee: lessonTotalFee,
+    course_total_jpy: lessonTotalFee,
+    complete_row_hash: "c".repeat(64),
+    candidate_line_hash: "d".repeat(64),
   };
 }
 
@@ -52,8 +55,8 @@ function response(billingMonth, candidates, overrides = {}) {
     total_duration_hours: candidates.reduce((sum, row) => sum + row.duration_hours, 0),
     total_base_lesson_fee_jpy: candidates.reduce((sum, row) => sum + row.base_lesson_fee_jpy, 0),
     total_aircon_fee_jpy: candidates.reduce((sum, row) => sum + row.aircon_fee_jpy, 0),
-    total_fee_jpy: candidates.reduce((sum, row) => sum + row.lesson_total_fee_jpy, 0),
-    bill_amount_jpy: candidates.reduce((sum, row) => sum + row.lesson_total_fee_jpy, 0),
+    total_fee_jpy: candidates.reduce((sum, row) => sum + row.course_total_jpy, 0),
+    bill_amount_jpy: candidates.reduce((sum, row) => sum + row.course_total_jpy, 0),
     currency: "JPY",
     billing_exchange_rate: 0.05,
     billing_amount_cny: 1700,
@@ -64,6 +67,7 @@ function response(billingMonth, candidates, overrides = {}) {
     existing_income_status: null,
     candidate_uuid_md5: "a".repeat(32),
     candidate_manifest_sha256: "b".repeat(64),
+    generation_manifest_sha256: "e".repeat(64),
     candidates,
     message: "tuition validation preview",
     ...overrides,
@@ -119,23 +123,23 @@ assert.throws(
   /重复planned lesson UUID/
 );
 
-assert.throws(
-  () => validateTuitionValidationPreviewDetails(
+assert.equal(
+  validateTuitionValidationPreviewDetails(
     response("2026-08", augustCandidates, { total_fee_jpy: 999999, bill_amount_jpy: 999999 }),
     expected("2026-08")
-  ),
-  /汇总与candidate明细不一致/
+  ).total_fee_jpy,
+  999999,
+  "frontend must consume the DB summary instead of recomputing it from candidate lines"
 );
 
 const serverFeeAuthority = response("2026-08", [{
   ...augustCandidates[0],
-  unit_price: 999999,
+  unit_price_jpy: 999999,
   student_duration_overage_fee_jpy: 888888,
   base_lesson_fee_jpy: 17000,
   aircon_rate_jpy_per_hour: 330,
   aircon_fee_jpy: 660,
-  lesson_total_fee_jpy: 17660,
-  lesson_fee: 17660,
+  course_total_jpy: 17660,
 }], {
   total_lesson_count: 1,
   total_duration_hours: 2,
@@ -168,7 +172,7 @@ assert.doesNotMatch(pageSource, /supabase\.(?:from|rpc)\s*\(/);
 assert.match(apiSource, /school_get_student_tuition_validation_preview_details/);
 assert.match(pageSource, /validateTuitionValidationPreviewDetails/);
 assert.match(pageSource, /tuitionBillPreviewRequestGate/);
-assert.match(pageSource, /isTuitionBillSubmitting \|\| isTuitionBillPreviewLoading/);
+assert.match(pageSource, /tuitionBillGenerationState\.isSubmitting\(\) \|\| isTuitionBillPreviewLoading/);
 assert.match(pageSource, /innerHTML = preview\.candidates\.map/);
 assert.doesNotMatch(pageSource, /innerHTML \+= preview\.candidates|\.concat\(preview\.candidates\)/);
 assert.match(pageSource, /formatCurrency\(preview\.total_fee_jpy, "JPY"\)/);
@@ -176,9 +180,11 @@ assert.match(pageSource, /formatCurrency\(preview\.total_aircon_fee_jpy, "JPY"\)
 assert.doesNotMatch(pageSource, /total_fee_jpy\s*=|duration_hours\s*\*\s*.*unit_price/);
 assert.match(htmlSource, /validation-only RPC返回的权威学费月份/);
 assert.match(htmlSource, /generateTuitionBillSubmitButton[^>]*disabled/);
-assert.match(pageSource, /学费应收生成功能正在进行资金一致性整改，当前仅允许预览/);
+assert.match(pageSource, /学费应收生成功能维护中，当前只能预览/);
 assert.match(pageSource, /学费 Cash 提交正在整改，当前禁止提交/);
-assert.doesNotMatch(pageSource, /generateStudentTuitionBill/);
+assert.match(pageSource, /generateStudentTuitionBillAtomic/);
+assert.doesNotMatch(apiSource, /\.rpc\("school_generate_student_tuition_bill"/);
+assert.doesNotMatch(apiSource, /school_create_student_tuition_bill_income_record/);
 assert.match(sqlSource, /school_list_student_tuition_charge_candidates/);
 assert.match(sqlSource, /GRANT EXECUTE ON FUNCTION public\.school_list_student_tuition_charge_candidates\([\s\S]*?\) TO service_role;/i);
 

@@ -163,7 +163,7 @@
               <p class="section-note">按业务归属月管理收入，Cash 流水按实际到账日同步。</p>
             </div>
             <div class="table-actions">
-              <button class="button" id="openGenerateTuitionBillButton" type="button">学费整改验证预览</button>
+              <button class="button" id="openGenerateTuitionBillButton" type="button">学费应收预览</button>
               <button class="button button-primary" id="openCreateIncomeButton" type="button">新增收入</button>
               <button class="button" id="openBatchCashIncomeButton" type="button" disabled>批量提交 Cash</button>
               <span id="incomeCount" class="record-count">0 条</span>
@@ -393,8 +393,8 @@
     <div id="generateTuitionBillDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
         <div class="section-heading">
-          <h2 id="generateTuitionBillTitle">学费整改验证预览</h2>
-          <p class="section-note">整改验证预览，不可正式生成；不会创建账单、收入或 Cash 请求。</p>
+          <h2 id="generateTuitionBillTitle">学费应收预览</h2>
+          <p class="section-note">金额和candidate均来自数据库权威预览。当前R0仅开放验证预览，不会创建账单、收入或Cash请求。</p>
         </div>
 
         <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
@@ -427,11 +427,6 @@
         </details>
 
         <div class="income-create-field-grid">
-          <label class="field" data-tuition-bill-field="incomeDate">
-            <span>请求日期 <b class="required-mark">必填</b></span>
-            <input id="tuitionBillIncomeDateInput" type="date">
-          </label>
-
           <label class="field" data-tuition-bill-field="billingMonth">
             <span>学费月份 <b class="required-mark">必填</b></span>
             <input id="tuitionBillMonthInput" type="month">
@@ -461,6 +456,23 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=v10.4.1-authoritative-tuition-preview"></script>
+    <div id="confirmGenerateTuitionBillDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="confirmGenerateTuitionBillTitle">
+        <div class="section-heading">
+          <h2 id="confirmGenerateTuitionBillTitle">确认生成学费应收</h2>
+          <p class="section-note">以下内容全部来自同一次数据库权威预览。确认后将原子生成正式学费账单、billing identity、课时关系及pending收入记录；不会自动提交Cash。</p>
+        </div>
+
+        <div id="confirmGenerateTuitionBillError" class="dialog-error is-hidden"></div>
+        <div id="confirmGenerateTuitionBillSummary" class="dialog-summary tuition-bill-preview-summary" aria-live="polite"></div>
+
+        <div class="dialog-actions">
+          <button class="button" id="confirmGenerateTuitionBillCancelButton" type="button">取消</button>
+          <button class="button button-primary" id="confirmGenerateTuitionBillSubmitButton" type="button">确认生成学费应收</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/income-app.js?v=r2-f-d-atomic-tuition-generate-ui"></script>
   </body>
 </html>

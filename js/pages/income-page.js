@@ -7,6 +7,7 @@ import {
   fetchIncomeLookups,
   fetchIncomeRecords,
   fetchStudentTuitionValidationPreviewDetails,
+  generateStudentTuitionBillAtomic,
   requestCashIncomeConfirmationForRecord,
 } from "../api/income-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
@@ -23,8 +24,12 @@ import {
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
+  buildAtomicTuitionGeneratePayload,
   createLatestTuitionPreviewRequestGate,
+  createTuitionAtomicGenerateState,
   formatAuthoritativeBillingWeek,
+  isAtomicTuitionGenerateEnabled,
+  mapAtomicTuitionGenerateError,
   validateTuitionValidationPreviewDetails,
 } from "../utils/tuition-validation-preview.js";
 import {
@@ -100,11 +105,10 @@ let isCreateSubmitting = false;
 let batchCashIncomeRows = [];
 let isBatchCashSubmitting = false;
 let initialMonth = "";
-let isTuitionBillSubmitting = false;
 let isTuitionBillPreviewLoading = false;
-let tuitionBillPreview = null;
 let tuitionBillPreviewSignature = "";
 const tuitionBillPreviewRequestGate = createLatestTuitionPreviewRequestGate();
+const tuitionBillGenerationState = createTuitionAtomicGenerateState();
 
 export function initIncomePage() {
   cacheDom();
@@ -179,7 +183,6 @@ function cacheDom() {
   dom.tuitionBillCandidateDetails = document.querySelector("#tuitionBillCandidateDetails");
   dom.tuitionBillCandidateCount = document.querySelector("#tuitionBillCandidateCount");
   dom.tuitionBillCandidateRows = document.querySelector("#tuitionBillCandidateRows");
-  dom.tuitionBillIncomeDateInput = document.querySelector("#tuitionBillIncomeDateInput");
   dom.tuitionBillMonthInput = document.querySelector("#tuitionBillMonthInput");
   dom.tuitionBillStudentSelect = document.querySelector("#tuitionBillStudentSelect");
   dom.tuitionBillBillingRateInput = document.querySelector("#tuitionBillBillingRateInput");
@@ -187,6 +190,11 @@ function cacheDom() {
   dom.generateTuitionBillCancelButton = document.querySelector("#generateTuitionBillCancelButton");
   dom.generateTuitionBillPreviewButton = document.querySelector("#generateTuitionBillPreviewButton");
   dom.generateTuitionBillSubmitButton = document.querySelector("#generateTuitionBillSubmitButton");
+  dom.confirmGenerateTuitionBillDialog = document.querySelector("#confirmGenerateTuitionBillDialog");
+  dom.confirmGenerateTuitionBillError = document.querySelector("#confirmGenerateTuitionBillError");
+  dom.confirmGenerateTuitionBillSummary = document.querySelector("#confirmGenerateTuitionBillSummary");
+  dom.confirmGenerateTuitionBillCancelButton = document.querySelector("#confirmGenerateTuitionBillCancelButton");
+  dom.confirmGenerateTuitionBillSubmitButton = document.querySelector("#confirmGenerateTuitionBillSubmitButton");
 }
 
 function bindEvents() {
@@ -198,6 +206,7 @@ function bindEvents() {
   dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
 
   dom.resetButton.addEventListener("click", () => {
+    clearTuitionBillPreview();
     setDefaultFilters({ month: currentYearMonth() });
     applyQuery();
   });
@@ -220,6 +229,8 @@ function bindEvents() {
   dom.generateTuitionBillCancelButton.addEventListener("click", closeGenerateTuitionBillDialog);
   dom.generateTuitionBillPreviewButton.addEventListener("click", handlePreviewTuitionBill);
   dom.generateTuitionBillSubmitButton.addEventListener("click", submitGenerateTuitionBill);
+  dom.confirmGenerateTuitionBillCancelButton.addEventListener("click", closeGenerateTuitionBillConfirmation);
+  dom.confirmGenerateTuitionBillSubmitButton.addEventListener("click", confirmGenerateTuitionBill);
   dom.tuitionBillStudentSelect.addEventListener("change", () => {
     clearTuitionBillFieldInvalid("student");
     clearTuitionBillPreview();
@@ -228,7 +239,6 @@ function bindEvents() {
     clearTuitionBillFieldInvalid("billingMonth");
     clearTuitionBillPreview();
   });
-  dom.tuitionBillIncomeDateInput.addEventListener("change", () => clearTuitionBillFieldInvalid("incomeDate"));
   dom.tuitionBillBillingRateInput.addEventListener("input", () => {
     clearTuitionBillFieldInvalid("billingRate");
     clearTuitionBillPreview();
@@ -1389,7 +1399,6 @@ function openGenerateTuitionBillDialog() {
   setTuitionBillSubmitting(false);
 
   const filters = readFilters();
-  dom.tuitionBillIncomeDateInput.value = currentDate();
   dom.tuitionBillMonthInput.value = filters?.month || currentYearMonth();
   dom.tuitionBillBillingRateInput.value = "";
   dom.tuitionBillNoteInput.value = "";
@@ -1401,22 +1410,23 @@ function openGenerateTuitionBillDialog() {
 }
 
 function closeGenerateTuitionBillDialog() {
-  if (isTuitionBillSubmitting) {
+  if (tuitionBillGenerationState.isSubmitting()) {
     return;
   }
 
+  closeGenerateTuitionBillConfirmation();
   dom.generateTuitionBillDialog.classList.add("is-hidden");
   dom.generateTuitionBillDialog.setAttribute("aria-hidden", "true");
   clearTuitionBillPreview();
 }
 
 async function handlePreviewTuitionBill() {
-  if (isTuitionBillSubmitting || isTuitionBillPreviewLoading) {
+  if (tuitionBillGenerationState.isSubmitting() || isTuitionBillPreviewLoading) {
     return;
   }
 
   clearTuitionBillErrors();
-  const payload = readGenerateTuitionBillPayload({ requireIncomeDate: false });
+  const payload = readGenerateTuitionBillPayload();
   if (!payload) {
     return;
   }
@@ -1442,7 +1452,7 @@ async function handlePreviewTuitionBill() {
       billingMonth: payload.billingMonth,
       billingExchangeRate: payload.billingExchangeRate,
     });
-    tuitionBillPreview = preview;
+    tuitionBillGenerationState.storePreview(preview);
     tuitionBillPreviewSignature = requestSignature;
     renderTuitionBillPreview(preview);
   } catch (error) {
@@ -1465,17 +1475,20 @@ async function handlePreviewTuitionBill() {
 }
 
 async function submitGenerateTuitionBill() {
-  showTuitionBillError("学费应收生成功能正在进行资金一致性整改，当前仅允许预览，禁止生成正式账单或收入。");
+  const preview = tuitionBillGenerationState.getPreview();
+  if (!preview || tuitionBillPreviewSignature !== currentTuitionBillPreviewSignature()) {
+    clearTuitionBillPreview();
+    showTuitionBillError("当前预览已失效，请重新生成预览。");
+    return;
+  }
+  if (!isAtomicTuitionGenerateEnabled(preview)) {
+    showTuitionBillError("学费应收生成功能维护中，当前只能预览。");
+    return;
+  }
+  openGenerateTuitionBillConfirmation(preview);
 }
 
-function readGenerateTuitionBillPayload(options = {}) {
-  const requireIncomeDate = options.requireIncomeDate !== false;
-  const incomeDate = dom.tuitionBillIncomeDateInput.value;
-  if (requireIncomeDate && !/^\d{4}-\d{2}-\d{2}$/.test(incomeDate || "")) {
-    showTuitionBillError("请选择请求日期。", ["incomeDate"]);
-    return null;
-  }
-
+function readGenerateTuitionBillPayload() {
   const billingMonth = dom.tuitionBillMonthInput.value;
   if (!billingMonth || !/^[0-9]{4}-(0[1-9]|1[0-2])$/.test(billingMonth)) {
     showTuitionBillError("学费月份格式无效。", ["billingMonth"]);
@@ -1500,7 +1513,6 @@ function readGenerateTuitionBillPayload(options = {}) {
   }
 
   return {
-    incomeDate,
     billingMonth,
     studentId,
     businessEntityId: selectedStudent.business_entity_id,
@@ -1526,24 +1538,32 @@ function renderTuitionBillStudentOptions(selectedStudentId = "", businessEntityI
 }
 
 function setTuitionBillSubmitting(isSubmitting) {
-  isTuitionBillSubmitting = isSubmitting;
   dom.generateTuitionBillPreviewButton.disabled = isSubmitting || isTuitionBillPreviewLoading;
-  dom.generateTuitionBillSubmitButton.disabled = true;
+  const preview = tuitionBillGenerationState.getPreview();
+  dom.generateTuitionBillSubmitButton.disabled = isSubmitting || !isAtomicTuitionGenerateEnabled(preview);
   dom.generateTuitionBillCancelButton.disabled = isSubmitting;
-  dom.generateTuitionBillSubmitButton.textContent = "生成应收（维护中）";
+  dom.generateTuitionBillSubmitButton.textContent = isAtomicTuitionGenerateEnabled(preview)
+    ? "生成学费应收"
+    : "生成应收（维护中）";
+  dom.confirmGenerateTuitionBillCancelButton.disabled = isSubmitting;
+  dom.confirmGenerateTuitionBillSubmitButton.disabled = isSubmitting;
+  dom.confirmGenerateTuitionBillSubmitButton.textContent = isSubmitting
+    ? "生成中..."
+    : "确认生成学费应收";
 }
 
 function setTuitionBillPreviewLoading(isLoading) {
   isTuitionBillPreviewLoading = isLoading;
-  dom.generateTuitionBillPreviewButton.disabled = isLoading || isTuitionBillSubmitting;
-  dom.generateTuitionBillSubmitButton.disabled = true;
+  dom.generateTuitionBillPreviewButton.disabled = isLoading || tuitionBillGenerationState.isSubmitting();
+  const preview = tuitionBillGenerationState.getPreview();
+  dom.generateTuitionBillSubmitButton.disabled = isLoading || !isAtomicTuitionGenerateEnabled(preview);
   dom.generateTuitionBillPreviewButton.textContent = isLoading ? "预览中..." : "生成预览";
 }
 
 function clearTuitionBillErrors() {
   dom.generateTuitionBillError.textContent = "";
   dom.generateTuitionBillError.classList.add("is-hidden");
-  for (const fieldId of ["incomeDate", "billingMonth", "student", "billingRate"]) {
+  for (const fieldId of ["billingMonth", "student", "billingRate"]) {
     clearTuitionBillFieldInvalid(fieldId);
   }
 }
@@ -1563,7 +1583,7 @@ function renderTuitionBillPreview(preview) {
     ? `${preview.existing_tuition_bill_status || "-"} / ${preview.existing_income_status || "-"}`
     : "无";
   dom.generateTuitionBillPreview.innerHTML = `
-    <div><dt>预览状态</dt><dd>${escapeHtml(preview.feature_state)}（整改验证预览，不可正式生成）</dd></div>
+    <div><dt>预览状态</dt><dd>${escapeHtml(preview.feature_state)}（当前R0仅允许验证预览）</dd></div>
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
     <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
@@ -1577,6 +1597,7 @@ function renderTuitionBillPreview(preview) {
     <div><dt>通知金额（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.billing_amount_cny, "CNY"))}</dd></div>
     <div><dt>既有应收</dt><dd>${escapeHtml(existingText)}</dd></div>
     <div><dt>candidate集合</dt><dd>${escapeHtml(preview.candidate_uuid_md5)}</dd></div>
+    <div><dt>生成manifest</dt><dd><code>${escapeHtml(preview.generation_manifest_sha256)}</code></dd></div>
   `;
   dom.generateTuitionBillPreview.classList.remove("is-hidden");
   dom.tuitionBillCandidateCount.textContent = `${preview.candidate_count} 条`;
@@ -1591,10 +1612,11 @@ function renderTuitionBillPreview(preview) {
       <td class="number-cell">${escapeHtml(formatCurrency(candidate.base_lesson_fee_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(candidate.aircon_rate_jpy_per_hour, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(candidate.aircon_fee_jpy, "JPY"))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(candidate.lesson_total_fee_jpy, "JPY"))}</td>
+      <td class="number-cell">${escapeHtml(formatCurrency(candidate.course_total_jpy, "JPY"))}</td>
     </tr>
   `).join("");
   dom.tuitionBillCandidateDetails.classList.remove("is-hidden");
+  setTuitionBillSubmitting(false);
 }
 
 function clearTuitionBillPreview({ invalidateRequest = true } = {}) {
@@ -1604,8 +1626,9 @@ function clearTuitionBillPreview({ invalidateRequest = true } = {}) {
       setTuitionBillPreviewLoading(false);
     }
   }
-  tuitionBillPreview = null;
+  tuitionBillGenerationState.clearPreview();
   tuitionBillPreviewSignature = "";
+  closeGenerateTuitionBillConfirmation();
   if (dom.generateTuitionBillPreview) {
     dom.generateTuitionBillPreview.textContent = "";
     dom.generateTuitionBillPreview.classList.add("is-hidden");
@@ -1622,6 +1645,101 @@ function clearTuitionBillPreview({ invalidateRequest = true } = {}) {
   }
   if (dom.generateTuitionBillSubmitButton) {
     dom.generateTuitionBillSubmitButton.disabled = true;
+    dom.generateTuitionBillSubmitButton.textContent = "生成应收（维护中）";
+  }
+}
+
+function openGenerateTuitionBillConfirmation(preview) {
+  const student = students.find((row) => row.id === preview.student_id);
+  const entity = businessEntities.find((row) => row.id === preview.business_entity_id);
+  const note = dom.tuitionBillNoteInput.value.trim() || "无";
+  dom.confirmGenerateTuitionBillError.textContent = "";
+  dom.confirmGenerateTuitionBillError.classList.add("is-hidden");
+  dom.confirmGenerateTuitionBillSummary.innerHTML = `
+    <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
+    <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
+    <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
+    <div><dt>candidate课程</dt><dd>${escapeHtml(`${preview.candidate_count} 条`)}</dd></div>
+    <div><dt>总课次数</dt><dd>${escapeHtml(`${preview.total_lesson_count} 次`)}</dd></div>
+    <div><dt>总时长</dt><dd>${escapeHtml(`${formatDecimal(preview.total_duration_hours, 2)} h`)}</dd></div>
+    <div><dt>基础课时费</dt><dd>${escapeHtml(formatCurrency(preview.total_base_lesson_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>空调费</dt><dd>${escapeHtml(formatCurrency(preview.total_aircon_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>课程总额</dt><dd>${escapeHtml(formatCurrency(preview.total_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>上月结转</dt><dd>${escapeHtml(formatCurrency(preview.previous_carryover_cny, "CNY"))}</dd></div>
+    <div><dt>通知汇率</dt><dd>${escapeHtml(formatRateValue(preview.billing_exchange_rate))}</dd></div>
+    <div><dt>最终通知金额</dt><dd>${escapeHtml(formatCurrency(preview.billing_amount_cny, "CNY"))}</dd></div>
+    <div><dt>备注</dt><dd>${escapeHtml(note)}</dd></div>
+    <div><dt>生成结果</dt><dd>正式学费账单及pending收入记录（Cash仍不提交）</dd></div>
+  `;
+  dom.confirmGenerateTuitionBillDialog.classList.remove("is-hidden");
+  dom.confirmGenerateTuitionBillDialog.setAttribute("aria-hidden", "false");
+}
+
+function closeGenerateTuitionBillConfirmation() {
+  if (!dom.confirmGenerateTuitionBillDialog || tuitionBillGenerationState.isSubmitting()) {
+    return;
+  }
+  dom.confirmGenerateTuitionBillDialog.classList.add("is-hidden");
+  dom.confirmGenerateTuitionBillDialog.setAttribute("aria-hidden", "true");
+  dom.confirmGenerateTuitionBillSummary.textContent = "";
+  dom.confirmGenerateTuitionBillError.textContent = "";
+  dom.confirmGenerateTuitionBillError.classList.add("is-hidden");
+}
+
+async function confirmGenerateTuitionBill() {
+  const preview = tuitionBillGenerationState.getPreview();
+  if (!preview || tuitionBillPreviewSignature !== currentTuitionBillPreviewSignature()) {
+    clearTuitionBillPreview();
+    showTuitionBillError("当前预览已失效，请重新生成预览。");
+    return;
+  }
+  if (!isAtomicTuitionGenerateEnabled(preview)) {
+    showTuitionBillError("学费应收生成功能维护中，当前只能预览。");
+    return;
+  }
+  if (!tuitionBillGenerationState.beginSubmission()) {
+    return;
+  }
+
+  setTuitionBillSubmitting(true);
+  try {
+    const payload = buildAtomicTuitionGeneratePayload(preview, dom.tuitionBillNoteInput.value);
+    const result = await generateStudentTuitionBillAtomic(payload);
+    if (result.student_id !== preview.student_id
+        || result.billing_month !== preview.billing_month
+        || result.generation_manifest_sha256 !== preview.generation_manifest_sha256) {
+      throw new Error("R2_F_B_IDEMPOTENCY_CONFLICT_OR_INCOMPLETE: 返回结果与当前预览不一致");
+    }
+
+    const currentFilters = readFilters();
+    tuitionBillGenerationState.endSubmission({ consumePreview: true });
+    setTuitionBillSubmitting(false);
+    closeGenerateTuitionBillConfirmation();
+    dom.generateTuitionBillDialog.classList.add("is-hidden");
+    dom.generateTuitionBillDialog.setAttribute("aria-hidden", "true");
+    clearTuitionBillPreview();
+
+    if (currentFilters) {
+      await loadIncomeMonth(currentFilters.month);
+      restoreFilterSelections(currentFilters);
+      renderIncomeRecords(filterIncomeRecords(incomeRecords, currentFilters));
+    }
+    const resultKind = result.idempotent ? "已返回既有幂等结果" : "已原子生成";
+    showMessage(
+      "success",
+      `${resultKind}：账单 ${shortId(result.tuition_bill_id)}，identity ${shortId(result.billing_identity_id)}，pending收入 ${shortId(result.income_record_id)}。`
+    );
+  } catch (error) {
+    console.error(error);
+    const mapped = mapAtomicTuitionGenerateError(error);
+    tuitionBillGenerationState.endSubmission();
+    setTuitionBillSubmitting(false);
+    dom.confirmGenerateTuitionBillError.textContent = mapped.message;
+    dom.confirmGenerateTuitionBillError.classList.remove("is-hidden");
+    showTuitionBillError(mapped.message);
+    if (mapped.clearPreview) {
+      clearTuitionBillPreview();
+    }
   }
 }
 

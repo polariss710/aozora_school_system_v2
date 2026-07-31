@@ -19,13 +19,11 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
   if (!Array.isArray(response.candidates)) {
     throw new Error("学费预览缺少服务端candidate明细，已拒绝显示。");
   }
+  if (!/^[0-9a-f]{64}$/.test(String(response.generation_manifest_sha256 || ""))) {
+    throw new Error("学费预览缺少有效的原子生成manifest，已拒绝显示。");
+  }
 
   const ids = new Set();
-  let totalLessonCount = 0;
-  let totalDurationHours = 0;
-  let totalBaseLessonFeeJpy = 0;
-  let totalAirconFeeJpy = 0;
-  let totalFeeJpy = 0;
   let previousOrderKey = "";
 
   for (const candidate of response.candidates) {
@@ -52,24 +50,20 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
     const baseLessonFee = finiteNumber(candidate.base_lesson_fee_jpy, "基础课时费", plannedLessonId);
     const airconRate = finiteNumber(candidate.aircon_rate_jpy_per_hour, "空调费率", plannedLessonId);
     const airconFee = finiteNumber(candidate.aircon_fee_jpy, "空调费", plannedLessonId);
-    const lessonTotalFee = finiteNumber(candidate.lesson_total_fee_jpy, "课程总价", plannedLessonId);
+    const lessonTotalFee = finiteNumber(candidate.course_total_jpy, "课程总价", plannedLessonId);
     if (lessonCount <= 0
         || durationHours <= 0
         || baseLessonFee <= 0
         || !Number.isInteger(airconRate)
         || airconRate < 0
         || airconFee < 0
-        || lessonTotalFee <= 0
-        || !numbersEqual(lessonTotalFee, baseLessonFee + airconFee)
-        || !numbersEqual(candidate.lesson_fee, lessonTotalFee)) {
+        || lessonTotalFee <= 0) {
       throw new Error(`学费预览candidate数值无效：${plannedLessonId}`);
     }
-    totalLessonCount += lessonCount;
-    totalDurationHours += durationHours;
-    totalBaseLessonFeeJpy += baseLessonFee;
-    totalAirconFeeJpy += airconFee;
-    totalFeeJpy += lessonTotalFee;
-
+    if (!/^[0-9a-f]{64}$/.test(String(candidate.complete_row_hash || ""))
+        || !/^[0-9a-f]{64}$/.test(String(candidate.candidate_line_hash || ""))) {
+      throw new Error(`学费预览candidate冻结证据无效：${plannedLessonId}`);
+    }
     const orderKey = [
       candidate.billing_week_start_date,
       candidate.lesson_date || "",
@@ -85,14 +79,18 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
       || Number(response.candidate_count) !== ids.size) {
     throw new Error("学费预览candidate数量或UUID唯一性不一致。");
   }
-  if (Number(response.total_lesson_count) !== totalLessonCount
-      || !numbersEqual(response.total_duration_hours, totalDurationHours)
-      || !numbersEqual(response.total_base_lesson_fee_jpy, totalBaseLessonFeeJpy)
-      || !numbersEqual(response.total_aircon_fee_jpy, totalAirconFeeJpy)
-      || !numbersEqual(response.total_fee_jpy, totalFeeJpy)
-      || !numbersEqual(response.total_fee_jpy, Number(response.total_base_lesson_fee_jpy) + Number(response.total_aircon_fee_jpy))
-      || !numbersEqual(response.bill_amount_jpy, response.total_fee_jpy)) {
-    throw new Error("学费预览汇总与candidate明细不一致，已拒绝显示。");
+  for (const [value, label] of [
+    [response.total_lesson_count, "总课次数"],
+    [response.total_duration_hours, "总时长"],
+    [response.total_base_lesson_fee_jpy, "基础课时费"],
+    [response.total_aircon_fee_jpy, "空调费"],
+    [response.total_fee_jpy, "课程总额"],
+    [response.previous_carryover_cny, "上月结转"],
+    [response.billing_amount_cny, "最终通知金额"],
+  ]) {
+    if (!Number.isFinite(Number(value))) {
+      throw new Error(`学费预览${label}无效，已拒绝显示。`);
+    }
   }
   if (!/^[0-9a-f]{32}$/.test(String(response.candidate_uuid_md5 || ""))
       || !/^[0-9a-f]{64}$/.test(String(response.candidate_manifest_sha256 || ""))) {
@@ -102,6 +100,79 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
   return {
     ...response,
     candidates: response.candidates.slice(),
+  };
+}
+
+export function createTuitionAtomicGenerateState() {
+  let preview = null;
+  let submitting = false;
+
+  return {
+    storePreview(nextPreview) {
+      preview = nextPreview;
+      return preview;
+    },
+    clearPreview() {
+      preview = null;
+    },
+    getPreview() {
+      return preview;
+    },
+    beginSubmission() {
+      if (submitting || !preview) {
+        return false;
+      }
+      submitting = true;
+      return true;
+    },
+    endSubmission({ consumePreview = false } = {}) {
+      submitting = false;
+      if (consumePreview) {
+        preview = null;
+      }
+    },
+    isSubmitting() {
+      return submitting;
+    },
+  };
+}
+
+export function buildAtomicTuitionGeneratePayload(preview, note = "") {
+  if (!preview || !/^[0-9a-f]{64}$/.test(String(preview.generation_manifest_sha256 || ""))) {
+    throw new Error("缺少有效的学费生成manifest，请重新预览。");
+  }
+
+  return {
+    studentId: preview.student_id,
+    billingMonth: preview.billing_month,
+    billingExchangeRate: preview.billing_exchange_rate,
+    expectedGenerationManifestSha256: preview.generation_manifest_sha256,
+    note: String(note || "").trim() || null,
+  };
+}
+
+export function isAtomicTuitionGenerateEnabled(preview) {
+  return preview?.generate_feature_state === "enabled";
+}
+
+export function mapAtomicTuitionGenerateError(error) {
+  const rawMessage = String(error?.message || error || "");
+  const mappings = [
+    ["TUITION_GENERATION_BLOCKED", "学费应收生成功能维护中，当前只能预览。", false],
+    ["R2_F_B_STALE_GENERATION_MANIFEST", "课程或收费数据已变化，请重新生成预览。", true],
+    ["R2_F_C_TUITION_SOURCE_BUSY", "课时或月结数据正在更新，请稍后重新预览并生成。", true],
+    ["R2_F_B_IDEMPOTENCY_CONFLICT_OR_INCOMPLETE", "该学生月份已存在不一致的账单记录，请停止操作并检查。", false],
+    ["R2_F_B_PREVIOUS_SETTLEMENT_REQUIRED", "上月结算尚未锁定或仍有待处理项目，暂时不能生成本月账单。", false],
+    ["R2_F_B_CANDIDATES_EMPTY", "该学生月份没有可收费的预定课时。", false],
+  ];
+  const matched = mappings.find(([code]) => rawMessage.includes(code));
+  if (matched) {
+    return { code: matched[0], message: matched[1], clearPreview: matched[2] };
+  }
+  return {
+    code: "UNKNOWN",
+    message: "学费应收生成失败，未写入成功状态。请检查网络或系统状态后重新预览。",
+    clearPreview: false,
   };
 }
 
