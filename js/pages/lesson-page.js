@@ -23,7 +23,7 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.96-authoritative-overage-ui";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-e-lesson-operations-closure";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import {
   currentYearMonth,
@@ -400,6 +400,7 @@ function setupLessonEditController() {
     hasSupabaseConfig,
     showMessage,
     onSaved: refreshAfterEditLesson,
+    getRefreshContext: () => readFilters(),
     setExternalBusy: (isBusy) => {
       if (dom.openCreatePlannedLessonButton) {
         dom.openCreatePlannedLessonButton.disabled = isBusy;
@@ -1310,7 +1311,7 @@ function applyCurrentFilters() {
   refreshLessonManagementStats(filters);
 }
 
-async function refreshLessonManagementStats(filters) {
+async function refreshLessonManagementStats(filters, options = {}) {
   const requestId = ++lessonStatsRequestId;
   renderLessonStats(null, { loading: true });
 
@@ -1328,6 +1329,9 @@ async function refreshLessonManagementStats(filters) {
       return;
     }
     renderLessonStats(null);
+    if (options.propagateError) {
+      throw error;
+    }
     showMessage("error", `读取课时统计失败：${error.message || error}`);
   }
 }
@@ -3192,29 +3196,24 @@ function syncCreateMakeupActualLessonDurationFromTimeRange() {
   updateCreateMakeupActualLessonFeePreview();
 }
 
-async function refreshAfterEditLesson(updatedLesson) {
-  const updatedMonth = updatedLesson.year_month || safeText(updatedLesson.lesson_date).slice(0, 7) || loadedMonth;
-  if (updatedMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, updatedMonth);
+async function refreshAfterEditLesson(_updatedLesson, previousFilters = null) {
+  const filters = previousFilters ? { ...previousFilters } : readFilters();
+  if (!filters?.month) {
+    throw new Error("保存前筛选状态不可用");
   }
 
-  const filters = readFilters() || {
-    month: updatedMonth || loadedMonth,
-    studentId: "",
-    teacherId: "",
-    subjectId: "",
-    businessEntityId: "",
-    lessonType: "",
-    status: "",
-    isBillable: "",
-    keyword: "",
-  };
-  filters.month = updatedMonth || filters.month;
-
-  await loadLessonMonth(filters.month, filters);
-  renderDataOptions(lessonRecords);
-  restoreFilterSelections(filters);
-  applyCurrentFilters();
+  const requestToken = beginLessonRecordsRequest();
+  setLoading(true);
+  try {
+    const applied = await loadLessonMonth(filters.month, filters, requestToken);
+    if (!applied) return;
+    restoreFilterSelections(filters);
+    syncLessonQueryUrl(filters);
+    renderLessonRecords(filterLessonRecords(lessonRecords, filters));
+    await refreshLessonManagementStats(filters, { propagateError: true });
+  } finally {
+    if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
+  }
 }
 
 function renderValueOptions(selectEl, values, labelGetter) {

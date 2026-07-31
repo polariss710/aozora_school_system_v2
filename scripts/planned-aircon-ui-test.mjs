@@ -44,6 +44,6 @@ assert.match(incomeHtml, /课程总价 JPY/);
 assert.match(incomePage, /candidate\.base_lesson_fee_jpy/);
 assert.match(incomePage, /candidate\.aircon_rate_jpy_per_hour/);
 assert.match(incomePage, /candidate\.aircon_fee_jpy/);
-assert.match(incomePage, /candidate\.lesson_total_fee_jpy/);
+assert.match(incomePage, /candidate\.course_total_jpy/);
 
 console.log("planned aircon UI/API boundary fixtures: PASS");

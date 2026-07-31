@@ -29,6 +29,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 - R2-F-C closes the remaining generate phantom window with fixed-order transaction-level `SHARE` locks on lesson records, monthly settlements, settlement carryovers and settlement adjustment drafts before the new-generation branch first reads candidates/carryover evidence. Ordinary SELECT remains compatible; INSERT/UPDATE/DELETE waits and an 8-second lock timeout fails closed with a re-preview instruction. Existing advisory/row locks and all R2-F-B manifests/validators remain. This is the accepted low-volume V2 coarse-grained solution; no 25-writer rewrite or ACL/RLS expansion was made. R0 remains `validation_preview_only / blocked / blocked`.
 - R2-F-D-DB1已修复R1D-E-C legacy actual resolver因R2-E新增nullable `lesson_total_fee_jpy`列改变`to_jsonb(%ROWTYPE)`结构而误报evidence mismatch的问题。234条legacy actual的冻结identity及原schema整行证据保持一致，6条cutover后actual继续走canonical分支；孙陈锋、张倬闻2026-08 validation preview现在正确停在缺少2026-07 locked settlement的`R2_F_B_PREVIOUS_SETTLEMENT_REQUIRED`。本次仅部署resolver DDL，业务数据零修改；R0仍为`validation_preview_only / blocked / blocked`，必须由业务负责人复核并锁定7月月结后再继续前端验收。
 - R2-F-D atomic generate前端/API接入已完成验收：孙陈锋、张倬闻2026-07月结均由业务负责人正式锁定，2026-08 validation preview分别恢复为`22 candidates / 24课次 / 44h / JPY374,000 / CNY0 carryover`和`30 candidates / 35课次 / 65h / JPY650,000 / CNY107.50 carryover`。收入页只消费DB权威preview并只通过API wrapper准备公开atomic RPC；当前R0没有generate enablement，正式按钮继续禁用，未生成bill/income或连接Cash。后续独立调查两项：已收费planned改为`pending_makeup`被immutable guard误阻断；缺少未来actual日期不得提前completed/makeup_completed的DB guard。
+- R2-F-E课时运营闭环已完成commit前验收：已收费planned在学生、业务归属、科目、收费月份/自然周、课时数、时长、单价、基础费、空调费组件及canonical关系继续冻结时，可改老师、收费周内日期/时间并一次转为`pending_makeup`；所有actual写入口由DB trigger禁止东京未来日期的`completed`/`makeup_completed`。编辑保存后按保存前的年月、自然周、主数据、状态、计费、关键词和视图重新读取列表与统计，不随新上课日期跳月。只读扫描保留3条未进locked月结/工资的既有未来actual异常，待业务负责人另行确认，未自动修数据。R0仍为`validation_preview_only / blocked / blocked`，未generate或连接Cash。
 
 ## Hard Stops
 
@@ -40,6 +41,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. School V2 R2-F-E lesson operations closure, 2026-08-01:
+   charged planned履约guard现在只放开老师、冻结收费自然周内日期/时间及`planned -> pending_makeup`，其余收费事实和canonical relation继续不可变；新增表级Tokyo业务日期guard覆盖ordinary、partial、makeup、状态/日期编辑及直接DML，未来actual完成统一返回`FUTURE_ACTUAL_COMPLETION_FORBIDDEN`。课时编辑保存后保留保存前全部筛选并重新读取列表和统计，刷新失败与写入失败分开提示。rollback matrix、三组UI测试、最终只读postdeploy均通过，业务指纹和两名学生8月preview零漂移。现有3条未来actual异常仅登记待业务确认。详见`docs/school-v2-r2-f-e-lesson-operations-closure-report-20260801.md`。
 
 1. School V2 tuition R2-F-D atomic generate UI final acceptance, 2026-08-01:
    业务负责人锁定孙陈锋、张倬闻2026-07月结后，只读复核确认孙陈锋`0.042 / planned 36h JPY306,000 / actual 25h JPY212,500 / carryover CNY0`，张倬闻`0.043 / overage 15min JPY2,500 CNY107.50 / carryover CNY107.50`；孙陈锋两条8月1日跨月课继续归属2026-07。2026-08 validation preview恢复为孙陈锋`22 candidates / 24课次 / 44h / JPY374,000 / aircon JPY0 / CNY15,708`和张倬闻`30 / 35 / 65h / JPY650,000 / aircon JPY0 / CNY28,057.50`，旧mismatch及previous-settlement错误均消失。前端/API只准备公开atomic writer、删除旧两步链并保持page无直接RPC/表写；两组UI fixtures、node check及边界扫描通过。R0仍`validation_preview_only / blocked / blocked`，未调用generate、未连接Cash。详见`docs/school-v2-r2-f-d-atomic-generate-ui-report-20260801.md`。

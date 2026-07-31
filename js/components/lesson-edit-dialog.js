@@ -79,6 +79,7 @@ export function createLessonEditDialogController(options) {
     hasSupabaseConfig,
     showMessage,
     onSaved,
+    getRefreshContext,
     setExternalBusy,
     getLinkedActualExists,
   } = options;
@@ -305,7 +306,9 @@ export function createLessonEditDialogController(options) {
     dom.unitPriceInput.value = displayInputNumber(lesson.unit_price || 0);
     dom.feeInput.value = displayInputNumber(lesson.lesson_fee);
     dom.airconRateInput.value = lesson.lesson_type === "planned"
-      ? displayInputNumber(lesson.aircon_unit_price_jpy_snapshot ?? 0)
+      && lesson.aircon_unit_price_jpy_snapshot !== null
+      && lesson.aircon_unit_price_jpy_snapshot !== undefined
+      ? displayInputNumber(lesson.aircon_unit_price_jpy_snapshot)
       : "";
     dom.countInput.value = lesson.lesson_count ? String(lesson.lesson_count) : "";
     dom.plannedIdInput.value = safeText(lesson.planned_lesson_id);
@@ -421,15 +424,27 @@ export function createLessonEditDialogController(options) {
     }
 
     setSubmitting(true);
-
+    const refreshContext = getRefreshContext?.() || null;
+    let updatedLesson;
     try {
-      const updatedLesson = await updateLessonRecordGuarded(payload);
-      close(true);
-      await onSaved(updatedLesson);
-      showMessage("success", `课时已保存：${shortId(updatedLesson.lesson_id || updatedLesson.id)}`);
+      updatedLesson = await updateLessonRecordGuarded(payload);
     } catch (error) {
       const message = error.message || String(error);
       showError(message, fieldIdsForError(message));
+      setSubmitting(false);
+      return;
+    }
+
+    close(true);
+    try {
+      await onSaved(updatedLesson, refreshContext);
+      showMessage("success", `课时已保存：${shortId(updatedLesson.lesson_id || updatedLesson.id)}`);
+    } catch (error) {
+      console.error(error);
+      showMessage(
+        "error",
+        `课时已保存，但列表刷新失败：${error.message || error}。请点击“查询”重试。`
+      );
     } finally {
       setSubmitting(false);
     }
@@ -462,7 +477,7 @@ export function createLessonEditDialogController(options) {
     const durationHours = numberFromInput(dom.durationInput.value);
     const unitPrice = numberFromInput(dom.unitPriceInput.value);
     const airconRateJpyPerHour = isPlanned
-      ? numberFromInput(dom.airconRateInput.value)
+      ? nullableIntegerFromInput(dom.airconRateInput.value)
       : null;
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
     const inputLessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.feeInput.value);
@@ -523,7 +538,11 @@ export function createLessonEditDialogController(options) {
       validationMessage = "既有 actual 的时间、时长和单价已冻结；如需记录新的超额时长，请从 planned 创建 actual。";
     }
     if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-    if (isPlanned && (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0)) {
+    const preservesLegacyNullAirconRate = isPlanned
+      && lesson.aircon_unit_price_jpy_snapshot == null
+      && airconRateJpyPerHour === null;
+    if (isPlanned && !preservesLegacyNullAirconRate
+        && (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0)) {
       invalidFields.push("airconRate");
     }
     if (isFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
