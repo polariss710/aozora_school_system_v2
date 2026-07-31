@@ -128,7 +128,8 @@ for (const field of [
   assert.match(lessonApiSource, new RegExp(`\\b${field}\\b`));
 }
 assert.match(lessonPageSource, /validateActualDurationForFlow/);
-assert.match(lessonPageSource, /error\.message \|\| String\(error\)/, "API errors must be shown without replacement");
+assert.match(lessonPageSource, /lessonUserErrorMessage/, "API diagnostics must be mapped to safe user messages");
+assert.doesNotMatch(lessonPageSource, /error\.message \|\| String\(error\)/, "raw API diagnostics must not be shown to users");
 assert.match(editDialogSource, /既有 actual 的时间、时长和单价已冻结/);
 assert.doesNotMatch(actualOverageSource, /unit_price|lesson_fee/, "overage display helper must not read price inputs");
 

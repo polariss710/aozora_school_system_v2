@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=r2-f-e-lesson-operations-closure";
+import { initLessonPage } from "./pages/lesson-page.js?v=r2-f-e1-lesson-generation-closure";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

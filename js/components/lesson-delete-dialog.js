@@ -1,5 +1,6 @@
 import { deleteFreshPlannedLesson } from "../api/lesson-api.js";
 import { formatMonth, safeText } from "../utils/format.js";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
 
 const DELETE_LESSON_FIELD_IDS = ["confirm"];
 
@@ -202,11 +203,13 @@ export function createLessonDeleteDialogController(options) {
         try {
           await onDeleted(result, sourceLesson);
         } catch (refreshError) {
-          showMessage("error", `预定课时已删除，但刷新页面数据失败：${refreshError.message || refreshError}`);
+          console.error("Lesson delete refresh failed", refreshError);
+          showMessage("error", "预定课时已删除，但列表刷新失败，请重新查询。");
         }
       }
     } catch (error) {
-      showError(error.message || String(error));
+      console.error("Lesson delete failed", error);
+      showError(lessonUserErrorMessage(error, "预定课时删除失败，请稍后重试。"));
     } finally {
       setSubmitting(false);
     }

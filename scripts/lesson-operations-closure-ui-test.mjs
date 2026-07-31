@@ -15,25 +15,29 @@ assert.equal(normalizeStudentSettlementWeekStart("2026-08", "2026-07-27"), "");
 
 // The saved-record refresh uses the pre-save filter snapshot, never the edited
 // record date/month, and starts a newest-request gate before reloading records.
-const refreshFunction = lessonPage.match(
+const editRefreshFunction = lessonPage.match(
   /async function refreshAfterEditLesson[\s\S]*?\n}\n\nfunction renderValueOptions/
 )?.[0] || "";
-assert.match(refreshFunction, /previousFilters \? \{ \.\.\.previousFilters } : readFilters\(\)/);
-assert.match(refreshFunction, /beginLessonRecordsRequest\(\)/);
-assert.match(refreshFunction, /loadLessonMonth\(filters\.month, filters, requestToken\)/);
-assert.match(refreshFunction, /restoreFilterSelections\(filters\)/);
-assert.match(refreshFunction, /syncLessonQueryUrl\(filters\)/);
-assert.match(refreshFunction, /renderLessonRecords\(filterLessonRecords\(lessonRecords, filters\)\)/);
-assert.match(refreshFunction, /await refreshLessonManagementStats\(filters, \{ propagateError: true }\)/);
-assert.doesNotMatch(refreshFunction, /updatedLesson\.(?:year_month|lesson_date)/);
-assert.doesNotMatch(refreshFunction, /setYearMonthSelectValue/);
+const sharedRefreshFunction = lessonPage.match(
+  /async function refreshLessonMonthPreservingFilters[\s\S]*?\n}\n\nfunction setCreateCrossMonthMakeupActualSubmitting/
+)?.[0] || "";
+assert.match(editRefreshFunction, /refreshLessonMonthPreservingFilters\(previousFilters\?\.month, previousFilters\)/);
+assert.match(sharedRefreshFunction, /previousFilters \? \{ \.\.\.previousFilters } : readFilters\(\)/);
+assert.match(sharedRefreshFunction, /beginLessonRecordsRequest\(\)/);
+assert.match(sharedRefreshFunction, /loadLessonMonth\(month, nextFilters, requestToken\)/);
+assert.match(sharedRefreshFunction, /restoreFilterSelections\(nextFilters\)/);
+assert.match(sharedRefreshFunction, /syncLessonQueryUrl\(nextFilters\)/);
+assert.match(sharedRefreshFunction, /renderLessonRecords\(filterLessonRecords\(lessonRecords, nextFilters\)\)/);
+assert.match(sharedRefreshFunction, /await refreshLessonManagementStats\(nextFilters, \{ propagateError: true }\)/);
+assert.doesNotMatch(sharedRefreshFunction, /updatedLesson\.(?:year_month|lesson_date)/);
+assert.doesNotMatch(sharedRefreshFunction, /setYearMonthSelectValue/);
 
 // All filters and the current view are captured before the write request.
 assert.match(lessonPage, /getRefreshContext:\s*\(\) => readFilters\(\)/);
 assert.match(editDialog, /const refreshContext = getRefreshContext\?\.\(\) \|\| null/);
 assert.match(editDialog, /await onSaved\(updatedLesson, refreshContext\)/);
 assert.match(editDialog, /课时已保存，但列表刷新失败/);
-assert.match(editDialog, /请点击“查询”重试/);
+assert.match(editDialog, /请重新查询/);
 
 // Legacy NULL aircon evidence remains NULL: the page does not invent zero and
 // the API selects the legacy preserving overload by omitting the rate argument.
@@ -45,11 +49,8 @@ assert.match(
   /payload\.lessonType === "planned" && Number\.isInteger\(payload\.airconRateJpyPerHour\)/
 );
 
-// Future-completion errors from ordinary, partial, makeup and guarded-edit APIs
-// map to one stable user-facing message while retaining the DB code.
-assert.match(lessonApi, /FUTURE_ACTUAL_COMPLETION_FORBIDDEN/);
-assert.match(lessonApi, /实际完成日期不能晚于东京当前业务日期/);
-assert.equal((lessonApi.match(/throw normalizeLessonMutationError\(error\)/g) || []).length, 4);
+// API preserves the raw diagnostic error; the UI layer owns safe Chinese mapping.
+assert.doesNotMatch(lessonApi, /normalizeLessonMutationError/);
 
 // Page/API boundaries remain intact.
 assert.doesNotMatch(lessonPage, /\.rpc\s*\(/);

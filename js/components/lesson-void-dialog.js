@@ -1,5 +1,6 @@
 import { voidPlannedLesson } from "../api/lesson-api.js";
 import { formatMonth, safeText } from "../utils/format.js";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
 
 const VOID_LESSON_FIELD_IDS = ["reason", "confirm"];
 
@@ -213,11 +214,13 @@ export function createLessonVoidDialogController(options) {
         try {
           await onVoided(result, sourceLesson);
         } catch (refreshError) {
-          showMessage("error", `预定课时已误录作废，但刷新页面数据失败：${refreshError.message || refreshError}`);
+          console.error("Lesson void refresh failed", refreshError);
+          showMessage("error", "预定课时已误录作废，但列表刷新失败，请重新查询。");
         }
       }
     } catch (error) {
-      showError(error.message || String(error));
+      console.error("Lesson void failed", error);
+      showError(lessonUserErrorMessage(error, "预定课时作废失败，请稍后重试。"));
     } finally {
       setSubmitting(false);
     }

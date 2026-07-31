@@ -22,9 +22,9 @@ import {
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js";
-import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10.3.60-delete-fresh-planned-lesson";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-e-lesson-operations-closure";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
+import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-e1-lesson-generation-closure";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=r2-f-e1-lesson-generation-closure";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -33,6 +33,7 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
@@ -615,20 +616,29 @@ function bindEvents() {
       ...defaultLessonFilters(),
       view: activeView,
     });
-    beginLessonRecordsRequest();
-    showMessage("info", "已重置筛选条件；点击“查询”后刷新结果。");
+    invalidateLessonResultsForFilterChange("已重置筛选条件；点击“查询”后刷新结果。");
   });
 
   [dom.yearFilter, dom.monthFilter].forEach((select) => {
     select?.addEventListener("change", () => {
       const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
       renderWeekFilterOptions(month, dom.weekFilter?.value);
-      beginLessonRecordsRequest();
+      invalidateLessonResultsForFilterChange();
     });
   });
-  [dom.weekFilter, dom.studentSelect].forEach((select) => {
-    select?.addEventListener("change", () => beginLessonRecordsRequest());
+  [
+    dom.weekFilter,
+    dom.studentSelect,
+    dom.teacherSelect,
+    dom.subjectSelect,
+    dom.businessEntitySelect,
+    dom.lessonTypeSelect,
+    dom.statusSelect,
+    dom.billableSelect,
+  ].forEach((select) => {
+    select?.addEventListener("change", () => invalidateLessonResultsForFilterChange());
   });
+  dom.keywordInput?.addEventListener("input", () => invalidateLessonResultsForFilterChange());
   dom.openWeeklyScheduleForStudentButton?.addEventListener("click", openWeeklyScheduleForSelectedStudent);
 
   [dom.listViewButton, dom.pairViewButton].forEach((button) => {
@@ -1136,7 +1146,8 @@ async function loadInitialData() {
     renderDataOptions([]);
     renderLessonRecords([]);
     renderLessonStats(null);
-    showMessage("error", `读取课时管理数据失败：${error.message || error}`);
+    console.error("Lesson management initial load failed", error);
+    showMessage("error", lessonUserErrorMessage(error, "读取课时管理数据失败，请稍后重试。"));
   } finally {
     if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
   }
@@ -1174,7 +1185,8 @@ async function applyQuery(options = {}) {
       loadedMonth = "";
       renderDataOptions([]);
       renderLessonRecords([]);
-      showMessage("error", `读取课时记录失败：${error.message || error}`);
+      console.error("Lesson records load failed", error);
+      showMessage("error", lessonUserErrorMessage(error, "读取课时记录失败，请稍后重试。"));
     } finally {
       if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
     }
@@ -1194,6 +1206,14 @@ function beginLessonRecordsRequest() {
   renderLessonRecords([]);
   renderLessonStats(null);
   return requestToken;
+}
+
+function invalidateLessonResultsForFilterChange(
+  message = "筛选条件已变化；点击“查询”后显示新结果。"
+) {
+  beginLessonRecordsRequest();
+  renderLessonRecords([], { emptyMessage: "筛选条件已变化，请点击“查询”显示结果。" });
+  showMessage("info", message);
 }
 
 async function loadLessonMonth(month, filters = {}, requestToken) {
@@ -1332,7 +1352,8 @@ async function refreshLessonManagementStats(filters, options = {}) {
     if (options.propagateError) {
       throw error;
     }
-    showMessage("error", `读取课时统计失败：${error.message || error}`);
+    console.error("Lesson statistics load failed", error);
+    showMessage("error", lessonUserErrorMessage(error, "读取课时统计失败，请稍后重试。"));
   }
 }
 
@@ -1638,7 +1659,8 @@ async function handleCreatePlannedLessonSubmit() {
     await refreshAfterCreatePlannedLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `预定课时已新增：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
-    const message = error.message || String(error);
+    console.error("Planned lesson creation failed", error);
+    const message = lessonUserErrorMessage(error, "预定课时新增失败，请稍后重试。");
     showCreatePlannedLessonError(message, createPlannedLessonFieldIdsForError(message));
   } finally {
     setCreatePlannedLessonSubmitting(false);
@@ -1745,7 +1767,7 @@ function clearCreatePlannedLessonErrors() {
 }
 
 function showCreatePlannedLessonError(message, fieldIds = []) {
-  dom.createPlannedLessonError.textContent = message;
+  dom.createPlannedLessonError.textContent = lessonUserErrorMessage(message);
   dom.createPlannedLessonError.classList.remove("is-hidden");
   for (const fieldId of fieldIds) {
     setCreatePlannedLessonFieldInvalid(fieldId, true);
@@ -1940,18 +1962,27 @@ async function handleCreateActualLessonSubmit() {
   }
 
   setCreateActualLessonSubmitting(true);
-
+  const filtersBeforeSubmit = readFilters();
+  let createdLesson;
   try {
-    const filtersBeforeSubmit = readFilters();
-    const createdLesson = payload.partial
+    createdLesson = payload.partial
       ? await createPartialCompletedActualFromPlanned(payload)
       : await createActualLessonFromPlanned(payload);
-    closeCreateActualLessonDialog(true);
+  } catch (error) {
+    console.error("Actual lesson generation failed", error);
+    const message = lessonUserErrorMessage(error, "实际课时生成失败，请稍后重试。");
+    showCreateActualLessonError(message, createActualLessonFieldIdsForError(message));
+    setCreateActualLessonSubmitting(false);
+    return;
+  }
+
+  closeCreateActualLessonDialog(true);
+  try {
     await refreshAfterCreateActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `实际课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
-    const message = error.message || String(error);
-    showCreateActualLessonError(message, createActualLessonFieldIdsForError(message));
+    console.error("Actual lesson generation refresh failed", error);
+    showMessage("error", "实际课时已生成，但列表刷新失败，请重新查询。");
   } finally {
     setCreateActualLessonSubmitting(false);
   }
@@ -2026,9 +2057,8 @@ function readCreateActualLessonPayload() {
   };
 }
 
-async function refreshAfterCreateActualLesson(createdLesson, previousFilters = null) {
-  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
+async function refreshAfterCreateActualLesson(_createdLesson, previousFilters = null) {
+  await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
 }
 
 async function refreshAfterVoidLesson(result, sourceLesson) {
@@ -2072,7 +2102,7 @@ function clearCreateActualLessonErrors() {
 }
 
 function showCreateActualLessonError(message, fieldIds = []) {
-  dom.createActualLessonError.textContent = message;
+  dom.createActualLessonError.textContent = lessonUserErrorMessage(message);
   dom.createActualLessonError.classList.remove("is-hidden");
   for (const fieldId of fieldIds) {
     setCreateActualLessonFieldInvalid(fieldId, true);
@@ -2248,16 +2278,25 @@ async function handleCreateCancelledActualLessonSubmit() {
   }
 
   setCreateCancelledActualLessonSubmitting(true);
-
+  const filtersBeforeSubmit = readFilters();
+  let createdLesson;
   try {
-    const filtersBeforeSubmit = readFilters();
-    const createdLesson = await createCancelledActualLessonFromPlanned(payload);
-    closeCreateCancelledActualLessonDialog(true);
+    createdLesson = await createCancelledActualLessonFromPlanned(payload);
+  } catch (error) {
+    console.error("Cancelled actual lesson generation failed", error);
+    const message = lessonUserErrorMessage(error, "取消课时生成失败，请稍后重试。");
+    showCreateCancelledActualLessonError(message, createCancelledActualLessonFieldIdsForError(message));
+    setCreateCancelledActualLessonSubmitting(false);
+    return;
+  }
+
+  closeCreateCancelledActualLessonDialog(true);
+  try {
     await refreshAfterCreateCancelledActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `取消课时已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
-    const message = error.message || String(error);
-    showCreateCancelledActualLessonError(message, createCancelledActualLessonFieldIdsForError(message));
+    console.error("Cancelled actual lesson refresh failed", error);
+    showMessage("error", "取消课时已生成，但列表刷新失败，请重新查询。");
   } finally {
     setCreateCancelledActualLessonSubmitting(false);
   }
@@ -2314,9 +2353,8 @@ function readCreateCancelledActualLessonPayload() {
   };
 }
 
-async function refreshAfterCreateCancelledActualLesson(createdLesson, previousFilters = null) {
-  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
+async function refreshAfterCreateCancelledActualLesson(_createdLesson, previousFilters = null) {
+  await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
 }
 
 function setCreateCancelledActualLessonSubmitting(isSubmitting) {
@@ -2336,7 +2374,7 @@ function clearCreateCancelledActualLessonErrors() {
 }
 
 function showCreateCancelledActualLessonError(message, fieldIds = []) {
-  dom.createCancelledActualLessonError.textContent = message;
+  dom.createCancelledActualLessonError.textContent = lessonUserErrorMessage(message);
   dom.createCancelledActualLessonError.classList.remove("is-hidden");
   for (const fieldId of fieldIds) {
     setCreateCancelledActualLessonFieldInvalid(fieldId, true);
@@ -2506,16 +2544,25 @@ async function handleCreateMakeupActualLessonSubmit() {
   }
 
   setCreateMakeupActualLessonSubmitting(true);
-
+  const filtersBeforeSubmit = readFilters();
+  let createdLesson;
   try {
-    const filtersBeforeSubmit = readFilters();
-    const createdLesson = await createMakeupCompletedActualLessonFromPlanned(payload);
-    closeCreateMakeupActualLessonDialog(true);
+    createdLesson = await createMakeupCompletedActualLessonFromPlanned(payload);
+  } catch (error) {
+    console.error("Makeup actual lesson generation failed", error);
+    const message = lessonUserErrorMessage(error, "补课完成生成失败，请稍后重试。");
+    showCreateMakeupActualLessonError(message, createMakeupActualLessonFieldIdsForError(message));
+    setCreateMakeupActualLessonSubmitting(false);
+    return;
+  }
+
+  closeCreateMakeupActualLessonDialog(true);
+  try {
     await refreshAfterCreateMakeupActualLesson(createdLesson, filtersBeforeSubmit);
     showMessage("success", `补课完成已生成：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
-    const message = error.message || String(error);
-    showCreateMakeupActualLessonError(message, createMakeupActualLessonFieldIdsForError(message));
+    console.error("Makeup actual lesson refresh failed", error);
+    showMessage("error", "实际课时已生成，但列表刷新失败，请重新查询。");
   } finally {
     setCreateMakeupActualLessonSubmitting(false);
   }
@@ -2588,9 +2635,8 @@ function readCreateMakeupActualLessonPayload() {
   };
 }
 
-async function refreshAfterCreateMakeupActualLesson(createdLesson, previousFilters = null) {
-  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
+async function refreshAfterCreateMakeupActualLesson(_createdLesson, previousFilters = null) {
+  await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
 }
 
 function setCreateMakeupActualLessonSubmitting(isSubmitting) {
@@ -2610,7 +2656,7 @@ function clearCreateMakeupActualLessonErrors() {
 }
 
 function showCreateMakeupActualLessonError(message, fieldIds = []) {
-  dom.createMakeupActualLessonError.textContent = message;
+  dom.createMakeupActualLessonError.textContent = lessonUserErrorMessage(message);
   dom.createMakeupActualLessonError.classList.remove("is-hidden");
   for (const fieldId of fieldIds) {
     setCreateMakeupActualLessonFieldInvalid(fieldId, true);
@@ -2799,7 +2845,10 @@ async function loadCrossMonthMakeupSourceCandidates() {
     currentCrossMonthMakeupSourceLesson = null;
     renderCrossMonthMakeupSourceOptions();
     renderCreateCrossMonthMakeupActualSummary();
-    showCreateCrossMonthMakeupActualError(`读取待补课来源失败：${error.message || error}`);
+    console.error("Open makeup source load failed", error);
+    showCreateCrossMonthMakeupActualError(
+      lessonUserErrorMessage(error, "读取待补课来源失败，请稍后重试。")
+    );
   } finally {
     isCrossMonthMakeupSourceLoading = false;
     dom.crossMonthMakeupSourceRefreshButton.disabled = false;
@@ -2900,16 +2949,25 @@ async function handleCreateCrossMonthMakeupActualSubmit() {
   }
 
   setCreateCrossMonthMakeupActualSubmitting(true);
-
+  const filtersBeforeSubmit = readFilters();
+  let createdLesson;
   try {
-    const filtersBeforeSubmit = readFilters();
-    const createdLesson = await createCrossMonthMakeupCompletedActualFromPlanned(payload);
-    closeCreateCrossMonthMakeupActualDialog(true);
+    createdLesson = await createCrossMonthMakeupCompletedActualFromPlanned(payload);
+  } catch (error) {
+    console.error("Cross-month makeup actual generation failed", error);
+    const message = lessonUserErrorMessage(error, "待补课完成登记失败，请稍后重试。");
+    showCreateCrossMonthMakeupActualError(message, createCrossMonthMakeupActualFieldIdsForError(message));
+    setCreateCrossMonthMakeupActualSubmitting(false);
+    return;
+  }
+
+  closeCreateCrossMonthMakeupActualDialog(true);
+  try {
     await refreshAfterCreateCrossMonthMakeupActual(createdLesson, filtersBeforeSubmit);
     showMessage("success", `待补课完成已登记：${shortId(createdLesson.lesson_id || createdLesson.id)}`);
   } catch (error) {
-    const message = error.message || String(error);
-    showCreateCrossMonthMakeupActualError(message, createCrossMonthMakeupActualFieldIdsForError(message));
+    console.error("Cross-month makeup actual refresh failed", error);
+    showMessage("error", "实际课时已生成，但列表刷新失败，请重新查询。");
   } finally {
     setCreateCrossMonthMakeupActualSubmitting(false);
   }
@@ -2981,13 +3039,15 @@ function readCreateCrossMonthMakeupActualPayload() {
   };
 }
 
-async function refreshAfterCreateCrossMonthMakeupActual(createdLesson, previousFilters = null) {
-  const createdMonth = createdLesson.year_month || loadedMonth || currentYearMonth();
-  await refreshLessonMonthPreservingFilters(createdMonth, previousFilters);
+async function refreshAfterCreateCrossMonthMakeupActual(_createdLesson, previousFilters = null) {
+  await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
 }
 
 async function refreshLessonMonthPreservingFilters(targetMonth, previousFilters = null) {
-  const baseFilters = previousFilters || readFilters() || defaultLessonFilters();
+  const baseFilters = previousFilters ? { ...previousFilters } : readFilters();
+  if (!baseFilters?.month) {
+    throw new Error("操作前筛选状态不可用");
+  }
   const month = targetMonth || baseFilters.month || loadedMonth || currentYearMonth();
   const nextFilters = {
     ...defaultLessonFilters(),
@@ -2996,11 +3056,18 @@ async function refreshLessonMonthPreservingFilters(targetMonth, previousFilters 
     view: normalizeLessonView(baseFilters.view || activeView),
   };
 
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, month);
-  await loadLessonMonth(month, nextFilters);
-  restoreFilterSelections(nextFilters);
-  syncLessonQueryUrl(nextFilters);
-  applyCurrentFilters();
+  const requestToken = beginLessonRecordsRequest();
+  setLoading(true);
+  try {
+    const applied = await loadLessonMonth(month, nextFilters, requestToken);
+    if (!applied) return;
+    restoreFilterSelections(nextFilters);
+    syncLessonQueryUrl(nextFilters);
+    renderLessonRecords(filterLessonRecords(lessonRecords, nextFilters));
+    await refreshLessonManagementStats(nextFilters, { propagateError: true });
+  } finally {
+    if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
+  }
 }
 
 function setCreateCrossMonthMakeupActualSubmitting(isSubmitting) {
@@ -3052,7 +3119,7 @@ function clearCreateCrossMonthMakeupActualErrors() {
 }
 
 function showCreateCrossMonthMakeupActualError(message, fieldIds = []) {
-  dom.createCrossMonthMakeupActualError.textContent = message;
+  dom.createCrossMonthMakeupActualError.textContent = lessonUserErrorMessage(message);
   dom.createCrossMonthMakeupActualError.classList.remove("is-hidden");
   for (const fieldId of fieldIds) {
     setCreateCrossMonthMakeupActualFieldInvalid(fieldId, true);
@@ -3197,23 +3264,7 @@ function syncCreateMakeupActualLessonDurationFromTimeRange() {
 }
 
 async function refreshAfterEditLesson(_updatedLesson, previousFilters = null) {
-  const filters = previousFilters ? { ...previousFilters } : readFilters();
-  if (!filters?.month) {
-    throw new Error("保存前筛选状态不可用");
-  }
-
-  const requestToken = beginLessonRecordsRequest();
-  setLoading(true);
-  try {
-    const applied = await loadLessonMonth(filters.month, filters, requestToken);
-    if (!applied) return;
-    restoreFilterSelections(filters);
-    syncLessonQueryUrl(filters);
-    renderLessonRecords(filterLessonRecords(lessonRecords, filters));
-    await refreshLessonManagementStats(filters, { propagateError: true });
-  } finally {
-    if (lessonRecordsRequestGate.isCurrent(requestToken)) setLoading(false);
-  }
+  await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
 }
 
 function renderValueOptions(selectEl, values, labelGetter) {
@@ -3337,7 +3388,8 @@ async function handleLessonPdfExportSubmit() {
     if (!printWindow.closed) {
       printWindow.close();
     }
-    showLessonPdfExportError(error.message || String(error));
+    console.error("Lesson PDF export failed", error);
+    showLessonPdfExportError(lessonUserErrorMessage(error, "学生课时打印页生成失败，请稍后重试。"));
   } finally {
     setLessonPdfExportSubmitting(false);
   }
@@ -3740,7 +3792,7 @@ function clearLessonPdfExportErrors() {
 }
 
 function showLessonPdfExportError(message) {
-  dom.lessonPdfExportError.textContent = message;
+  dom.lessonPdfExportError.textContent = lessonUserErrorMessage(message, "学生课时打印页生成失败，请稍后重试。");
   dom.lessonPdfExportError.classList.remove("is-hidden");
 }
 
@@ -3808,7 +3860,8 @@ async function handleLessonImportPreviewFileChange(event) {
     }
   } catch (error) {
     importPreviewRows = [];
-    showLessonImportPreviewError(error.message || String(error));
+    console.error("Lesson import preview failed", error);
+    showLessonImportPreviewError(lessonUserErrorMessage(error, "课时文件预览失败，请检查文件后重试。"));
   }
 
   renderLessonImportPreview();
@@ -4599,7 +4652,8 @@ async function handleLessonBatchGenerateSubmit() {
     const monthText = formatLessonImportMonthRange(lastLessonBatchGenerateResult.months);
     showMessage("success", `已生成预定课时 ${lastLessonBatchGenerateResult.successCount} 行${monthText ? `（${monthText}）` : ""}。`);
   } catch (error) {
-    showLessonBatchGenerateError(error.message || String(error));
+    console.error("Planned lesson batch generation failed", error);
+    showLessonBatchGenerateError(lessonUserErrorMessage(error, "批量生成预定课时失败，请稍后重试。"));
   } finally {
     setLessonBatchGenerateSubmitting(false);
   }
@@ -4684,7 +4738,7 @@ function setLessonBatchGenerateSubmitting(isSubmitting) {
 }
 
 function showLessonBatchGenerateError(message) {
-  dom.lessonBatchGenerateError.textContent = message;
+  dom.lessonBatchGenerateError.textContent = lessonUserErrorMessage(message, "批量生成预定课时失败，请稍后重试。");
   dom.lessonBatchGenerateError.classList.remove("is-hidden");
   dom.lessonBatchGenerateDialog.querySelector(".dialog-panel")?.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -5870,7 +5924,7 @@ function renderDialogSummaryRow(label, value, valueIsHtml = false) {
 }
 
 function showLessonImportPreviewError(message) {
-  dom.lessonImportPreviewError.textContent = message;
+  dom.lessonImportPreviewError.textContent = lessonUserErrorMessage(message, "预定课时导入失败，请检查后重试。");
   dom.lessonImportPreviewError.classList.remove("is-hidden");
 }
 
@@ -5892,7 +5946,8 @@ function formatLessonImportSubmitError(error) {
   if (isLessonImportDuplicateBatchMessage(message)) {
     return "检测到重复导入批次：该批次已经导入过，系统没有写入新的预定课时。请重新选择文件后再导入。";
   }
-  return message;
+  console.error("Planned lesson import failed", error);
+  return lessonUserErrorMessage(error, "预定课时导入失败，请稍后重试。");
 }
 
 function isLessonImportDuplicateBatchMessage(message) {
@@ -6355,7 +6410,8 @@ function displayImportPreviewNumber(value) {
   return Number.isFinite(value) ? value : "";
 }
 
-function renderLessonRecords(records) {
+function renderLessonRecords(records, options = {}) {
+  dom.emptyState.textContent = options.emptyMessage || "暂无符合条件的课时记录。";
   dom.emptyState.classList.toggle("is-hidden", records.length > 0);
   syncViewVisibility();
 

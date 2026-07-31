@@ -587,7 +587,7 @@ export async function updateLessonRecordGuarded(payload) {
   );
 
   if (error) {
-    throw normalizeLessonMutationError(error);
+    throw error;
   }
 
   const result = Array.isArray(data) ? data[0] : data;
@@ -651,7 +651,7 @@ export async function createActualLessonFromPlanned(payload) {
   });
 
   if (error) {
-    throw normalizeLessonMutationError(error);
+    throw error;
   }
 
   const result = Array.isArray(data) ? data[0] : data;
@@ -704,7 +704,7 @@ export async function createMakeupCompletedActualLessonFromPlanned(payload) {
   });
 
   if (error) {
-    throw normalizeLessonMutationError(error);
+    throw error;
   }
 
   const result = Array.isArray(data) ? data[0] : data;
@@ -729,16 +729,8 @@ export async function createPartialCompletedActualFromPlanned(payload) {
     p_lesson_content: payload.lessonContent || null,
     p_note: payload.note || null,
   });
-  if (error) throw normalizeLessonMutationError(error);
+  if (error) throw error;
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) throw new Error("部分完成实际课时生成失败：RPC 没有返回结果。");
   return result;
-}
-
-function normalizeLessonMutationError(error) {
-  const message = String(error?.message || error || "");
-  if (message.includes("FUTURE_ACTUAL_COMPLETION_FORBIDDEN")) {
-    return new Error("实际完成日期不能晚于东京当前业务日期。（FUTURE_ACTUAL_COMPLETION_FORBIDDEN）");
-  }
-  return error;
 }

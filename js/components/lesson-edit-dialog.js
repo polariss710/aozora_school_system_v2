@@ -1,6 +1,7 @@
 import { updateLessonRecordGuarded } from "../api/lesson-api.js";
 import { formatMonth, safeText } from "../utils/format.js";
 import { buildActualOverageDisplay } from "../utils/actual-overage.js";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",
@@ -429,7 +430,8 @@ export function createLessonEditDialogController(options) {
     try {
       updatedLesson = await updateLessonRecordGuarded(payload);
     } catch (error) {
-      const message = error.message || String(error);
+      console.error("Lesson update failed", error);
+      const message = lessonUserErrorMessage(error, "课时保存失败，请稍后重试。");
       showError(message, fieldIdsForError(message));
       setSubmitting(false);
       return;
@@ -440,11 +442,8 @@ export function createLessonEditDialogController(options) {
       await onSaved(updatedLesson, refreshContext);
       showMessage("success", `课时已保存：${shortId(updatedLesson.lesson_id || updatedLesson.id)}`);
     } catch (error) {
-      console.error(error);
-      showMessage(
-        "error",
-        `课时已保存，但列表刷新失败：${error.message || error}。请点击“查询”重试。`
-      );
+      console.error("Lesson update refresh failed", error);
+      showMessage("error", "课时已保存，但列表刷新失败，请重新查询。");
     } finally {
       setSubmitting(false);
     }
