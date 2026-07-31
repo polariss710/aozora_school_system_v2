@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-07-31
+Status date: 2026-08-01
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -27,6 +27,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 
 - R2-F-B atomic tuition generate database writer is deployed but remains inaccessible behind R0. It recomputes canonical candidates and an opaque generation manifest under transaction/row locks, atomically freezes bill, billing identity, normalized lesson relations, JSON snapshot and pending income, and rejects generic cancellation for the new source. Commit-review hardening now hashes every canonical candidate line including complete-row evidence and all frozen non-amount facts, validates bill/relation/identity manifest agreement, freezes and recomputes carryover-evidence SHA, and requires exact frozen exchange-rate agreement before existing-identity idempotent return. Direct client tuition bill/income DML is closed without changing ordinary non-tuition income behavior. Read-only audit found legacy candidate/settlement writers do not yet share the atomic operation lock, so that cross-writer lock work remains a separately authorized design stop. No frontend was changed; formal generate and Cash remain blocked.
 - R2-F-C closes the remaining generate phantom window with fixed-order transaction-level `SHARE` locks on lesson records, monthly settlements, settlement carryovers and settlement adjustment drafts before the new-generation branch first reads candidates/carryover evidence. Ordinary SELECT remains compatible; INSERT/UPDATE/DELETE waits and an 8-second lock timeout fails closed with a re-preview instruction. Existing advisory/row locks and all R2-F-B manifests/validators remain. This is the accepted low-volume V2 coarse-grained solution; no 25-writer rewrite or ACL/RLS expansion was made. R0 remains `validation_preview_only / blocked / blocked`.
+- R2-F-D-DB1已修复R1D-E-C legacy actual resolver因R2-E新增nullable `lesson_total_fee_jpy`列改变`to_jsonb(%ROWTYPE)`结构而误报evidence mismatch的问题。234条legacy actual的冻结identity及原schema整行证据保持一致，6条cutover后actual继续走canonical分支；孙陈锋、张倬闻2026-08 validation preview现在正确停在缺少2026-07 locked settlement的`R2_F_B_PREVIOUS_SETTLEMENT_REQUIRED`。本次仅部署resolver DDL，业务数据零修改；R0仍为`validation_preview_only / blocked / blocked`，必须由业务负责人复核并锁定7月月结后再继续前端验收。
 
 ## Hard Stops
 
@@ -38,6 +39,9 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. School V2 tuition R2-F-D-DB1 legacy actual reader correction, 2026-08-01:
+   R1D-E-C resolver原以`md5(to_jsonb(actual)::text)`核对234条immutable legacy actual；R2-E后新增的nullable `lesson_total_fee_jpy`键使234/234在业务值未变化时发生结构性hash失配。独立纠正仅在legacy evidence full-row比较时排除该后增键，并显式要求其仍为NULL；其余planned source、student/entity、teacher/subject、日期、旧月份、identity MD5及原schema整行证据全部继续fail-closed。最终同字节rehearsal显式ROLLBACK、正式DDL一次COMMIT、postdeploy及只读rollback tests均通过；9 bill、42 income、121 relation、7 identity、15 settlement指纹不变。孙陈锋与张倬闻2026-07 settlement preview已恢复，2026-08 validation preview均正确返回`R2_F_B_PREVIOUS_SETTLEMENT_REQUIRED`；未自动锁定月结、未生成账单、未连接Cash，R0保持`validation_preview_only / blocked / blocked`。
 
 1. School V2 tuition R2-F-C coarse-grained generate concurrency closure, 2026-07-31:
    Owner-only atomic generate的新账单分支在首次读取candidate/carryover前，按固定顺序对`school_lesson_records`、`school_student_monthly_settlements`、`school_student_settlement_carryovers`、`school_student_settlement_adjustment_drafts`取得事务级`SHARE`锁；锁持续到外层事务结束，允许SELECT并阻塞普通DML。函数内仅在取锁期间使用8秒transaction-local timeout，超时返回明确重新预览提示。完整R2-F-B矩阵继续8/8通过；双会话验证SELECT成功、五类writer 500ms timeout、回滚后writer继续、反向writer持锁时generate约8.098秒fail-closed且四对象/fixture残留0。历史9 bill、42 income、121 relation、7 identity、15 settlement全行指纹不变；未改25个writer、前端、R0、Cash或历史数据。详见`docs/school-v2-r2-f-c-atomic-generate-table-lock-report-20260731.md`。

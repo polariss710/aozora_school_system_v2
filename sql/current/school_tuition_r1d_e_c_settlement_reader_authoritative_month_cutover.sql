@@ -190,8 +190,9 @@ BEGIN
               coalesce(v_lesson.teacher_settlement_month,
                 to_char(v_lesson.lesson_date,'YYYY-MM')),
               v_lesson.lesson_date::text,v_lesson.lesson_type,v_lesson.app_type))
+       OR v_lesson.lesson_total_fee_jpy IS NOT NULL
        OR v_actual_evidence.actual_full_row_md5 IS DISTINCT FROM
-            md5(to_jsonb(v_lesson)::text) THEN
+            md5((to_jsonb(v_lesson)-'lesson_total_fee_jpy')::text) THEN
       RAISE EXCEPTION 'R1D_E_C_LEGACY_ACTUAL_EVIDENCE_MISMATCH';
     END IF;
     RETURN v_actual_evidence.legacy_year_month;
