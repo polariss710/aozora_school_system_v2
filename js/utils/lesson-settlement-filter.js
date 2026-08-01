@@ -38,6 +38,14 @@ export function normalizeStudentSettlementWeekStart(yearMonth, value) {
 }
 
 export function validateAuthoritativeLessonRecords(records, { yearMonth, weekStart = "" } = {}) {
+  const result = partitionAuthoritativeLessonRecords(records, { yearMonth, weekStart });
+  if (result.rejected.length) {
+    throw new Error(result.rejected[0].message);
+  }
+  return result.accepted;
+}
+
+export function partitionAuthoritativeLessonRecords(records, { yearMonth, weekStart = "" } = {}) {
   if (!Array.isArray(records)) {
     throw new Error("课时读取结果格式无效，请重新加载。");
   }
@@ -51,24 +59,43 @@ export function validateAuthoritativeLessonRecords(records, { yearMonth, weekSta
   }
   validateUniqueLessonRecordIds(records, "课时读取结果");
 
+  const accepted = [];
+  const rejected = [];
   for (const record of records) {
     const id = String(record?.id || "");
     const lessonType = String(record?.lesson_type || "");
-    const authoritativeMonth = lessonType === "planned"
-      ? String(record?.billing_month || "")
-      : lessonType === "actual"
-        ? String(record?.authoritative_student_month || "")
-        : String(record?.authoritative_student_month || "");
+    const authoritativeMonth = String(record?.authoritative_student_month || "");
     if (authoritativeMonth !== yearMonth) {
-      throw new Error(`课时 ${id} 的权威收费/结算月与当前筛选不一致，已拒绝显示。`);
+      rejected.push({
+        id,
+        reason: "authoritative_month_mismatch",
+        message: `课时 ${id} 的权威收费/结算月与当前筛选不一致，已拒绝显示。`,
+      });
+      continue;
+    }
+    if (lessonType === "planned"
+        && record?.billing_month != null
+        && String(record.billing_month) !== authoritativeMonth) {
+      rejected.push({
+        id,
+        reason: "canonical_planned_month_mismatch",
+        message: `课时 ${id} 的冻结收费月与权威收费月不一致，已拒绝显示。`,
+      });
+      continue;
     }
     if (normalizedWeekStart && lessonType === "planned"
         && String(record?.billing_week_start_date || "") !== normalizedWeekStart) {
-      throw new Error(`课时 ${id} 不属于当前收费自然周，已拒绝显示。`);
+      rejected.push({
+        id,
+        reason: "planned_week_mismatch",
+        message: `课时 ${id} 不属于当前收费自然周，已拒绝显示。`,
+      });
+      continue;
     }
+    accepted.push(record);
   }
 
-  return [...records];
+  return { accepted, rejected };
 }
 
 export function validateUniqueLessonRecordIds(records, label = "课时读取结果") {

@@ -95,10 +95,7 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
     throw error;
   }
 
-  return (data || []).map((record) => ({
-    ...record,
-    authoritative_student_month: yearMonth,
-  }));
+  return attachAuthoritativeStudentMonths(data || []);
 }
 
 export async function fetchLessonManagementStats(filters = {}) {

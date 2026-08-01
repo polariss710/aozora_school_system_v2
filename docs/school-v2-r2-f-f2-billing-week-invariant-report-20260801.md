@@ -262,3 +262,32 @@ Gate保持`preview enabled / generate blocked / Cash submit blocked`。未调用
 - 权威业务SQL源：`school_create_planned_lesson_record_rpc.sql`、`school_generate_planned_lessons_batch_rpc.sql`、`school_import_lesson_records_batch_rpc.sql`、`school_update_lesson_record_guarded_rpc.sql`、`school_create_actual_lesson_from_planned_rpc.sql`、`school_create_cancelled_actual_lesson_from_planned_rpc.sql`、`school_lesson_credit_operations_rpcs.sql`、`school_delete_fresh_planned_lesson_rpc.sql`、`school_void_planned_lesson_rpc.sql`、`school_lesson_void_dependent_read_rpcs.sql`、`school_open_lesson_credit_sources_read_rpc.sql`、`school_generate_teacher_monthly_wage_business_scope.sql`、`school_backfill_actual_minutes_from_duration_rpc.sql`（均位于`sql/current/`）。
 - R2-F-F2/F2-B工件：`school_lesson_r2_f_f2_billing_week_invariant_{cutover,postdeploy,rollback_tests}.sql`、`school_lesson_r2_f_f2_b_year_month_production_closure.sql`、`school_lesson_r2_f_f2_b_actual_stats_resolver_correction.sql`、`school_lesson_r2_f_f2_b_actual_writer_month_correction.sql`、`school_lesson_r2_f_f2_b_year_month_production_closure_{postdeploy,rollback_tests}.sql`（均位于`sql/current/`）。
 - 回归期望修正：`school_lesson_r2_f_e_operations_closure_rollback_tests.sql`、`school_tuition_r2_f_b_atomic_generate_rollback_tests.sql`、`school_tuition_r2_f_f_aircon_atomic_rollback_tests.sql`（均位于`sql/current/`）；只修正当前guard、日期和阶段性业务指纹下的fixture/预期，不改变生产业务逻辑。
+
+## 12. R2-F-F2-C课时管理权威月份刷新回归
+
+### 12.1 真实记录与根因
+
+生产回归目标`300751ba-2ea5-41f0-97dd-45251af8e9d1`是陈加恩/青空进学塾、丛琪润、EJU数学的`planned / planned`课时：预计日期`2026-08-03`，起止时间NULL，2小时/1课次，legacy `year_month=2026-08`，`billing_month / billing_week_start_date / student_settlement_month / teacher_settlement_month`均为NULL，`billing_month_source`为NULL，无source planned及linked actual，`updated_at=2026-07-04 14:35:52.963134+00`。R1D-E-C list把它分类为`legacy_planned`，公开权威resolver稳定返回`2026-08`；权威课时reader因此应在2026-08整月返回1次，在2026-09返回0次。该记录没有数据异常，也未被本轮修改。
+
+根因属于B（前端校验错误）和E（API映射错误）：reader按resolver正确返回legacy planned，但API把请求月份直接盖成每行`authoritative_student_month`，页面又对所有planned强制读取nullable canonical `billing_month`，于是合法legacy行被误判并使整个结果集抛错。浏览器角色还暴露同链第二处问题：10参数filtered stats为SECURITY INVOKER，却直接调用无authenticated EXECUTE权限的私有R1D-E-C resolver，REST返回42501；DB owner直调此前掩盖了该错误。
+
+### 12.2 最小修复
+
+- lesson API不再把查询月份写成行级证据；每行调用既有公开`school_resolve_lesson_student_month_authoritative(uuid)`取得权威学生月。没有使用raw `year_month`、日期月或COALESCE fallback。
+- 页面以`authoritative_student_month`校验所有记录；仅对已有非NULL canonical bundle的planned追加`billing_month`一致性检查，指定周仍校验`billing_week_start_date`。孤立异常行被隔离并显示中文告警，其余合法列表和DB权威统计保留；重复ID、非法查询月份等整体契约错误仍整体fail-closed。
+- 10参数filtered stats只把两处私有resolver调用替换为既有公开SECURITY DEFINER wrapper；函数签名、owner、返回结构、ACL及业务范围不变。MD5由`9456529c3cfb0d597f106d5ea6806832`变为`46dd237d8eb615c2002c413882f2edaf`。
+- 未新增表、字段、状态、月份/归属概念、fallback、ACL或第二权威来源。
+
+### 12.3 DDL与验收
+
+独立纠正SQL`school_lesson_r2_f_f2_c_filtered_stats_resolver_correction.sql`的SHA-256为`6a31b3f2db771a62d45184d2d0ecb38de12539cd53607942854f4896ca2fb012`。同一字节先以`r2_f_f2_c_commit=0`执行BEGIN/替换/函数MD5核验/明确ROLLBACK，再以`r2_f_f2_c_commit=1`执行同一流程并明确COMMIT；正式变更只有`CREATE OR REPLACE FUNCTION`，业务DML为0。
+
+F2-C postdeploy通过；rollback矩阵4/4通过并明确ROLLBACK，lesson/student残留0。F2原矩阵7/7、F2-B矩阵11/11再次通过并ROLLBACK。新增UI回归覆盖首次加载、浏览器刷新、查询按钮、全部/单学生整月、指定自然周、legacy planned、canonical跨月planned、actual学生月与日期/教师月分离、source配对、孤立异常行隔离、列表/统计范围一致及request gate；billing-week、settlement filter、lesson operations、actual overage、planned aircon、validation preview及atomic generate回归均通过。
+
+真实浏览器验收：2026-08整月+全部学生加载成功，目标UUID显示一次业务行且不再清空整页；点击查询和浏览器刷新均成功。孙陈锋2026-08整月及`08/31–09/06`周正常，跨月planned `aa55dc2e-3b1b-4d2d-863f-9f64e84b8578`在8月整月/末周命中、9月整月排除；2026-09周选项从`09/07`开始。统计RPC在authenticated角色下与权威reader数量一致。
+
+### 12.4 零漂移、Gate与停止点
+
+F2-B全指纹postdeploy再次通过：lesson `662 / afee1af53686091a9e2353734d2b7cd9`；bill `9 / 0f0323b79e7ff1c47ff6b90c75477a2d`；income `42 / 2a4897b752f272b1f192045418b4940c`；relation `121 / 285172fedeb923c67ea9a179480d8692`；identity `7 / 4d91a5a1074f90389822fc367a7e5467`；settlement `17 / 1d7328654f6488952dba20640072c3e2`；wage lock `95 / 7bbe108d3ac73d4f21530793bf141bc6`；account transaction `185 / 8f4f6c4365035f6c36bac59ba986b28b`；School Cash linkage `35 / 6e76a4dc2fc2954b28b7ad0a8d203ba0`。
+
+Gate保持`preview enabled / generate blocked / Cash submit blocked`。未调用真实generate，未创建bill/income，未连接Cash DB，未修改lesson、settlement、工资、资金或账户流水。本轮停在R2-F-F2-C commit前审查点；未执行git add、commit或push。R2-F-F2-C目标文件为`lesson.html`、`js/lesson-app.js`、`js/api/lesson-api.js`、`js/pages/lesson-page.js`、`js/utils/lesson-settlement-filter.js`、两个既有UI测试、一个新增UI测试、一处F2-B rollback期望修正、三份F2-C SQL工件、本报告及`docs/current-status.md`。

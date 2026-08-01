@@ -11,7 +11,7 @@ BEGIN
        pg_get_functiondef(
        'public.school_get_lesson_management_stats_filtered(text,uuid,uuid,uuid,text,text,uuid,boolean,text,date)'::regprocedure
      ))>0
-     OR position('school_resolve_r1d_e_c_lesson_student_month(actual.id)' IN
+     OR position('school_resolve_lesson_student_month_authoritative(actual.id)' IN
        pg_get_functiondef(
        'public.school_get_lesson_management_stats_filtered(text,uuid,uuid,uuid,text,text,uuid,boolean,text,date)'::regprocedure
      ))=0

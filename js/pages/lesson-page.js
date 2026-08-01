@@ -21,7 +21,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=r2-f-f2-b-year-month-closure";
+} from "../api/lesson-api.js?v=r2-f-f2-c-authoritative-month-refresh";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-f2-b-year-month-closure";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=r2-f-e1-lesson-generation-closure";
@@ -49,9 +49,9 @@ import {
   createLatestRequestGate,
   listStudentSettlementMonthWeeks,
   normalizeStudentSettlementWeekStart,
-  validateAuthoritativeLessonRecords,
+  partitionAuthoritativeLessonRecords,
   validateUniqueLessonRecordIds,
-} from "../utils/lesson-settlement-filter.js?v=r2-f-f2-b-year-month-closure";
+} from "../utils/lesson-settlement-filter.js?v=r2-f-f2-c-authoritative-month-refresh";
 import {
   defaultNewBusinessEntityId,
   isNewBusinessEntityId,
@@ -279,6 +279,7 @@ let teachers = [];
 let subjects = [];
 let businessEntities = [];
 let lessonRecords = [];
+let rejectedLessonRecords = [];
 const lessonRecordsRequestGate = createLatestRequestGate();
 let crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
 let loadedMonth = "";
@@ -445,6 +446,7 @@ function cacheDom() {
   dom.tableBody = document.querySelector("#lessonTableBody");
   dom.loadingState = document.querySelector("#lessonLoadingState");
   dom.emptyState = document.querySelector("#lessonEmptyState");
+  dom.validationWarning = document.querySelector("#lessonValidationWarning");
   dom.statsPlannedHours = document.querySelector("#lessonStatsPlannedHours");
   dom.statsActualHours = document.querySelector("#lessonStatsActualHours");
   dom.statsPlannedFee = document.querySelector("#lessonStatsPlannedFee");
@@ -1205,6 +1207,7 @@ function beginLessonRecordsRequest() {
   const requestToken = lessonRecordsRequestGate.begin();
   lessonStatsRequestId += 1;
   lessonRecords = [];
+  rejectedLessonRecords = [];
   crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
   loadedMonth = "";
   loadedLessonRecordMode = "";
@@ -1224,13 +1227,14 @@ function invalidateLessonResultsForFilterChange(
 async function loadLessonMonth(month, filters = {}, requestToken) {
   const queryMode = lessonRecordQueryMode(filters);
   try {
-    const records = sortLessonRecords(validateAuthoritativeLessonRecords(
+    const validation = partitionAuthoritativeLessonRecords(
       await fetchLessonRecords(month, {
         status: filters.status,
         weekStart: filters.weekStart || "",
       }),
       { yearMonth: month, weekStart: filters.weekStart || "" }
-    ));
+    );
+    const records = sortLessonRecords(validation.accepted);
     const rawReferences = await fetchCrossMonthMakeupReferences(month, records);
     const references = buildCrossMonthMakeupReferenceMaps({
       sourceMonthActuals: validateUniqueLessonRecordIds(
@@ -1244,6 +1248,7 @@ async function loadLessonMonth(month, filters = {}, requestToken) {
     });
     if (!lessonRecordsRequestGate.isCurrent(requestToken)) return false;
     lessonRecords = records;
+    rejectedLessonRecords = validation.rejected;
     crossMonthMakeupReferences = references;
   } catch (error) {
     if (!lessonRecordsRequestGate.isCurrent(requestToken)) return false;
@@ -6416,6 +6421,7 @@ function displayImportPreviewNumber(value) {
 }
 
 function renderLessonRecords(records, options = {}) {
+  renderLessonValidationWarning();
   dom.emptyState.textContent = options.emptyMessage || "暂无符合条件的课时记录。";
   dom.emptyState.classList.toggle("is-hidden", records.length > 0);
   syncViewVisibility();
@@ -6455,6 +6461,18 @@ function renderLessonRecords(records, options = {}) {
   `).join("");
 
   renderLessonPairs(records);
+}
+
+function renderLessonValidationWarning() {
+  if (!dom.validationWarning) return;
+  const rejectedCount = rejectedLessonRecords.length;
+  dom.validationWarning.classList.toggle("is-hidden", rejectedCount === 0);
+  dom.validationWarning.textContent = rejectedCount
+    ? `有 ${rejectedCount} 条课时的权威月份证据异常，已隐藏异常记录；其余合法记录和权威统计继续显示。请联系管理员核查。`
+    : "";
+  if (rejectedCount) {
+    console.warn("Rejected lesson-management rows", rejectedLessonRecords);
+  }
 }
 
 function setActiveView(view) {
@@ -7097,9 +7115,6 @@ function billableLabel(value) {
 }
 
 function authoritativeStudentMonth(record) {
-  if (record?.lesson_type === "planned") {
-    return safeText(record.billing_month);
-  }
   return safeText(record?.authoritative_student_month);
 }
 

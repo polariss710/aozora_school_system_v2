@@ -97,7 +97,7 @@ const detailPageSource = fs.readFileSync(new URL("../js/pages/lesson-detail-page
 const htmlSource = fs.readFileSync(new URL("../lesson.html", import.meta.url), "utf8");
 assert.match(apiSource, /school_list_lesson_management_records_authoritative/);
 assert.doesNotMatch(apiSource, /\.eq\("year_month", yearMonth\)/);
-assert.match(pageSource, /validateAuthoritativeLessonRecords/);
+assert.match(pageSource, /partitionAuthoritativeLessonRecords/);
 assert.match(pageSource, /lessonRecordsRequestGate\.isCurrent/);
 assert.match(pageSource, /lessonStatsRequestId \+= 1/);
 assert.match(htmlSource, /收费归属 \/ 学生结算月/);
