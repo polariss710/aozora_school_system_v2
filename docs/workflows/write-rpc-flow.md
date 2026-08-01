@@ -1,15 +1,15 @@
 # Write RPC Flow
 
-Version: v2.43.0-full-autopilot-no-phase-confirmation-20260606
+Version: v2.44.0-business-model-expansion-gate-20260801
 
-This document is the project standard for write-operation RPC development. It defines full autopilot as the default: the user's initial task prompt is the phase-level authorization for the whole requested feature, so Codex should continue through ordinary phase transitions without asking for human confirmation and stop only when a hard stop condition is hit.
+This document is the project standard for write-operation RPC development. It defines full autopilot as the default after the business-model expansion gate passes: the user's initial task prompt is the phase-level authorization for the requested feature's normal implementation phases, but it is not implicit authorization to expand the business model.
 
 ## Core Rules
 
 - P0 highest-priority business-calculation boundary: frontend/page JavaScript must not decide, derive, round, or otherwise compute business facts that will be saved or passed as write RPC parameters. Monetary amounts, settlement differences, carryovers, wages, fees, exchange-derived amounts, locked totals, Cash request amounts, and similar persisted business-result values must come from DB/RPC or backend API authority, or explicit user input.
 - Frontend may format DB/RPC/backend API values for display and may show non-persisted previews only when the saved value is still computed or validated by DB/RPC. If a UI needs a suggested amount such as "clear balance", "calculated wage", "converted amount", or "rounded total", the authoritative suggestion must be returned by DB/RPC or backend API before it can be saved.
 - Keep each phase internally narrow, but do not pause between phases for confirmation during full autopilot.
-- Treat the initial task prompt as this run's phase-level authorization. If the requested feature fits this workflow and no hard stop condition is present, continue automatically across analysis, DB verification, schema/RPC work, tests, frontend work, checkpoints, current-status updates, commit, and push.
+- Treat the initial task prompt as this run's phase-level authorization only after completing the Business-model expansion declaration below. If the requested feature fits this workflow, every declared expansion has a valid explicit approval reference, and no hard stop condition is present, continue automatically across analysis, DB verification, approved schema/RPC work, tests, frontend work, checkpoints, current-status updates, commit, and push.
 - Do not ask for confirmation only because a normal phase is complete, the next phase begins, or the next step is schema execution, RPC execution, rollback test, whitelist commit test, frontend implementation, checkpoint commit, or push. These are authorized by the initial prompt when the workflow conditions are satisfied.
 - Continue automatically through analysis, schema/RPC work, DB execution, rollback test, whitelisted commit test, SQL archive, frontend implementation, frontend checkpoint/push, feature checkpoint, and `docs/current-status.md` update/push.
 - Page modules must not call Supabase `.rpc()` directly.
@@ -22,13 +22,121 @@ This document is the project standard for write-operation RPC development. It de
 - Read-only DB verification is limited to explicit `select` queries, including `information_schema`, `pg_constraint`, `pg_indexes`, `pg_description`, `pg_proc`, `count(*)`, and `exists` checks.
 - Clearly read-only `select` verification commands may use "Yes, and don't ask again" in Codex CLI approval prompts.
 - Read-only approval does not apply to `psql -f`, business RPC calls, or statements containing `insert`, `update`, `delete`, `drop`, `truncate`, `alter`, `create`, or `grant`.
-- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are phase-authorized in full autopilot when required checks pass; do not request ordinary phase-transition confirmation for them.
+- Schema execution, RPC execution, rollback tests, whitelisted commit tests, commit, and push are phase-authorized in full autopilot when the business-model expansion gate and required checks pass; do not request ordinary phase-transition confirmation for them.
 - Do not enable full access or bypass Codex CLI approvals.
 - If a task explicitly says no file changes, no SQL/RPC execution, no DB write, or no commit/push, that narrower instruction overrides full autopilot.
 
+## Business-Model Expansion Gate
+
+This gate applies to every design, implementation, repair, migration, and refactor task. It has priority over phase-level authorization, full autopilot, and broad wording such as "modify necessary schema", "make required DB changes", "implement the complete feature", "design and implement autonomously", or "use the best approach".
+
+### What requires explicit business-owner approval
+
+Each of the following is a business-model expansion and requires approval of the exact object and semantics:
+
+- A new business table or business column.
+- A new enum or status value.
+- A new date, month, attribution, identity, source, snapshot, version, writable-fact, or authoritative-source concept.
+- A change to an existing field's business meaning, mutability, ownership, authoritative writer, authoritative reader or reader precedence, or locking rule.
+- Promotion of a diagnostic or legacy field to production authority.
+- A new interpretation of historical data.
+- A long-lived legacy compatibility rule.
+- Dual writes, fallback, `COALESCE`, or NULL-based branching that determines a business fact.
+- Destructive schema changes, including drop, rename, type change, semantic repurposing, or reuse of an existing field for a different fact.
+
+Approval of a feature goal does not approve fields, states, authorities, or compatibility behavior inferred by Codex. General permission to make necessary schema or DB changes is not an approval reference.
+
+An approval reference is valid only when a current-task instruction or an explicitly referenced still-applicable business-owner decision identifies the exact object, exact semantics, and intended authority, mutability, locking, migration, or compatibility behavior. Silence, lack of objection, an implementation proposal, an already-created unapproved object, previous accidental deployment, or blanket wording is not approval. Each non-`none` declaration item must map separately to its approval; one general reference is insufficient unless it explicitly enumerates every item.
+
+### What may proceed inside an approved model
+
+Indexes, foreign keys, check or unique constraints, triggers, functions/RPCs, views, ACL/RLS rules, comments, test fixtures, rollback tests, postdeploy checks, and performance optimizations may proceed under normal phase-level full autopilot without separate object-by-object approval when they only enforce an already approved model and introduce no business fact, authority, permission boundary, writer/reader precedence, or historical interpretation beyond that approved model.
+
+The technical object name does not decide the classification. A trigger, view, RPC, ACL/RLS change, constraint, or optimization that materially changes business semantics, authority, write reachability, reader priority, locking, or historical interpretation is an expansion and must stop for approval.
+
+### Single authoritative source
+
+- Every business fact must have exactly one declared authoritative source and one complete writer/reader contract.
+- Two writable fields must not express the same business fact.
+- Different readers must not independently select different fields as authority.
+- A writer must not persist authority A while a reader treats B as authority.
+- Frontend code must not rederive a DB-authoritative business fact.
+- An immutable snapshot may preserve a historical frozen fact, but its contract must identify it as a snapshot rather than a second current-operation writer.
+- An approved migration with old and new fields must declare the sole authority, deterministic direction and reader precedence, every writer and reader, monitoring, compatibility deadline, completion criteria, retirement condition, and historical-data effect.
+
+Legacy fields may remain for audit, diagnostics, or migration evidence. They must not decide production behavior without an explicitly approved deterministic compatibility contract. A fallback, `COALESCE`, NULL branch, dual write, or reader-specific priority must never create two valid interpretations. A compatibility path without a retirement condition must not be implemented autonomously.
+
+### Mandatory declaration
+
+Complete this declaration during Analysis for every design, implementation, and repair task, including tasks expected to have no schema changes:
+
+```text
+Business-model expansion declaration
+
+New tables:
+New columns:
+New enum/status values:
+New date/month/attribution concepts:
+New identity concepts:
+New source concepts:
+New snapshot/version concepts:
+New writable facts:
+Changed existing-field semantics:
+Changed field mutability:
+Changed writer or reader authority:
+Changed locking rules:
+New authoritative sources:
+Legacy fallbacks or dual-read rules:
+Dual-write behavior:
+Historical reinterpretation:
+Destructive schema changes:
+
+Approval reference:
+```
+
+Execution rules:
+
+- Every line must name exact objects and semantics or contain `none`; no line may be omitted or merged into a vague umbrella statement.
+- Statements such as "no major change", "necessary schema", or equivalent vague summaries are invalid.
+- If every expansion item is `none`, write `Approval reference: not required — no business-model expansion` and continue within the existing model.
+- If any item is not `none`, `Approval reference` must map each such line to the current-task instruction or explicitly referenced still-applicable business-owner decision that approves that exact object and meaning.
+- A missing, vague, phase-only, or object/semantics-mismatched approval reference is a hard stop.
+- Do not draft business code or SQL, create a migration, execute DDL, or modify schema before the gate passes.
+- Read-only investigation and a design-options report may proceed without expansion approval. Until approval arrives, the task must remain in that read-only investigation/design-report state.
+
+### Approval proposal contract
+
+Before asking the business owner to approve an expansion, report:
+
+- Exact object name and object type.
+- Why the existing model cannot express the requirement.
+- Exact business meaning.
+- Sole authoritative writer and all authoritative readers.
+- Mutability and locking rules.
+- Constraints and invariants.
+- Relationship to legacy fields.
+- Historical-data impact and migration plan.
+- Any fallback/compatibility duration and retirement condition.
+- Rollback plan.
+
+The approval must map to these exact objects and semantics. Approval of the target business outcome alone is insufficient.
+
+### Discovery during implementation
+
+If an unapproved expansion becomes necessary after implementation starts:
+
+1. Stop business-code and SQL changes immediately.
+2. Preserve completed read-only investigation.
+3. Do not reinterpret phase authorization as schema authorization.
+4. Do not introduce a temporary field, compatibility field, fallback, or dual write.
+5. Explain why the existing model is insufficient.
+6. Provide the exact proposal contract and affected writer/reader scope.
+7. Wait for explicit business-owner approval.
+8. Resume design and implementation only after updating the declaration with a valid approval reference.
+
 ## Phase-Level DB Authorization
 
-DB safety is decided by workflow phase, not by asking the user to approve or inspect each individual `psql` command. The initial user prompt authorizes the normal phases required to complete the requested feature. Codex must classify every DB command before running it and continue only when the command fits the current phase authorization and all required checks have passed.
+DB safety is decided by workflow phase, not by asking the user to approve or inspect each individual `psql` command. After the business-model expansion gate passes, the initial user prompt authorizes the normal phases required to complete the requested feature. Codex must classify every DB command before running it and continue only when the command fits the current phase authorization, every expansion has an explicit approval reference, and all required checks have passed.
 
 Command classes:
 
@@ -51,7 +159,7 @@ Execution rules:
 
 Default automatic sequence:
 
-1. Analysis
+1. Analysis and mandatory Business-model expansion declaration
 2. Schema design
 3. Schema SQL draft
 4. Schema static review
@@ -74,6 +182,7 @@ Skip schema phases only when analysis proves no schema change is needed. Skip fr
 
 Default DB authorization:
 
+- No schema/RPC draft or execution authorization exists until the Business-model expansion declaration is complete and every non-`none` item has a valid approval reference.
 - Read-only verification runs automatically when the command class is explicit `select`.
 - Schema SQL execution runs automatically only during schema execution after static review passes.
 - RPC SQL execution runs automatically only during RPC execution after static review passes.
@@ -90,7 +199,7 @@ Ordinary confirmations that must not be requested:
 - "Proceed to frontend implementation/checkpoint?"
 - "Proceed to update `docs/current-status.md`, commit, or push?"
 
-These transitions are already authorized by the initial prompt when the run is inside the documented workflow, required checks pass, and no hard stop condition is present.
+These transitions are already authorized by the initial prompt only when the run is inside the documented workflow, the Business-model expansion gate has passed, required checks pass, and no hard stop condition is present.
 
 Default git authorization:
 
@@ -101,6 +210,8 @@ Default git authorization:
 
 Hard stop conditions:
 
+- The Business-model expansion declaration is missing, incomplete, vague, or contains a non-`none` item without explicit current-task approval for the exact object and semantics.
+- Implementation requires a new business fact, table, column, enum/status, date/month/attribution concept, authoritative source, historical reinterpretation, long-lived compatibility path, changed field semantics/authority/locking, dual write/fallback, or destructive schema change that was not explicitly approved.
 - The phase-required `SCHOOL_SUPABASE_DB_URL` or `CASH_SUPABASE_DB_URL` is missing, or `psql` is unavailable.
 - `git status --short` shows unrelated or ambiguous changes that cannot be safely isolated.
 - Static review, `git diff --check`, `node --check`, page-boundary scans, rollback test, or commit test fails.
@@ -124,7 +235,7 @@ Scope:
 
 ## Standard Sequence
 
-1. Analysis
+1. Analysis and mandatory Business-model expansion declaration
 2. Schema design
 3. Schema SQL draft
 4. Schema static review
@@ -143,13 +254,14 @@ Scope:
 17. Feature checkpoint
 18. `docs/current-status.md` update and push
 
-Skip schema phases only when the analysis concludes no schema change is needed. The detailed phase sections below combine RPC execution and rollback testing as one operational block because they should run consecutively. In full autopilot, "Next phase gate" means an internal condition to continue automatically; it is not a request for user confirmation unless a hard stop condition applies.
+Skip schema phases only when the analysis concludes no schema change is needed. No phase may proceed to business-code or SQL drafting until the Business-model expansion declaration passes. The detailed phase sections below combine RPC execution and rollback testing as one operational block because they should run consecutively. In full autopilot, "Next phase gate" means an internal condition to continue automatically; it is not a request for user confirmation unless a hard stop condition applies.
 
 ## Phase Template
 
 Each phase should use this structure:
 
 - Goal: one concrete objective.
+- Business-model expansion declaration: exact objects or `none`, plus approval reference when required.
 - Allowed: what may be read, edited, executed, or written.
 - Forbidden: actions outside the phase.
 - Required checks: commands or verifications that must be done.
@@ -176,16 +288,20 @@ Required checks:
 
 - `git status --short`
 - Latest commit when relevant to the phase history.
+- Complete every line of the Business-model expansion declaration with exact objects or `none`.
+- Map every non-`none` item to an explicit current-task business-owner approval reference.
+- If approval is missing, remain read-only and prepare the Approval proposal contract; do not edit business code or SQL.
 
 Output:
 
 - Git status and latest commit.
 - Business conclusion and recommended design direction.
 - Existing patterns to reuse.
+- Completed Business-model expansion declaration and approval result.
 - Risks, assumptions, and open questions.
 - Whether schema design or RPC design can proceed.
 
-Next phase gate: scope is narrow, no blocking unknowns remain, and the required next phase is clear. Continue automatically when this gate passes.
+Next phase gate: scope is narrow, no blocking unknowns remain, the declaration is complete, and every non-`none` expansion has an exact valid approval reference. Continue automatically only when this gate passes.
 
 ## 2. Schema Design
 
@@ -193,7 +309,7 @@ Goal: define schema shape in prose before writing SQL.
 
 Allowed:
 
-- Specify tables, columns, types, nullable flags, defaults, foreign keys, check constraints, indexes, comments, and historical-data expectations.
+- Specify tables, columns, types, nullable flags, defaults, foreign keys, check constraints, indexes, comments, and historical-data expectations only for the existing model or explicitly approved expansion objects.
 - Decide whether reversal/status/audit fields are needed.
 
 Forbidden:
@@ -205,6 +321,7 @@ Forbidden:
 
 Required checks:
 
+- Reconfirm the Business-model expansion declaration and approval reference before designing any table, column, status, authority, compatibility rule, or destructive change.
 - Compare with existing schema conventions.
 - Confirm whether historical data must remain unchanged.
 
@@ -216,7 +333,7 @@ Output:
 - Risks.
 - Whether schema SQL draft can proceed.
 
-Next phase gate: column/constraint/index design is explicit enough to draft SQL without guessing. Continue automatically when this gate passes.
+Next phase gate: column/constraint/index design is explicit enough to draft SQL without guessing and contains no unapproved expansion. Continue automatically when this gate passes.
 
 ## 3. Schema SQL Draft
 
@@ -238,6 +355,7 @@ Forbidden:
 
 Required checks:
 
+- Confirm every schema object and semantic change appears in the approved declaration or is a technical enforcement object within the already approved model.
 - Confirm the SQL file contains no `create function`, `create procedure`, or business data writes unless explicitly allowed.
 - Keep comments and names consistent with existing SQL files.
 
@@ -269,6 +387,7 @@ Forbidden:
 
 Required checks:
 
+- Reconcile the SQL diff against the declaration and approval reference; any undeclared expansion is a hard stop.
 - No RPC/function definitions.
 - No historical data updates unless explicitly intended.
 - No dangerous statements or secrets.
@@ -303,6 +422,7 @@ Forbidden:
 
 Required checks:
 
+- Reconfirm the executed object set exactly matches the approved declaration and reviewed SQL.
 - `git status --short` and latest commit before execution.
 - Confirm target SQL is schema-only.
 - Verify columns, nullable flags, defaults, constraints, indexes, comments, extension requirements, and unchanged historical data where relevant.
@@ -353,7 +473,7 @@ Goal: define RPC contract and write behavior before drafting SQL.
 
 Allowed:
 
-- Define RPC name, parameters, return columns, validation rules, lock order, account balance rules, source links, audit fields, and error behavior.
+- Define RPC name, parameters, return columns, validation rules, lock order, account balance rules, source links, audit fields, and error behavior within the existing model or explicitly approved expansion.
 - Plan rollback and commit tests.
 
 Forbidden:
@@ -364,6 +484,7 @@ Forbidden:
 
 Required checks:
 
+- Reconfirm the Business-model expansion declaration before changing writer authority, reader authority, mutability, locking, status, source, snapshot, or historical interpretation.
 - Map every write to a business invariant.
 - Confirm page/API boundary expectations.
 - Define positive/negative amount semantics where relevant.
@@ -376,7 +497,7 @@ Output:
 - Risks.
 - Whether RPC SQL draft can proceed.
 
-Next phase gate: contract and write behavior are precise enough to draft SQL.
+Next phase gate: contract and write behavior are precise enough to draft SQL and introduce no undeclared or unapproved expansion.
 
 ## 8. RPC SQL Draft
 
@@ -397,6 +518,7 @@ Forbidden:
 
 Required checks:
 
+- Confirm parameters, writes, fallback branches, snapshots, statuses, and locks match the approved declaration and do not create a second authority.
 - Confirm parameters, return order, locks, balance calculations, `related_table` / `related_id`, status updates, and error messages match design.
 - Avoid ambiguous column references.
 
@@ -428,6 +550,7 @@ Forbidden:
 
 Required checks:
 
+- Compare all writer/reader authority, fallback/`COALESCE`/NULL branches, dual writes, field semantics, and historical handling with the declaration and approval reference.
 - RPC signature and return order.
 - Parameter validation.
 - Lock order and concurrency behavior.
@@ -779,6 +902,7 @@ Use the full autopilot template by default for future write-operation tasks. Use
 按 full autopilot 完成 [feature] 写操作端到端流程。
 
 重点：
+- analysis阶段先完整填写Business-model expansion declaration；任何非none项目必须引用当前任务对具体对象和语义的明确批准
 - 自动推进 analysis / schema / RPC / rollback test / commit test / SQL archive / frontend / checkpoint / current-status update
 - commit test 只使用测试数据白名单；没有安全测试数据时自动创建明确测试标记数据
 - 页面层不得直接 .rpc 或 insert/update/delete/upsert
@@ -804,6 +928,7 @@ Replace bracketed placeholders and keep the focus list short.
 
 重点：
 - 业务场景和边界
+- 完整Business-model expansion declaration；非none项逐一核对显式批准
 - RPC / schema 是否需要
 - 写入对象、账户流水、余额、状态、审计字段
 - rollback / commit test 计划
@@ -822,6 +947,7 @@ git status / latest commit、分析结论、推荐设计、风险点、是否可
 
 重点：
 - 表/字段/FK/check/index/comment
+- 仅设计声明中已批准的扩张对象；一般“必要Schema”不是批准
 - nullable、默认值、历史数据影响
 - reversal/status/audit 字段
 - 后续前端/详情页展示字段
@@ -858,6 +984,7 @@ SQL 执行结果、验证结果、git status、是否可以进入 schema verifie
 
 重点：
 - RPC 签名与返回值
+- 核对writer/reader authority、字段语义、锁定和fallback是否已在声明中批准
 - 允许/禁止条件
 - 主表、账户余额、账户流水写入规则
 - 并发锁顺序和重复提交口径
@@ -1007,10 +1134,24 @@ checkpoint 结果、线上文件检查结果、最终 git status、是否可以�
 
 Use these checklists before reporting a phase complete.
 
+### Business-Model Expansion Gate Checklist
+
+- The declaration is present for this task and every line contains exact objects or `none`.
+- New tables, columns, enum/status values, dates/months/attributions, identities, sources, snapshots, versions, writable facts, and authorities are listed explicitly.
+- Changed field meaning, mutability, writer/reader precedence, ownership, and locking behavior are listed explicitly.
+- Legacy fallback, `COALESCE`, NULL branching, dual-read, dual-write, historical reinterpretation, and destructive schema changes are listed explicitly.
+- Every non-`none` item has a current-task approval reference covering the exact object and semantics.
+- The approval proposal contract was reported before approval when expansion was needed.
+- No business code, SQL draft, migration, DDL, or schema change preceded approval.
+- Every business fact has one declared authority; snapshots and migration evidence are not second operational writers.
+- Any compatibility contract has deterministic precedence, complete writer/reader coverage, monitoring, a deadline, completion criteria, and a retirement condition.
+- If the gate failed or implementation discovered a new expansion, a hard stop occurred and work remained read-only.
+
 ### Analysis Checklist
 
 - `git status --short` checked.
 - Required docs read.
+- Business-model expansion declaration completed and approval references validated.
 - Business boundary and excluded cases stated.
 - Existing schema/API/page patterns identified.
 - Account transaction, balance, status, audit, and source-link effects mapped.
@@ -1019,6 +1160,7 @@ Use these checklists before reporting a phase complete.
 
 ### Schema Design Checklist
 
+- Business-model expansion gate passed before schema design began.
 - Table and column list is complete.
 - FK, check constraints, indexes, comments, defaults, and nullable flags are specified.
 - Historical data impact is stated.
@@ -1028,6 +1170,7 @@ Use these checklists before reporting a phase complete.
 
 ### Schema Execution Checklist
 
+- Executed schema objects exactly match the approved declaration and reviewed SQL.
 - Latest commit checked before execution.
 - SQL file confirmed schema-only.
 - The correct phase-specific command was used: `psql "$SCHOOL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` for School DB or `psql "$CASH_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` for Cash DB.
@@ -1037,6 +1180,7 @@ Use these checklists before reporting a phase complete.
 
 ### RPC Design Checklist
 
+- Writer/reader authority, field semantics, locking, snapshots, and compatibility behavior match the approved declaration.
 - RPC name, parameters, and return columns are fixed.
 - Allowed and forbidden business conditions are listed.
 - Lock order and duplicate submission behavior are defined.
@@ -1046,6 +1190,7 @@ Use these checklists before reporting a phase complete.
 
 ### SQL Draft Checklist
 
+- SQL contains no undeclared business-model expansion or second authoritative source.
 - File header says draft only / not executed.
 - Function signature and return order match design.
 - Validation, locks, writes, comments, and returned payload are implemented.
@@ -1055,6 +1200,8 @@ Use these checklists before reporting a phase complete.
 
 ### Static Review Checklist
 
+- SQL diff reconciled with the declaration and approval reference.
+- Fallback, `COALESCE`, NULL branching, dual writes, and reader precedence reviewed for competing authority.
 - Signature and return order reviewed.
 - Parameter validation reviewed.
 - Lock order and concurrency reviewed.
@@ -1111,6 +1258,7 @@ Use these checklists before reporting a phase complete.
 
 ### Checkpoint Checklist
 
+- Final code/schema/object set matches the approved Business-model expansion declaration and contains no later-added expansion.
 - `git status --short` clean.
 - Latest commit recorded.
 - Page-layer `.rpc()` scan passes.
