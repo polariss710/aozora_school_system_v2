@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.72-income-filter-nav">
+    <link rel="stylesheet" href="./css/app.css?v=v10.3.73-tuition-preview-compact">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -391,61 +391,63 @@
     </div>
 
     <div id="generateTuitionBillDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
-        <div class="section-heading">
-          <h2 id="generateTuitionBillTitle">学费应收预览</h2>
-          <p class="section-note">金额和candidate均来自数据库权威预览。正式生成只使用同一次预览返回的atomic manifest；不会自动提交Cash。</p>
-        </div>
-
-        <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
-        <div id="generateTuitionBillPreview" class="dialog-summary tuition-bill-preview-summary is-hidden" aria-live="polite"></div>
-        <details id="tuitionBillCandidateDetails" class="tuition-preview-candidates is-hidden">
-          <summary>
-            权威candidate明细
-            <span id="tuitionBillCandidateCount" class="record-count">0 条</span>
-          </summary>
-          <p class="section-note">仅展示同一次权威preview RPC返回的学费月份、自然周和服务端费用；页面不按预计上课日期重新归月或计费。</p>
-          <div class="table-scroll">
-            <table class="payment-table tuition-preview-candidate-table">
-              <thead>
-                <tr>
-                  <th>planned lesson UUID</th>
-                  <th>学费月份</th>
-                  <th>自然周（周一～周日）</th>
-                  <th>预计上课日期</th>
-                  <th>课次数</th>
-                  <th>时长</th>
-                  <th>基础课时费 JPY</th>
-                  <th>空调费率 JPY / h</th>
-                  <th>空调费 JPY</th>
-                  <th>课程总价 JPY</th>
-                </tr>
-              </thead>
-              <tbody id="tuitionBillCandidateRows"></tbody>
-            </table>
+      <section class="dialog-panel app-dialog--lg tuition-bill-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="generateTuitionBillTitle">
+        <div class="tuition-bill-dialog-body">
+          <div class="section-heading">
+            <h2 id="generateTuitionBillTitle">学费应收预览</h2>
+            <p class="section-note">金额和课程明细均来自系统权威预览。正式生成只使用当前有效预览；不会自动提交Cash。</p>
           </div>
-        </details>
 
-        <div class="income-create-field-grid">
-          <label class="field" data-tuition-bill-field="billingMonth">
-            <span>学费月份 <b class="required-mark">必填</b></span>
-            <input id="tuitionBillMonthInput" type="month">
-          </label>
+          <div id="generateTuitionBillError" class="dialog-error is-hidden"></div>
+          <div id="generateTuitionBillPreview" class="dialog-summary tuition-bill-preview-summary is-hidden" aria-live="polite"></div>
+          <details id="tuitionBillCandidateDetails" class="tuition-preview-candidates is-hidden">
+            <summary>
+              权威candidate明细
+              <span id="tuitionBillCandidateCount" class="record-count">0 条</span>
+            </summary>
+            <p class="section-note">仅展示当前权威预览返回的学费月份、自然周、课程信息和服务端费用；页面不按预计上课日期重新归月或计费。</p>
+            <div class="table-scroll">
+              <table class="payment-table tuition-preview-candidate-table">
+                <thead>
+                  <tr>
+                    <th>学费月份</th>
+                    <th>自然周（周一～周日）</th>
+                    <th>预计上课日期</th>
+                    <th>科目</th>
+                    <th>老师</th>
+                    <th>课次数</th>
+                    <th>时长</th>
+                    <th>基础课时费 JPY</th>
+                    <th>空调费 JPY</th>
+                    <th>课程总价 JPY</th>
+                  </tr>
+                </thead>
+                <tbody id="tuitionBillCandidateRows"></tbody>
+              </table>
+            </div>
+          </details>
 
-          <label class="field income-create-wide-field" data-tuition-bill-field="student">
-            <span>学生 <b class="required-mark">必填</b></span>
-            <select id="tuitionBillStudentSelect"></select>
-          </label>
+          <div class="income-create-field-grid">
+            <label class="field" data-tuition-bill-field="billingMonth">
+              <span>学费月份 <b class="required-mark">必填</b></span>
+              <input id="tuitionBillMonthInput" type="month">
+            </label>
 
-          <label class="field" data-tuition-bill-field="billingRate">
-            <span>通知汇率 CNY/JPY <b class="required-mark">必填</b></span>
-            <input id="tuitionBillBillingRateInput" type="number" min="0" step="0.0000001" inputmode="decimal" placeholder="0.05">
-          </label>
+            <label class="field income-create-wide-field" data-tuition-bill-field="student">
+              <span>学生 <b class="required-mark">必填</b></span>
+              <select id="tuitionBillStudentSelect"></select>
+            </label>
 
-          <label class="field income-create-wide-field">
-            <span>备注</span>
-            <textarea id="tuitionBillNoteInput" rows="2" placeholder="可选：学费应收生成备注"></textarea>
-          </label>
+            <label class="field" data-tuition-bill-field="billingRate">
+              <span>通知汇率 CNY/JPY <b class="required-mark">必填</b></span>
+              <input id="tuitionBillBillingRateInput" type="number" min="0" step="0.0000001" inputmode="decimal" placeholder="0.05">
+            </label>
+
+            <label class="field income-create-wide-field">
+              <span>备注</span>
+              <textarea id="tuitionBillNoteInput" rows="2" placeholder="可选：学费应收生成备注"></textarea>
+            </label>
+          </div>
         </div>
 
         <div class="dialog-actions">
@@ -460,7 +462,7 @@
       <section class="dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="confirmGenerateTuitionBillTitle">
         <div class="section-heading">
           <h2 id="confirmGenerateTuitionBillTitle">确认生成学费应收</h2>
-          <p class="section-note">以下内容全部来自同一次数据库权威预览。确认后将原子生成正式学费账单、billing identity、课时关系及pending收入记录；不会自动提交Cash。</p>
+          <p class="section-note">以下内容全部来自当前有效预览。确认后将一次性生成正式学费应收和待收款记录；不会自动提交Cash。</p>
         </div>
 
         <div id="confirmGenerateTuitionBillError" class="dialog-error is-hidden"></div>
@@ -473,6 +475,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=r2-f-d-atomic-tuition-generate-ui"></script>
+    <script type="module" src="./js/income-app.js?v=v2.115.1-tuition-preview-compact"></script>
   </body>
 </html>

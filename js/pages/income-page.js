@@ -11,6 +11,7 @@ import {
   requestCashIncomeConfirmationForRecord,
 } from "../api/income-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
+import { fetchLessonSubjects, fetchLessonTeachers } from "../api/lesson-api.js";
 import {
   currentJapanDate,
   currentYearMonth,
@@ -96,6 +97,8 @@ const dom = {};
 let students = [];
 let businessEntities = [];
 let accounts = [];
+let teachers = [];
+let subjects = [];
 let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
 let incomeRecords = [];
@@ -310,10 +313,16 @@ async function loadInitialData() {
   showMessage("info", "正在加载收入记录数据...");
 
   try {
-    const lookups = await fetchIncomeLookups();
+    const [lookups, lessonTeachers, lessonSubjects] = await Promise.all([
+      fetchIncomeLookups(),
+      fetchLessonTeachers(),
+      fetchLessonSubjects(),
+    ]);
     students = lookups.students;
     businessEntities = lookups.businessEntities;
     accounts = lookups.accounts;
+    teachers = lessonTeachers;
+    subjects = lessonSubjects;
     renderMasterOptions();
     const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
     await loadIncomeMonth(month);
@@ -325,6 +334,8 @@ async function loadInitialData() {
     students = [];
     businessEntities = [];
     accounts = [];
+    teachers = [];
+    subjects = [];
     cashEligibleAccounts = [];
     hasLoadedCashEligibleAccounts = false;
     incomeRecords = [];
@@ -1599,21 +1610,19 @@ function renderTuitionBillPreview(preview) {
     <div><dt>通知汇率</dt><dd>${escapeHtml(formatRateValue(preview.billing_exchange_rate))}</dd></div>
     <div><dt>通知金额（服务端）</dt><dd>${escapeHtml(formatCurrency(preview.billing_amount_cny, "CNY"))}</dd></div>
     <div><dt>既有应收</dt><dd>${escapeHtml(existingText)}</dd></div>
-    <div><dt>candidate集合</dt><dd>${escapeHtml(preview.candidate_uuid_md5)}</dd></div>
-    <div><dt>生成manifest</dt><dd><code>${escapeHtml(preview.generation_manifest_sha256)}</code></dd></div>
   `;
   dom.generateTuitionBillPreview.classList.remove("is-hidden");
   dom.tuitionBillCandidateCount.textContent = `${preview.candidate_count} 条`;
   dom.tuitionBillCandidateRows.innerHTML = preview.candidates.map((candidate) => `
     <tr>
-      <td class="income-nowrap"><code title="${escapeAttribute(candidate.planned_lesson_id)}">${escapeHtml(candidate.planned_lesson_id)}</code></td>
       <td class="income-nowrap">${escapeHtml(formatMonth(candidate.billing_month))}</td>
       <td class="income-nowrap">${escapeHtml(formatAuthoritativeBillingWeek(candidate.billing_week_start_date))}</td>
       <td class="income-nowrap">${escapeHtml(formatDateOnly(candidate.lesson_date))}</td>
+      <td>${escapeHtml(subjectNameById(candidate.subject_id))}</td>
+      <td>${escapeHtml(teacherNameById(candidate.teacher_id))}</td>
       <td class="number-cell">${escapeHtml(String(candidate.lesson_count))}</td>
       <td class="number-cell">${escapeHtml(formatDecimal(candidate.duration_hours, 2))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(candidate.base_lesson_fee_jpy, "JPY"))}</td>
-      <td class="number-cell">${escapeHtml(formatCurrency(candidate.aircon_rate_jpy_per_hour, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(candidate.aircon_fee_jpy, "JPY"))}</td>
       <td class="number-cell">${escapeHtml(formatCurrency(candidate.course_total_jpy, "JPY"))}</td>
     </tr>
@@ -1672,7 +1681,7 @@ function openGenerateTuitionBillConfirmation(preview) {
     <div><dt>通知汇率</dt><dd>${escapeHtml(formatRateValue(preview.billing_exchange_rate))}</dd></div>
     <div><dt>最终通知金额</dt><dd>${escapeHtml(formatCurrency(preview.billing_amount_cny, "CNY"))}</dd></div>
     <div><dt>备注</dt><dd>${escapeHtml(note)}</dd></div>
-    <div><dt>生成结果</dt><dd>正式学费账单及pending收入记录（Cash仍不提交）</dd></div>
+    <div><dt>生成结果</dt><dd>正式学费应收及待收款记录（Cash仍不提交）</dd></div>
   `;
   dom.confirmGenerateTuitionBillDialog.classList.remove("is-hidden");
   dom.confirmGenerateTuitionBillDialog.setAttribute("aria-hidden", "false");
@@ -2441,6 +2450,15 @@ function cashIncomeAccountName(event) {
 
 function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
+}
+
+function teacherNameById(id) {
+  const teacher = teachers.find((row) => row.id === id);
+  return safeText(teacher?.display_name || teacher?.name) || "未设置老师";
+}
+
+function subjectNameById(id) {
+  return safeText(subjects.find((row) => row.id === id)?.name) || "未设置科目";
 }
 
 function businessEntityName(entity) {

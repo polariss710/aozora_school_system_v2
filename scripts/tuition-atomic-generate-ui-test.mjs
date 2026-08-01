@@ -126,6 +126,9 @@ assert.match(pageSource, /mapAtomicTuitionGenerateError/);
 assert.match(pageSource, /candidate\.course_total_jpy/);
 assert.doesNotMatch(pageSource, /candidate\.duration_hours\s*\*|total_fee_jpy\s*=/);
 assert.match(htmlSource, /确认生成学费应收/);
-assert.match(htmlSource, /正式学费账单、billing identity、课时关系及pending收入记录/);
+assert.match(htmlSource, /一次性生成正式学费应收和待收款记录/);
+assert.match(pageSource, /tuitionBillGenerationState\.storePreview\(preview\)/);
+assert.match(pageSource, /buildAtomicTuitionGeneratePayload\(preview/);
+assert.match(pageSource, /result\.generation_manifest_sha256 !== preview\.generation_manifest_sha256/);
 
 console.log("atomic tuition generate frontend state fixtures: 14/14 PASS");

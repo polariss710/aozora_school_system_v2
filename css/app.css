@@ -3716,6 +3716,80 @@ h2 {
   width: min(820px, 100%);
 }
 
+.tuition-bill-dialog-panel {
+  display: flex;
+  max-height: min(88vh, calc(100vh - 32px));
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@supports (height: 100dvh) {
+  .tuition-bill-dialog-panel {
+    max-height: min(88dvh, calc(100dvh - 32px));
+  }
+}
+
+.tuition-bill-dialog-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.tuition-bill-dialog-panel .section-heading {
+  margin-bottom: 10px;
+}
+
+.tuition-bill-preview-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.tuition-bill-preview-summary > div {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(116px, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px 10px;
+}
+
+.tuition-bill-preview-summary > div:nth-child(odd) {
+  border-right: 1px solid var(--line);
+}
+
+.tuition-bill-preview-summary > div:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.tuition-bill-preview-summary dt,
+.tuition-bill-preview-summary dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.tuition-bill-preview-summary dt {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.tuition-bill-preview-summary dd {
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.tuition-bill-dialog-panel > .dialog-actions {
+  flex: 0 0 auto;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding-top: 12px;
+}
+
 .tuition-preview-candidates {
   margin: 12px 0 16px;
   border: 1px solid var(--line);
@@ -3736,6 +3810,15 @@ h2 {
 .tuition-preview-candidate-table code {
   font-size: 11px;
   white-space: nowrap;
+}
+
+.tuition-preview-candidates .table-scroll {
+  max-height: min(34vh, 320px);
+  overflow: auto;
+}
+
+.tuition-preview-candidate-table {
+  min-width: 1080px;
 }
 
 .income-batch-cash-dialog-panel,
@@ -4962,6 +5045,28 @@ h2 {
   .app-dialog--md,
   .app-dialog--lg {
     width: calc(100vw - 24px);
+  }
+
+  .tuition-bill-dialog-panel {
+    max-height: calc(100vh - 24px);
+  }
+
+  @supports (height: 100dvh) {
+    .tuition-bill-dialog-panel {
+      max-height: calc(100dvh - 24px);
+    }
+  }
+
+  .tuition-bill-preview-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tuition-bill-preview-summary > div:nth-child(odd) {
+    border-right: 0;
+  }
+
+  .tuition-bill-preview-summary > div:nth-last-child(2) {
+    border-bottom: 1px solid var(--line);
   }
 
   .app-dialog--xl {
