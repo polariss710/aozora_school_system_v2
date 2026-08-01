@@ -153,7 +153,10 @@ BEGIN
     v_student_a,'2032-08',0.05
   );
   IF v_preview_before.feature_state<>'enabled'
-     OR v_preview_before.generate_feature_state<>'enabled'
+     OR v_preview_before.generate_feature_state IS DISTINCT FROM (
+          SELECT gate.state FROM public.school_feature_gates gate
+          WHERE gate.feature_key='student_tuition_generate'
+        )
      OR v_preview_before.candidate_count<>1 OR v_preview_before.total_lesson_count<>1
      OR v_preview_before.total_duration_hours<>2
      OR v_preview_before.total_base_lesson_fee_jpy<>20000
@@ -323,13 +326,13 @@ BEGIN
       FROM public.school_student_tuition_billing_identities t)
      OR (SELECT count(*)<>17 OR md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY t.id::text),''))<>'1d7328654f6488952dba20640072c3e2'
       FROM public.school_student_monthly_settlements t)
-     OR (SELECT count(*)<>659 OR md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY t.id::text),''))<>'9ce7c36283cfa51f8b2a334801f646dd'
+     OR (SELECT count(*)<>660 OR md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY t.id::text),''))<>'23c996ac9ce14153c590ce2a57f09be9'
       FROM public.school_lesson_records t) THEN
     RAISE EXCEPTION 'R2_F_F_ROLLBACK_HISTORY_FINGERPRINT_DRIFT';
   END IF;
   IF (SELECT count(*) FROM public.school_feature_gates
       WHERE (feature_key='student_tuition_preview' AND state='enabled')
-         OR (feature_key='student_tuition_generate' AND state='enabled')
+         OR (feature_key='student_tuition_generate' AND state='blocked')
          OR (feature_key='student_tuition_cash_submit' AND state='blocked'))<>3 THEN
     RAISE EXCEPTION 'R2_F_F_ROLLBACK_GATE_DRIFT';
   END IF;

@@ -35,6 +35,10 @@ import {
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
 import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
 import {
+  hasAuthoritativePlannedFeeBundle,
+  plannedAirconConditionLabel,
+} from "../utils/planned-aircon-display.js?v=r2-f-f1-aircon-recalculation";
+import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
   hasFrozenActualOverage,
@@ -6748,33 +6752,19 @@ function plannedChargeSource(record) {
   return record?.lesson_type === "actual" ? plannedLessonForActual(record) : null;
 }
 
-function hasR2EPlannedCharge(record) {
-  return Boolean(
-    record
-    && record.lesson_type === "planned"
-    && record.fee_calculation_version === "planned_weekend_aircon_v1"
-    && record.base_lesson_fee_jpy !== null
-    && record.aircon_unit_price_jpy_snapshot !== null
-    && record.aircon_fee_jpy !== null
-    && record.lesson_total_fee_jpy !== null
-  );
-}
-
 function renderPlannedChargeBreakdown(record) {
-  if (!hasR2EPlannedCharge(record)) {
+  if (!hasAuthoritativePlannedFeeBundle(record)) {
     return escapeHtml(`基础课时费 ${formatCurrency(record?.lesson_fee, "JPY")}`);
   }
-  const applicability = record.aircon_charge_status === "not_applicable"
-    ? "本课非周末 / 未达生效月"
-    : record.aircon_charge_status === "configured_zero"
-      ? "周末 / 费率为 0"
-      : "周末计费";
+  const applicability = plannedAirconConditionLabel(record);
   return [
     `基础 ${formatCurrency(record.base_lesson_fee_jpy, "JPY")}`,
     `费率 ${formatCurrency(record.aircon_unit_price_jpy_snapshot, "JPY")} / h`,
     applicability,
+    `计费小时 ${displayValue(record.aircon_billable_hours_snapshot)} 小时`,
     `空调 ${formatCurrency(record.aircon_fee_jpy, "JPY")}`,
     `总价 ${formatCurrency(record.lesson_total_fee_jpy, "JPY")}`,
+    `策略 ${displayValue(record.fee_calculation_version)}`,
   ].map((value) => `<div>${escapeHtml(value)}</div>`).join("");
 }
 
@@ -6784,21 +6774,19 @@ function renderPlannedChargeMeta(record, isSourcePlanned = false) {
       ? '<div><dt>来源 planned 空调费</dt><dd>-</dd></div>'
       : "";
   }
-  if (!hasR2EPlannedCharge(record)) {
+  if (!hasAuthoritativePlannedFeeBundle(record)) {
     return `<div><dt>${isSourcePlanned ? "来源 planned 基础课时费" : "基础课时费"}</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>`;
   }
   const prefix = isSourcePlanned ? "来源 planned " : "";
-  const applicability = record.aircon_charge_status === "not_applicable"
-    ? "本课非周末 / 未达生效月"
-    : record.aircon_charge_status === "configured_zero"
-      ? "周末 / 费率为 0"
-      : "周末计费";
+  const applicability = plannedAirconConditionLabel(record);
   return `
     <div><dt>${prefix}基础课时费</dt><dd>${escapeHtml(formatCurrency(record.base_lesson_fee_jpy, "JPY"))}</dd></div>
     <div><dt>${prefix}空调费率</dt><dd>${escapeHtml(`${formatCurrency(record.aircon_unit_price_jpy_snapshot, "JPY")} / h`)}</dd></div>
     <div><dt>${prefix}空调条件</dt><dd>${escapeHtml(applicability)}</dd></div>
+    <div><dt>${prefix}空调计费小时</dt><dd>${escapeHtml(`${displayValue(record.aircon_billable_hours_snapshot)} 小时`)}</dd></div>
     <div><dt>${prefix}空调费</dt><dd>${escapeHtml(formatCurrency(record.aircon_fee_jpy, "JPY"))}</dd></div>
     <div><dt>${prefix}课程总价</dt><dd>${escapeHtml(formatCurrency(record.lesson_total_fee_jpy, "JPY"))}</dd></div>
+    <div><dt>${prefix}空调策略</dt><dd>${escapeHtml(displayValue(record.fee_calculation_version))}</dd></div>
   `;
 }
 

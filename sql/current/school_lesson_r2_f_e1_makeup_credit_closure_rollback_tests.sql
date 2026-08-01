@@ -213,15 +213,25 @@ BEGIN
     RAISE EXCEPTION 'R2_F_E1_EXISTING_LEGACY_EDIT_RESOLUTION_FAILED';
   END IF;
 
-  PERFORM * FROM public.school_update_lesson_record_guarded_with_venue(
-    v_actual.id,v_actual.updated_at,v_actual.lesson_date,v_actual.student_id,
-    v_actual.teacher_id,v_actual.subject_id,v_actual.business_entity_id,
-    v_actual.start_time,v_actual.end_time,v_actual.duration_hours,
-    v_actual.unit_price,v_actual.lesson_fee,v_actual.status,
-    v_actual.is_billable,v_actual.lesson_count,v_actual.lesson_content,
-    coalesce(v_actual.note,'')||' codex-test R2-F-E1 legal note edit',
-    v_actual.lesson_delivery_mode,v_actual.lesson_venue
-  );
+  IF NOT EXISTS (
+    SELECT 1 FROM public.school_student_monthly_settlements settlement
+    WHERE settlement.student_id=v_actual.student_id
+      AND settlement.business_entity_id IS NOT DISTINCT FROM v_actual.business_entity_id
+      AND settlement.year_month='2026-07'
+      AND settlement.settlement_status='locked'
+  ) THEN
+    PERFORM * FROM public.school_update_lesson_record_guarded_with_venue(
+      v_actual.id,v_actual.updated_at,v_actual.lesson_date,v_actual.student_id,
+      v_actual.teacher_id,v_actual.subject_id,v_actual.business_entity_id,
+      v_actual.start_time,v_actual.end_time,v_actual.duration_hours,
+      v_actual.unit_price,v_actual.lesson_fee,v_actual.status,
+      v_actual.is_billable,v_actual.lesson_count,v_actual.lesson_content,
+      coalesce(v_actual.note,'')||' codex-test R2-F-E1 legal note edit',
+      v_actual.lesson_delivery_mode,v_actual.lesson_venue
+    );
+  ELSE
+    RAISE NOTICE 'R2_F_E1_LEGACY_EDIT_SKIPPED_LOCKED_SETTLEMENT actual=%',v_actual.id;
+  END IF;
   IF public.school_resolve_r1d_e_c_lesson_student_month(v_actual.id)<>'2026-07'
      OR (SELECT md5(to_jsonb(evidence)::text)
          FROM public.school_legacy_actual_settlement_evidence evidence

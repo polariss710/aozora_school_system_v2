@@ -4,6 +4,10 @@ import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../c
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
+  hasAuthoritativePlannedFeeBundle,
+  plannedAirconConditionLabel,
+} from "../utils/planned-aircon-display.js?v=r2-f-f1-aircon-recalculation";
+import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
 } from "../utils/actual-overage.js";
@@ -446,22 +450,15 @@ function plannedAirconDetailRows(planned, isSource = false) {
   if (!planned || planned.lesson_type !== "planned") {
     return isSource ? [[`${prefix}空调收费事实`, "-"]] : [];
   }
-  if (planned.fee_calculation_version !== "planned_weekend_aircon_v1"
-      || planned.base_lesson_fee_jpy === null
-      || planned.aircon_unit_price_jpy_snapshot === null
-      || planned.aircon_fee_jpy === null
-      || planned.lesson_total_fee_jpy === null) {
+  if (!hasAuthoritativePlannedFeeBundle(planned)) {
     return [[`${prefix}基础课时费`, formatCurrency(planned.lesson_fee, "JPY")]];
   }
-  const condition = planned.aircon_charge_status === "not_applicable"
-    ? "本课非周末 / 未达生效月"
-    : planned.aircon_charge_status === "configured_zero"
-      ? "周末 / 费率为 0"
-      : "周末计费";
+  const condition = plannedAirconConditionLabel(planned);
   return [
     [`${prefix}基础课时费`, formatCurrency(planned.base_lesson_fee_jpy, "JPY")],
-    [`${prefix}空调费率`, `${formatCurrency(planned.aircon_unit_price_jpy_snapshot, "JPY")} / planned小时`],
+    [`${prefix}空调费率`, `${formatCurrency(planned.aircon_unit_price_jpy_snapshot, "JPY")} / h`],
     [`${prefix}空调条件`, condition],
+    [`${prefix}空调计费小时`, `${displayValue(planned.aircon_billable_hours_snapshot)} 小时`],
     [`${prefix}空调费`, formatCurrency(planned.aircon_fee_jpy, "JPY")],
     [`${prefix}课程总价`, formatCurrency(planned.lesson_total_fee_jpy, "JPY")],
     [`${prefix}空调策略`, displayValue(planned.fee_calculation_version)],

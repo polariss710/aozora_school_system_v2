@@ -421,12 +421,6 @@ BEGIN
     END IF;
   END IF;
 
-  IF TG_OP='UPDATE'
-     AND OLD.fee_calculation_version IS NULL
-     AND NEW.aircon_unit_price_jpy_snapshot IS NULL THEN
-    RETURN NEW;
-  END IF;
-
   v_requested_rate:=coalesce(NEW.aircon_unit_price_jpy_snapshot,0);
   SELECT * INTO STRICT v_result
   FROM public.school_r2_e_calculate_planned_aircon_fee(
@@ -450,7 +444,7 @@ $function$;
 REVOKE ALL ON FUNCTION public.school_enforce_r2_e_planned_aircon()
   FROM PUBLIC,anon,authenticated,service_role;
 COMMENT ON FUNCTION public.school_enforce_r2_e_planned_aircon() IS
-  'R2-F-F planned fee authority. All table writers share exact venue-aware whole-hour v2 calculation; billed charge facts remain frozen while R2-F-E fulfilment transitions stay intact.';
+  'R2-F-F/F1 planned fee authority. Every unbilled planned update, including legacy NULL/zero bundles, uses exact venue-aware whole-hour v2 calculation; billed charge facts remain frozen while R2-F-E fulfilment transitions stay intact.';
 
 \echo 'R2_F_F_POLICY_REPLACE_CANDIDATE_READER'
 CREATE OR REPLACE FUNCTION public.school_list_student_tuition_charge_candidates(
