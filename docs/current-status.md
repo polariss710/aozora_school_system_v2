@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-08-01
+Status date: 2026-08-02
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -27,6 +27,8 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 - R2-F-F曾受控恢复权威学费preview与唯一公开atomic generate wrapper；旧generate overload、旧bill→income及Personal Cash入口继续永久fail-closed，owner-only core仍仅postgres可执行。空调费v2通过`school_lesson_venues.aircon_eligible`和精确venue ID/code识别固定办公室，计费小时为`floor(planned duration)`。当前gate与阶段性金额已由下方R2-F-F1记录取代。
 - R2-F-F2/F2-B已完成收费自然周不变量及全库lesson `year_month`生产依赖收口。真实跨月课`aa55dc2e-3b1b-4d2d-863f-9f64e84b8578`保持`billing week/month/student month = 2026-08-31 / 2026-08 / 2026-08`、预计日期`2026-09-06`及legacy `year_month=2026-09`；8月整月/末周/candidate分别命中1，9月整月/candidate均为0。planned月/周、旧stats、补课来源、导入锁前检、详情月结、actual/partial/cancelled、删除/作废及教师工资的学生月结检查全部复用既有billing attribution或R1D-E-C resolver，教师工资月份既有actual兼容不变，非法生产依赖为0；未新增表、字段、状态、月份概念或fallback。F2-B 11/11、F2 7/7、F1 10/10、R2-F-F 5/5、R2-F-B 8组、R2-F-E/E1及八组前端回归通过并ROLLBACK，业务指纹零漂移。孙陈锋随持续补录的最新阶段性preview为`25 / 30课次 / 50h / base JPY425,000 / aircon JPY9,240 / total JPY434,240 / CNY18,238.08`，不是最终账单基线；gate保持`enabled / blocked / blocked`，未生成账单或连接Cash。详见`docs/school-v2-r2-f-f2-billing-week-invariant-report-20260801.md`。
 - R2-F-F2-C已修复课时管理刷新时把合法legacy planned的NULL `billing_month`误判为月份冲突，以及filtered stats在浏览器角色下直接调用私有resolver导致42501的问题。API逐行取得既有公开resolver结果，页面按同一权威月校验并只隔离真正异常的单行；统计RPC改用同一公开wrapper，签名、ACL及范围不变。真实legacy planned `300751ba-2ea5-41f0-97dd-45251af8e9d1`权威月为2026-08，8月整月全部学生、查询按钮和浏览器刷新均正常；跨月课继续8月整月/末周命中、9月排除。F2-C 4/4、F2-B 11/11、F2 7/7及八组前端回归通过，业务指纹零漂移，gate仍`enabled / blocked / blocked`。
+- 2026-08-01固定279条legacy planned规范化已正式完成：全部planned现为417/417完整canonical、417/417归属青空进学塾，legacy planned归零；source统一为`approved_legacy_planned_canonicalization_20260801`，唯一决定时间为`2026-08-01 13:39:37.829675+00`。孙陈锋2026-07整月恢复18条/36h/JPY306,000，四周为4/8h、4/8h、5/10h、5/10h；待补仍为全局6源/11h。234条legacy actual未迁移，8条makeup actual继续解析为获批的2026-05/06/07履约月；planned-only实体迁移造成的142条source/actual当前实体差异由两侧immutable evidence仅作历史关联验证，actual履约月仍唯一取actual evidence。迁移、reader兼容均完成同字节rehearsal/正式COMMIT，定向rollback测试通过并ROLLBACK；actual、bill、income、expense、relation、identity、settlement、工资、账户、School Cash linkage、evidence及Gate全行指纹零漂移。迁移后279条candidate分类为68 candidate、211 excluded，generate仍blocked，未生成账单/收入或连接Cash。详见`docs/school-v2-planned-canonicalization-20260801-report.md`。
+- 2026-08-02固定64条2026-05/06历史已收费planned永久排除已正式完成：既有historical exclusion表由42行扩展为106行，新增64行ID集合SHA-256为`7e36bc9702bfb9ac16c27bb73045023ccbbaa87a44119b4c36712d5eeb5b4f85`，profile分布为5月Cash手工收入已定位22、业务确认未定位8、6月School income→Cash同步34。六个学生/月scope的64条candidate全部以`historical_paid_exclusion`永久排除且泄漏0；没有伪造bill、income、settlement、account transaction或Cash UUID。旧42合同保持，reader定义不变；一次性manifest函数已删除，insert writer已永久退役，106行继续immutable。rehearsal回滚、正式COMMIT及两阶段postdeploy通过，planned/actual/收费链/工资/Cash指纹零漂移，Gate保持`enabled / blocked / blocked`。详见`docs/school-v2-2026-05-06-fixed-64-already-charged-permanent-exclusion-implementation-report-20260802.md`。
 - 课时卡片与详情的空调费展示已去重：正费用bundle只显示DB权威费率、中文空调条件、计费小时、空调费和课程总价，不再显示重复的“空调策略”或raw policy code；零费用bundle只保留基础课时费。页面不计算任何收费事实，列表与详情使用同一展示判定，gate保持`enabled / blocked / blocked`。
 - R2-F-F1已修复既有planned编辑后的v2空调费展示及legacy NULL bundle重算：课时卡片/详情按DB完整权威bundle消费base、saved rate、billable hours、aircon fee、course total和policy，但普通业务页面不显示raw policy；未知未来policy的完整正费用也不会被隐藏。trigger移除policy/rate同时NULL时的早退，未收费planned的date/mode/venue/duration/rate变化统一走8参数calculator，billed/locked冻结保持。业务负责人确认新增孙陈锋EJU日语课`397446aa-b195-43ff-9506-a560e7d12d93`合法；该阶段preview为`23 / 26课次 / 46h / base JPY391,000 / aircon JPY1,980 / total JPY392,980 / CNY16,505.16`，后续状态以上方R2-F-F2记录为准。该阶段gate为`enabled / blocked / blocked`，未生成真实bill/income，Cash DB未连接。
 
@@ -46,6 +48,12 @@ Stop and report immediately for:
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
 
 ## Latest Key Updates
+
+1. School V2 fixed 64 already-charged planned permanent exclusion, 2026-08-02:
+   固定64条2026-05/06历史已收费planned已写入既有唯一historical exclusion权威表，表42→106行，profile为22/8/34，目标candidate 64→0且理由统一为`historical_paid_exclusion`。旧42语义及reader不变；一次性fixed64 manifest函数已删除，insert writer已永久关闭。rehearsal、正式COMMIT及两阶段postdeploy通过，Cash和所有非目标业务表指纹零漂移，Gate为`enabled / blocked / blocked`。未git add/commit/push，停在commit前审查点。
+
+1. School V2 fixed 279 legacy planned canonicalization, 2026-08-01:
+   固定清单279/279正式迁移，补齐既有billing week/month/student month/source/decided-at并把planned业务归属统一为青空进学塾；legacy planned归零。canonical-first trigger及三个生产reader只增加获批的一次性source allowlist；legacy actual行和evidence不写，跨月补课actual仍按冻结履约月读取。孙陈锋7月整月及四周、6源/11h、candidate、未锁月preview、跨月周、两条特殊ID全部通过；保护对象指纹不变，rollback测试通过，Gate为`enabled / blocked / blocked`。未git add/commit/push，停在commit前审查点。
 
 1. School V2 planned aircon display deduplication, 2026-08-01:
    课时卡片和详情移除与“空调条件”重复的“空调策略”。正费用v1/v2及未来完整权威bundle继续显示DB返回的空调费率、中文条件、计费小时、空调费和课程总价；工作日、线上、非收费场地、零费率及其他零费用bundle仅显示基础课时费。JS不读取raw policy作金额推导，不计算或写入收费事实；只更新前端缓存链与UI测试，数据库和gate均未修改。
