@@ -28,3 +28,17 @@ export function plannedAirconConditionLabel(record) {
   }
   return "不符合当前空调计费条件";
 }
+
+export function plannedAirconPolicyLabel(record) {
+  const policy = String(record?.fee_calculation_version || "").trim();
+  if ([
+    "planned_weekend_aircon_v1",
+    "planned_weekend_venue_whole_hour_aircon_v2",
+  ].includes(policy)) {
+    return "周末固定办公室计费";
+  }
+  if (hasAuthoritativePlannedFeeBundle(record) && Number(record.aircon_fee_jpy) > 0) {
+    return "按课时冻结规则计费";
+  }
+  return "不满足空调费条件";
+}

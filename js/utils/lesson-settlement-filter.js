@@ -42,30 +42,29 @@ export function validateAuthoritativeLessonRecords(records, { yearMonth, weekSta
     throw new Error("课时读取结果格式无效，请重新加载。");
   }
   if (!YEAR_MONTH_PATTERN.test(String(yearMonth || ""))) {
-    throw new Error("学生结算月无效，请重新选择。");
+    throw new Error("收费归属月无效，请重新选择。");
   }
 
   const normalizedWeekStart = normalizeStudentSettlementWeekStart(yearMonth, weekStart);
   if (weekStart && !normalizedWeekStart) {
     throw new Error("所选自然周不属于当前学生结算月，请重新选择。");
   }
-  const weekEndExclusive = normalizedWeekStart
-    ? addUtcDays(normalizedWeekStart, 7)
-    : "";
   validateUniqueLessonRecordIds(records, "课时读取结果");
 
   for (const record of records) {
     const id = String(record?.id || "");
-    if (String(record?.year_month || "") !== yearMonth) {
-      throw new Error(`课时 ${id} 的学生结算月与当前筛选不一致，已拒绝显示。`);
+    const lessonType = String(record?.lesson_type || "");
+    const authoritativeMonth = lessonType === "planned"
+      ? String(record?.billing_month || "")
+      : lessonType === "actual"
+        ? String(record?.authoritative_student_month || "")
+        : String(record?.authoritative_student_month || "");
+    if (authoritativeMonth !== yearMonth) {
+      throw new Error(`课时 ${id} 的权威收费/结算月与当前筛选不一致，已拒绝显示。`);
     }
-    if (normalizedWeekStart) {
-      const lessonDate = String(record?.lesson_date || "");
-      if (!DATE_PATTERN.test(lessonDate)
-          || lessonDate < normalizedWeekStart
-          || lessonDate >= weekEndExclusive) {
-        throw new Error(`课时 ${id} 不属于当前自然周，已拒绝显示。`);
-      }
+    if (normalizedWeekStart && lessonType === "planned"
+        && String(record?.billing_week_start_date || "") !== normalizedWeekStart) {
+      throw new Error(`课时 ${id} 不属于当前收费自然周，已拒绝显示。`);
     }
   }
 
@@ -101,12 +100,6 @@ export function createLatestRequestGate() {
       return token === currentToken;
     },
   };
-}
-
-function addUtcDays(value, days) {
-  const date = new Date(`${value}T00:00:00Z`);
-  date.setUTCDate(date.getUTCDate() + days);
-  return formatUtcDate(date);
 }
 
 function formatUtcDate(date) {

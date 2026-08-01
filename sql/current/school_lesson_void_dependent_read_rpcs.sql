@@ -32,22 +32,28 @@ stable
 as $$
   with filtered as (
     select
-      id,
-      planned_lesson_id,
-      lesson_type,
-      status,
-      coalesce(is_billable, false) as is_billable,
-      coalesce(duration_hours, 0)::numeric as duration_hours,
-      coalesce(lesson_fee, coalesce(unit_price, 0) * coalesce(duration_hours, 0), 0)::numeric as fee_jpy
-    from public.school_lesson_records
-    where (p_year_month is null or year_month = p_year_month)
-      and (p_student_id is null or student_id = p_student_id)
-      and (p_teacher_id is null or teacher_id = p_teacher_id)
-      and (p_subject_id is null or subject_id = p_subject_id)
-      and (p_lesson_type is null or lesson_type = p_lesson_type)
-      and (p_status is null or status = p_status)
-      and (p_business_entity_id is null or business_entity_id = p_business_entity_id)
-      and not (lesson_type = 'planned' and voided_at is not null)
+      lesson.id,
+      lesson.planned_lesson_id,
+      lesson.lesson_type,
+      lesson.status,
+      coalesce(lesson.is_billable, false) as is_billable,
+      coalesce(lesson.duration_hours, 0)::numeric as duration_hours,
+      coalesce(lesson.lesson_fee,
+        coalesce(lesson.unit_price, 0) * coalesce(lesson.duration_hours, 0),
+        0
+      )::numeric as fee_jpy
+    from public.school_list_r1d_e_c_student_month_lessons(
+      null,
+      p_year_month
+    ) resolved
+    join public.school_lesson_records lesson on lesson.id = resolved.lesson_id
+    where (p_student_id is null or lesson.student_id = p_student_id)
+      and (p_teacher_id is null or lesson.teacher_id = p_teacher_id)
+      and (p_subject_id is null or lesson.subject_id = p_subject_id)
+      and (p_lesson_type is null or lesson.lesson_type = p_lesson_type)
+      and (p_status is null or lesson.status = p_status)
+      and (p_business_entity_id is null or lesson.business_entity_id = p_business_entity_id)
+      and not (lesson.lesson_type = 'planned' and lesson.voided_at is not null)
   )
   select
     coalesce(sum(duration_hours) filter (where lesson_type = 'planned'), 0)::numeric as planned_hours,
@@ -142,9 +148,12 @@ as $$
       coalesce(l.is_billable, false) as is_billable,
       coalesce(l.duration_hours, 0)::numeric as duration_hours,
       coalesce(l.lesson_fee, coalesce(l.unit_price, 0) * coalesce(l.duration_hours, 0), 0)::numeric as fee_jpy
-    from public.school_lesson_records l
+    from public.school_list_r1d_e_c_student_month_lessons(
+      p_student_id,
+      p_year_month
+    ) resolved
+    join public.school_lesson_records l on l.id = resolved.lesson_id
     where l.student_id = p_student_id
-      and l.year_month = p_year_month
       and not (l.lesson_type = 'planned' and l.voided_at is not null)
   ),
   lesson_summary as (

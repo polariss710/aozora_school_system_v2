@@ -29,7 +29,8 @@ returns table (
 )
 language sql
 stable
-set search_path = public
+security definer
+set search_path = pg_catalog, public
 as $$
   with args as (
     select
@@ -41,7 +42,7 @@ as $$
     select
       p.id,
       p.lesson_date,
-      p.year_month,
+      resolved.authoritative_student_month as year_month,
       p.student_id,
       p.teacher_id,
       p.subject_id,
@@ -64,6 +65,10 @@ as $$
       )::numeric as remaining_hours
     from public.school_lesson_records p
     cross join args x
+    cross join lateral (
+      select public.school_resolve_r1d_e_c_lesson_student_month(p.id)
+        as authoritative_student_month
+    ) resolved
     left join public.school_lesson_records a
       on a.planned_lesson_id = p.id
      and a.app_type = 'school'
@@ -76,10 +81,10 @@ as $$
       and x.target_month ~ '^\d{4}-(0[1-9]|1[0-2])$'
       and x.from_month <= x.to_month
       and x.to_month <= x.target_month
-      and p.year_month >= x.from_month
-      and p.year_month <= x.to_month
-      and p.year_month <= x.target_month
-    group by p.id
+      and resolved.authoritative_student_month >= x.from_month
+      and resolved.authoritative_student_month <= x.to_month
+      and resolved.authoritative_student_month <= x.target_month
+    group by p.id, resolved.authoritative_student_month
   )
   select
     s.id,

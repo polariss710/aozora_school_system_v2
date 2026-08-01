@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=v10.3.96-authoritative-overage-ui";
+import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=r2-f-f2-b-year-month-closure";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

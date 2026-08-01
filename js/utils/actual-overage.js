@@ -90,7 +90,7 @@ export function buildActualOverageDisplay(actualLesson, plannedLesson) {
     return null;
   }
 
-  const sourceStudentMonth = String(actualLesson.student_settlement_month || "");
+  const sourceStudentMonth = String(actualLesson.authoritative_student_month || "");
   return {
     plannedDurationHours: plannedLesson?.duration_hours ?? null,
     actualDurationHours: actualLesson.duration_hours,
@@ -105,8 +105,13 @@ export function buildActualOverageDisplay(actualLesson, plannedLesson) {
 }
 
 export function buildLessonMonthSemantics(record) {
+  const isPlanned = record?.lesson_type === "planned";
   return {
-    studentSettlementMonth: String(record?.year_month || ""),
+    studentSettlementMonth: String(
+      isPlanned
+        ? (record?.billing_month || "")
+        : (record?.authoritative_student_month || "")
+    ),
     teacherWageMonth: String(record?.teacher_settlement_month || ""),
     occurrenceDate: String(record?.lesson_date || ""),
   };

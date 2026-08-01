@@ -222,7 +222,8 @@ begin
   ),
   unsettled_groups as (
     select distinct
-      c.year_month,
+      public.school_resolve_r1d_e_c_lesson_student_month(c.id)
+        as student_settlement_month,
       c.student_id,
       coalesce(s.display_name, s.name, c.student_id::text) as student_name,
       c.business_entity_id,
@@ -230,7 +231,8 @@ begin
     from raw_candidates c
     left join public.school_student_monthly_settlements m
       on m.student_id = c.student_id
-     and m.year_month = c.year_month
+     and m.year_month =
+       public.school_resolve_r1d_e_c_lesson_student_month(c.id)
      and m.business_entity_id is not distinct from c.business_entity_id
      and m.settlement_status = 'locked'
     left join public.school_students s on s.id = c.student_id
@@ -255,13 +257,15 @@ begin
     ),
     unsettled_groups as (
       select distinct
-        c.year_month,
+        public.school_resolve_r1d_e_c_lesson_student_month(c.id)
+          as student_settlement_month,
         coalesce(s.display_name, s.name, c.student_id::text) as student_name,
         coalesce(be.name, c.business_entity_id::text) as business_name
       from raw_candidates c
       left join public.school_student_monthly_settlements m
         on m.student_id = c.student_id
-       and m.year_month = c.year_month
+       and m.year_month =
+         public.school_resolve_r1d_e_c_lesson_student_month(c.id)
        and m.business_entity_id is not distinct from c.business_entity_id
        and m.settlement_status = 'locked'
       left join public.school_students s on s.id = c.student_id
@@ -270,7 +274,7 @@ begin
       order by 1, 2, 3
       limit 8
     )
-    select string_agg(format('%s / %s / %s', ug.year_month, ug.student_name, ug.business_name), '；')
+    select string_agg(format('%s / %s / %s', ug.student_settlement_month, ug.student_name, ug.business_name), '；')
     into v_unsettled_student_examples
     from unsettled_groups ug;
 

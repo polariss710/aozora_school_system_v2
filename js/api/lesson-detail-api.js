@@ -157,7 +157,7 @@ async function fetchLesson(lessonId) {
     throw new Error("没有找到对应的课时记录。");
   }
 
-  return data;
+  return attachAuthoritativeStudentMonth(data);
 }
 
 async function fetchLessonSourceChain(lesson) {
@@ -198,7 +198,7 @@ async function fetchLessonById(lessonId) {
     throw error;
   }
 
-  return data || null;
+  return data ? attachAuthoritativeStudentMonth(data) : null;
 }
 
 async function fetchLessonsByPlannedId(plannedLessonId) {
@@ -214,7 +214,7 @@ async function fetchLessonsByPlannedId(plannedLessonId) {
     throw error;
   }
 
-  return data || [];
+  return Promise.all((data || []).map(attachAuthoritativeStudentMonth));
 }
 
 function dedupeLessonChain(rows) {
@@ -237,7 +237,7 @@ async function fetchSettlementReferences(lesson) {
     .from("school_student_monthly_settlements")
     .select(SETTLEMENT_COLUMNS)
     .eq("student_id", lesson.student_id)
-    .eq("year_month", lesson.year_month)
+    .eq("year_month", lesson.authoritative_student_month)
     .eq("business_entity_id", lesson.business_entity_id)
     .order("locked_at", { ascending: false })
     .order("created_at", { ascending: false });
@@ -247,6 +247,20 @@ async function fetchSettlementReferences(lesson) {
   }
 
   return data || [];
+}
+
+async function attachAuthoritativeStudentMonth(lesson) {
+  const { data, error } = await supabase.rpc(
+    "school_resolve_lesson_student_month_authoritative",
+    { p_lesson_id: lesson.id }
+  );
+  if (error) {
+    throw error;
+  }
+  return {
+    ...lesson,
+    authoritative_student_month: String(data || ""),
+  };
 }
 
 async function fetchWageReferences(lessonId) {

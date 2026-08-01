@@ -1,7 +1,7 @@
-import { updateLessonRecordGuarded } from "../api/lesson-api.js";
+import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=r2-f-f2-b-year-month-closure";
 import { formatMonth, safeText } from "../utils/format.js";
-import { buildActualOverageDisplay } from "../utils/actual-overage.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
+import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=r2-f-f2-b-year-month-closure";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=r2-f-f2-b-year-month-closure";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",
@@ -394,7 +394,12 @@ export function createLessonEditDialogController(options) {
       [lesson.lesson_type === "actual" ? "实际发生日期" : "预计上课日期", safeText(lesson.lesson_date)],
       ["学生", selectedOptionText(dom.studentSelect)],
       ["老师", selectedOptionText(dom.teacherSelect)],
-      ["学生结算月（DB 权威）", formatMonth(lesson.year_month)],
+      [lesson.lesson_type === "planned" ? "收费归属月" : "学生结算月",
+        formatMonth(authoritativeStudentMonth(lesson))],
+      ...(lesson.lesson_type === "planned" ? [[
+        "收费自然周",
+        formatBillingWeekRange(lesson.billing_week_start_date),
+      ]] : []),
       ["老师工资月", formatMonth(lesson.teacher_settlement_month)],
     ];
     if (overage) {
@@ -910,6 +915,27 @@ function displayImportSource(lesson) {
 
 function displayValue(value) {
   return safeText(value) || "-";
+}
+
+function authoritativeStudentMonth(lesson) {
+  if (lesson?.lesson_type === "planned") {
+    return safeText(lesson.billing_month);
+  }
+  return safeText(lesson?.authoritative_student_month);
+}
+
+function formatBillingWeekRange(weekStart) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(safeText(weekStart))) {
+    return "-";
+  }
+  const start = new Date(`${weekStart}T00:00:00`);
+  if (Number.isNaN(start.getTime())) {
+    return "-";
+  }
+  const end = new Date(start.getTime());
+  end.setDate(end.getDate() + 6);
+  const endValue = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  return `${weekStart}至${endValue}`;
 }
 
 function shortId(value) {

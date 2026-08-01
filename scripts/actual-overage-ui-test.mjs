@@ -44,6 +44,7 @@ const canonicalActual = {
   lesson_date: "2026-08-03",
   year_month: "2026-07",
   student_settlement_month: "2026-07",
+  authoritative_student_month: "2026-07",
   teacher_settlement_month: "2026-08",
   duration_hours: 2.25,
   student_duration_overage_minutes: 15,

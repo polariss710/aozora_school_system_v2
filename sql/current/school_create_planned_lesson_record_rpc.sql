@@ -194,7 +194,13 @@ begin
     select 1
     from public.school_student_monthly_settlements s
     where s.student_id = p_student_id
-      and s.year_month = v_year_month
+      and s.year_month = (
+        select attribution.billing_month
+        from public.school_resolve_planned_billing_attribution(
+          p_lesson_date,
+          null
+        ) attribution
+      )
       and s.business_entity_id is not distinct from p_business_entity_id
       and s.settlement_status = 'locked'
   ) then

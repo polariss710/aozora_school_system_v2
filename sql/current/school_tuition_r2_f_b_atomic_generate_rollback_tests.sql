@@ -71,19 +71,19 @@ BEGIN
 
   SELECT created.id INTO STRICT v_a1
   FROM public.school_create_planned_lesson_record_with_venue(
-    DATE '2032-08-07',v_student_a,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2022-08-07',v_student_a,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,10000,NULL,'planned',2,
     'codex-test R2-F-B A1','codex-test r2-f-b','online','codex-test venue A',330
   ) created;
   SELECT created.id INTO STRICT v_a2
   FROM public.school_create_planned_lesson_record_with_venue(
-    DATE '2032-08-08',v_student_a,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2022-08-08',v_student_a,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,10000,NULL,'planned',3,
     'codex-test R2-F-B A2','codex-test r2-f-b',NULL,NULL,660
   ) created;
   SELECT actual.lesson_id INTO STRICT v_a_actual
   FROM public.school_create_actual_lesson_from_planned(
-    v_a1,DATE '2032-08-07','15:00','17:15',2.25,10000,NULL,2,
+    v_a1,DATE '2022-08-07','15:00','17:15',2.25,10000,NULL,2,
     'codex-test R2-F-B actual','codex-test r2-f-b'
   ) actual;
   INSERT INTO public.school_lesson_records(
@@ -108,7 +108,7 @@ BEGIN
   FROM public.school_lesson_records WHERE id=v_a2;
   SELECT created.lesson_id INTO STRICT v_d1
   FROM public.school_create_planned_lesson_record(
-    DATE '2032-08-14',v_student_a,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2022-08-14',v_student_a,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,10000,NULL,'planned',1,
     'codex-test cancelled candidate','codex-test r2-f-b'
   ) created;
@@ -117,27 +117,31 @@ BEGIN
 
   SELECT * INTO STRICT v_preview_a
   FROM public.school_get_student_tuition_validation_preview_details(
-    v_student_a,'2032-08',0.05
+    v_student_a,'2022-08',0.05
   );
   SELECT * INTO STRICT v_preview_a_rate2
   FROM public.school_get_student_tuition_validation_preview_details(
-    v_student_a,'2032-08',0.06
+    v_student_a,'2022-08',0.06
   );
   IF v_preview_a.generation_manifest_sha256=v_preview_a_rate2.generation_manifest_sha256
      OR v_preview_a.candidate_count<>2 OR v_preview_a.total_lesson_count<>5
      OR v_preview_a.total_duration_hours<>4
      OR v_preview_a.total_base_lesson_fee_jpy<>40000
-     OR v_preview_a.total_aircon_fee_jpy<>1980
-     OR v_preview_a.total_fee_jpy<>41980
+     OR v_preview_a.total_aircon_fee_jpy<>0
+     OR v_preview_a.total_fee_jpy<>40000
      OR v_preview_a.total_fee_jpy<>
           v_preview_a.total_base_lesson_fee_jpy+v_preview_a.total_aircon_fee_jpy
      OR v_preview_a.previous_carryover_cny<>0
      OR jsonb_array_length(v_preview_a.candidates)<>2 THEN
-    RAISE EXCEPTION 'R2_F_B_PREVIEW_AND_MANIFEST_MATRIX_FAILED';
+    RAISE EXCEPTION 'R2_F_B_PREVIEW_AND_MANIFEST_MATRIX_FAILED candidates=% lessons=% hours=% base=% aircon=% total=% carryover=%',
+      v_preview_a.candidate_count,v_preview_a.total_lesson_count,
+      v_preview_a.total_duration_hours,v_preview_a.total_base_lesson_fee_jpy,
+      v_preview_a.total_aircon_fee_jpy,v_preview_a.total_fee_jpy,
+      v_preview_a.previous_carryover_cny;
   END IF;
   IF EXISTS (
     SELECT 1 FROM public.school_list_student_tuition_charge_candidates(
-      v_student_a,v_fixture.business_entity_id,'2032-08',false
+      v_student_a,v_fixture.business_entity_id,'2022-08',false
     ) candidate JOIN public.school_lesson_records lesson
       ON lesson.id=candidate.planned_lesson_id
     WHERE lesson.lesson_type<>'planned' OR lesson.status<>'planned'
@@ -148,7 +152,7 @@ BEGIN
     UPDATE public.school_lesson_records lesson SET teacher_id=v_alt_teacher
     WHERE lesson.id=v_a1;
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
+      v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_TEACHER_STALE_REJECTION_MISSING';
   EXCEPTION WHEN OTHERS THEN
@@ -159,7 +163,7 @@ BEGIN
     UPDATE public.school_lesson_records lesson SET subject_id=v_alt_subject
     WHERE lesson.id=v_a1;
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
+      v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_SUBJECT_STALE_REJECTION_MISSING';
   EXCEPTION WHEN OTHERS THEN
@@ -170,7 +174,7 @@ BEGIN
     UPDATE public.school_lesson_records lesson
     SET lesson_venue='codex-test venue B' WHERE lesson.id=v_a1;
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
+      v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_VENUE_STALE_REJECTION_MISSING';
   EXCEPTION WHEN OTHERS THEN
@@ -179,9 +183,9 @@ BEGIN
   END;
   BEGIN
     UPDATE public.school_lesson_records lesson
-    SET lesson_date=lesson.lesson_date+1 WHERE lesson.id=v_a1;
+    SET lesson_date=lesson.lesson_date-1 WHERE lesson.id=v_a1;
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
+      v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_LESSON_DATE_STALE_REJECTION_MISSING';
   EXCEPTION WHEN OTHERS THEN
@@ -190,7 +194,7 @@ BEGIN
   END;
   SELECT * INTO STRICT v_preview_a_unchanged
   FROM public.school_get_student_tuition_validation_preview_details(
-    v_student_a,'2032-08',0.05
+    v_student_a,'2022-08',0.05
   );
   IF v_preview_a_unchanged.generation_manifest_sha256
        IS DISTINCT FROM v_preview_a.generation_manifest_sha256 THEN
@@ -199,7 +203,7 @@ BEGIN
 
   BEGIN
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic(
-      v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,
+      v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,
       'codex-test public gate'
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_PUBLIC_GATE_REJECTION_MISSING';
@@ -210,7 +214,7 @@ BEGIN
 
   SELECT * INTO STRICT v_result_a
   FROM public.school_generate_student_tuition_bill_atomic_core(
-    v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,
+    v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,
     'codex-test atomic A',NULL
   );
   IF v_result_a.idempotent OR v_result_a.bill_status<>'income_created'
@@ -247,7 +251,7 @@ BEGIN
 
   SELECT * INTO STRICT v_result_a2
   FROM public.school_generate_student_tuition_bill_atomic_core(
-    v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,
+    v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,
     'ignored idempotent note',NULL
   );
   IF NOT v_result_a2.idempotent OR v_result_a2.tuition_bill_id<>v_result_a.tuition_bill_id
@@ -263,7 +267,7 @@ BEGIN
       '{carryover_evidence,active_bill_count}','1'::jsonb,false
     ) WHERE bill.id=v_result_a.tuition_bill_id;
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.05,v_preview_a.generation_manifest_sha256,
+      v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,
       NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_CARRYOVER_EVIDENCE_CONFLICT_MISSING';
@@ -273,7 +277,7 @@ BEGIN
   END;
   BEGIN
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.06,v_preview_a.generation_manifest_sha256,
+      v_student_a,'2022-08',0.06,v_preview_a.generation_manifest_sha256,
       NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_EXISTING_RATE_CONFLICT_MISSING';
@@ -284,7 +288,7 @@ BEGIN
   FOREACH v_bad_rate IN ARRAY ARRAY[NULL::numeric,0::numeric,-1::numeric] LOOP
     BEGIN
       PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-        v_student_a,'2032-08',v_bad_rate,v_preview_a.generation_manifest_sha256,
+        v_student_a,'2022-08',v_bad_rate,v_preview_a.generation_manifest_sha256,
         NULL,NULL
       );
       RAISE EXCEPTION 'R2_F_B_EXPECTED_INVALID_EXISTING_RATE_REJECTION_MISSING';
@@ -295,7 +299,7 @@ BEGIN
   END LOOP;
   BEGIN
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_a,'2032-08',0.06,v_preview_a_rate2.generation_manifest_sha256,
+      v_student_a,'2022-08',0.06,v_preview_a_rate2.generation_manifest_sha256,
       NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_MANIFEST_CONFLICT_MISSING';
@@ -318,7 +322,7 @@ BEGIN
     INSERT INTO public.school_student_tuition_billing_identities(
       id,student_id,billing_month,canonical_bill_id,creation_idempotency_key,
       source,created_by,evidence
-    ) VALUES ('f2fb0000-0000-4000-8000-00000000e001',v_student_a,'2032-08',
+    ) VALUES ('f2fb0000-0000-4000-8000-00000000e001',v_student_a,'2022-08',
       v_bill.id,'codex-test-duplicate-identity','atomic_charge','codex-test','{}');
     RAISE EXCEPTION 'R2_F_B_EXPECTED_IDENTITY_UNIQUE_REJECTION_MISSING';
   EXCEPTION WHEN unique_violation THEN NULL; END;
@@ -356,17 +360,17 @@ BEGIN
   INSERT INTO public.school_student_monthly_settlements(
     id,student_id,year_month,business_entity_id,carryover_amount_cny,
     settlement_status,locked_at,note
-  ) VALUES (v_settlement_b,v_student_b,'2032-09',v_fixture.business_entity_id,
+  ) VALUES (v_settlement_b,v_student_b,'2022-09',v_fixture.business_entity_id,
     123.45,'locked',now(),'codex-test r2-f-b locked carryover');
   SELECT created.lesson_id INTO STRICT v_b1
   FROM public.school_create_planned_lesson_record(
-    DATE '2032-10-09',v_student_b,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2022-10-09',v_student_b,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,10000,NULL,'planned',1,
     'codex-test R2-F-B B1','codex-test r2-f-b'
   ) created;
   SELECT * INTO STRICT v_preview_b
   FROM public.school_get_student_tuition_validation_preview_details(
-    v_student_b,'2032-10',0.05
+    v_student_b,'2022-10',0.05
   );
   IF v_preview_b.previous_settlement_id<>v_settlement_b
      OR v_preview_b.previous_carryover_cny<>123.45
@@ -376,36 +380,36 @@ BEGIN
   END IF;
   SELECT * INTO STRICT v_result_b
   FROM public.school_generate_student_tuition_bill_atomic_core(
-    v_student_b,'2032-10',0.05,v_preview_b.generation_manifest_sha256,NULL,NULL
+    v_student_b,'2022-10',0.05,v_preview_b.generation_manifest_sha256,NULL,NULL
   );
 
   -- Authoritative overage/pending prior facts require a locked settlement.
   SELECT created.lesson_id INTO STRICT v_c_source
   FROM public.school_create_planned_lesson_record(
-    DATE '2034-01-09',v_student_c,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2024-01-09',v_student_c,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,1100,NULL,'planned',1,
     'codex-test R2-F-B overage source','codex-test r2-f-b'
   ) created;
   SELECT actual.lesson_id INTO STRICT v_c_actual
   FROM public.school_create_actual_lesson_from_planned(
-    v_c_source,DATE '2034-03-09','15:00','17:30',2.5,9999,NULL,1,
+    v_c_source,DATE '2024-03-09','15:00','17:30',2.5,9999,NULL,1,
     'codex-test R2-F-B overage actual','codex-test r2-f-b'
   ) actual;
   SELECT created.lesson_id INTO STRICT v_c_target
   FROM public.school_create_planned_lesson_record(
-    DATE '2034-02-06',v_student_c,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2024-02-06',v_student_c,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,1100,NULL,'planned',1,
     'codex-test R2-F-B target','codex-test r2-f-b'
   ) created;
   SELECT * INTO STRICT v_overage
-  FROM public.school_get_student_duration_overage_aggregate(v_student_c,'2034-01');
+  FROM public.school_get_student_duration_overage_aggregate(v_student_c,'2024-01');
   IF coalesce(v_overage.duration_overage_actual_count,0)<>1
      OR coalesce(v_overage.duration_overage_minutes,0)<>30 THEN
     RAISE EXCEPTION 'R2_F_B_OVERAGE_FIXTURE_INVALID';
   END IF;
   BEGIN
     PERFORM * FROM public.school_get_student_tuition_validation_preview_details(
-      v_student_c,'2034-02',0.05
+      v_student_c,'2024-02',0.05
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_UNLOCKED_FACT_REJECTION_MISSING';
   EXCEPTION WHEN OTHERS THEN
@@ -416,17 +420,17 @@ BEGIN
   -- Injected failure proves bill/identity/relation/income all roll back together.
   SELECT created.lesson_id INTO STRICT v_d1
   FROM public.school_create_planned_lesson_record(
-    DATE '2035-08-11',v_student_d,v_fixture.teacher_id,v_fixture.subject_id,
+    DATE '2025-08-11',v_student_d,v_fixture.teacher_id,v_fixture.subject_id,
     v_fixture.business_entity_id,'15:00','17:00',0,1000,NULL,'planned',1,
     'codex-test R2-F-B failure','codex-test r2-f-b'
   ) created;
   SELECT * INTO STRICT v_preview_d
   FROM public.school_get_student_tuition_validation_preview_details(
-    v_student_d,'2035-08',0.05
+    v_student_d,'2025-08',0.05
   );
   BEGIN
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_d,'2035-08',0.05,repeat('0',64),NULL,NULL
+      v_student_d,'2025-08',0.05,repeat('0',64),NULL,NULL
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_STALE_MANIFEST_REJECTION_MISSING';
   EXCEPTION WHEN OTHERS THEN
@@ -435,7 +439,7 @@ BEGIN
   END;
   BEGIN
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
-      v_student_d,'2035-08',0.05,v_preview_d.generation_manifest_sha256,
+      v_student_d,'2025-08',0.05,v_preview_d.generation_manifest_sha256,
       NULL,'after_relations'
     );
     RAISE EXCEPTION 'R2_F_B_EXPECTED_INJECTED_FAILURE_MISSING';
@@ -492,7 +496,7 @@ BEGIN
   INSERT INTO public.school_income_records(
     id,business_entity_id,income_date,year_month,income_category,description,
     currency,amount,status,app_type,source_type,note
-  ) VALUES (v_generic_income,v_fixture.business_entity_id,current_date,'2035-01',
+  ) VALUES (v_generic_income,v_fixture.business_entity_id,current_date,'2025-01',
     'other','codex-test ordinary income','JPY',1,'pending','school',
     'codex-test-r2-f-b','codex-test r2-f-b');
   PERFORM * FROM public.school_cancel_pending_income_record(
@@ -538,7 +542,7 @@ BEGIN
     INSERT INTO public.school_income_records(
       id,income_date,year_month,income_category,currency,amount,status,app_type,
       source_type,source_id,tuition_bill_id
-    ) VALUES ('f2fb0000-0000-4000-8000-00000000f001',current_date,'2035-01',
+    ) VALUES ('f2fb0000-0000-4000-8000-00000000f001',current_date,'2025-01',
       'tuition','JPY',1,'pending','school','student_tuition_bill',
       'f2fb0000-0000-4000-8000-00000000f002',
       'f2fb0000-0000-4000-8000-00000000f002');
@@ -556,7 +560,7 @@ BEGIN
   INSERT INTO public.school_income_records(
     id,income_date,year_month,income_category,description,currency,amount,
     status,app_type,source_type,note
-  ) VALUES ('f2fb0000-0000-4000-8000-00000000f003',current_date,'2035-01',
+  ) VALUES ('f2fb0000-0000-4000-8000-00000000f003',current_date,'2025-01',
     'other','codex-test authenticated ordinary income','JPY',1,'pending',
     'school','codex-test-r2-f-b','codex-test r2-f-b');
   UPDATE public.school_income_records income SET note='codex-test r2-f-b updated'

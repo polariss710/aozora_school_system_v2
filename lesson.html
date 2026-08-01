@@ -88,7 +88,7 @@
 
           <form id="lessonFilterForm" class="filter-grid">
             <label class="field month-select-field">
-              <span>学生结算月</span>
+              <span>收费 / 学生结算月</span>
               <div class="month-select-group">
                 <select id="lessonYearFilter" name="year" aria-label="年份"></select>
                 <select id="lessonMonthFilter" name="month" aria-label="月份"></select>
@@ -96,7 +96,7 @@
             </label>
 
             <label class="field">
-              <span>自然周（按周一归属学生结算月）</span>
+              <span>自然周（planned按收费周周一归属月份）</span>
               <select id="lessonWeekFilter" name="weekStart">
                 <option value="">整月</option>
               </select>
@@ -210,7 +210,7 @@
           <div class="section-heading section-heading-row lesson-list-heading">
             <div>
               <h2 id="lessonListTitle">课时记录</h2>
-              <p class="section-note">月份按数据库学生结算月筛选；自然周归属周一所在月份。实际发生日期单独显示，不改变学生结算月。</p>
+              <p class="section-note">planned按DB收费月/收费周筛选；actual按DB权威学生结算月筛选。预计或实际日期单独显示，不反推收费归属。</p>
             </div>
             <div class="lesson-list-tools">
               <div class="view-toggle" role="group" aria-label="课时视图">
@@ -251,7 +251,7 @@
                   <th>学生收费构成</th>
                   <th>内容</th>
                   <th>备注</th>
-                  <th>学生结算月</th>
+                  <th>收费归属 / 学生结算月</th>
                   <th>老师工资月</th>
                   <th>超出时长</th>
                   <th>冻结超额金额</th>
@@ -1129,6 +1129,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=r2-f-f1-aircon-recalculation"></script>
+    <script type="module" src="./js/lesson-app.js?v=r2-f-f2-b-year-month-closure"></script>
   </body>
 </html>

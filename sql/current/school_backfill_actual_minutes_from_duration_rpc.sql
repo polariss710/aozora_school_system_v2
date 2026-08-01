@@ -99,7 +99,8 @@ begin
     select 1
     from public.school_student_monthly_settlements s
     where s.student_id = c.student_id
-      and s.year_month = c.year_month
+      and s.year_month =
+        public.school_resolve_r1d_e_c_lesson_student_month(c.id)
       and s.settlement_status = 'locked'
   );
 

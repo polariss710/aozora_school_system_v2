@@ -21,9 +21,9 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js";
+} from "../api/lesson-api.js?v=r2-f-f2-b-year-month-closure";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-e1-lesson-generation-closure";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-f2-b-year-month-closure";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=r2-f-e1-lesson-generation-closure";
 import {
   currentYearMonth,
@@ -33,24 +33,25 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=r2-f-f2-b-year-month-closure";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
-} from "../utils/planned-aircon-display.js?v=r2-f-f1-aircon-recalculation";
+  plannedAirconPolicyLabel,
+} from "../utils/planned-aircon-display.js?v=r2-f-f2-b-year-month-closure";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
   hasFrozenActualOverage,
   validateActualDurationForFlow,
-} from "../utils/actual-overage.js";
+} from "../utils/actual-overage.js?v=r2-f-f2-b-year-month-closure";
 import {
   createLatestRequestGate,
   listStudentSettlementMonthWeeks,
   normalizeStudentSettlementWeekStart,
   validateAuthoritativeLessonRecords,
   validateUniqueLessonRecordIds,
-} from "../utils/lesson-settlement-filter.js";
+} from "../utils/lesson-settlement-filter.js?v=r2-f-f2-b-year-month-closure";
 import {
   defaultNewBusinessEntityId,
   isNewBusinessEntityId,
@@ -1750,8 +1751,7 @@ function readCreatePlannedLessonPayload() {
 }
 
 async function refreshAfterCreatePlannedLesson(createdLesson, previousFilters = null) {
-  const createdMonth = createdLesson.year_month || safeText(createdLesson.lesson_date).slice(0, 7);
-  await refreshLessonMonthPreservingFilters(createdMonth || currentYearMonth(), previousFilters);
+  await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
 }
 
 function setCreatePlannedLessonSubmitting(isSubmitting) {
@@ -1944,7 +1944,8 @@ function renderCreateActualLessonSummary(plannedLesson) {
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["预计上课日期", formatDateOnly(plannedLesson.lesson_date)],
-    ["学生结算月（DB 权威）", formatMonth(plannedLesson.year_month)],
+    ["收费归属月", formatMonth(authoritativeStudentMonth(plannedLesson))],
+    ["收费自然周", formatBillingWeekRange(plannedLesson.billing_week_start_date)],
     ["计划时长", `${displayValue(plannedLesson.duration_hours)} 小时`],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
@@ -2066,26 +2067,14 @@ async function refreshAfterCreateActualLesson(_createdLesson, previousFilters = 
 }
 
 async function refreshAfterVoidLesson(result, sourceLesson) {
-  const targetMonth = result?.year_month || sourceLesson?.year_month || loadedMonth || currentYearMonth();
-  if (targetMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, targetMonth);
-  }
-
-  const filters = readFilters() || { status: "" };
-  await loadLessonMonth(targetMonth, filters);
-  applyCurrentFilters();
+  const filters = readFilters() || { month: loadedMonth, status: "" };
+  await refreshLessonMonthPreservingFilters(filters.month, filters);
   showMessage("success", `预定课时已误录作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
 
 async function refreshAfterDeleteLesson(result, sourceLesson) {
-  const targetMonth = result?.year_month || sourceLesson?.year_month || loadedMonth || currentYearMonth();
-  if (targetMonth) {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, targetMonth);
-  }
-
-  const filters = readFilters() || { status: "" };
-  await loadLessonMonth(targetMonth, filters);
-  applyCurrentFilters();
+  const filters = readFilters() || { month: loadedMonth, status: "" };
+  await refreshLessonMonthPreservingFilters(filters.month, filters);
   showMessage("success", `预定课时已删除：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
 
@@ -2260,7 +2249,8 @@ function renderCreateCancelledActualLessonSummary(plannedLesson) {
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
-    ["学生结算月", formatMonth(plannedLesson.year_month)],
+    ["收费归属月", formatMonth(authoritativeStudentMonth(plannedLesson))],
+    ["收费自然周", formatBillingWeekRange(plannedLesson.billing_week_start_date)],
     ["取消课口径", "不计费 / 课时费 0 / 实际分钟 0"],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
@@ -2526,7 +2516,8 @@ function renderCreateMakeupActualLessonSummary(plannedLesson) {
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
     ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
-    ["学生结算月", formatMonth(plannedLesson.year_month)],
+    ["收费归属月", formatMonth(authoritativeStudentMonth(plannedLesson))],
+    ["收费自然周", formatBillingWeekRange(plannedLesson.billing_week_start_date)],
     ["补课完成口径", "不新增学生学费；工资按本次老师、科目、日期和时长结算"],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
@@ -2865,7 +2856,7 @@ function renderCrossMonthMakeupSourceOptions() {
   const options = ['<option value="">请选择待补课来源</option>'];
   for (const lesson of crossMonthMakeupSourceLessons) {
     const label = [
-      lesson.year_month,
+      lesson.authoritative_student_month,
       formatDateOnly(lesson.lesson_date),
       formatTimeRange(lesson.start_time, lesson.end_time),
       nameById(students, lesson.student_id, studentName),
@@ -2924,7 +2915,7 @@ function renderCreateCrossMonthMakeupActualSummary() {
   const source = currentCrossMonthMakeupSourceLesson;
   dom.createCrossMonthMakeupActualSourceSummary.classList.toggle("is-hidden", !source);
   dom.createCrossMonthMakeupActualSourceSummary.innerHTML = source ? [
-    ["来源月份", formatMonth(source.year_month)],
+    ["来源收费归属月", formatMonth(source.authoritative_student_month)],
     ["来源日期", formatDateOnly(source.lesson_date)],
     ["来源剩余时长", `${displayInputNumber(source.remaining_hours)} 小时`],
     ["学生", nameById(students, source.student_id, studentName)],
@@ -2996,7 +2987,9 @@ function readCreateCrossMonthMakeupActualPayload() {
   if (source && fixedOnsiteVenueMigrationReason(source)) invalidFields.push("sourceLesson");
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
-  if (source?.year_month && targetMonth && source.year_month > targetMonth) invalidFields.push("sourceLesson");
+  if (source?.authoritative_student_month
+      && targetMonth
+      && source.authoritative_student_month > targetMonth) invalidFields.push("sourceLesson");
   if (!teacherId) invalidFields.push("teacher");
   if (!subjectId) invalidFields.push("subject");
   if (!startTime || !isTimeValue(startTime)) invalidFields.push("startTime");
@@ -3935,6 +3928,14 @@ async function handleLessonImportPlannedSubmit() {
     }
 
     lastLessonImportResult = buildLessonImportResultSummary(results, importPreviewRows);
+    const importedAuthority = await fetchLessonImportPlannedReferences(
+      lastLessonImportResult.createdLessonIds
+    );
+    lastLessonImportResult.authoritativeMonths = [...new Set(
+      importedAuthority.plannedLessons
+        .map((lesson) => lesson.authoritative_student_month)
+        .filter(Boolean)
+    )].sort();
     successfulLessonImportFileHashes.add(importPreviewFileMeta.hash);
     renderLessonImportPreview();
 
@@ -3942,8 +3943,8 @@ async function handleLessonImportPlannedSubmit() {
       await loadLessonMonth(loadedMonth, readFilters() || { status: "" });
       applyCurrentFilters();
     }
-    const monthText = formatLessonImportMonthRange(lastLessonImportResult.months);
-    showMessage("success", `已导入预定课时 ${lastLessonImportResult.successCount} 行${monthText ? `（${monthText}）` : ""}。`);
+    const monthText = formatLessonImportMonthRange(lastLessonImportResult.authoritativeMonths);
+    showMessage("success", `已导入预定课时 ${lastLessonImportResult.successCount} 行${monthText ? `（收费归属月 ${monthText}）` : ""}。`);
   } catch (error) {
     showLessonImportPreviewError(formatLessonImportSubmitError(error));
   } finally {
@@ -3952,7 +3953,7 @@ async function handleLessonImportPlannedSubmit() {
 }
 
 async function handleLessonImportViewMonthClick() {
-  const months = lastLessonImportResult?.months || [];
+  const months = lastLessonImportResult?.authoritativeMonths || [];
   if (months.length !== 1) {
     return;
   }
@@ -3970,7 +3971,7 @@ function handleLessonImportViewFirstDetailClick() {
 
   window.location.href = createLessonDetailUrl(
     firstLessonId,
-    lastLessonImportResult.months?.[0] || loadedMonth,
+    lastLessonImportResult.authoritativeMonths?.[0] || loadedMonth,
     activeView
   );
 }
@@ -4799,7 +4800,7 @@ function buildLessonImportResultSummary(results, rows) {
   const successfulRowIndexes = new Set(successfulResults
     .map((row) => Number(row.row_index))
     .filter(Number.isFinite));
-  const months = [...new Set(rows
+  const occurrenceMonths = [...new Set(rows
     .map((row, index) => (successfulRowIndexes.has(index + 1) ? lessonImportYearMonth(row.values.lessonDate) : ""))
     .filter(Boolean))]
     .sort();
@@ -4809,7 +4810,7 @@ function buildLessonImportResultSummary(results, rows) {
 
   return {
     successCount: successfulRowIndexes.size,
-    months,
+    occurrenceMonths,
     createdLessonIds,
   };
 }
@@ -5203,7 +5204,7 @@ async function addLessonImportPlannedIdPrecheck(rows) {
   const studentSettlementTargets = precheckableRows
     .map(({ plannedLesson }) => ({
       studentId: plannedLesson.student_id,
-      yearMonth: plannedLesson.year_month,
+      yearMonth: plannedLesson.authoritative_student_month,
       businessEntityId: plannedLesson.business_entity_id,
     }))
     .filter((target) => target.studentId && target.yearMonth);
@@ -5233,11 +5234,11 @@ async function addLessonImportPlannedIdPrecheck(rows) {
   for (const { row, plannedLesson } of precheckableRows) {
     const settlementKey = lessonImportSettlementKey({
       studentId: plannedLesson.student_id,
-      yearMonth: plannedLesson.year_month,
+      yearMonth: plannedLesson.authoritative_student_month,
       businessEntityId: plannedLesson.business_entity_id,
     });
     if (lockedSettlementKeys.has(settlementKey)) {
-      addLessonImportPreviewIssue(row, "error", "plannedId", `关联预定涉及已锁定学生结算月 ${plannedLesson.year_month}，后续写入会被拒绝。`);
+      addLessonImportPreviewIssue(row, "error", "plannedId", `关联预定涉及已锁定收费归属月 ${plannedLesson.authoritative_student_month}，后续写入会被拒绝。`);
     }
 
     const teacherSettlementMonth = lessonImportYearMonth(row.values.lessonDate || plannedLesson.lesson_date);
@@ -5811,10 +5812,10 @@ function renderLessonImportPreview() {
     dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
   }
   if (dom.lessonImportViewMonthButton) {
-    const canViewImportMonth = !isLessonImportSubmitting && lastLessonImportResult?.months?.length === 1;
+    const canViewImportMonth = !isLessonImportSubmitting && lastLessonImportResult?.authoritativeMonths?.length === 1;
     dom.lessonImportViewMonthButton.classList.toggle("is-hidden", !canViewImportMonth);
     dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
-    dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看 ${lastLessonImportResult.months[0]}` : "查看导入月份";
+    dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看收费归属月 ${lastLessonImportResult.authoritativeMonths[0]}` : "查看收费归属月";
   }
   if (dom.lessonImportViewFirstDetailButton) {
     const canViewFirstDetail = !isLessonImportSubmitting && Boolean(lastLessonImportResult?.createdLessonIds?.[0]);
@@ -5832,7 +5833,7 @@ function renderLessonImportPreview() {
     if (lastLessonImportResult) {
       summaryRows.push(
         renderDialogSummaryRow("成功导入", `${lastLessonImportResult.successCount} 行`),
-        renderDialogSummaryRow("导入月份", formatLessonImportMonthRange(lastLessonImportResult.months) || "-"),
+        renderDialogSummaryRow("预计上课日期月份", formatLessonImportMonthRange(lastLessonImportResult.occurrenceMonths) || "-"),
         renderDialogSummaryRow("导入记录", renderLessonImportResultLinks(lastLessonImportResult.createdLessonIds), true)
       );
     }
@@ -5887,7 +5888,7 @@ function renderLessonImportPreviewIssues(row) {
 
   if (!issues.length) {
     if (row.importResult?.createdLessonId) {
-      const href = createLessonDetailUrl(row.importResult.createdLessonId, lessonImportYearMonth(row.values.lessonDate), activeView);
+      const href = createLessonDetailUrl(row.importResult.createdLessonId, loadedMonth, activeView);
       return `<a class="table-action-button" href="${escapeAttribute(href)}">已导入 ${escapeHtml(shortId(row.importResult.createdLessonId))}</a>`;
     }
     return '<span class="status-badge status-paid">OK</span>';
@@ -5909,7 +5910,7 @@ function renderLessonImportResultLinks(createdLessonIds = []) {
   }
 
   const links = ids.slice(0, 3).map((lessonId, index) => {
-    const href = createLessonDetailUrl(lessonId, lastLessonImportResult?.months?.[0] || loadedMonth, activeView);
+    const href = createLessonDetailUrl(lessonId, loadedMonth, activeView);
     return `<a class="table-action-button" href="${escapeAttribute(href)}">${index === 0 ? "首条详情" : shortId(lessonId)}</a>`;
   });
   if (ids.length > links.length) {
@@ -6024,10 +6025,10 @@ function setLessonImportSubmitting(isSubmitting) {
     dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
   }
   if (dom.lessonImportViewMonthButton) {
-    const canViewImportMonth = !isSubmitting && lastLessonImportResult?.months?.length === 1;
+    const canViewImportMonth = !isSubmitting && lastLessonImportResult?.authoritativeMonths?.length === 1;
     dom.lessonImportViewMonthButton.classList.toggle("is-hidden", !canViewImportMonth);
     dom.lessonImportViewMonthButton.disabled = !canViewImportMonth;
-    dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看 ${lastLessonImportResult.months[0]}` : "查看导入月份";
+    dom.lessonImportViewMonthButton.textContent = canViewImportMonth ? `查看收费归属月 ${lastLessonImportResult.authoritativeMonths[0]}` : "查看收费归属月";
   }
   if (dom.lessonImportViewFirstDetailButton) {
     const canViewFirstDetail = !isSubmitting && Boolean(lastLessonImportResult?.createdLessonIds?.[0]);
@@ -6446,7 +6447,7 @@ function renderLessonRecords(records, options = {}) {
       <td class="lesson-note-cell">${renderPlannedChargeBreakdown(plannedChargeSource(record))}</td>
       <td class="lesson-content-cell">${escapeHtml(displayValue(record.lesson_content))}</td>
       <td class="lesson-note-cell">${escapeHtml(displayValue(record.note))}</td>
-      <td class="lesson-nowrap">${escapeHtml(formatMonth(record.year_month))}</td>
+      <td class="lesson-nowrap">${escapeHtml(formatMonth(authoritativeStudentMonth(record)))}</td>
       <td class="lesson-nowrap">${escapeHtml(formatMonth(record.teacher_settlement_month))}</td>
       <td class="number-cell">${escapeHtml(hasFrozenActualOverage(record) ? `${displayValue(record.student_duration_overage_minutes)} 分钟` : "-")}</td>
       <td class="number-cell">${escapeHtml(hasFrozenActualOverage(record) ? formatCurrency(record.student_duration_overage_fee_jpy, "JPY") : "-")}</td>
@@ -6577,9 +6578,9 @@ function renderCrossMonthMakeupCompletedReferenceCard(actual) {
     <article class="lesson-pair-card lesson-pair-card-makeup lesson-pair-card-reference">
       <div class="lesson-pair-card-header">
         <div>
-          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(actual.id, actual.year_month, "pair"))}">查看详情</a>
+          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(actual.id, loadedMonth, "pair"))}">查看详情</a>
         </div>
-        <span class="status-badge ${escapeAttribute(statusClass(actual.status))}">已于 ${escapeHtml(formatMonth(actual.year_month))} 完成</span>
+        <span class="status-badge ${escapeAttribute(statusClass(actual.status))}">已于 ${escapeHtml(formatMonth(authoritativeStudentMonth(actual)))} 完成</span>
       </div>
       <div class="lesson-pair-main">
         <strong>${escapeHtml(formatDateOnly(actual.lesson_date))}</strong>
@@ -6603,9 +6604,9 @@ function renderCrossMonthMakeupSourceReferenceCard(sourcePlanned) {
     <article class="lesson-pair-card lesson-pair-card-reference">
       <div class="lesson-pair-card-header">
         <div>
-          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(sourcePlanned.id, sourcePlanned.year_month, "pair"))}">查看详情</a>
+          <a class="button table-action-button" href="${escapeAttribute(createLessonDetailUrl(sourcePlanned.id, loadedMonth, "pair"))}">查看详情</a>
         </div>
-        <span class="status-badge ${escapeAttribute(statusClass(sourcePlanned.status))}">来源：${escapeHtml(formatMonth(sourcePlanned.year_month))} 待补课</span>
+        <span class="status-badge ${escapeAttribute(statusClass(sourcePlanned.status))}">来源：${escapeHtml(formatMonth(authoritativeStudentMonth(sourcePlanned)))} 待补课</span>
       </div>
       <div class="lesson-pair-main">
         <strong>${escapeHtml(formatDateOnly(sourcePlanned.lesson_date))}</strong>
@@ -6764,7 +6765,7 @@ function renderPlannedChargeBreakdown(record) {
     `计费小时 ${displayValue(record.aircon_billable_hours_snapshot)} 小时`,
     `空调 ${formatCurrency(record.aircon_fee_jpy, "JPY")}`,
     `总价 ${formatCurrency(record.lesson_total_fee_jpy, "JPY")}`,
-    `策略 ${displayValue(record.fee_calculation_version)}`,
+    `策略 ${plannedAirconPolicyLabel(record)}`,
   ].map((value) => `<div>${escapeHtml(value)}</div>`).join("");
 }
 
@@ -6786,7 +6787,7 @@ function renderPlannedChargeMeta(record, isSourcePlanned = false) {
     <div><dt>${prefix}空调计费小时</dt><dd>${escapeHtml(`${displayValue(record.aircon_billable_hours_snapshot)} 小时`)}</dd></div>
     <div><dt>${prefix}空调费</dt><dd>${escapeHtml(formatCurrency(record.aircon_fee_jpy, "JPY"))}</dd></div>
     <div><dt>${prefix}课程总价</dt><dd>${escapeHtml(formatCurrency(record.lesson_total_fee_jpy, "JPY"))}</dd></div>
-    <div><dt>${prefix}空调策略</dt><dd>${escapeHtml(displayValue(record.fee_calculation_version))}</dd></div>
+    <div><dt>${prefix}空调策略</dt><dd>${escapeHtml(plannedAirconPolicyLabel(record))}</dd></div>
   `;
 }
 
@@ -7093,6 +7094,27 @@ function billableLabel(value) {
   }
 
   return "-";
+}
+
+function authoritativeStudentMonth(record) {
+  if (record?.lesson_type === "planned") {
+    return safeText(record.billing_month);
+  }
+  return safeText(record?.authoritative_student_month);
+}
+
+function formatBillingWeekRange(weekStart) {
+  if (!isDateInputValue(weekStart)) {
+    return "-";
+  }
+  const start = new Date(`${weekStart}T00:00:00`);
+  if (Number.isNaN(start.getTime())) {
+    return "-";
+  }
+  const end = new Date(start.getTime());
+  end.setDate(end.getDate() + 6);
+  const endValue = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  return `${weekStart}至${endValue}`;
 }
 
 function formatDateOnly(value) {

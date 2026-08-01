@@ -183,7 +183,7 @@ export function createLessonVoidDialogController(options) {
       ["planned id", shortId(lesson.id)],
       ["当前状态", lessonStatusLabel(lesson.status)],
       ["课时日期", displayValue(lesson.lesson_date)],
-      ["学生结算月", formatMonth(lesson.year_month)],
+      ["收费归属月", formatMonth(lesson.authoritative_student_month)],
       ["版本", safeText(lesson.updated_at) ? "updated_at 已记录" : "缺少 updated_at"],
     ].map(([label, value]) => `
       <div class="dialog-summary-row">

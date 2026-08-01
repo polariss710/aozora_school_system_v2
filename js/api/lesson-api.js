@@ -46,6 +46,7 @@ const LESSON_COLUMNS = [
   "student_duration_overage_decided_at",
   "lesson_delivery_mode",
   "lesson_venue",
+  "lesson_venue_id",
   "voided_at",
   "void_reason",
   "created_at",
@@ -71,21 +72,10 @@ const IMPORT_PRECHECK_WAGE_LOCK_COLUMNS = [
 ].join(",");
 
 export async function fetchLessonRecords(yearMonth, options = {}) {
-  let query = supabase
-    .from("school_lesson_records")
-    .select(LESSON_COLUMNS)
-    .eq("app_type", "school")
-    .eq("year_month", yearMonth);
-
-  if (options.weekStart) {
-    const weekEnd = addDaysToDateValue(options.weekStart, 7);
-    if (!weekEnd) {
-      throw new Error("周筛选日期无效。");
-    }
-    query = query
-      .gte("lesson_date", options.weekStart)
-      .lt("lesson_date", weekEnd);
-  }
+  let query = supabase.rpc("school_list_lesson_management_records_authoritative", {
+    p_year_month: yearMonth,
+    p_week_start: options.weekStart || null,
+  });
 
   if (options.status === "voided") {
     query = query
@@ -105,7 +95,10 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
     throw error;
   }
 
-  return data || [];
+  return (data || []).map((record) => ({
+    ...record,
+    authoritative_student_month: yearMonth,
+  }));
 }
 
 export async function fetchLessonManagementStats(filters = {}) {
@@ -162,11 +155,11 @@ export async function fetchStudentLessonPdfExport({ studentId, yearMonth, mode }
 
 async function fetchStudentLessonPdfRows({ studentId, yearMonth, lessonType }) {
   let query = supabase
-    .from("school_lesson_records")
-    .select(LESSON_COLUMNS)
-    .eq("app_type", "school")
+    .rpc("school_list_lesson_management_records_authoritative", {
+      p_year_month: yearMonth,
+      p_week_start: null,
+    })
     .eq("student_id", studentId)
-    .eq("year_month", yearMonth)
     .eq("lesson_type", lessonType);
 
   if (lessonType === "planned") {
@@ -243,7 +236,10 @@ export async function fetchOpenMakeupSourceLessons({ fromMonth, toMonth, targetM
     throw error;
   }
 
-  return data || [];
+  return (data || []).map(({ year_month: authoritativeMonth, ...record }) => ({
+    ...record,
+    authoritative_student_month: authoritativeMonth,
+  }));
 }
 
 export async function fetchStudentLessonCreditBalances(studentId = null) {
@@ -300,12 +296,12 @@ export async function fetchCrossMonthMakeupReferences(yearMonth, records = []) {
   return {
     sourceMonthActuals: sourceMonthActuals.filter((row) => (
       row.status === "makeup_completed"
-      && row.year_month !== normalizedMonth
+      && row.authoritative_student_month !== normalizedMonth
     )),
     targetMonthSources: targetMonthSources.filter((row) => (
       row.lesson_type === "planned"
       && row.status === "pending_makeup"
-      && row.year_month !== normalizedMonth
+      && row.authoritative_student_month !== normalizedMonth
     )),
   };
 }
@@ -321,7 +317,7 @@ async function fetchLessonsByIds(ids) {
     throw error;
   }
 
-  return data || [];
+  return attachAuthoritativeStudentMonths(data || []);
 }
 
 async function fetchActualLessonsByPlannedIds(plannedIds) {
@@ -336,7 +332,25 @@ async function fetchActualLessonsByPlannedIds(plannedIds) {
     throw error;
   }
 
-  return data || [];
+  return attachAuthoritativeStudentMonths(data || []);
+}
+
+async function attachAuthoritativeStudentMonths(records) {
+  return Promise.all((records || []).map(async (record) => ({
+    ...record,
+    authoritative_student_month: await fetchAuthoritativeLessonStudentMonth(record.id),
+  })));
+}
+
+async function fetchAuthoritativeLessonStudentMonth(lessonId) {
+  const { data, error } = await supabase.rpc(
+    "school_resolve_lesson_student_month_authoritative",
+    { p_lesson_id: lessonId }
+  );
+  if (error) {
+    throw error;
+  }
+  return String(data || "");
 }
 
 async function fetchLockedStudentSettlements(targets) {
@@ -408,14 +422,6 @@ function uniqueTextList(values) {
 function normalizeYearMonth(value) {
   const text = String(value || "").trim();
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(text) ? text : "";
-}
-
-function addDaysToDateValue(value, days) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return "";
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return "";
-  date.setDate(date.getDate() + days);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
 function parseBillableFilter(value) {

@@ -1,16 +1,17 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchLessonDetailPage } from "../api/lesson-detail-api.js";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10.3.96-authoritative-overage-ui";
+import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=r2-f-f2-b-year-month-closure";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-f2-b-year-month-closure";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
-} from "../utils/planned-aircon-display.js?v=r2-f-f1-aircon-recalculation";
+  plannedAirconPolicyLabel,
+} from "../utils/planned-aircon-display.js?v=r2-f-f2-b-year-month-closure";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
-} from "../utils/actual-overage.js";
+} from "../utils/actual-overage.js?v=r2-f-f2-b-year-month-closure";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",
@@ -388,8 +389,9 @@ function renderLessonDetail(data) {
     ["状态", isVoidedPlanned(lesson) ? `${lessonStatusLabel(lesson.status)} / 已作废` : lessonStatusLabel(lesson.status)],
     ["作废时间", formatDate(lesson.voided_at)],
     [lesson.lesson_type === "actual" ? "实际发生日期" : "预计上课日期", formatDateOnly(lesson.lesson_date)],
-    ["学生结算月（DB 权威）", formatMonth(monthSemantics.studentSettlementMonth)],
-    [lesson.lesson_type === "planned" ? "计划课时账期（billing_month）" : "来源计划账期（billing_month）", formatMonth(lesson.billing_month)],
+    [lesson.lesson_type === "planned" ? "收费归属月" : "学生结算月", formatMonth(monthSemantics.studentSettlementMonth)],
+    [lesson.lesson_type === "planned" ? "收费自然周" : "来源收费自然周", formatBillingWeekRange(lesson.billing_week_start_date)],
+    ...(lesson.lesson_type === "actual" ? [["来源计划收费归属月", formatMonth(lesson.billing_month)]] : []),
     ["开始时间", formatTime(lesson.start_time)],
     ["结束时间", formatTime(lesson.end_time)],
     ["授课方式", lesson.lesson_delivery_mode === "onsite" ? "线下" : lesson.lesson_delivery_mode === "online" ? "线上" : "-"],
@@ -461,7 +463,7 @@ function plannedAirconDetailRows(planned, isSource = false) {
     [`${prefix}空调计费小时`, `${displayValue(planned.aircon_billable_hours_snapshot)} 小时`],
     [`${prefix}空调费`, formatCurrency(planned.aircon_fee_jpy, "JPY")],
     [`${prefix}课程总价`, formatCurrency(planned.lesson_total_fee_jpy, "JPY")],
-    [`${prefix}空调策略`, displayValue(planned.fee_calculation_version)],
+    [`${prefix}空调策略`, plannedAirconPolicyLabel(planned)],
     [`${prefix}决定时间`, formatDate(planned.aircon_calculated_at)],
   ];
 }
@@ -744,6 +746,20 @@ function formatDateOnly(value) {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+function formatBillingWeekRange(weekStart) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(safeText(weekStart))) {
+    return "-";
+  }
+  const start = new Date(`${weekStart}T00:00:00`);
+  if (Number.isNaN(start.getTime())) {
+    return "-";
+  }
+  const end = new Date(start.getTime());
+  end.setDate(end.getDate() + 6);
+  const endValue = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+  return `${weekStart}至${endValue}`;
 }
 
 function formatTime(value) {

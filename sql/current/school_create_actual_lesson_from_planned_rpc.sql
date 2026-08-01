@@ -252,7 +252,9 @@ begin
     select 1
     from public.school_student_monthly_settlements s
     where s.student_id = v_planned.student_id
-      and s.year_month = v_planned.year_month
+      and s.year_month = public.school_resolve_r1d_e_c_lesson_student_month(
+        v_planned.id
+      )
       and s.business_entity_id is not distinct from v_planned.business_entity_id
       and s.settlement_status = 'locked'
   ) then

@@ -152,11 +152,11 @@ async function fetchSettlement(settlementId) {
 
 async function fetchLessonReferences(settlement) {
   const { data, error } = await supabase
-    .from("school_lesson_records")
-    .select(LESSON_COLUMNS)
-    .eq("app_type", "school")
+    .rpc("school_list_lesson_management_records_authoritative", {
+      p_year_month: settlement.year_month,
+      p_week_start: null,
+    })
     .eq("student_id", settlement.student_id)
-    .eq("year_month", settlement.year_month)
     .eq("business_entity_id", settlement.business_entity_id)
     .order("lesson_date", { ascending: true })
     .order("start_time", { ascending: true })

@@ -326,7 +326,7 @@ BEGIN
       FROM public.school_student_tuition_billing_identities t)
      OR (SELECT count(*)<>17 OR md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY t.id::text),''))<>'1d7328654f6488952dba20640072c3e2'
       FROM public.school_student_monthly_settlements t)
-     OR (SELECT count(*)<>660 OR md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY t.id::text),''))<>'23c996ac9ce14153c590ce2a57f09be9'
+     OR (SELECT count(*)<>662 OR md5(coalesce(string_agg(md5(to_jsonb(t)::text),'' ORDER BY t.id::text),''))<>'afee1af53686091a9e2353734d2b7cd9'
       FROM public.school_lesson_records t) THEN
     RAISE EXCEPTION 'R2_F_F_ROLLBACK_HISTORY_FINGERPRINT_DRIFT';
   END IF;

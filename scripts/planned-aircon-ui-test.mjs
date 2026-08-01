@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
+  plannedAirconPolicyLabel,
 } from "../js/utils/planned-aircon-display.js";
 
 const lessonHtml = readFileSync(new URL("../lesson.html", import.meta.url), "utf8");
@@ -86,6 +87,20 @@ assert.equal(hasAuthoritativePlannedFeeBundle({
   lesson_total_fee_jpy: null,
 }), false, "incomplete future bundle does not masquerade as authoritative");
 assert.equal(plannedAirconConditionLabel(authoritativeBundle), "周末固定办公室计费");
+assert.equal(plannedAirconPolicyLabel({
+  ...authoritativeBundle,
+  fee_calculation_version: "planned_weekend_aircon_v1",
+}), "周末固定办公室计费");
+assert.equal(plannedAirconPolicyLabel({
+  ...authoritativeBundle,
+  fee_calculation_version: "planned_weekend_venue_whole_hour_aircon_v2",
+}), "周末固定办公室计费");
+assert.equal(plannedAirconPolicyLabel({
+  ...authoritativeBundle,
+  fee_calculation_version: "future_authoritative_aircon_v3",
+}), "按课时冻结规则计费");
+assert.doesNotMatch(lessonPage, /displayValue\(record\.fee_calculation_version\)/);
+assert.doesNotMatch(lessonDetailPage, /displayValue\(planned\.fee_calculation_version\)/);
 
 assert.match(incomeHtml, /基础课时费 JPY/);
 assert.match(incomeHtml, /空调费 JPY/);
@@ -104,6 +119,6 @@ assert.doesNotMatch(r2ffPolicy, /OLD\.fee_calculation_version IS NULL[\s\S]*?RET
 assert.match(r2ff1Correction, /CREATE OR REPLACE FUNCTION public\.school_enforce_r2_e_planned_aircon/);
 assert.doesNotMatch(r2ff1Correction, /OLD\.fee_calculation_version IS NULL[\s\S]*?RETURN NEW/);
 assert.match(r2ff1Correction, /NEW\.lesson_venue_id,NEW\.lesson_venue/);
-assert.match(lessonHtml, /r2-f-f1-aircon-recalculation/);
+assert.match(lessonHtml, /r2-f-f2-b-year-month-closure/);
 
 console.log("planned aircon UI/API boundary fixtures: PASS");

@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js";
+import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=r2-f-f2-b-year-month-closure";
 import {
   relockStudentMonthlySettlement,
   unlockStudentMonthlySettlement,

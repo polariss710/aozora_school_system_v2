@@ -13,7 +13,7 @@ import {
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js";
+} from "../api/wage-api.js?v=r2-f-f2-b-year-month-closure";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,

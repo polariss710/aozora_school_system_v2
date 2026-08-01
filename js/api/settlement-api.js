@@ -97,10 +97,11 @@ async function fetchStudentSettlementPreviewCandidates(yearMonth) {
 
 async function fetchLessonPreviewCandidates(yearMonth) {
   const { data, error } = await supabase
-    .from("school_lesson_records")
-    .select(PREVIEW_LESSON_COLUMNS)
-    .eq("app_type", "school")
-    .eq("year_month", yearMonth);
+    .rpc("school_list_lesson_management_records_authoritative", {
+      p_year_month: yearMonth,
+      p_week_start: null,
+    })
+    .select(PREVIEW_LESSON_COLUMNS);
 
   if (error) {
     throw error;

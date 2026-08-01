@@ -2,6 +2,9 @@ const LESSON_ERROR_CODE_MESSAGES = new Map([
   ["FUTURE_ACTUAL_COMPLETION_FORBIDDEN", "实际完成日期不能晚于东京当前业务日期。"],
   ["R2_E_E_BILLED_PLANNED_STATUS_TRANSITION_FORBIDDEN", "已收费课时不允许执行该状态变更。"],
   ["R2_F_E_BILLED_PLANNED_STATUS_TRANSITION_FORBIDDEN", "已收费课时不允许执行该状态变更。"],
+  ["PLANNED_DATE_OUTSIDE_BILLING_WEEK", "预计上课日期必须位于原收费自然周内。"],
+  ["PLANNED_BILLING_ATTRIBUTION_IMMUTABLE", "普通编辑不能修改课时的收费自然周或收费月份。"],
+  ["PLANNED_BILLING_ATTRIBUTION_REQUIRED", "该历史课时缺少收费归属，请先完成数据整理。"],
 ]);
 
 const SYSTEM_IDENTIFIER_PATTERN = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+){2,}\b/;

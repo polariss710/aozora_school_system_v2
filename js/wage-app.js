@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initWagePage } from "./pages/wage-page.js?v=v10.3.67-wage-business-scope";
+import { initWagePage } from "./pages/wage-page.js?v=r2-f-f2-b-year-month-closure";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const versionEl = document.querySelector("#appVersion");

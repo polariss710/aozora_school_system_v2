@@ -100,7 +100,9 @@ begin
     select 1
     from public.school_student_monthly_settlements s
     where s.student_id = v_lesson.student_id
-      and s.year_month = coalesce(v_lesson.year_month, to_char(v_lesson.lesson_date, 'YYYY-MM'))
+      and s.year_month = public.school_resolve_r1d_e_c_lesson_student_month(
+        v_lesson.id
+      )
       and s.business_entity_id is not distinct from v_lesson.business_entity_id
   ) then
     raise exception '该学生月份已存在月度结算记录，不能删除预定课时。';
@@ -111,7 +113,9 @@ begin
     from public.school_student_settlement_adjustment_drafts d
     where d.app_type = 'school'
       and d.student_id = v_lesson.student_id
-      and d.year_month = coalesce(v_lesson.year_month, to_char(v_lesson.lesson_date, 'YYYY-MM'))
+      and d.year_month = public.school_resolve_r1d_e_c_lesson_student_month(
+        v_lesson.id
+      )
       and d.business_entity_id is not distinct from v_lesson.business_entity_id
   ) then
     raise exception '该学生月份已存在月度结算调整草稿，不能删除预定课时。';
@@ -122,7 +126,9 @@ begin
     from public.school_student_settlement_adjustments a
     where a.app_type = 'school'
       and a.student_id = v_lesson.student_id
-      and a.year_month = coalesce(v_lesson.year_month, to_char(v_lesson.lesson_date, 'YYYY-MM'))
+      and a.year_month = public.school_resolve_r1d_e_c_lesson_student_month(
+        v_lesson.id
+      )
       and a.business_entity_id is not distinct from v_lesson.business_entity_id
   ) then
     raise exception '该学生月份已存在月度结算调整记录，不能删除预定课时。';

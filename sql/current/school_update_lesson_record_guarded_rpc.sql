@@ -196,7 +196,9 @@ begin
   end if;
 
   v_year_month := to_char(p_lesson_date, 'YYYY-MM');
-  v_old_year_month := coalesce(v_lesson.year_month, to_char(v_lesson.lesson_date, 'YYYY-MM'));
+  v_old_year_month := public.school_resolve_r1d_e_c_lesson_student_month(
+    v_lesson.id
+  );
 
   select s.business_entity_id
   into v_student_business_entity_id
@@ -259,7 +261,10 @@ begin
     select 1
     from public.school_student_monthly_settlements s
     where s.student_id = p_student_id
-      and s.year_month = v_year_month
+      and s.year_month = case
+        when v_lesson.lesson_type = 'planned' then v_old_year_month
+        else v_year_month
+      end
       and s.business_entity_id is not distinct from p_business_entity_id
       and s.settlement_status = 'locked'
   ) then

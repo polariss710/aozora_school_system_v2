@@ -65,6 +65,7 @@ const WAGE_CANDIDATE_LESSON_COLUMNS = [
   "start_time",
   "end_time",
   "teacher_settlement_month",
+  "student_settlement_month",
   "year_month",
   "teacher_id",
   "student_id",
@@ -135,7 +136,9 @@ export async function fetchWageCandidateLessons(month) {
     rowsById.set(row.id, row);
   }
 
-  const rows = Array.from(rowsById.values()).sort(sortCandidateLessons);
+  const rows = (await Promise.all(
+    Array.from(rowsById.values()).map(attachAuthoritativeStudentMonth)
+  )).sort(sortCandidateLessons);
   if (!rows.length) {
     return [];
   }
@@ -182,7 +185,9 @@ export async function fetchWageCandidateLessons(month) {
 
 async function fetchStudentSettlementInfoByCandidateKey(rows) {
   const studentIds = Array.from(new Set(rows.map((row) => row.student_id).filter(Boolean)));
-  const yearMonths = Array.from(new Set(rows.map((row) => row.year_month).filter(Boolean)));
+  const yearMonths = Array.from(new Set(
+    rows.map((row) => row.authoritative_student_month).filter(Boolean)
+  ));
   const resultByCandidateKey = new Map();
 
   if (!studentIds.length || !yearMonths.length) {
@@ -203,7 +208,10 @@ async function fetchStudentSettlementInfoByCandidateKey(rows) {
   const monthByKey = new Map();
   for (const row of data || []) {
     exactByKey.set(studentSettlementCandidateKey(row), row);
-    const monthKey = studentSettlementMonthKey(row.student_id, row.year_month);
+    const monthKey = studentSettlementMonthKey(
+      row.student_id,
+      row.authoritative_student_month
+    );
     if (!monthByKey.has(monthKey)) {
       monthByKey.set(monthKey, []);
     }
@@ -212,7 +220,10 @@ async function fetchStudentSettlementInfoByCandidateKey(rows) {
 
   for (const row of rows) {
     const exact = exactByKey.get(studentSettlementCandidateKey(row)) || null;
-    const monthSettlements = monthByKey.get(studentSettlementMonthKey(row.student_id, row.year_month)) || [];
+    const monthSettlements = monthByKey.get(studentSettlementMonthKey(
+      row.student_id,
+      row.authoritative_student_month
+    )) || [];
     const fallback = exact || monthSettlements[0] || null;
     resultByCandidateKey.set(studentSettlementCandidateKey(row), {
       studentSettlementId: exact?.id || "",
@@ -390,9 +401,23 @@ function teacherBusinessKey(teacherId, businessEntityId) {
 }
 
 function studentSettlementCandidateKey(row) {
-  return `${row.student_id || ""}::${row.year_month || ""}::${row.business_entity_id || ""}`;
+  return `${row.student_id || ""}::${row.authoritative_student_month || ""}::${row.business_entity_id || ""}`;
 }
 
 function studentSettlementMonthKey(studentId, yearMonth) {
   return `${studentId || ""}::${yearMonth || ""}`;
+}
+
+async function attachAuthoritativeStudentMonth(row) {
+  const { data, error } = await supabase.rpc(
+    "school_resolve_lesson_student_month_authoritative",
+    { p_lesson_id: row.id }
+  );
+  if (error) {
+    throw error;
+  }
+  return {
+    ...row,
+    authoritative_student_month: String(data || ""),
+  };
 }
