@@ -64,7 +64,7 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
         || lessonTotalFee <= 0) {
       throw new Error(`学费预览candidate数值无效：${plannedLessonId}`);
     }
-    if (!/^[0-9a-f]{64}$/.test(String(candidate.complete_row_hash || ""))
+    if (!/^[0-9a-f]{32}$/.test(String(candidate.complete_row_hash || ""))
         || !/^[0-9a-f]{64}$/.test(String(candidate.candidate_line_hash || ""))) {
       throw new Error(`学费预览candidate冻结证据无效：${plannedLessonId}`);
     }
@@ -167,7 +167,6 @@ export function mapAtomicTuitionGenerateError(error) {
     ["R2_F_B_STALE_GENERATION_MANIFEST", "课程或收费数据已变化，请重新生成预览。", true],
     ["R2_F_C_TUITION_SOURCE_BUSY", "课时或月结数据正在更新，请稍后重新预览并生成。", true],
     ["R2_F_B_IDEMPOTENCY_CONFLICT_OR_INCOMPLETE", "该学生月份已存在不一致的账单记录，请停止操作并检查。", false],
-    ["R2_F_B_PREVIOUS_SETTLEMENT_REQUIRED", "上月结算尚未锁定或仍有待处理项目，暂时不能生成本月账单。", false],
     ["R2_F_B_CANDIDATES_EMPTY", "该学生月份没有可收费的预定课时。", false],
   ];
   const matched = mappings.find(([code]) => rawMessage.includes(code));
@@ -179,6 +178,28 @@ export function mapAtomicTuitionGenerateError(error) {
     message: "学费应收生成失败，未写入成功状态。请检查网络或系统状态后重新预览。",
     clearPreview: false,
   };
+}
+
+export function mapTuitionValidationPreviewError(error) {
+  const rawMessage = String(error?.message || error || "");
+  const mappings = [
+    ["R2_F_B_STUDENT_REQUIRED", "请选择学生后再生成学费预览。"],
+    ["R2_F_B_STUDENT_NOT_FOUND", "当前学生资料不可用，请刷新页面后重试。"],
+    ["R2_F_B_STUDENT_INACTIVE", "当前学生不是有效在读状态，不能生成学费预览。"],
+    ["R2_F_B_BUSINESS_ENTITY_REQUIRED", "当前学生缺少业务归属，不能生成学费预览。"],
+    ["R2_F_B_BILLING_MONTH_INVALID", "学费月份无效，请重新选择。"],
+    ["R2_F_B_EXCHANGE_RATE_INVALID", "通知汇率必须大于零。"],
+    ["R2_F_B_TARGET_SETTLEMENT_LOCKED", "本月学生结算已经锁定，不能重新生成学费预览。"],
+    ["R2_F_B_MULTIPLE_PREVIOUS_LOCKED_SETTLEMENTS", "上月锁定结算数据不唯一，请停止操作并联系管理员核对。"],
+    ["R2_F_B_CANDIDATES_EMPTY", "该学生月份没有可收费的预定课时。"],
+    ["R2_F_B_DUPLICATE_CANDIDATE_UUID", "学费候选课时存在重复，请停止操作并联系管理员核对。"],
+    ["R2_F_B_CANDIDATE_CONTRACT_MISMATCH", "学费候选课时证据不一致，请停止操作并联系管理员核对。"],
+    ["R2_F_B_BILLING_AMOUNT_INVALID", "学费通知金额无效，请停止操作并联系管理员核对。"],
+  ];
+  const matched = mappings.find(([code]) => rawMessage.includes(code));
+  return matched
+    ? { code: matched[0], message: matched[1] }
+    : { code: "UNKNOWN", message: "学费预览生成失败，请刷新页面后重试；如仍失败请联系管理员核对。" };
 }
 
 export function formatAuthoritativeBillingWeek(weekStart) {

@@ -4607,6 +4607,13 @@ async function handleLessonBatchGenerateSubmit() {
     return;
   }
 
+  const filtersBeforeSubmit = readFilters();
+  const monthBeforeSubmit = filtersBeforeSubmit?.month || loadedMonth || "";
+  if (!filtersBeforeSubmit?.month || !monthBeforeSubmit) {
+    showLessonBatchGenerateError("当前课时筛选状态不可用，请关闭窗口、刷新页面后重试。");
+    return;
+  }
+
   setLessonBatchGenerateSubmitting(true);
   try {
     const results = await generatePlannedLessonRecordsBatch({
@@ -4654,12 +4661,18 @@ async function handleLessonBatchGenerateSubmit() {
     lastLessonBatchGenerateResult = buildLessonBatchGenerateResultSummary(results);
     renderLessonBatchGeneratePreview();
 
-    if (loadedMonth) {
-      await loadLessonMonth(loadedMonth, readFilters() || { status: "" });
-      applyCurrentFilters();
-    }
-
     const monthText = formatLessonImportMonthRange(lastLessonBatchGenerateResult.months);
+    closeLessonBatchGenerateDialog(true);
+    try {
+      await refreshLessonMonthPreservingFilters(monthBeforeSubmit, filtersBeforeSubmit);
+    } catch (refreshError) {
+      console.error("Lesson list refresh failed after committed batch generation", refreshError);
+      showMessage(
+        "error",
+        lessonUserErrorMessage(refreshError, "预定课时已生成，但列表刷新失败，请手动刷新页面。")
+      );
+      return;
+    }
     showMessage("success", `已生成预定课时 ${lastLessonBatchGenerateResult.successCount} 行${monthText ? `（${monthText}）` : ""}。`);
   } catch (error) {
     console.error("Planned lesson batch generation failed", error);

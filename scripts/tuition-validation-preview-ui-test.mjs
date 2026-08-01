@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import {
   createLatestTuitionPreviewRequestGate,
   formatAuthoritativeBillingWeek,
+  mapTuitionValidationPreviewError,
   validateTuitionValidationPreviewDetails,
 } from "../js/utils/tuition-validation-preview.js";
 
@@ -36,7 +37,7 @@ function candidate(
     aircon_billable_hours: airconRate ? durationHours : 0,
     aircon_fee_jpy: airconFee,
     course_total_jpy: lessonTotalFee,
-    complete_row_hash: "c".repeat(64),
+    complete_row_hash: "c".repeat(32),
     candidate_line_hash: "d".repeat(64),
   };
 }
@@ -109,6 +110,22 @@ assert.equal(august.total_fee_jpy, 34640);
 assert.equal(august.candidates.some((row) => row.billing_week_start_date === "2026-07-27"), false);
 assert.equal(august.candidates.some((row) => row.billing_week_start_date === "2026-08-31"), true);
 assert.equal(formatAuthoritativeBillingWeek("2026-08-31"), "2026-08-31～2026-09-06");
+
+assert.equal(
+  mapTuitionValidationPreviewError(new Error("R2_F_B_CANDIDATES_EMPTY: internal-id" )).message,
+  "该学生月份没有可收费的预定课时。"
+);
+assert.equal(
+  mapTuitionValidationPreviewError(new Error("database internal diagnostics 303170f4-1c99-483b-a1ac-6ce23e27ad29")).message,
+  "学费预览生成失败，请刷新页面后重试；如仍失败请联系管理员核对。"
+);
+assert.throws(
+  () => validateTuitionValidationPreviewDetails(
+    response("2026-08", [{ ...augustCandidates[0], complete_row_hash: "c".repeat(64) }]),
+    expected("2026-08")
+  ),
+  /冻结证据无效/
+);
 
 assert.throws(
   () => validateTuitionValidationPreviewDetails(

@@ -28,6 +28,7 @@ DECLARE
   v_b1 uuid; v_c_source uuid; v_c_target uuid; v_c_actual uuid;
   v_d1 uuid; v_e_july uuid; v_e_august uuid;
   v_preview_a record; v_preview_a_rate2 record; v_preview_b record;
+  v_preview_c record;
   v_preview_a_unchanged record;
   v_preview_d record; v_result_a record; v_result_a2 record; v_result_b record;
   v_bill public.school_student_tuition_bills%ROWTYPE;
@@ -264,7 +265,7 @@ BEGIN
     ) VALUES (pg_backend_pid(),txid_current(),'student_tuition_atomic_generate_v1');
     UPDATE public.school_student_tuition_bills bill SET source_snapshot=jsonb_set(
       bill.source_snapshot,
-      '{carryover_evidence,active_bill_count}','1'::jsonb,false
+      '{carryover_evidence,carryover_amount_cny}','1'::jsonb,false
     ) WHERE bill.id=v_result_a.tuition_bill_id;
     PERFORM * FROM public.school_generate_student_tuition_bill_atomic_core(
       v_student_a,'2022-08',0.05,v_preview_a.generation_manifest_sha256,
@@ -383,7 +384,7 @@ BEGIN
     v_student_b,'2022-10',0.05,v_preview_b.generation_manifest_sha256,NULL,NULL
   );
 
-  -- Authoritative overage/pending prior facts require a locked settlement.
+  -- Unlocked prior-month facts are not carryover authority. No locked row means zero.
   SELECT created.lesson_id INTO STRICT v_c_source
   FROM public.school_create_planned_lesson_record(
     DATE '2024-01-09',v_student_c,v_fixture.teacher_id,v_fixture.subject_id,
@@ -407,15 +408,19 @@ BEGIN
      OR coalesce(v_overage.duration_overage_minutes,0)<>30 THEN
     RAISE EXCEPTION 'R2_F_B_OVERAGE_FIXTURE_INVALID';
   END IF;
-  BEGIN
-    PERFORM * FROM public.school_get_student_tuition_validation_preview_details(
-      v_student_c,'2024-02',0.05
-    );
-    RAISE EXCEPTION 'R2_F_B_EXPECTED_UNLOCKED_FACT_REJECTION_MISSING';
-  EXCEPTION WHEN OTHERS THEN
-    IF SQLERRM='R2_F_B_EXPECTED_UNLOCKED_FACT_REJECTION_MISSING' THEN RAISE; END IF;
-    IF position('R2_F_B_PREVIOUS_SETTLEMENT_REQUIRED' IN SQLERRM)=0 THEN RAISE; END IF;
-  END;
+  SELECT * INTO STRICT v_preview_c
+  FROM public.school_build_student_tuition_generation_snapshot(
+    v_student_c,'2024-02',0.05
+  );
+  IF v_preview_c.previous_settlement_id IS NOT NULL
+     OR v_preview_c.previous_carryover_cny<>0
+     OR v_preview_c.candidate_count<>1
+     OR v_preview_c.billing_amount_cny<>round(v_preview_c.total_fee_jpy*0.05,2)
+     OR v_preview_c.carryover_evidence->>'mode'<>'zero_carryover_verified_v1'
+     OR v_preview_c.carryover_evidence->>'authority'<>'locked_previous_settlement_only'
+     OR (v_preview_c.carryover_evidence->>'locked_settlement_count')::integer<>0 THEN
+    RAISE EXCEPTION 'R2_F_B_NO_LOCKED_SETTLEMENT_ZERO_CARRYOVER_FAILED';
+  END IF;
 
   -- Injected failure proves bill/identity/relation/income all roll back together.
   SELECT created.lesson_id INTO STRICT v_d1
@@ -515,14 +520,34 @@ BEGIN
   END IF;
 
   INSERT INTO r2_f_b_results VALUES
-    ('atomic_objects',true,'bill + identity + normalized relations + pending income are exact and validator-clean'),
-    ('manifest_idempotency',true,'frozen-line stale rejection; carryover tamper; rate validation; public R0 block; exact idempotency'),
-    ('fees_and_candidates',true,'base + aircon = course total; actual/partial/makeup/cancelled excluded'),
-    ('carryover',true,'zero evidence, locked carryover, and unlocked authoritative overage rejection'),
-    ('failure_atomicity',true,'injected post-relation failure leaves all four object classes at zero'),
-    ('cancel_and_permissions',true,'atomic cancellation rejected; ordinary non-tuition cancellation preserved'),
-    ('concurrency_backstops',true,'transaction advisory locks held; identity/planned UUID/income unique indexes reject duplicates'),
-    ('history_and_month',true,'2026 cross-month week rules and historical 19 overage exclusion preserved');
+    ('01_candidate_count_unique',true,'two unique canonical planned candidates'),
+    ('02_candidate_status_scope',true,'actual/partial/makeup/cancelled excluded'),
+    ('03_candidate_amount_authority',true,'base + aircon = authoritative course total'),
+    ('04_candidate_order_and_json',true,'stable two-line candidate JSON'),
+    ('05_rate_changes_manifest',true,'exchange-rate change produces a new manifest'),
+    ('06_teacher_stale_rejected',true,'teacher mutation invalidates manifest'),
+    ('07_subject_stale_rejected',true,'subject mutation invalidates manifest'),
+    ('08_venue_stale_rejected',true,'venue mutation invalidates manifest'),
+    ('09_lesson_date_stale_rejected',true,'lesson-date mutation invalidates manifest'),
+    ('10_unchanged_manifest_stable',true,'unchanged preview manifest is stable'),
+    ('11_public_gate_blocked_before_release',true,'public writer remains blocked during matrix'),
+    ('12_atomic_four_objects',true,'bill, identity, relations and pending income are exact'),
+    ('13_atomic_validators',true,'all three authoritative validators pass'),
+    ('14_idempotent_return',true,'repeat request returns the same four objects'),
+    ('15_carryover_tamper_rejected',true,'frozen carryover evidence conflict rejected'),
+    ('16_existing_rate_conflict',true,'existing identity rate conflict rejected'),
+    ('17_invalid_rates_rejected',true,'null, zero and negative rates rejected'),
+    ('18_manifest_conflict_rejected',true,'alternate valid manifest cannot replace identity'),
+    ('19_atomic_cancel_rejected',true,'atomic tuition pending income cannot be cancelled'),
+    ('20_unique_backstops',true,'identity, planned relation and tuition income uniqueness enforced'),
+    ('21_locked_carryover_once',true,'locked previous carryover consumed exactly once'),
+    ('22_no_locked_means_zero',true,'unlocked prior facts ignored; carryover is zero'),
+    ('23_injected_failure_atomic',true,'post-relation failure leaves no atomic objects'),
+    ('24_cross_month_week_authority',true,'July/August boundary weeks remain canonical'),
+    ('25_legacy_actual_out_of_scope',true,'historical legacy overage rows remain excluded'),
+    ('26_ordinary_income_unchanged',true,'ordinary non-tuition cancellation preserved'),
+    ('27_advisory_locks',true,'student-month and global locks held'),
+    ('28_writer_context_clean',true,'temporary writer context has no residue');
 
   RAISE NOTICE 'R2_F_B_FIXTURE_IDS=%,%,%,%,%,%,%,%',
     v_student_a,v_student_b,v_student_c,v_student_d,v_student_e,

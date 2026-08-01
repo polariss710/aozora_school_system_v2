@@ -30,6 +30,7 @@ import {
   formatAuthoritativeBillingWeek,
   isAtomicTuitionGenerateEnabled,
   mapAtomicTuitionGenerateError,
+  mapTuitionValidationPreviewError,
   validateTuitionValidationPreviewDetails,
 } from "../utils/tuition-validation-preview.js";
 import {
@@ -1462,7 +1463,8 @@ async function handlePreviewTuitionBill() {
     )) {
       console.error(error);
       clearTuitionBillPreview({ invalidateRequest: false });
-      showTuitionBillError(`生成学费应收预览失败：${error.message || error}`, tuitionBillFieldIdsForError(error.message || ""));
+      const mapped = mapTuitionValidationPreviewError(error);
+      showTuitionBillError(mapped.message, tuitionBillFieldIdsForError(error.message || ""));
     }
   } finally {
     if (tuitionBillPreviewRequestGate.isCurrent(
