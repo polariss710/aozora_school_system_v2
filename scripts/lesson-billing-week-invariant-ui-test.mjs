@@ -6,7 +6,10 @@ import {
 } from "../js/utils/lesson-settlement-filter.js";
 import { buildLessonMonthSemantics } from "../js/utils/actual-overage.js";
 import { lessonUserErrorMessage } from "../js/utils/lesson-error-message.js";
-import { plannedAirconPolicyLabel } from "../js/utils/planned-aircon-display.js";
+import {
+  plannedAirconConditionLabel,
+  shouldDisplayPlannedAirconDetails,
+} from "../js/utils/planned-aircon-display.js";
 
 const crossMonthPlanned = {
   id: "aa55dc2e-3b1b-4d2d-863f-9f64e84b8578",
@@ -56,7 +59,11 @@ assert.equal(
   lessonUserErrorMessage(new Error("PLANNED_BILLING_ATTRIBUTION_REQUIRED")),
   "该历史课时缺少收费归属，请先完成数据整理。"
 );
-assert.equal(plannedAirconPolicyLabel(crossMonthPlanned), "周末固定办公室计费");
+assert.equal(plannedAirconConditionLabel({
+  ...crossMonthPlanned,
+  aircon_charge_status: "calculated",
+}), "周末固定办公室计费");
+assert.equal(shouldDisplayPlannedAirconDetails(crossMonthPlanned), true);
 
 const api = readFileSync(new URL("../js/api/lesson-api.js", import.meta.url), "utf8");
 const page = readFileSync(new URL("../js/pages/lesson-page.js", import.meta.url), "utf8");
@@ -81,8 +88,8 @@ assert.match(api, /school_list_lesson_management_records_authoritative/);
 assert.match(api, /p_week_start:\s*options\.weekStart \|\| null/);
 assert.match(api, /school_resolve_lesson_student_month_authoritative/);
 assert.match(api, /authoritative_student_month/);
-assert.match(page, /plannedAirconPolicyLabel\(record\)/);
-assert.match(detail, /plannedAirconPolicyLabel\(planned\)/);
+assert.doesNotMatch(page, /plannedAirconPolicyLabel|空调策略/);
+assert.doesNotMatch(detail, /plannedAirconPolicyLabel|空调策略/);
 assert.match(detail, /"收费归属月"/);
 assert.match(detail, /"收费自然周"/);
 assert.doesNotMatch(detail, /计划课时账期（billing_month）/);

@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=r2-f-f2-b-year-month-closure";
+import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=aircon-display-dedup-20260801";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

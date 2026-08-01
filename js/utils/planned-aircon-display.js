@@ -19,6 +19,11 @@ export function hasAuthoritativePlannedFeeBundle(record) {
   );
 }
 
+export function shouldDisplayPlannedAirconDetails(record) {
+  return hasAuthoritativePlannedFeeBundle(record)
+    && Number(record.aircon_fee_jpy) > 0;
+}
+
 export function plannedAirconConditionLabel(record) {
   if (record?.aircon_charge_status === "calculated") {
     return "周末固定办公室计费";

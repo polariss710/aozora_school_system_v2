@@ -37,8 +37,8 @@ import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=r2-f-
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
-  plannedAirconPolicyLabel,
-} from "../utils/planned-aircon-display.js?v=r2-f-f2-b-year-month-closure";
+  shouldDisplayPlannedAirconDetails,
+} from "../utils/planned-aircon-display.js?v=aircon-display-dedup-20260801";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
@@ -6775,6 +6775,9 @@ function renderPlannedChargeBreakdown(record) {
   if (!hasAuthoritativePlannedFeeBundle(record)) {
     return escapeHtml(`基础课时费 ${formatCurrency(record?.lesson_fee, "JPY")}`);
   }
+  if (!shouldDisplayPlannedAirconDetails(record)) {
+    return escapeHtml(`基础课时费 ${formatCurrency(record.base_lesson_fee_jpy, "JPY")}`);
+  }
   const applicability = plannedAirconConditionLabel(record);
   return [
     `基础 ${formatCurrency(record.base_lesson_fee_jpy, "JPY")}`,
@@ -6783,7 +6786,6 @@ function renderPlannedChargeBreakdown(record) {
     `计费小时 ${displayValue(record.aircon_billable_hours_snapshot)} 小时`,
     `空调 ${formatCurrency(record.aircon_fee_jpy, "JPY")}`,
     `总价 ${formatCurrency(record.lesson_total_fee_jpy, "JPY")}`,
-    `策略 ${plannedAirconPolicyLabel(record)}`,
   ].map((value) => `<div>${escapeHtml(value)}</div>`).join("");
 }
 
@@ -6796,6 +6798,9 @@ function renderPlannedChargeMeta(record, isSourcePlanned = false) {
   if (!hasAuthoritativePlannedFeeBundle(record)) {
     return `<div><dt>${isSourcePlanned ? "来源 planned 基础课时费" : "基础课时费"}</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>`;
   }
+  if (!shouldDisplayPlannedAirconDetails(record)) {
+    return `<div><dt>${isSourcePlanned ? "来源 planned 基础课时费" : "基础课时费"}</dt><dd>${escapeHtml(formatCurrency(record.base_lesson_fee_jpy, "JPY"))}</dd></div>`;
+  }
   const prefix = isSourcePlanned ? "来源 planned " : "";
   const applicability = plannedAirconConditionLabel(record);
   return `
@@ -6805,7 +6810,6 @@ function renderPlannedChargeMeta(record, isSourcePlanned = false) {
     <div><dt>${prefix}空调计费小时</dt><dd>${escapeHtml(`${displayValue(record.aircon_billable_hours_snapshot)} 小时`)}</dd></div>
     <div><dt>${prefix}空调费</dt><dd>${escapeHtml(formatCurrency(record.aircon_fee_jpy, "JPY"))}</dd></div>
     <div><dt>${prefix}课程总价</dt><dd>${escapeHtml(formatCurrency(record.lesson_total_fee_jpy, "JPY"))}</dd></div>
-    <div><dt>${prefix}空调策略</dt><dd>${escapeHtml(plannedAirconPolicyLabel(record))}</dd></div>
   `;
 }
 

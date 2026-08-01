@@ -6,8 +6,8 @@ import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/form
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
-  plannedAirconPolicyLabel,
-} from "../utils/planned-aircon-display.js?v=r2-f-f2-b-year-month-closure";
+  shouldDisplayPlannedAirconDetails,
+} from "../utils/planned-aircon-display.js?v=aircon-display-dedup-20260801";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
@@ -455,6 +455,9 @@ function plannedAirconDetailRows(planned, isSource = false) {
   if (!hasAuthoritativePlannedFeeBundle(planned)) {
     return [[`${prefix}基础课时费`, formatCurrency(planned.lesson_fee, "JPY")]];
   }
+  if (!shouldDisplayPlannedAirconDetails(planned)) {
+    return [[`${prefix}基础课时费`, formatCurrency(planned.base_lesson_fee_jpy, "JPY")]];
+  }
   const condition = plannedAirconConditionLabel(planned);
   return [
     [`${prefix}基础课时费`, formatCurrency(planned.base_lesson_fee_jpy, "JPY")],
@@ -463,7 +466,6 @@ function plannedAirconDetailRows(planned, isSource = false) {
     [`${prefix}空调计费小时`, `${displayValue(planned.aircon_billable_hours_snapshot)} 小时`],
     [`${prefix}空调费`, formatCurrency(planned.aircon_fee_jpy, "JPY")],
     [`${prefix}课程总价`, formatCurrency(planned.lesson_total_fee_jpy, "JPY")],
-    [`${prefix}空调策略`, plannedAirconPolicyLabel(planned)],
     [`${prefix}决定时间`, formatDate(planned.aircon_calculated_at)],
   ];
 }
