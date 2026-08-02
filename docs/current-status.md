@@ -50,8 +50,12 @@ Stop and report immediately for:
 - frontend/page JS deciding or computing persisted business-result values, including amounts, rounding, settlement/carryover defaults, wage totals, exchange-derived values, Cash request amounts, or lock snapshot totals, instead of using DB/RPC or backend API authority or explicit user input;
 - need for non-whitelisted real business data, current/unclosed real-month write validation, broad historical-data modification, historical repair, broad backfill, destructive cleanup, `delete`, `truncate`, `drop`, broad permission changes, or irreversible production operation;
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
+- Atomic Tuition 专用作废/重生成仍为业务模型扩展硬停止：现模型只有 student+month 单 identity，历史 canonical lesson relation 永久占用 planned lesson，且 V2 没有 manager 权限权威。继续前必须逐项批准 revision/void-event 对象、active authority、identity/entity 语义、relation 唯一约束替换、与 Cash 共用的锁协议、既有15条链的 metadata registration，以及 V2 manager 身份来源；不得用 NULL/legacy fallback 绕过。
 
 ## Latest Key Updates
+
+1. School V2 Atomic Tuition 专用作废与重新生成只读调查，2026-08-02：
+   彭宇晗、李天伦2026-08 Atomic链均完整且income为pending，三个validator通过；School linkage与Cash request/CNY/JPY transaction均为0，无rejected链路。二人当前candidate分别因15/16条历史canonical relation被排除；31条source planned均未改、无actual，DB不能推断具体要调整的课程。现模型的student+month单identity、永久planned relation unique和无条件billed guard不能保留旧链同时释放claim并生成新revision；V2也没有可验证的manager权限权威。业务模型扩展声明有多个未获逐项批准的non-none对象，并且安全的15条既有链revision metadata registration与原prompt“不得回填目标记录”冲突，故在业务SQL/RPC/前端前HARD STOP。真实作废、重生成、Cash提交、SQL执行、写RPC及DB写入均为0。详见`docs/school-v2-atomic-tuition-void-reissue-readonly-investigation-20260802.md`。
 
 1. School V2 tuition Cash external transaction immutability closure, 2026-08-02:
    Cash已部署CNY/JPY external流水不可变trigger、最小RLS/ACL和四个普通update/delete RPC fail-closed保护；页面按canonical external字段隐藏编辑/复制/删除并将CNY `1120.50`显示为`1,120.50 CNY`。后端24/24、UI 7/7及rollback/residue两项合计30/30通过。业务负责人批准将余额宝`400.00 CNY`普通运营支出变化纳入基线，旧余额`111441.82`更新为`111041.82`；Cash CNY 64条全体指纹`8e5f62d1e256228b956ca7155bed65db`在部署前后不变，袁振轩行MD5仍为`7c94d3e343e26713a54e779e1d3b53da`。Cash页面版本`20260802-external-transaction-immutable-1`已上线，Gate rehearsal为`UPDATE 1 + ROLLBACK`、正式为`UPDATE 1 + COMMIT`，最终`enabled / enabled / enabled`。详见`docs/school-v2-tuition-cash-external-transaction-immutability-closure-20260802.md`。
