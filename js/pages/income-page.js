@@ -694,13 +694,19 @@ async function openBatchCashIncomeDialog(rows) {
 
   batchCashIncomeRows = targets.map((income) => ({
     income,
-    amount: defaultBatchCashIncomeAmount(income),
+    amount: income.source_type === "student_tuition_bill"
+      ? formatDecimal(income.cashSubmissionPreflight?.payment_amount, 2)
+      : defaultBatchCashIncomeAmount(income),
     amountSource: "db",
-    currency: defaultBatchCashIncomeCurrency(income),
+    currency: income.source_type === "student_tuition_bill"
+      ? "CNY"
+      : defaultBatchCashIncomeCurrency(income),
     receivedDate: currentJapanDate(),
     accountId: "",
     note: defaultCashIncomeNote(income),
-    exchangeRate: defaultBatchCashIncomeExchangeRate(income),
+    exchangeRate: income.source_type === "student_tuition_bill"
+      ? formatRateValue(income.cashSubmissionPreflight?.payment_exchange_rate)
+      : defaultBatchCashIncomeExchangeRate(income),
     theoreticalAmount: "",
     roundingMode: "",
     rateStatus: "",
@@ -727,15 +733,16 @@ function renderBatchCashIncomeRows() {
   updateBatchCashIncomeDerivedValues();
   dom.batchCashIncomeTableBody.innerHTML = batchCashIncomeRows.map((state) => {
     const income = state.income;
+    const isTuition = income.source_type === "student_tuition_bill";
     return `
       <tr data-batch-income-row-id="${escapeAttribute(income.id)}">
         <td>${escapeHtml(incomeObjectName(income))}</td>
         <td class="income-nowrap">${escapeHtml(formatMonth(income.year_month))}</td>
         <td>${renderBatchCashIncomeField(state, "date", `<input data-batch-income-date="${escapeAttribute(income.id)}" type="date" value="${escapeAttribute(state.receivedDate)}" ${isBatchCashSubmitting ? "disabled" : ""}>`)}</td>
         <td class="number-cell income-nowrap">${escapeHtml(formatCurrency(income.amount, income.currency))}</td>
-        <td>${renderBatchCashIncomeField(state, "amount", `<input data-batch-income-amount="${escapeAttribute(income.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isBatchCashSubmitting ? "disabled" : ""}>${renderBatchCashIncomeAmountHint(state)}`)}</td>
+        <td>${renderBatchCashIncomeField(state, "amount", `<input data-batch-income-amount="${escapeAttribute(income.id)}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeAttribute(state.amount)}" ${isTuition ? "readonly" : ""} ${isBatchCashSubmitting ? "disabled" : ""}>${isTuition ? '<div class="income-batch-cash-field-hint">冻结账单权威金额（只读）</div>' : renderBatchCashIncomeAmountHint(state)}`)}</td>
         <td>
-          ${renderBatchCashIncomeField(state, "currency", `<select data-batch-income-currency="${escapeAttribute(income.id)}" ${isBatchCashSubmitting ? "disabled" : ""}>
+          ${renderBatchCashIncomeField(state, "currency", `<select data-batch-income-currency="${escapeAttribute(income.id)}" ${isTuition || isBatchCashSubmitting ? "disabled" : ""}>
             ${CASH_INCOME_CURRENCIES.map((currency) => `<option value="${escapeAttribute(currency)}" ${currency === state.currency ? "selected" : ""}>${escapeHtml(currency)}</option>`).join("")}
           </select>`)}
         </td>
@@ -779,6 +786,9 @@ function renderBatchCashIncomeAmountHint(state) {
 }
 
 function renderBatchCashIncomeRateReference(state) {
+  if (state.income?.source_type === "student_tuition_bill") {
+    return `<div class="expense-rate-assist expense-rate-assist--muted"><span>冻结汇率 ${escapeHtml(state.exchangeRate || "-")}</span></div>`;
+  }
   if (!requiresCashIncomeExchangeRate(state)) {
     return `
       <div class="expense-rate-assist expense-rate-assist--muted">
@@ -981,6 +991,29 @@ function readBatchCashIncomePayloads() {
 
     if (!/^\d{4}-\d{2}-\d{2}$/.test(state.receivedDate || "")) {
       state.errors.date = "请选择实际到账日";
+    }
+
+    if (income.source_type === "student_tuition_bill") {
+      const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
+      if (!cashAccount || cashAccount.currency !== "CNY") {
+        state.errors.account = "请选择 CNY Cash 收款账户";
+      }
+      if (Object.keys(state.errors).length > 0) {
+        hasError = true;
+        errorRowCount += 1;
+        continue;
+      }
+      payloads.push({
+        state,
+        payload: {
+          incomeRecordId: income.id,
+          cashAccountId: state.accountId,
+          actualReceivedDate: state.receivedDate,
+          isTuition: true,
+          note: state.note,
+        },
+      });
+      continue;
     }
 
     const actualReceivedAmount = parseNumberInput(state.amount);
@@ -2296,7 +2329,7 @@ function canRequestCashIncome(row) {
   }
 
   if (row.source_type === "student_tuition_bill") {
-    return false;
+    return row.cashSubmissionPreflight?.eligible === true;
   }
 
   const event = row.cashIncomeLinkageEvent;
@@ -2328,7 +2361,13 @@ function canGenerateTuitionReceipt(row) {
 
 function cashIncomeRequestNotAllowedMessage(row) {
   if (!row) return "收入记录不存在，请刷新后重试。";
-  if (row.source_type === "student_tuition_bill") return "学费 Cash 提交正在整改，当前禁止提交。";
+  if (row.source_type === "student_tuition_bill") {
+    const preflight = row.cashSubmissionPreflight;
+    if (preflight?.gate_state !== "enabled") return "学费 Cash Gate 当前未开放。";
+    if (preflight?.classification === "ALREADY_SUBMITTED") return "该学费收入正在等待 Cash 确认。";
+    if (preflight?.classification === "ALREADY_SYNCED") return "该学费收入已同步到 Cash。";
+    return "该学费收入未通过服务端提交资格检查。";
+  }
   if (row.status === "cancelled") return "已作废收入不能提交 Cash。";
   if (row.status !== "pending") return "只有待确认收入记录可以提交 Cash 收入确认。";
   const event = row.cashIncomeLinkageEvent;

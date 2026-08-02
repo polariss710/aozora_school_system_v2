@@ -3,7 +3,6 @@ import {
   cancelPendingIncomeRecord,
   fetchIncomeDetailPage,
   requestCashIncomeConfirmationForRecord,
-  retryPersonalCashIncomeLinkageEvent,
   reverseIncomeRecord,
   updateIncomeRecord,
 } from "../api/income-detail-api.js";
@@ -65,7 +64,6 @@ let detailData = null;
 let isReverseSubmitting = false;
 let isCancelSubmitting = false;
 let isEditSubmitting = false;
-let isRetrySubmitting = false;
 let isCashRequestSubmitting = false;
 let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
@@ -455,7 +453,7 @@ function canRequestCashIncome(data) {
   }
 
   if (income.source_type === "student_tuition_bill") {
-    return false;
+    return data?.cashSubmissionPreflight?.eligible === true;
   }
 
   const event = cashIncomeLinkageEvent(data);
@@ -624,52 +622,8 @@ function renderCashSyncInfo(event) {
         </div>
       ` : ""}
     </dl>
-    ${event.sync_status === "failed" ? `
-      <div class="income-detail-actions">
-        <button class="button button-primary" id="retryCashIncomeSyncButton" type="button">
-          重新同步
-        </button>
-      </div>
-    ` : ""}
+    ${event.sync_status === "failed" ? '<p class="detail-muted">旧手动同步入口已停用，请按 canonical Cash request 状态处理。</p>' : ""}
   `;
-
-  const retryButton = document.querySelector("#retryCashIncomeSyncButton");
-  retryButton?.addEventListener("click", () => submitCashSyncRetry(event.id));
-}
-
-async function submitCashSyncRetry(eventId) {
-  if (isRetrySubmitting) {
-    return;
-  }
-
-  const incomeId = detailData?.income?.id;
-
-  if (!eventId) {
-    showMessage("error", "Cash 同步事件不存在，请刷新后重试。");
-    return;
-  }
-
-  if (!incomeId) {
-    showMessage("error", "收入记录不存在，请刷新后重试。");
-    return;
-  }
-
-  if (!window.confirm("确认将该 Cash 同步失败事件重新加入待同步队列？")) {
-    return;
-  }
-
-  setRetrySubmitting(true);
-
-  try {
-    await retryPersonalCashIncomeLinkageEvent(eventId);
-    await loadIncomeDetail(incomeId);
-    showMessage("success", "已重新加入 Cash 同步队列。");
-  } catch (error) {
-    console.error(error);
-    showMessage("error", `Cash 同步重试失败：${error.message || error}`);
-  } finally {
-    setRetrySubmitting(false);
-  }
 }
 
 async function openCashIncomeRequestDialog() {
@@ -686,6 +640,8 @@ async function openCashIncomeRequestDialog() {
   }
 
   const income = detailData.income;
+  const tuitionPreflight = detailData.cashSubmissionPreflight;
+  const isTuition = income.source_type === "student_tuition_bill";
   clearCashIncomeRequestErrors();
   setCashRequestSubmitting(false);
   dom.cashIncomeRequestSummary.innerHTML = renderDefinitionList([
@@ -693,13 +649,17 @@ async function openCashIncomeRequestDialog() {
     ["来源", displayValue(income.source_label || income.description)],
     ["School 原始金额", formatCurrency(income.amount, income.currency)],
     ["JPY 金额", formatCurrency(income.amount_jpy, "JPY")],
-    ["上月结转", studentTuitionBillCarryoverText(income)],
-    ["通知金额", studentTuitionBillBillingAmountText(income)],
-    ["通知汇率", displayValue(studentTuitionBillBillingExchangeRate(income))],
+    ["上月结转", isTuition ? formatCurrency(tuitionPreflight?.previous_carryover_cny, "CNY") : studentTuitionBillCarryoverText(income)],
+    ["通知金额", isTuition ? formatCurrency(tuitionPreflight?.payment_amount, "CNY") : studentTuitionBillBillingAmountText(income)],
+    ["通知汇率", isTuition ? displayValue(tuitionPreflight?.payment_exchange_rate) : displayValue(studentTuitionBillBillingExchangeRate(income))],
   ]);
-  dom.cashIncomeActualAmountInput.value = defaultCashIncomeActualAmount(income);
+  dom.cashIncomeActualAmountInput.value = isTuition
+    ? formatDecimal(tuitionPreflight?.payment_amount, 2)
+    : defaultCashIncomeActualAmount(income);
   dom.cashIncomeActualDateInput.value = currentJapanDate();
-  dom.cashIncomeActualCurrencySelect.value = defaultCashIncomeActualCurrency(income);
+  dom.cashIncomeActualCurrencySelect.value = isTuition ? "CNY" : defaultCashIncomeActualCurrency(income);
+  dom.cashIncomeActualAmountInput.readOnly = isTuition;
+  dom.cashIncomeActualCurrencySelect.disabled = isTuition;
   dom.cashIncomeNoteInput.value = defaultCashIncomeNote(income);
   renderCashIncomeAccountOptions();
   updateCashIncomeRequestPreview();
@@ -786,27 +746,43 @@ function readCashIncomeRequestPayload() {
     return null;
   }
 
-  const actualReceivedAmount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
-  if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
-    showCashIncomeRequestError("请输入大于 0 的实际到账金额。", ["actualAmount"]);
-    return null;
-  }
-
+  const isTuition = income.source_type === "student_tuition_bill";
   const actualReceivedDate = dom.cashIncomeActualDateInput.value;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(actualReceivedDate || "")) {
     showCashIncomeRequestError("请选择实际到账日。", ["actualDate"]);
     return null;
   }
 
-  const actualReceivedCurrency = dom.cashIncomeActualCurrencySelect.value;
-  if (!["JPY", "CNY"].includes(actualReceivedCurrency)) {
-    showCashIncomeRequestError("请选择实际到账币种。", ["actualCurrency"]);
-    return null;
-  }
-
   const cashAccountId = dom.cashIncomeAccountSelect.value;
   if (!cashAccountId) {
     showCashIncomeRequestError("请选择 Cash 收款账户。", ["cashAccount"]);
+    return null;
+  }
+
+  if (isTuition) {
+    const cashAccount = cashEligibleAccounts.find((account) => account.id === cashAccountId);
+    if (!cashAccount || cashAccount.currency !== "CNY") {
+      showCashIncomeRequestError("学费 Cash 只能选择 CNY 收款账户。", ["cashAccount"]);
+      return null;
+    }
+    return {
+      incomeRecordId: income.id,
+      cashAccountId,
+      actualReceivedDate,
+      isTuition: true,
+      note: dom.cashIncomeNoteInput.value.trim() || null,
+    };
+  }
+
+  const actualReceivedAmount = parseNumberInput(dom.cashIncomeActualAmountInput.value);
+  if (!Number.isFinite(actualReceivedAmount) || actualReceivedAmount <= 0) {
+    showCashIncomeRequestError("请输入大于 0 的实际到账金额。", ["actualAmount"]);
+    return null;
+  }
+
+  const actualReceivedCurrency = dom.cashIncomeActualCurrencySelect.value;
+  if (!["JPY", "CNY"].includes(actualReceivedCurrency)) {
+    showCashIncomeRequestError("请选择实际到账币种。", ["actualCurrency"]);
     return null;
   }
 
@@ -1596,15 +1572,6 @@ function setEditSubmitting(isSubmitting) {
   dom.editSubmitButton.disabled = isSubmitting;
   dom.editCancelButton.disabled = isSubmitting;
   dom.editSubmitButton.textContent = isSubmitting ? "保存中..." : "保存收入";
-}
-
-function setRetrySubmitting(isSubmitting) {
-  isRetrySubmitting = isSubmitting;
-  const retryButton = document.querySelector("#retryCashIncomeSyncButton");
-  if (retryButton) {
-    retryButton.disabled = isSubmitting;
-    retryButton.textContent = isSubmitting ? "入队中..." : "重新同步";
-  }
 }
 
 function setCashRequestSubmitting(isSubmitting) {

@@ -217,19 +217,28 @@ export async function createCashSystemIncome(payload) {
 export async function requestCashIncomeConfirmationForRecord(payload) {
   const incomeRecordId = requireUuid(payload.incomeRecordId, "income_record_id");
 
+  const body = payload.isTuition
+    ? {
+      income_record_id: incomeRecordId,
+      cash_account_id: payload.cashAccountId,
+      actual_received_date: payload.actualReceivedDate,
+      note: payload.note || null,
+    }
+    : {
+      income_record_id: incomeRecordId,
+      cash_account_id: payload.cashAccountId,
+      actual_received_amount: payload.actualReceivedAmount ?? null,
+      actual_received_currency: payload.actualReceivedCurrency,
+      actual_received_date: payload.actualReceivedDate,
+      exchange_rate: payload.exchangeRate ?? null,
+      rounding_mode: payload.roundingMode || null,
+      note: payload.note || null,
+    };
+
   const { data, error } = await supabase.functions.invoke(
     "request-cash-income-confirmation",
     {
-      body: {
-        income_record_id: incomeRecordId,
-        cash_account_id: payload.cashAccountId,
-        actual_received_amount: payload.actualReceivedAmount ?? null,
-        actual_received_currency: payload.actualReceivedCurrency,
-        actual_received_date: payload.actualReceivedDate,
-        exchange_rate: payload.exchangeRate ?? null,
-        rounding_mode: payload.roundingMode || null,
-        note: payload.note || null,
-      },
+      body,
     }
   );
 
@@ -293,13 +302,20 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
     return incomeRows;
   }
 
-  const { data, error } = await supabase
-    .from("school_personal_cash_income_linkage_events")
-    .select(CASH_INCOME_LINKAGE_COLUMNS)
-    .in("income_record_id", incomeIds)
-    .eq("source_table", "school_income_records")
-    .in("source_event_type", ["tuition_income_received", "income_received"])
-    .order("created_at", { ascending: false });
+  const [linkageResult, preflightResult] = await Promise.all([
+    supabase
+      .from("school_personal_cash_income_linkage_events")
+      .select(CASH_INCOME_LINKAGE_COLUMNS)
+      .in("income_record_id", incomeIds)
+      .eq("source_table", "school_income_records")
+      .in("source_event_type", ["tuition_income_received", "income_received"])
+      .order("created_at", { ascending: false }),
+    supabase.rpc("school_get_cash_income_submission_preflight", {
+      p_income_record_ids: incomeIds,
+    }),
+  ]);
+
+  const { data, error } = linkageResult;
 
   if (error) {
     if (error.code === "42P01") {
@@ -315,8 +331,16 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
     }
   }
 
+  if (preflightResult.error) {
+    throw preflightResult.error;
+  }
+  const preflightByIncomeId = new Map(
+    (preflightResult.data || []).map((row) => [row.income_record_id, row]),
+  );
+
   return incomeRows.map((row) => ({
     ...row,
     cashIncomeLinkageEvent: linkageByIncomeId.get(row.id) || null,
+    cashSubmissionPreflight: preflightByIncomeId.get(row.id) || null,
   }));
 }

@@ -146,12 +146,19 @@ const CASH_INCOME_LINKAGE_COLUMNS = [
 export async function fetchIncomeDetailPage(incomeId) {
   const income = await fetchIncomeDetail(incomeId);
 
-  const [lookups, settlements, transactions, cashIncomeLinkageEvents] = await Promise.all([
+  const [lookups, settlements, transactions, cashIncomeLinkageEvents, preflightResult] = await Promise.all([
     fetchIncomeDetailLookups(),
     fetchSettlementReferences(income),
     fetchAccountTransactions(income.id),
     fetchPersonalCashIncomeLinkageEvents(income.id),
+    supabase.rpc("school_get_cash_income_submission_preflight", {
+      p_income_record_ids: [income.id],
+    }),
   ]);
+
+  if (preflightResult.error) {
+    throw preflightResult.error;
+  }
 
   return {
     income,
@@ -159,6 +166,7 @@ export async function fetchIncomeDetailPage(incomeId) {
     settlements,
     transactions,
     cashIncomeLinkageEvents,
+    cashSubmissionPreflight: (preflightResult.data || [])[0] || null,
   };
 }
 
@@ -234,38 +242,30 @@ export async function updateIncomeRecord(payload) {
   return result;
 }
 
-export async function retryPersonalCashIncomeLinkageEvent(eventId) {
-  const { data, error } = await supabase.rpc("school_retry_personal_cash_income_linkage_event", {
-    p_event_id: eventId,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result) {
-    throw new Error("Cash 同步重试入队失败。");
-  }
-
-  return result;
-}
-
 export async function requestCashIncomeConfirmationForRecord(payload) {
   const incomeRecordId = requireUuid(payload.incomeRecordId, "income_record_id");
+
+  const body = payload.isTuition
+    ? {
+      income_record_id: incomeRecordId,
+      cash_account_id: payload.cashAccountId,
+      actual_received_date: payload.actualReceivedDate,
+      note: payload.note || null,
+    }
+    : {
+      income_record_id: incomeRecordId,
+      cash_account_id: payload.cashAccountId,
+      actual_received_amount: payload.actualReceivedAmount,
+      actual_received_currency: payload.actualReceivedCurrency,
+      actual_received_date: payload.actualReceivedDate,
+      exchange_rate: payload.exchangeRate ?? null,
+      note: payload.note || null,
+    };
 
   const { data, error } = await supabase.functions.invoke(
     "request-cash-income-confirmation",
     {
-      body: {
-        income_record_id: incomeRecordId,
-        cash_account_id: payload.cashAccountId,
-        actual_received_amount: payload.actualReceivedAmount,
-        actual_received_currency: payload.actualReceivedCurrency,
-        actual_received_date: payload.actualReceivedDate,
-        exchange_rate: payload.exchangeRate ?? null,
-        note: payload.note || null,
-      },
+      body,
     }
   );
 

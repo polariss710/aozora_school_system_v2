@@ -359,15 +359,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (existingIncomeRecordId) {
       const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
-      const actualReceivedAmount = optionalPositiveNumber(
-        body.actual_received_amount,
-        "actual_received_amount",
-      );
-      const actualReceivedCurrency = requireCurrency(
-        body.actual_received_currency,
-      );
-      const exchangeRate = optionalPositiveNumber(body.exchange_rate, "exchange_rate");
-      const roundingMode = optionalText(body.rounding_mode);
 
       const { data: incomeData, error: incomeError } = await schoolClient
         .from("school_income_records")
@@ -386,10 +377,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
         );
       }
 
-      if (
-        optionalText((incomeData as { source_type?: string | null }).source_type) ===
-          TUITION_BILL_SOURCE_TYPE
-      ) {
+      const isTuitionBill = optionalText(
+        (incomeData as { source_type?: string | null }).source_type,
+      ) === TUITION_BILL_SOURCE_TYPE;
+
+      if (isTuitionBill) {
         const { data: gateData, error: gateError } = await schoolClient
           .from("school_feature_gates")
           .select("state,reason,release_version")
@@ -409,22 +401,48 @@ Deno.serve(async (request: Request): Promise<Response> => {
           );
         }
 
-        return jsonResponse(
-          {
-            ok: false,
-            code: "TUITION_CASH_SUBMISSION_BLOCKED",
-            message: "R0 不提供学费 Cash enabled 路径。",
-          },
-          423,
-        );
+        const forbiddenTuitionInputs = [
+          body.amount,
+          body.currency,
+          body.actual_received_amount,
+          body.actual_received_currency,
+          body.exchange_rate,
+          body.rounding_mode,
+        ];
+        if (forbiddenTuitionInputs.some((value) => (
+          value !== null && value !== undefined && value !== ""
+        ))) {
+          return jsonResponse(
+            {
+              ok: false,
+              code: "TUITION_CASH_CLIENT_AMOUNT_FORBIDDEN",
+              message: "学费 Cash 金额、币种、汇率及取整规则只允许由冻结账单提供。",
+            },
+            400,
+          );
+        }
       }
+
+      const actualReceivedAmount = isTuitionBill
+        ? null
+        : optionalPositiveNumber(
+          body.actual_received_amount,
+          "actual_received_amount",
+        );
+      const actualReceivedCurrency = isTuitionBill
+        ? null
+        : requireCurrency(body.actual_received_currency);
+      const exchangeRate = isTuitionBill
+        ? null
+        : optionalPositiveNumber(body.exchange_rate, "exchange_rate");
+      const roundingMode = isTuitionBill ? null : optionalText(body.rounding_mode);
 
       const incomeCurrency = requireCurrency(
         (incomeData as { currency?: string }).currency,
       );
 
       if (
-        actualReceivedCurrency !== incomeCurrency &&
+        !isTuitionBill && actualReceivedCurrency !== incomeCurrency &&
         actualReceivedAmount === null &&
         exchangeRate === null
       ) {
@@ -435,7 +453,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       }
 
       if (
-        actualReceivedCurrency === incomeCurrency && exchangeRate !== null &&
+        !isTuitionBill && actualReceivedCurrency === incomeCurrency && exchangeRate !== null &&
         exchangeRate !== 1
       ) {
         return jsonResponse(
@@ -444,7 +462,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         );
       }
 
-      if (actualReceivedAmount === null && actualReceivedCurrency !== incomeCurrency) {
+      if (!isTuitionBill && actualReceivedAmount === null && actualReceivedCurrency !== incomeCurrency) {
         if (!["round", "ceil", "floor"].includes(roundingMode ?? "")) {
           return jsonResponse(
             {
@@ -468,13 +486,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
         );
       }
 
-      if (cashAccount.currency !== actualReceivedCurrency) {
+      const requiredCashCurrency = isTuitionBill ? "CNY" : actualReceivedCurrency;
+      if (cashAccount.currency !== requiredCashCurrency) {
         return jsonResponse(
           {
             ok: false,
             message: "Selected Cash account currency does not match actual received currency",
             account_currency: cashAccount.currency,
-            actual_received_currency: actualReceivedCurrency,
+            actual_received_currency: requiredCashCurrency,
           },
           400,
         );
@@ -488,10 +507,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
           p_cash_account_name_snapshot: cashAccount.name ?? cashAccount.id,
           p_cash_account_type_snapshot: cashAccount.account_type ?? null,
           p_payment_amount: actualReceivedAmount,
-          p_payment_currency: actualReceivedCurrency,
-          p_exchange_rate: actualReceivedCurrency === incomeCurrency ? 1 : exchangeRate,
+          p_payment_currency: isTuitionBill ? null : actualReceivedCurrency,
+          p_exchange_rate: isTuitionBill
+            ? null
+            : actualReceivedCurrency === incomeCurrency ? 1 : exchangeRate,
           p_note: optionalText(body.note),
-          p_payment_rounding_mode: actualReceivedAmount === null ? roundingMode : null,
+          p_payment_rounding_mode: isTuitionBill
+            ? null
+            : actualReceivedAmount === null ? roundingMode : null,
         });
 
       if (schoolRequestError) {
