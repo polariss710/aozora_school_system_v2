@@ -126,6 +126,12 @@ assert.equal(emptyCandidateMessage, "该学生本月没有可生成学费账单�
 assert.notEqual(alreadyBilledMessage, emptyCandidateMessage);
 assert.doesNotMatch(`${alreadyBilledMessage}${emptyCandidateMessage}`, /R2_F_B_|internal-id|[0-9a-f]{8}-/i);
 assert.equal(
+  mapTuitionValidationPreviewError(
+    new Error("R2_F_B_IDEMPOTENCY_CONFLICT_OR_INCOMPLETE: internal-id")
+  ).message,
+  "学费预览生成失败，请刷新页面后重试；如仍失败请联系管理员核对。"
+);
+assert.equal(
   mapTuitionValidationPreviewError(new Error("database internal diagnostics 303170f4-1c99-483b-a1ac-6ce23e27ad29")).message,
   "学费预览生成失败，请刷新页面后重试；如仍失败请联系管理员核对。"
 );
