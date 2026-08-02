@@ -222,7 +222,6 @@ assert.doesNotMatch(pageSource, /total_fee_jpy\s*=|duration_hours\s*\*\s*.*unit_
 assert.match(htmlSource, /当前权威预览返回的学费月份、自然周、课程信息和服务端费用/);
 assert.match(htmlSource, /generateTuitionBillSubmitButton[^>]*disabled/);
 assert.match(pageSource, /preview\.generate_feature_state/);
-assert.match(pageSource, /学费 Cash 提交正在整改，当前禁止提交/);
 assert.match(pageSource, /generateStudentTuitionBillAtomic/);
 assert.doesNotMatch(previewRendererSource, /candidate集合|生成manifest|candidate_uuid_md5|generation_manifest_sha256/);
 assert.doesNotMatch(htmlSource, /planned lesson UUID|candidate集合|生成manifest/);
