@@ -21,9 +21,9 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=r2-f-f2-c-authoritative-month-refresh";
+} from "../api/lesson-api.js?v=tuition-p0b1-20260803";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-f2-b-year-month-closure";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=tuition-p0b1-20260803";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=r2-f-e1-lesson-generation-closure";
 import {
   currentYearMonth,
@@ -286,12 +286,10 @@ let loadedMonth = "";
 let loadedLessonRecordMode = "";
 let activeView = DEFAULT_LESSON_VIEW;
 let isCreatePlannedLessonSubmitting = false;
-let isCreateLessonFeeManual = false;
 let createPlannedLessonInitialSnapshot = null;
 let isCreatePlannedLessonCloseConfirmPending = false;
 let currentActualSourceLesson = null;
 let isCreateActualLessonSubmitting = false;
-let isActualLessonFeeManual = false;
 let createActualLessonInitialSnapshot = null;
 let isCreateActualLessonCloseConfirmPending = false;
 let currentCancelledActualSourceLesson = null;
@@ -300,7 +298,6 @@ let createCancelledActualLessonInitialSnapshot = null;
 let isCreateCancelledActualLessonCloseConfirmPending = false;
 let currentMakeupActualSourceLesson = null;
 let isCreateMakeupActualLessonSubmitting = false;
-let isMakeupLessonFeeManual = false;
 let createMakeupActualLessonInitialSnapshot = null;
 let isCreateMakeupActualLessonCloseConfirmPending = false;
 let crossMonthMakeupSourceLessons = [];
@@ -674,7 +671,6 @@ function bindEvents() {
   dom.lessonImportPreviewClearButton?.addEventListener("click", clearLessonImportPreview);
   dom.lessonImportPreviewFileInput?.addEventListener("change", handleLessonImportPreviewFileChange);
   dom.lessonImportTemplateExportButton?.addEventListener("click", handleLessonImportTemplateExport);
-  dom.lessonImportPlannedSubmitButton?.addEventListener("click", handleLessonImportPlannedSubmit);
   dom.lessonImportViewMonthButton?.addEventListener("click", handleLessonImportViewMonthClick);
   dom.lessonImportViewFirstDetailButton?.addEventListener("click", handleLessonImportViewFirstDetailClick);
   dom.openLessonBatchGenerateButton?.addEventListener("click", openLessonBatchGenerateDialog);
@@ -803,9 +799,6 @@ function bindEvents() {
   dom.createPlannedLessonEndTimeInput?.addEventListener("change", syncCreatePlannedLessonDurationFromTimeRange);
   dom.createPlannedLessonDurationInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonUnitPriceInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
-  dom.createPlannedLessonFeeInput?.addEventListener("input", () => {
-    isCreateLessonFeeManual = dom.createPlannedLessonFeeInput.value.trim() !== "";
-  });
   dom.createPlannedLessonDeliveryModeSelect?.addEventListener("change", syncCreatePlannedLessonVenueFields);
 
   dom.pairRows?.addEventListener("click", (event) => {
@@ -893,9 +886,6 @@ function bindEvents() {
   dom.createActualLessonEndTimeInput?.addEventListener("change", syncCreateActualLessonDurationFromTimeRange);
   dom.createActualLessonDurationInput?.addEventListener("input", updateCreateActualLessonFeePreview);
   dom.createActualLessonUnitPriceInput?.addEventListener("input", updateCreateActualLessonFeePreview);
-  dom.createActualLessonFeeInput?.addEventListener("input", () => {
-    isActualLessonFeeManual = dom.createActualLessonFeeInput.value.trim() !== "";
-  });
 
   dom.createCancelledActualLessonCancelButton?.addEventListener("click", () => closeCreateCancelledActualLessonDialog());
   dom.createCancelledActualLessonSubmitButton?.addEventListener("click", handleCreateCancelledActualLessonSubmit);
@@ -972,9 +962,6 @@ function bindEvents() {
   dom.createMakeupActualLessonEndTimeInput?.addEventListener("change", syncCreateMakeupActualLessonDurationFromTimeRange);
   dom.createMakeupActualLessonDurationInput?.addEventListener("input", updateCreateMakeupActualLessonFeePreview);
   dom.createMakeupActualLessonUnitPriceInput?.addEventListener("input", updateCreateMakeupActualLessonFeePreview);
-  dom.createMakeupActualLessonFeeInput?.addEventListener("input", () => {
-    isMakeupLessonFeeManual = dom.createMakeupActualLessonFeeInput.value.trim() !== "";
-  });
 
   dom.createCrossMonthMakeupActualCancelButton?.addEventListener("click", () => closeCreateCrossMonthMakeupActualDialog());
   dom.createCrossMonthMakeupActualSubmitButton?.addEventListener("click", handleCreateCrossMonthMakeupActualSubmit);
@@ -1617,7 +1604,6 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonContentInput.value = "";
   dom.createPlannedLessonNoteInput.value = "";
   syncCreatePlannedLessonVenueFields();
-  isCreateLessonFeeManual = false;
   isCreatePlannedLessonCloseConfirmPending = false;
   createPlannedLessonInitialSnapshot = readCreatePlannedLessonFormSnapshot();
 }
@@ -1694,8 +1680,7 @@ function readCreatePlannedLessonPayload() {
       : "";
   const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
-  const inputLessonFee = nullableNumberFromInput(dom.createPlannedLessonFeeInput.value);
-  const lessonFee = isCreateLessonFeeManual ? inputLessonFee : null;
+  const lessonFee = null;
   const airconRateJpyPerHour = numberFromInput(dom.createPlannedLessonAirconRateInput.value);
   const lessonCount = nullableIntegerFromInput(dom.createPlannedLessonCountInput.value);
   const invalidFields = [];
@@ -1725,7 +1710,6 @@ function readCreatePlannedLessonPayload() {
   }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (isCreateLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0) invalidFields.push("airconRate");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
@@ -1833,18 +1817,7 @@ function syncCreatePlannedLessonVenueFields() {
 }
 
 function updateCreatePlannedLessonFeePreview() {
-  if (isCreateLessonFeeManual) {
-    return;
-  }
-
-  const durationHours = numberFromInput(dom.createPlannedLessonDurationInput.value);
-  const unitPrice = numberFromInput(dom.createPlannedLessonUnitPriceInput.value);
-  if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
-    dom.createPlannedLessonFeeInput.value = "";
-    return;
-  }
-
-  dom.createPlannedLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
+  dom.createPlannedLessonFeeInput.value = "";
 }
 
 function openCreateActualLessonDialog(plannedLessonId) {
@@ -1916,7 +1889,6 @@ function resetCreateActualLessonForm(plannedLesson) {
   dom.createActualLessonCountInput.value = plannedLesson.lesson_count ? String(plannedLesson.lesson_count) : "";
   dom.createActualLessonContentInput.value = safeText(plannedLesson.lesson_content);
   dom.createActualLessonNoteInput.value = safeText(plannedLesson.note);
-  isActualLessonFeeManual = false;
   isCreateActualLessonCloseConfirmPending = false;
   createActualLessonInitialSnapshot = readCreateActualLessonFormSnapshot();
 }
@@ -2009,8 +1981,7 @@ function readCreateActualLessonPayload() {
   const endTime = dom.createActualLessonEndTimeInput.value;
   const durationHours = numberFromInput(dom.createActualLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createActualLessonUnitPriceInput.value);
-  const inputLessonFee = nullableNumberFromInput(dom.createActualLessonFeeInput.value);
-  const lessonFee = isActualLessonFeeManual ? inputLessonFee : null;
+  const lessonFee = null;
   const lessonCount = nullableIntegerFromInput(dom.createActualLessonCountInput.value);
   const lessonContent = dom.createActualLessonContentInput.value.trim();
   const invalidFields = [];
@@ -2044,7 +2015,6 @@ function readCreateActualLessonPayload() {
     }
   }
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (isActualLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
@@ -2140,18 +2110,7 @@ function hideCreateActualLessonErrorIfClean() {
 }
 
 function updateCreateActualLessonFeePreview() {
-  if (isActualLessonFeeManual) {
-    return;
-  }
-
-  const durationHours = numberFromInput(dom.createActualLessonDurationInput.value);
-  const unitPrice = numberFromInput(dom.createActualLessonUnitPriceInput.value);
-  if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
-    dom.createActualLessonFeeInput.value = "";
-    return;
-  }
-
-  dom.createActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
+  dom.createActualLessonFeeInput.value = "";
 }
 
 function openCreateCancelledActualLessonDialog(plannedLessonId) {
@@ -2483,7 +2442,6 @@ function resetCreateMakeupActualLessonForm(plannedLesson) {
   dom.createMakeupActualLessonCountInput.value = plannedLesson.lesson_count ? String(plannedLesson.lesson_count) : "";
   dom.createMakeupActualLessonContentInput.value = safeText(plannedLesson.lesson_content);
   dom.createMakeupActualLessonNoteInput.value = safeText(plannedLesson.note);
-  isMakeupLessonFeeManual = false;
   syncCreateMakeupActualLessonFeeMode();
   isCreateMakeupActualLessonCloseConfirmPending = false;
   createMakeupActualLessonInitialSnapshot = readCreateMakeupActualLessonFormSnapshot();
@@ -2582,10 +2540,7 @@ function readCreateMakeupActualLessonPayload() {
   const endTime = dom.createMakeupActualLessonEndTimeInput.value;
   const durationHours = numberFromInput(dom.createMakeupActualLessonDurationInput.value);
   const unitPrice = numberFromInput(dom.createMakeupActualLessonUnitPriceInput.value);
-  const inputLessonFee = isBillable ? nullableNumberFromInput(dom.createMakeupActualLessonFeeInput.value) : 0;
-  const lessonFee = isBillable
-    ? (isMakeupLessonFeeManual ? inputLessonFee : null)
-    : 0;
+  const lessonFee = null;
   const lessonCount = nullableIntegerFromInput(dom.createMakeupActualLessonCountInput.value);
   const lessonContent = dom.createMakeupActualLessonContentInput.value.trim();
   const invalidFields = [];
@@ -2610,7 +2565,6 @@ function readCreateMakeupActualLessonPayload() {
   }
   if (!Number.isFinite(durationHours) || durationHours <= 0) invalidFields.push("durationHours");
   if (!Number.isFinite(unitPrice) || unitPrice < 0) invalidFields.push("unitPrice");
-  if (isBillable && isMakeupLessonFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
   if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
   if (invalidFields.length) {
@@ -2698,14 +2652,13 @@ function hideCreateMakeupActualLessonErrorIfClean() {
 }
 
 function handleCreateMakeupActualLessonBillableChange() {
-  isMakeupLessonFeeManual = false;
   syncCreateMakeupActualLessonFeeMode();
   updateCreateMakeupActualLessonFeePreview();
 }
 
 function syncCreateMakeupActualLessonFeeMode() {
   const isBillable = dom.createMakeupActualLessonBillableSelect.value !== "false";
-  dom.createMakeupActualLessonFeeInput.readOnly = !isBillable;
+  dom.createMakeupActualLessonFeeInput.readOnly = true;
   if (!isBillable) {
     dom.createMakeupActualLessonFeeInput.value = "0";
   }
@@ -2718,18 +2671,7 @@ function updateCreateMakeupActualLessonFeePreview() {
     return;
   }
 
-  if (isMakeupLessonFeeManual) {
-    return;
-  }
-
-  const durationHours = numberFromInput(dom.createMakeupActualLessonDurationInput.value);
-  const unitPrice = numberFromInput(dom.createMakeupActualLessonUnitPriceInput.value);
-  if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
-    dom.createMakeupActualLessonFeeInput.value = "";
-    return;
-  }
-
-  dom.createMakeupActualLessonFeeInput.value = String(Math.round(durationHours * unitPrice));
+  dom.createMakeupActualLessonFeeInput.value = "";
 }
 
 function openCreateCrossMonthMakeupActualDialog() {
@@ -5826,8 +5768,8 @@ function renderLessonImportPreview() {
   dom.lessonImportPreviewSummary.classList.toggle("is-hidden", rows.length === 0);
   dom.lessonImportPreviewRows.innerHTML = rows.map(renderLessonImportPreviewRow).join("");
   if (dom.lessonImportPlannedSubmitButton) {
-    dom.lessonImportPlannedSubmitButton.disabled = isLessonImportSubmitting || rows.length === 0 || errorCount > 0 || hasCommittedPreview;
-    dom.lessonImportPlannedSubmitButton.textContent = isLessonImportSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
+    dom.lessonImportPlannedSubmitButton.disabled = true;
+    dom.lessonImportPlannedSubmitButton.textContent = "历史导入已停用";
   }
   if (dom.lessonImportViewMonthButton) {
     const canViewImportMonth = !isLessonImportSubmitting && lastLessonImportResult?.authoritativeMonths?.length === 1;
@@ -6001,7 +5943,7 @@ function buildLessonImportSubmitRows(rows) {
     duration_hours: hasLessonImportPreviewValue(row.raw.durationHours) && Number.isFinite(row.values.durationHours) ? row.values.durationHours : null,
     lesson_count: Number.isInteger(row.values.lessonCount) ? row.values.lessonCount : null,
     unit_price: Number.isFinite(row.values.unitPrice) ? row.values.unitPrice : 0,
-    lesson_fee: hasLessonImportPreviewValue(row.raw.lessonFee) && Number.isFinite(row.values.lessonFee) ? row.values.lessonFee : null,
+    lesson_fee: null,
     is_billable: true,
     student_id: row.values.studentId,
     teacher_id: row.values.teacherId,
@@ -6038,9 +5980,8 @@ function setLessonImportSubmitting(isSubmitting) {
   isLessonImportSubmitting = isSubmitting;
   const hasCommittedPreview = Boolean(lastLessonImportResult?.successCount > 0);
   if (dom.lessonImportPlannedSubmitButton) {
-    const hasErrors = importPreviewRows.some((row) => row.errors.length);
-    dom.lessonImportPlannedSubmitButton.disabled = isSubmitting || importPreviewRows.length === 0 || hasErrors || hasCommittedPreview;
-    dom.lessonImportPlannedSubmitButton.textContent = isSubmitting ? "导入中..." : hasCommittedPreview ? "已导入" : "导入预定课时";
+    dom.lessonImportPlannedSubmitButton.disabled = true;
+    dom.lessonImportPlannedSubmitButton.textContent = "历史导入已停用";
   }
   if (dom.lessonImportViewMonthButton) {
     const canViewImportMonth = !isSubmitting && lastLessonImportResult?.authoritativeMonths?.length === 1;

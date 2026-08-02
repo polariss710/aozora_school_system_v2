@@ -217,7 +217,7 @@
                 <button class="button view-toggle-button is-active" id="lessonPairViewButton" type="button" data-lesson-view="pair" aria-pressed="true">左右对应</button>
                 <button class="button view-toggle-button" id="lessonListViewButton" type="button" data-lesson-view="list" aria-pressed="false">普通列表</button>
               </div>
-              <button class="button" id="openLessonImportPreviewButton" type="button">导入预定课时</button>
+              <button class="button" id="openLessonImportPreviewButton" type="button">导入预览（只读）</button>
               <button class="button" id="openLessonBatchGenerateButton" type="button">批量生成预定课时</button>
               <button class="button" id="openLessonPdfExportButton" type="button">导出学生课时 PDF</button>
               <button class="button" id="openWeeklyScheduleForStudentButton" type="button" disabled>生成本周学生课表</button>
@@ -389,8 +389,8 @@
             </label>
 
             <label class="field" data-create-planned-lesson-field="lessonFee">
-              <span>课时费 JPY</span>
-              <input id="createPlannedLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+              <span>基础课时费 JPY（DB 保存后确认）</span>
+              <input id="createPlannedLessonFeeInput" type="number" readonly aria-readonly="true" placeholder="由数据库计算">
             </label>
 
             <label class="field" data-create-planned-lesson-field="airconRate">
@@ -468,8 +468,8 @@
             </label>
 
             <label class="field" data-create-actual-lesson-field="lessonFee">
-              <span>课时费 JPY</span>
-              <input id="createActualLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+              <span>基础课时费 JPY（DB 保存后确认）</span>
+              <input id="createActualLessonFeeInput" type="number" readonly aria-readonly="true" placeholder="由数据库计算">
             </label>
 
             <label class="field" data-create-actual-lesson-field="lessonCount">
@@ -627,8 +627,8 @@
             </label>
 
             <label class="field" data-create-makeup-actual-lesson-field="lessonFee">
-              <span>课时费 JPY</span>
-              <input id="createMakeupActualLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+              <span>基础课时费 JPY（DB 保存后确认）</span>
+              <input id="createMakeupActualLessonFeeInput" type="number" readonly aria-readonly="true" placeholder="由数据库计算">
             </label>
 
             <label class="field" data-create-makeup-actual-lesson-field="lessonCount">
@@ -856,7 +856,7 @@
         <section class="dialog-panel lesson-import-preview-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonImportPreviewTitle">
           <div class="lesson-import-preview-body">
             <div class="section-heading">
-              <h2 id="lessonImportPreviewTitle">导入预定课时</h2>
+              <h2 id="lessonImportPreviewTitle">课时文件预览（只读）</h2>
               <p class="section-note">可解析本地 Excel/CSV 并预览；提交只写入预定课时，actual 行仅可预览且会在提交前阻止。</p>
             </div>
 
@@ -871,8 +871,8 @@
                 <div><strong>课时类型</strong><span>主模板填写预定；actual 仅用于 preview / future backlog。</span></div>
                 <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
                 <div><strong>lookup</strong><span>学生、老师、科目、业务归属只按完全一致匹配，不做模糊猜测。</span></div>
-                <div><strong>金额</strong><span>课时费总额 JPY 是整条课时记录总额，不是单价。</span></div>
-                <div><strong>导入范围</strong><span>当前提交只支持预定课时；actual 行会在提交前阻止。</span></div>
+                <div><strong>金额</strong><span>文件金额仅供预览，提交时忽略；基础课时费、空调费与课程总价由数据库保存并返回。</span></div>
+                <div><strong>导入范围</strong><span>P0-B1 已关闭历史文件写入口；本窗口仅解析和预览，不提交课时。</span></div>
                 <div><strong>旧模板</strong><span>可识别预定/实际分栏；planned 行中的关联预定ID会被忽略。</span></div>
               </div>
             </div>
@@ -920,7 +920,7 @@
           </div>
 
           <div class="dialog-actions">
-            <button class="button button-primary" id="lessonImportPlannedSubmitButton" type="button">导入预定课时</button>
+            <button class="button button-primary" id="lessonImportPlannedSubmitButton" type="button" disabled>历史导入已停用</button>
             <button class="button is-hidden" id="lessonImportViewMonthButton" type="button">查看导入月份</button>
             <button class="button is-hidden" id="lessonImportViewFirstDetailButton" type="button">查看首条详情</button>
             <button class="button" id="lessonImportPreviewClearButton" type="button">清空</button>
@@ -1033,8 +1033,8 @@
             </label>
 
             <label class="field" data-edit-lesson-field="lessonFee">
-              <span>课时费 JPY</span>
-              <input id="editLessonFeeInput" type="number" min="0" step="1" inputmode="numeric">
+              <span>基础课时费 JPY（DB 保存后确认）</span>
+              <input id="editLessonFeeInput" type="number" readonly aria-readonly="true" placeholder="由数据库计算">
             </label>
 
             <label class="field" data-edit-lesson-field="airconRate">
@@ -1130,6 +1130,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=aircon-display-dedup-20260801"></script>
+    <script type="module" src="./js/lesson-app.js?v=tuition-p0b1-20260803"></script>
   </body>
 </html>

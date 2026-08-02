@@ -1,4 +1,4 @@
-import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=r2-f-f2-b-year-month-closure";
+import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=tuition-p0b1-20260803";
 import { formatMonth, safeText } from "../utils/format.js";
 import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=r2-f-f2-b-year-month-closure";
 import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=r2-f-f2-b-year-month-closure";
@@ -86,7 +86,6 @@ export function createLessonEditDialogController(options) {
   } = options;
   let currentLesson = null;
   let isSubmitting = false;
-  let isFeeManual = false;
   let initialFormSnapshot = null;
   let closeConfirmPending = false;
   let isInitialized = false;
@@ -151,9 +150,6 @@ export function createLessonEditDialogController(options) {
     dom.endTimeInput?.addEventListener("change", syncDurationFromTimeRange);
     dom.durationInput?.addEventListener("input", updateFeePreview);
     dom.unitPriceInput?.addEventListener("input", updateFeePreview);
-    dom.feeInput?.addEventListener("input", () => {
-      isFeeManual = dom.feeInput.value.trim() !== "";
-    });
     dom.billableSelect?.addEventListener("change", handleBillableChange);
     dom.deliveryModeSelect?.addEventListener("change", syncVenueFieldModes);
   }
@@ -316,7 +312,6 @@ export function createLessonEditDialogController(options) {
     dom.importSourceInput.value = displayImportSource(lesson);
     dom.contentInput.value = safeText(lesson.lesson_content);
     dom.noteInput.value = safeText(lesson.note);
-    isFeeManual = false;
     closeConfirmPending = false;
     syncFieldModes();
     syncVenueFieldModes();
@@ -484,10 +479,7 @@ export function createLessonEditDialogController(options) {
       ? nullableIntegerFromInput(dom.airconRateInput.value)
       : null;
     const isBillable = isPlanned ? true : dom.billableSelect.value !== "false";
-    const inputLessonFee = isActual && !isBillable ? 0 : nullableNumberFromInput(dom.feeInput.value);
-    const lessonFee = isActual && !isBillable
-      ? 0
-      : (isFeeManual ? inputLessonFee : null);
+    const lessonFee = null;
     const lessonCount = nullableIntegerFromInput(dom.countInput.value);
     const lessonContent = dom.contentInput.value.trim();
     const requiresActualRequiredFields = isActual && ["completed", "makeup_completed"].includes(status);
@@ -549,7 +541,6 @@ export function createLessonEditDialogController(options) {
         && (!Number.isInteger(airconRateJpyPerHour) || airconRateJpyPerHour < 0)) {
       invalidFields.push("airconRate");
     }
-    if (isFeeManual && (lessonFee === null || !Number.isFinite(lessonFee) || lessonFee < 0)) invalidFields.push("lessonFee");
     if (lessonCount !== null && (!Number.isInteger(lessonCount) || lessonCount <= 0)) invalidFields.push("lessonCount");
 
     if (invalidFields.length) {
@@ -654,7 +645,6 @@ export function createLessonEditDialogController(options) {
   }
 
   function handleBillableChange() {
-    isFeeManual = false;
     syncFieldModes();
     updateFeePreview();
   }
@@ -664,27 +654,7 @@ export function createLessonEditDialogController(options) {
       return;
     }
 
-    const isActual = currentLesson.lesson_type === "actual";
-    const isCancelledActual = isActual && currentLesson.status === "cancelled";
-    const isBillable = dom.billableSelect.value !== "false";
-
-    if (isCancelledActual || (isActual && !isBillable)) {
-      dom.feeInput.value = "0";
-      return;
-    }
-
-    if (isFeeManual) {
-      return;
-    }
-
-    const durationHours = numberFromInput(dom.durationInput.value);
-    const unitPrice = numberFromInput(dom.unitPriceInput.value);
-    if (!Number.isFinite(durationHours) || !Number.isFinite(unitPrice) || durationHours <= 0 || unitPrice < 0) {
-      dom.feeInput.value = "";
-      return;
-    }
-
-    dom.feeInput.value = String(Math.round(durationHours * unitPrice));
+    dom.feeInput.value = "";
   }
 
   function isDialogOpen() {
