@@ -115,10 +115,16 @@ assert.equal(august.candidates.some((row) => row.billing_week_start_date === "20
 assert.equal(august.candidates.some((row) => row.billing_week_start_date === "2026-08-31"), true);
 assert.equal(formatAuthoritativeBillingWeek("2026-08-31"), "2026-08-31～2026-09-06");
 
-assert.equal(
-  mapTuitionValidationPreviewError(new Error("R2_F_B_CANDIDATES_EMPTY: internal-id" )).message,
-  "该学生月份没有可收费的预定课时。"
-);
+const alreadyBilledMessage = mapTuitionValidationPreviewError(
+  new Error("R2_F_B_ALREADY_BILLED: internal-id")
+).message;
+const emptyCandidateMessage = mapTuitionValidationPreviewError(
+  new Error("R2_F_B_CANDIDATES_EMPTY: internal-id")
+).message;
+assert.equal(alreadyBilledMessage, "该学生本月学费账单已生成，不能重复生成。");
+assert.equal(emptyCandidateMessage, "该学生本月没有可生成学费账单的课程。");
+assert.notEqual(alreadyBilledMessage, emptyCandidateMessage);
+assert.doesNotMatch(`${alreadyBilledMessage}${emptyCandidateMessage}`, /R2_F_B_|internal-id|[0-9a-f]{8}-/i);
 assert.equal(
   mapTuitionValidationPreviewError(new Error("database internal diagnostics 303170f4-1c99-483b-a1ac-6ce23e27ad29")).message,
   "学费预览生成失败，请刷新页面后重试；如仍失败请联系管理员核对。"
@@ -227,7 +233,9 @@ assert.match(cssSource, /@media \(max-width:\s*767px\)[\s\S]*?\.tuition-bill-pre
 assert.match(cssSource, /\.tuition-bill-dialog-body\s*\{[\s\S]*?overflow-y:\s*auto/);
 assert.match(cssSource, /\.tuition-bill-dialog-panel\s*\{[\s\S]*?overflow:\s*hidden/);
 assert.doesNotMatch(pageSource, /generateTuitionBillDialog\.addEventListener\(\s*["']click/);
-assert.match(incomeAppSource, /income-page\.js\?v=v2\.115\.1-tuition-preview-compact/);
+assert.match(incomeAppSource, /income-page\.js\?v=v2\.115\.2-tuition-duplicate-message/);
+assert.match(htmlSource, /income-app\.js\?v=v2\.115\.2-tuition-duplicate-message/);
+assert.match(pageSource, /tuition-validation-preview\.js\?v=v2\.115\.2-tuition-duplicate-message/);
 assert.doesNotMatch(apiSource, /\.rpc\("school_generate_student_tuition_bill"/);
 assert.doesNotMatch(apiSource, /school_create_student_tuition_bill_income_record/);
 assert.match(sqlSource, /school_list_student_tuition_charge_candidates/);

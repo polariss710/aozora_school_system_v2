@@ -167,7 +167,8 @@ export function mapAtomicTuitionGenerateError(error) {
     ["R2_F_B_STALE_GENERATION_MANIFEST", "课程或收费数据已变化，请重新生成预览。", true],
     ["R2_F_C_TUITION_SOURCE_BUSY", "课时或月结数据正在更新，请稍后重新预览并生成。", true],
     ["R2_F_B_IDEMPOTENCY_CONFLICT_OR_INCOMPLETE", "该学生月份已存在不一致的账单记录，请停止操作并检查。", false],
-    ["R2_F_B_CANDIDATES_EMPTY", "该学生月份没有可收费的预定课时。", false],
+    ["R2_F_B_ALREADY_BILLED", "该学生本月学费账单已生成，不能重复生成。", false],
+    ["R2_F_B_CANDIDATES_EMPTY", "该学生本月没有可生成学费账单的课程。", false],
   ];
   const matched = mappings.find(([code]) => rawMessage.includes(code));
   if (matched) {
@@ -191,7 +192,8 @@ export function mapTuitionValidationPreviewError(error) {
     ["R2_F_B_EXCHANGE_RATE_INVALID", "通知汇率必须大于零。"],
     ["R2_F_B_TARGET_SETTLEMENT_LOCKED", "本月学生结算已经锁定，不能重新生成学费预览。"],
     ["R2_F_B_MULTIPLE_PREVIOUS_LOCKED_SETTLEMENTS", "上月锁定结算数据不唯一，请停止操作并联系管理员核对。"],
-    ["R2_F_B_CANDIDATES_EMPTY", "该学生月份没有可收费的预定课时。"],
+    ["R2_F_B_ALREADY_BILLED", "该学生本月学费账单已生成，不能重复生成。"],
+    ["R2_F_B_CANDIDATES_EMPTY", "该学生本月没有可生成学费账单的课程。"],
     ["R2_F_B_DUPLICATE_CANDIDATE_UUID", "学费候选课时存在重复，请停止操作并联系管理员核对。"],
     ["R2_F_B_CANDIDATE_CONTRACT_MISMATCH", "学费候选课时证据不一致，请停止操作并联系管理员核对。"],
     ["R2_F_B_BILLING_AMOUNT_INVALID", "学费通知金额无效，请停止操作并联系管理员核对。"],

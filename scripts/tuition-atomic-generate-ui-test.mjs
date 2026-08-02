@@ -72,6 +72,20 @@ assert.deepEqual(
 assert.equal(mapAtomicTuitionGenerateError(new Error("R2_F_B_STALE_GENERATION_MANIFEST")).clearPreview, true);
 assert.equal(mapAtomicTuitionGenerateError(new Error("R2_F_C_TUITION_SOURCE_BUSY")).clearPreview, true);
 
+const alreadyBilledError = mapAtomicTuitionGenerateError(
+  new Error("R2_F_B_ALREADY_BILLED: internal-id")
+);
+const emptyCandidateError = mapAtomicTuitionGenerateError(
+  new Error("R2_F_B_CANDIDATES_EMPTY: internal-id")
+);
+assert.equal(alreadyBilledError.message, "该学生本月学费账单已生成，不能重复生成。");
+assert.equal(emptyCandidateError.message, "该学生本月没有可生成学费账单的课程。");
+assert.notEqual(alreadyBilledError.message, emptyCandidateError.message);
+assert.doesNotMatch(
+  `${alreadyBilledError.message}${emptyCandidateError.message}`,
+  /R2_F_B_|internal-id|[0-9a-f]{8}-/i
+);
+
 // 10. An idempotent success consumes the preview and does not create a second call.
 let generateCalls = 0;
 state.storePreview(preview);
@@ -131,4 +145,4 @@ assert.match(pageSource, /tuitionBillGenerationState\.storePreview\(preview\)/);
 assert.match(pageSource, /buildAtomicTuitionGeneratePayload\(preview/);
 assert.match(pageSource, /result\.generation_manifest_sha256 !== preview\.generation_manifest_sha256/);
 
-console.log("atomic tuition generate frontend state fixtures: 14/14 PASS");
+console.log("atomic tuition generate frontend state fixtures: 18/18 PASS");
