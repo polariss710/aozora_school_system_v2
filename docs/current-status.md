@@ -1,6 +1,6 @@
 # Current Status
 
-Status date: 2026-08-02
+Status date: 2026-08-03
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
@@ -50,9 +50,12 @@ Stop and report immediately for:
 - frontend/page JS deciding or computing persisted business-result values, including amounts, rounding, settlement/carryover defaults, wage totals, exchange-derived values, Cash request amounts, or lock snapshot totals, instead of using DB/RPC or backend API authority or explicit user input;
 - need for non-whitelisted real business data, current/unclosed real-month write validation, broad historical-data modification, historical repair, broad backfill, destructive cleanup, `delete`, `truncate`, `drop`, broad permission changes, or irreversible production operation;
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
-- Atomic Tuition 专用作废/重生成的主体扩模已获逐项批准，但实施前固定15链检查发现7条`historical_backfill`链不存在任何generation manifest；批准的revision字段同时要求`generation_manifest_sha256 NOT NULL`、固定15链全注册且禁止NULL/legacy fallback。为历史链自主创造registration manifest属于未批准的新snapshot/version/authority，当前在SQL草案前HARD STOP。继续前必须明确批准`historical_registration_manifest_v1`精确语义，或明确修改固定15链/NOT NULL合同。
+- Atomic Tuition专用作废/重生成的主体扩模及`manifest_kind`/`historical_registration_manifest_v1`均已获精确批准；固定15链业务模型阻塞已解除。新的实施前HARD STOP是并发验收环境：未提交的新DDL/RPC无法被第二会话看到，当前没有隔离School测试库、本地Postgres server或已提交白名单fixture；生产多会话测试若提交fixture，residue 0又需要未获批准的固定范围DELETE。继续前须提供隔离测试库，或精确批准生产固定synthetic fixture的committed INSERT与cleanup DELETE生命周期。
 
 ## Latest Key Updates
+
+1. School V2 Atomic Tuition Void/Reissue concurrency environment preflight, 2026-08-03：
+   `manifest_kind`与`historical_registration_manifest_v1`补充批准已完整匹配，上一manifest硬停止解除；但真实多会话测试无法在未提交production migration上运行，且当前无School测试/staging连接、无本地Postgres server、无Docker/Podman、无现成codex-test学生fixture。生产fixture提交后达到residue 0需要固定范围DELETE，而当前未获该例外授权。为避免在生产留下测试数据或越过阶段顺序，本轮继续在SQL草案前HARD STOP；Gate保持`enabled / enabled / enabled`，DB/前端/真实目标写入0。详见`docs/school-v2-atomic-tuition-void-reissue-concurrency-environment-hard-stop-20260803.md`。
 
 1. School V2 Atomic Tuition Void/Reissue expansion approval preflight, 2026-08-02：
    generation identity/revision/void event、active authority、relation claim、School统一锁、Cash reservation、固定15链初始化和service-role-only权限均已获逐项批准；但固定15链中只有8条atomic chain有合法generation manifest，7条historical_backfill chain在identity/bill/income三处均无manifest，而批准合同要求revision manifest非NULL且禁止fallback。15/15三个validator均通过，Cash bridge现有顺序已是School pending reservation先提交、Cash request后创建；Gate仍`enabled / enabled / enabled`。本轮在业务SQL草案前HARD STOP，DB/前端/真实目标写入均为0。详见`docs/school-v2-atomic-tuition-void-reissue-approval-preflight-hard-stop-20260802.md`。

@@ -87,3 +87,12 @@ registration manifest 都会违反 Schema And Business Model Expansion Gate。
 - 数据库写入：0；test whitelist写入：0；测试记录ID：无。
 - Gate写入：0；真实void/reissue/Cash submit：0。
 - 两份既有未跟踪文件均未修改。
+
+## 6. 2026-08-03 后续
+
+业务负责人已精确批准本报告第4节全部6项语义，并新增明确的`manifest_kind`合同；本报告
+记录的historical registration manifest业务模型阻塞已解除。
+
+继续实施前检查随后发现真实多会话测试缺少隔离测试库或获批的committed synthetic
+fixture lifecycle，形成新的环境/授权硬停止。详见
+`docs/school-v2-atomic-tuition-void-reissue-concurrency-environment-hard-stop-20260803.md`。
