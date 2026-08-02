@@ -50,7 +50,7 @@ Stop and report immediately for:
 - frontend/page JS deciding or computing persisted business-result values, including amounts, rounding, settlement/carryover defaults, wage totals, exchange-derived values, Cash request amounts, or lock snapshot totals, instead of using DB/RPC or backend API authority or explicit user input;
 - need for non-whitelisted real business data, current/unclosed real-month write validation, broad historical-data modification, historical repair, broad backfill, destructive cleanup, `delete`, `truncate`, `drop`, broad permission changes, or irreversible production operation;
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
-- Atomic Tuition 专用作废/重生成仍为业务模型扩展硬停止：现模型只有 student+month 单 identity，历史 canonical lesson relation 永久占用 planned lesson，且 V2 没有 manager 权限权威。继续前必须逐项批准 revision/void-event 对象、active authority、identity/entity 语义、relation 唯一约束替换、与 Cash 共用的锁协议、既有15条链的 metadata registration，以及 V2 manager 身份来源；不得用 NULL/legacy fallback 绕过。
+- Atomic Tuition 专用作废/重生成仍为业务模型扩展硬停止：现模型只有 student+month 单 identity，历史 canonical lesson relation 永久占用 planned lesson，且 V2 没有 manager 权限权威。继续前必须逐项批准新的generation identity/revision/void-event对象、active authority、identity/entity 语义、relation 唯一约束替换、与 Cash 共用的锁协议、既有15条链的 metadata registration，以及 V2 manager 身份来源；不得用 NULL/legacy fallback 绕过。
 
 ## Latest Key Updates
 

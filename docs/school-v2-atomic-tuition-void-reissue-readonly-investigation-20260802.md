@@ -90,14 +90,15 @@ normalized snapshot 无差异。现有 billed guard 也会阻止对这些课时�
 
 | 类别 | exact object / semantics | 状态 |
 |---|---|---|
-| 新业务表 | `public.school_student_tuition_generation_revisions`：每个 immutable generation 一行；`billing_identity_id`、`tuition_bill_id`、`revision_no`、`previous_revision_id`、`generation_manifest_sha256`、`lifecycle_status(active/voided)`；active row 是当前 bill/claim 的唯一权威，每个 identity 最多一条 active | 未批准 |
+| 新业务表 | `public.school_student_tuition_generation_identities`：`id`、`student_id`、`business_entity_id`、`billing_month`、`legacy_billing_identity_id`、创建审计；`UNIQUE(student_id,business_entity_id,billing_month)`；是学生＋业务归属＋月份稳定 identity 的唯一权威，既有 identity 仅作为初始链审计证据 | 未批准 |
+| 新业务表 | `public.school_student_tuition_generation_revisions`：每个 immutable generation 一行；`generation_identity_id`、`tuition_bill_id`、`revision_no`、`previous_revision_id`、`generation_manifest_sha256`、`lifecycle_status(active/voided)`；active row 是当前 bill/claim 的唯一权威，每个 generation identity 最多一条 active | 未批准 |
 | 新业务表 | `public.school_student_tuition_generation_void_events`：append-only，一次专用作废一行；保存 revision、expected manifest、reason、operator authority、时间与前后证据；是作废审计的唯一权威 | 未批准 |
-| 新业务列/身份语义 | `school_student_tuition_billing_identities.business_entity_id`；identity 从“student+month 单 bill”改为“student+entity+month 稳定根”。既有 `canonical_bill_id` 需明确仅作为初始 revision 审计锚点，不再是当前 active bill authority | 未批准 |
+| 既有 identity 语义 | 不给既有业务表新增列，不修改旧行；`school_student_tuition_billing_identities` 及其 `canonical_bill_id` 永久保留为初始 canonical generation 审计证据，不再是当前 active bill authority；生产 reader 必须以新 generation identity＋active revision 为唯一权威 | 未批准 |
 | 新版本/状态事实 | `revision_no`、`previous_revision_id`、`lifecycle_status` 与 active partial uniqueness；只允许 owner-only core 将 active→voided，新 generate 追加下一 revision，不允许改写旧 revision | 未批准 |
 | reader/writer authority | preview、candidate reader、三个 validator、lesson edit guard、Atomic generate、专用 void、Cash preflight/submit 均只读取 revision 表的 active row；前端不计算或传递释放金额/claim 等业务结果 | 未批准 |
-| relation uniqueness | 移除现有永久 planned UUID unique index，改为由 active revision 权威约束“同一 planned lesson 最多被一个 active canonical revision 占用”；旧 relation 永久保留且仍可审计。变更必须在同一事务内完成，不能出现无保护窗口 | 未批准 |
+| relation uniqueness | 在同一事务中先安装 owner-only `school_assert_active_tuition_lesson_claim(uuid)`、relation INSERT/UPDATE constraint trigger `school_enforce_active_tuition_lesson_claim_on_relation` 与 revision INSERT/UPDATE constraint trigger `school_enforce_active_tuition_lesson_claim_on_revision`，验证后才移除 `school_tuition_bill_lessons_canonical_planned_key`；新约束只禁止同一 planned lesson 同时属于两个 active canonical revision，旧 relation 永久保留且仍可审计，不能出现无保护窗口 | 未批准 |
 | locking rule | 专用 void、Atomic generate 与 Cash submit 共用 `student_tuition_operation_v1|student|entity|month` advisory key，使用固定 identity→active revision→bill→income→School linkage/Cash preflight 锁顺序；作废先锁再二次确认 Cash facts 为 0 | 未批准 |
-| 历史初始化 | 现有 15 条 identity/bill 链注册为 revision 1 active metadata，包含本报告两条目标链；只追加 revision metadata，不改 bill/income/snapshot/manifest/relation。否则必须引入 NULL/legacy fallback 和 reader priority | **与“不得回填目标记录”冲突，未批准** |
+| 历史初始化 | 以固定 15 链清单向新表追加 15 条 generation identity＋15 条 revision 1 active metadata，包含本报告两条目标链；不改任何既有 identity/bill/income/snapshot/manifest/relation。否则必须引入 NULL/legacy fallback 和 reader priority | **与“不得回填目标记录”冲突，未批准** |
 | 权限边界 | 专用 RPC 不向 anon/authenticated/PUBLIC 开放，仅允许受信 backend；“manager”必须有单一已批准身份来源。V2 当前无登录，必须选择并批准：引入正式 manager identity authority，或把 service-role-only 明确定义为本阶段运营授权并修改原要求 | 未批准 |
 | compatibility/retirement | 推荐不保留 legacy reader fallback；先完成固定 metadata registration，再切 active revision authority。若坚持不注册现有链，必须另行批准 fallback、reader precedence、监控、截止日、完成标准与退休条件 | 未批准 |
 
@@ -106,7 +107,7 @@ DB authoritative snapshot/generate 计算。没有 dual-write 两个可写金额
 
 ## 7. 需要业务负责人下一步明确批准的最小集合
 
-继续前必须逐项明确批准第 6 节的两个新表、identity business-entity/authority 语义、
+继续前必须逐项明确批准第 6 节的三个新表、identity business-entity/authority 语义、
 revision lifecycle、active-only readers/writers、relation 唯一约束替换、三方锁协议、
 既有 15 链 metadata registration，以及 V2 manager 权限权威。
 
