@@ -1,6 +1,5 @@
 -- School V2 tuition Cash submit controlled Gate enable, 2026-08-02.
--- Prepared for a later business-owner cutover. This phase only runs with
--- tuition_cash_gate_commit=0, which verifies every precondition then ROLLBACKs.
+-- Re-open only after Cash external transaction immutability DB/UI hardening.
 -- The only persistent write possible with tuition_cash_gate_commit=1 is the
 -- student_tuition_cash_submit Gate row.
 \set ON_ERROR_STOP on
@@ -51,6 +50,46 @@
   \echo 'CASH_ROLLBACK_PASS_VARIABLE_REQUIRED'
   \quit
 \endif
+\if :{?cash_immutability_sql_sha256}
+\else
+  \echo 'CASH_IMMUTABILITY_SQL_SHA256_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_postdeploy_pass}
+\else
+  \echo 'CASH_POSTDEPLOY_PASS_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_ui_pass}
+\else
+  \echo 'CASH_UI_PASS_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_ui_version}
+\else
+  \echo 'CASH_UI_VERSION_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_cny_md5}
+\else
+  \echo 'CASH_CNY_MD5_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_jpy_md5}
+\else
+  \echo 'CASH_JPY_MD5_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_protected_transaction_md5}
+\else
+  \echo 'CASH_PROTECTED_TRANSACTION_MD5_VARIABLE_REQUIRED'
+  \quit
+\endif
+\if :{?cash_yuebao_balance}
+\else
+  \echo 'CASH_YUEBAO_BALANCE_VARIABLE_REQUIRED'
+  \quit
+\endif
 
 begin;
 set local lock_timeout = '10s';
@@ -64,12 +103,23 @@ create temporary table tuition_cash_gate_evidence (
   baseline_17_sha256 text not null,
   eligible_set_sha256 text not null,
   school_rollback_pass text not null,
-  cash_rollback_pass text not null
+  cash_rollback_pass text not null,
+  cash_immutability_sql_sha256 text not null,
+  cash_postdeploy_pass text not null,
+  cash_ui_pass text not null,
+  cash_ui_version text not null,
+  cash_cny_md5 text not null,
+  cash_jpy_md5 text not null,
+  cash_protected_transaction_md5 text not null,
+  cash_yuebao_balance numeric not null
 ) on commit drop;
 insert into tuition_cash_gate_evidence values (
   :'edge_version', :'edge_bundle_sha256', :'edge_source_sha256',
   :'baseline_16_sha256', :'baseline_17_sha256', :'eligible_set_sha256',
-  :'school_rollback_pass', :'cash_rollback_pass'
+  :'school_rollback_pass', :'cash_rollback_pass',
+  :'cash_immutability_sql_sha256', :'cash_postdeploy_pass', :'cash_ui_pass',
+  :'cash_ui_version', :'cash_cny_md5', :'cash_jpy_md5',
+  :'cash_protected_transaction_md5', :'cash_yuebao_balance'
 );
 
 do $preflight$
@@ -83,7 +133,15 @@ begin
      or v_evidence.baseline_17_sha256 <> 'b91cb9dacef0c0c68013c5a2435a32a27cbef5089a159f30c49247a1145ccf46'
      or v_evidence.eligible_set_sha256 <> 'e1ad372ffea00b113088d7a39d7ab3ee2841f9b18ae3e18fd22952711b3cfd09'
      or v_evidence.school_rollback_pass <> 'passed'
-     or v_evidence.cash_rollback_pass <> 'passed' then
+     or v_evidence.cash_rollback_pass <> 'passed'
+     or v_evidence.cash_immutability_sql_sha256 <> '7ce092b3a0a9086912e6cc03726961887ae787f06d4b1b7c48908b886daf1f68'
+     or v_evidence.cash_postdeploy_pass <> 'passed'
+     or v_evidence.cash_ui_pass <> 'passed-7-of-7'
+     or v_evidence.cash_ui_version <> '20260802-external-transaction-immutable-1'
+     or v_evidence.cash_cny_md5 <> '8e5f62d1e256228b956ca7155bed65db'
+     or v_evidence.cash_jpy_md5 <> '95ab7cf8a8d167e9b052d3fc6b64614b'
+     or v_evidence.cash_protected_transaction_md5 <> '7c94d3e343e26713a54e779e1d3b53da'
+     or v_evidence.cash_yuebao_balance <> 111041.82 then
     raise exception 'TUITION_CASH_GATE_EXTERNAL_EVIDENCE_DRIFT';
   end if;
 
@@ -135,10 +193,16 @@ begin
          from public.school_student_tuition_bills row_value) <> 'b18f15673637280bf1455667ccd3cc00'
      or (select count(*) from public.school_income_records) <> 50
      or (select md5(coalesce(string_agg(md5(to_jsonb(row_value)::text), '' order by row_value.id::text), ''))
-         from public.school_income_records row_value) <> 'd393822a95c6121a2e754919b1464a5b'
-     or (select count(*) from public.school_personal_cash_income_linkage_events) <> 35
+         from public.school_income_records row_value) <> '6d2b5b7a3b021007b857a261e4bdf94d'
+     or (select count(*) from public.school_personal_cash_income_linkage_events) <> 36
      or (select md5(coalesce(string_agg(md5(to_jsonb(row_value)::text), '' order by row_value.id::text), ''))
-         from public.school_personal_cash_income_linkage_events row_value) <> '6e76a4dc2fc2954b28b7ad0a8d203ba0' then
+         from public.school_personal_cash_income_linkage_events row_value) <> 'd8f8e4b8556c38fba9873d343aec16d3'
+     or (select count(*) from public.school_student_tuition_billing_identities) <> 15
+     or (select md5(coalesce(string_agg(md5(to_jsonb(row_value)::text), '' order by row_value.id::text), ''))
+         from public.school_student_tuition_billing_identities row_value) <> 'd8d72d5f886e363b80bca4aecfe22522'
+     or (select count(*) from public.school_student_tuition_bill_lessons) <> 256
+     or (select md5(coalesce(string_agg(md5(to_jsonb(row_value)::text), '' order by row_value.id::text), ''))
+         from public.school_student_tuition_bill_lessons row_value) <> 'dfa2bdb71f812f4b2aa0a23613edf289' then
     raise exception 'TUITION_CASH_GATE_SCHOOL_BUSINESS_FINGERPRINT_DRIFT';
   end if;
 
@@ -162,17 +226,22 @@ begin
       from public.school_get_cash_income_submission_preflight(
         array(select income_record_id from public.school_student_tuition_bills order by id)
       ) preflight
-      where preflight.classification = 'ELIGIBLE_FOR_CASH_SUBMIT') <> 8
+      where preflight.classification = 'ELIGIBLE_FOR_CASH_SUBMIT') <> 7
      or (select count(*)
          from public.school_get_cash_income_submission_preflight(
            array(select income_record_id from public.school_student_tuition_bills order by id)
          ) preflight
-         where preflight.eligible) <> 0
+         where preflight.classification = 'ALREADY_SYNCED') <> 8
+     or (select count(*)
+         from public.school_get_cash_income_submission_preflight(
+           array(select income_record_id from public.school_student_tuition_bills order by id)
+         ) preflight
+         where preflight.classification = 'BLOCKED_CONFLICT') <> 2
      or (select sum(preflight.payment_amount)
          from public.school_get_cash_income_submission_preflight(
            array(select income_record_id from public.school_student_tuition_bills order by id)
          ) preflight
-         where preflight.classification = 'ELIGIBLE_FOR_CASH_SUBMIT') <> 109926.72
+         where preflight.classification = 'ELIGIBLE_FOR_CASH_SUBMIT') <> 108806.22
      or (select sum(preflight.previous_carryover_cny)
          from public.school_get_cash_income_submission_preflight(
            array(select income_record_id from public.school_student_tuition_bills order by id)
@@ -193,9 +262,9 @@ $preflight$;
 
 update public.school_feature_gates
 set state = 'enabled',
-    reason = '学费Cash技术硬化、双库回滚矩阵、ACL、Edge和冻结金额权威验收完成。',
-    release_version = 'tuition-cash-hardening-20260802',
-    evidence_hash = 'b91cb9dacef0c0c68013c5a2435a32a27cbef5089a159f30c49247a1145ccf46',
+    reason = '学费Cash同步流水不可变硬化、30项矩阵、Cash页面及双库终态验收完成。',
+    release_version = 'tuition-cash-external-immutable-20260802',
+    evidence_hash = '8e5f62d1e256228b956ca7155bed65db',
     updated_at = statement_timestamp(),
     updated_by = current_user
 where feature_key = 'student_tuition_cash_submit'
