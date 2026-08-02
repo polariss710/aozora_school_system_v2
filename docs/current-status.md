@@ -50,9 +50,12 @@ Stop and report immediately for:
 - frontend/page JS deciding or computing persisted business-result values, including amounts, rounding, settlement/carryover defaults, wage totals, exchange-derived values, Cash request amounts, or lock snapshot totals, instead of using DB/RPC or backend API authority or explicit user input;
 - need for non-whitelisted real business data, current/unclosed real-month write validation, broad historical-data modification, historical repair, broad backfill, destructive cleanup, `delete`, `truncate`, `drop`, broad permission changes, or irreversible production operation;
 - secrets exposure risk, page-level direct DB writes, page-level direct `.rpc()`, non-target module changes, broad refactor, or documentation/request conflict that cannot be safely interpreted.
-- Atomic Tuition 专用作废/重生成仍为业务模型扩展硬停止：现模型只有 student+month 单 identity，历史 canonical lesson relation 永久占用 planned lesson，且 V2 没有 manager 权限权威。继续前必须逐项批准新的generation identity/revision/void-event对象、active authority、identity/entity 语义、relation 唯一约束替换、与 Cash 共用的锁协议、既有15条链的 metadata registration，以及 V2 manager 身份来源；不得用 NULL/legacy fallback 绕过。
+- Atomic Tuition 专用作废/重生成的主体扩模已获逐项批准，但实施前固定15链检查发现7条`historical_backfill`链不存在任何generation manifest；批准的revision字段同时要求`generation_manifest_sha256 NOT NULL`、固定15链全注册且禁止NULL/legacy fallback。为历史链自主创造registration manifest属于未批准的新snapshot/version/authority，当前在SQL草案前HARD STOP。继续前必须明确批准`historical_registration_manifest_v1`精确语义，或明确修改固定15链/NOT NULL合同。
 
 ## Latest Key Updates
+
+1. School V2 Atomic Tuition Void/Reissue expansion approval preflight, 2026-08-02：
+   generation identity/revision/void event、active authority、relation claim、School统一锁、Cash reservation、固定15链初始化和service-role-only权限均已获逐项批准；但固定15链中只有8条atomic chain有合法generation manifest，7条historical_backfill chain在identity/bill/income三处均无manifest，而批准合同要求revision manifest非NULL且禁止fallback。15/15三个validator均通过，Cash bridge现有顺序已是School pending reservation先提交、Cash request后创建；Gate仍`enabled / enabled / enabled`。本轮在业务SQL草案前HARD STOP，DB/前端/真实目标写入均为0。详见`docs/school-v2-atomic-tuition-void-reissue-approval-preflight-hard-stop-20260802.md`。
 
 1. School V2 Atomic Tuition 专用作废与重新生成只读调查，2026-08-02：
    彭宇晗、李天伦2026-08 Atomic链均完整且income为pending，三个validator通过；School linkage与Cash request/CNY/JPY transaction均为0，无rejected链路。二人当前candidate分别因15/16条历史canonical relation被排除；31条source planned均未改、无actual，DB不能推断具体要调整的课程。现模型的student+month单identity、永久planned relation unique和无条件billed guard不能保留旧链同时释放claim并生成新revision；V2也没有可验证的manager权限权威。业务模型扩展声明有多个未获逐项批准的non-none对象，并且安全的15条既有链revision metadata registration与原prompt“不得回填目标记录”冲突，故在业务SQL/RPC/前端前HARD STOP。真实作废、重生成、Cash提交、SQL执行、写RPC及DB写入均为0。详见`docs/school-v2-atomic-tuition-void-reissue-readonly-investigation-20260802.md`。
