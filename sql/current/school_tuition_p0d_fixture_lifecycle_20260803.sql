@@ -220,14 +220,17 @@ begin
     insert into public.school_tuition_atomic_writer_context(backend_pid,transaction_id,writer_source)
     values(pg_backend_pid(),txid_current(),'student_tuition_atomic_generate_v1');
     delete from public.school_student_tuition_generation_void_events
-      where id='d0d00000-0000-4000-8000-000000008001';
-    delete from public.school_student_tuition_generation_revisions where id=v_revision;
+      where generation_identity_id=v_generation;
+    delete from public.school_student_tuition_generation_revisions
+      where generation_identity_id=v_generation;
     delete from public.school_student_tuition_generation_identities where id=v_generation;
-    delete from public.school_student_tuition_billing_identities where id=v_legacy;
-    delete from public.school_student_tuition_bill_lessons where id=any(v_relations);
-    update public.school_student_tuition_bills set status='cancelled',income_record_id=null where id=v_bill;
-    delete from public.school_income_records where id=v_income;
-    delete from public.school_student_tuition_bills where id=v_bill;
+    delete from public.school_student_tuition_billing_identities where student_id=v_student;
+    delete from public.school_student_tuition_bill_lessons
+      where tuition_bill_id in (select id from public.school_student_tuition_bills where student_id=v_student);
+    update public.school_student_tuition_bills set status='cancelled',income_record_id=null
+      where student_id=v_student;
+    delete from public.school_income_records where student_id=v_student;
+    delete from public.school_student_tuition_bills where student_id=v_student;
     delete from public.school_tuition_atomic_writer_context
       where backend_pid=pg_backend_pid() and transaction_id=txid_current();
     delete from public.school_student_monthly_settlements where id=v_settlement;
@@ -251,7 +254,7 @@ begin
     union all select 1 from public.school_student_tuition_bill_lessons where id=any(v_relations)
     union all select 1 from public.school_student_tuition_generation_identities where id=v_generation
     union all select 1 from public.school_student_tuition_generation_revisions where id=v_revision
-    union all select 1 from public.school_student_tuition_generation_void_events where id='d0d00000-0000-4000-8000-000000008001'
+    union all select 1 from public.school_student_tuition_generation_void_events where generation_identity_id=v_generation
     union all select 1 from public.school_personal_cash_income_linkage_events where income_record_id=v_income
   ) then raise exception 'P0D_FIXTURE_RESIDUE_NOT_ZERO'; end if;
 end;

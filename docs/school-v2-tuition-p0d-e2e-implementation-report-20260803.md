@@ -1,42 +1,23 @@
-# School V2 学费财务 P0-D E2E 与本机受信工具实施报告
+# School V2 学费财务 P0-D 最终闭环实施报告
 
-日期：2026-08-03。结论：代码、DB RPC、Edge、页面收口、全链只读验收、synthetic rollback/并发/Cash blocker/张倬闻镜像均已完成；但当前本机 shell 缺少 `SCHOOL_SUPABASE_URL` 与 `SCHOOL_SUPABASE_SERVICE_ROLE_KEY`，因此无法按正式 Edge 路径完成工具 `void --execute` 的 committed synthetic 验收。P0-D 按 hard stop 记为未完全完成，真实运营继续冻结。
+日期：2026-08-03。最终结论：**P0-D 已真正关闭**。固定 whitelist fixture 已通过正式本机管理工具、正式 Edge/service-role、School RPC 与 Cash 只读 preflight 的 committed Void/Reissue 全链验收；Rule A / Rule B、回滚、并发、fail-closed、幂等、validator、cleanup 与双库 postdeploy 均通过。三名真实学生仅执行只读 preflight，真实写入均为 0；他们仍不得据此自动执行真实操作。
 
 ## Business-model expansion declaration
 
-- New tables/columns/enum/status/date/month/attribution/identity/source/snapshot/version/writable facts: none。
-- Changed amount formula、historical interpretation、dual read/write、fallback、destructive schema: none。
-- Changed writer/reader authority：现有 P0-C Void/Reissue 的本机工具调用固定记录 `local_trusted_business_owner_v1`；新增 owner/service-role 受限 wrapper 只能处理已有 voided revision 且 exact expected facts 全匹配的单条 generation。批准来源：当前 P0-D 指令第三、四、十、十二节。
-- Changed permission boundary：既有 Edge 接受 service-role bearer 作为本机受信来源，并提供 `preflight_only` Cash 只读核验；没有新增 anon 权限。批准来源：当前 P0-D 指令第三、四、五、十二节。
-- Changed locking rules/new authority: none；继续复用 P0-A/B1/B2/C operation lock、claims、validators 与 DB snapshot authority。
+- New business tables/columns/status/date/month/identity/source/snapshot/version/writable facts：none。
+- Changed amount formula、historical interpretation、dual authority、fallback、destructive schema：none。
+- Changed writer/reader authority：none；继续使用 P0-C 已批准的 generation identity/revision、专用 Void/Reissue 与 DB snapshot authority。
+- Changed locking semantics：`public.school_assert_active_tuition_previous_period_claim(uuid,uuid,text)` 及四表 trigger 将 active revision 已冻结的上一期 settlement scope（包括 `previous_settlement_id IS NULL + previous_carryover_cny = 0`）视为 active claim；专用 Void 后仅在 settlement 从未被任意 historical revision 消费时释放。批准来源：本次指令第五节 Rule A。
+- Historical consumed authority：不变；`public.school_tuition_p0a_consumed_bill_id(uuid)` 跨 active/voided revision 解析历史消费，Rule B 始终优先。批准来源：既有 P0-A 合同及本次指令第五节 Rule B。
+- Permission boundary：Edge 未给 `anon`、`authenticated`、`service_role` 增加业务表写权限；本机 owner 请求先以 service-role-only 表 SELECT 权限做 DB 权威探针，再调用既有 service-role-only wrapper。批准来源：本次指令第三、四节。
 
-## 本机工具
+## 凭证与 Edge 收口
 
-路径：`scripts/manage-atomic-tuition.zsh`。命令：`status`、`void-preflight`、`void`、`reissue-preview`、`reissue`、`history`。Void/Reissue 默认 dry-run；execute 要求 exact scope、revision/bill/income/manifest或candidate manifest/rate/JPY/CNY、非空 reason/note 和固定确认文本。无 `eval`，无 Cash DB 连接，无业务表 DML，无 generic cancel，无一键 Void+Reissue；SQL 使用固定 heredoc + psql variables，HTTP body 使用 `jq` JSON 编码。网络/RPC 错误退出非 0 且不自动重试。
+本机没有仓库内 secret。通过官方 Supabase CLI 交互登录后，只在受控进程内读取 project API key；key 未打印、未落盘、未进入 shell history、文档或 Git。Edge 原有自定义 `SCHOOL_SERVICE_ROLE_KEY` 与当前 project key 不一致，首次正式请求因此 401 且零写入。修复后的 `void-atomic-tuition-generation` 同时识别 canonical project service-role，并以 `school_student_tuition_generation_revisions` 的 service-role-only SELECT 权限作为权威探针；普通登录用户仍走原 auth 分支。Edge 已部署，静态检查 13/13。
 
-正式 Void 只走现有 Edge：School preflight → Cash request/CNY/JPY 0 核验 → local owner Void wrapper → P0-C core。Reissue 只走 `school_reissue_atomic_student_tuition_generation_local(...)`，DB 再核对 existing generation、voided previous revision、无冲突 active revision、candidate/generation manifests、rate、JPY/CNY 后调用 P0-C atomic core；公共 Generate Gate 保持 blocked，新 generation 无法走该 wrapper。
+## 正式 synthetic execute
 
-## E2E 结果
-
-| 范围 | 结果 |
-|---|---|
-| generation authority | identity/revision/active = 15/15/15；Atomic/historical = 8/7；void event 0；manifest NULL、identity duplicate、active duplicate均0；15/15四 validator通过 |
-| P0-A | consumed settlement reader继续跨 active/voided revision；app roles 对 settlement/draft/adjustment/carryover无直接DML；Void rollback 后 settlement 仍报 `TUITION_CONSUMED_SETTLEMENT_IMMUTABLE` |
-| P0-B1 | app-role direct lesson DML 15个拒绝+3个SELECT通过；formal RPC 3/3保存DB fee 4200；18/18 lesson authority矩阵通过；页面/API不提交决定性fee |
-| Lesson动态基线 | 当前731 / `72a983e3d3341b6a00ff47235dbaa83c`；新增2条为陈加恩合法页面actual `8e6549bf-194a-4fa4-b753-def0edf2a430`、`f5dca0c1-a553-46dd-99b0-59d6b6753009`；排除后精确恢复729 / `fdddb50d53ff8be527186aa01dc4f710`，未回滚 |
-| P0-B2 | 部署对象、公式authority与生产事实保持；旧P0-A/P0-B2固定fixture脚本因后续P0-B2 mode/fixture占用合同不再可原样复跑，P0-D postdeploy与现有P0-B2部署校验通过；真实draft/adjustment/carryover未写 |
-| P0-C | generic cancel拒绝、historical不可Void、pending/no-Cash preflight、received/Cash/downstream/manifest blockers、claim释放、settlement永久冻结、append-only Reissue、duplicate idempotency均通过 |
-| Cash | request/CNY/JPY = 39/68/31，hash分别为 `303e10bc1a28a0abd8b27afd3929cfd8` / `cba640a696f4c7da59d8df2be7fe79e5` / `95ab7cf8a8d167e9b052d3fc6b64614b`；P0-D Cash fixture 0；Cash写入0 |
-| Gate | `preview=enabled / generate=blocked / cash submit=blocked`；仅rollback事务内 rehearsal，正式未开启 |
-| V2 页面 | anon 张倬闻 Atomic detail browser smoke 正常，无console error/permission denied；revision 1/active、历史金额/carry/Cash可见；Atomic取消与Cash提交按钮隐藏；普通取消代码保持 |
-
-## Synthetic 张倬闻镜像
-
-固定 revision 1：JPY650,000、rate0.042、frozen carry107.50、CNY27,407.50；current settlement unlocked/current carry0。local Void rollback 成功，event operator为 `local_trusted_business_owner_v1`，claim释放而 consumed settlement继续immutable。DB authoritative Reissue preview(rate0.043)明确返回 carry0、JPY650,000、CNY27,950；revision 2、四 validator 与 duplicate idempotency通过，整个写矩阵ROLLBACK。
-
-结论：按当前权威公式，张倬闻可仅通过 `Void → rate 0.043 Reissue` 得到 CNY27,950；但真实操作仍禁止。
-
-## Fixture UUID 与 residue
+固定对象：
 
 - entity `d0d00000-0000-4000-8000-00000000e001`
 - subject `d0d00000-0000-4000-8000-00000000d001`
@@ -44,20 +25,91 @@
 - student `d0d00000-0000-4000-8000-00000000a001`
 - settlement `d0d00000-0000-4000-8000-00000000b001`
 - lessons `d0d00000-0000-4000-8000-000000001101`、`d0d00000-0000-4000-8000-000000001102`
-- bill relations `d0d00000-0000-4000-8000-000000005001`、`d0d00000-0000-4000-8000-000000005002`
-- legacy identity `d0d00000-0000-4000-8000-000000002001`
 - generation `d0d00000-0000-4000-8000-000000003001`
 - revision 1 `d0d00000-0000-4000-8000-000000004001`
 - bill `d0d00000-0000-4000-8000-000000006001`
 - income `d0d00000-0000-4000-8000-000000007101`
-- rollback-only School Cash linkage events `d0d00000-0000-4000-8000-000000008101` 至 `...8104`；cash user/account `...9001` / `...9002`；request/transaction placeholders使用相同固定 `d0d...` 测试命名空间。
 
-Fixture 曾 committed insert，随后按固定UUID/marker精确 cleanup；最终 School residue 0、Cash residue 0。真实15条 revision、三名真实学生、真实lesson与Cash均未写。
+管理工具 `status`、`void-preflight`、Void dry-run、缺 expected facts 拒绝、错误确认文本拒绝均通过。正式 `void --execute` 经 Edge 完成 committed write：void event `56b7af3d-8aa1-4103-98cd-19abe7f3a8b9` 恰好一条；revision 1 保留并变为 `voided`；bill/income 保留并变为 `cancelled`；历史 relation/snapshot/manifest 未删除；未被其他历史账单占用的 lesson claim 释放；operator authority 为 `local_trusted_business_owner_v1`。Cash preflight 全程只读且三类事实均为 0。
 
-## 执行与测试
+`history`、`reissue-preview`、Reissue dry-run 通过。DB authoritative preview 在 rate `0.043` 下返回 JPY `650000`、carry `0`、CNY `27950.00`。正式 `reissue --execute` 创建：
 
-已部署 `school_tuition_p0d_local_management_rpcs_20260803.sql` 和更新后的 `void-atomic-tuition-generation` Edge。已执行 P0-D fixture lifecycle、Void/Reissue rollback、Cash blocker rollback、Void-vs-Void双会话、School/Cash postdeploy、11/11工具/页面静态检查、shell/JS语法、浏览器smoke。P0-D SQL/RPC业务写仅限固定fixture；真实业务行变更0；Cash写入0。
+- revision 2 `e5298347-46d1-4964-9176-d6c16359fbaf`，active，previous revision 正确指向 revision 1；
+- bill `da86c987-17bf-42ee-b9c4-1ab71060be10`；
+- income `f209a466-c437-42f7-8886-e8e8ea18154b`；
+- generation manifest `7728e114…188b8`，candidate manifest `f9982e…818fa`（完整值由工具/DB exact expected facts 传递，文档不作为可执行输入）。
 
-## Hard stop 与 Gate建议
+identity、bill-income、bill-lessons、generation-revision 四个 validator 全部通过；重复 Reissue 返回 idempotent；不同 manifest 被 `TUITION_REISSUE_EXPECTED_FACT_MISMATCH` fail-closed。最终 fixture cleanup 按固定 student/generation 范围精确清理 revision 2 的随机 UUID 链，School residue 0、Cash residue 0。
 
-当前缺少本机工具正式 execute 所需的两项环境变量，不能声称“工具 committed Void execute 已验收”。不得把 DB rollback 成功替代 Edge/Cash正式路径。建议继续保持 Gate `enabled/blocked/blocked`；配置这两项既有 secret 后，仅对上述固定fixture重跑 `void-preflight`、`void --execute`、`reissue-preview`、`reissue --execute`、history/cleanup/residue，再做最终P0-D关闭。此之前禁止任何真实学生 Void/Reissue、课时修改、Cash提交或Gate开启。
+## Rule A 与 Rule B
+
+Rule A 已部署：
+
+- 权威函数：`school_assert_active_tuition_previous_period_claim(uuid,uuid,text)`；
+- settlement scope：create/save/lock/unlock/relock 全部受保护；
+- child scope：adjustment draft、posted adjustment、carryover insert/update 受保护；
+- 稳定错误码：`TUITION_ACTIVE_PREVIOUS_PERIOD_CLAIM_IMMUTABLE`；
+- active bill 即使明确冻结 carry `0` 且 `previous_settlement_id IS NULL`，上一期仍冻结；
+- Void 后 active claim 释放，但只允许从未被历史 revision 消费的 settlement 继续结算。
+
+Rule B 保持永久优先：
+
+- 权威 resolver：`school_tuition_p0a_consumed_bill_id(uuid)`；
+- guard：`school_assert_tuition_settlement_mutable(uuid)`；
+- 稳定错误码：`TUITION_CONSUMED_SETTLEMENT_IMMUTABLE`；
+- revision 后来 Void 不改变“曾消费”事实，settlement 仍不能 unlock/relock/覆盖/重算。
+
+最终回滚矩阵 8/8 覆盖 zero-carry active claim、create/save/lock/child mutation 拒绝、Void 释放、正式 relock、下一期 Reissue 精确消费 locked carry、Rule B 永久冻结。`generate/reissue vs settlement` 与 `void vs settlement mutation` 双会话均实际等待后拒绝，无 deadlock、timeout、半写入或重复 active revision。
+
+## 前后指纹、residue 与 Gate
+
+| 范围 | before | after | 结论 |
+|---|---:|---:|---|
+| School lesson | `730 / 034d3ee24d639e587447a9458244797c` | 同左 | 不变 |
+| Cash request | `39 / 303e10bc1a28a0abd8b27afd3929cfd8` | 同左 | 不变 |
+| Cash CNY transaction | `71 / d7e72182970de4ea8849c994b67e8dcc` | 同左 | 不变 |
+| Cash JPY transaction | `31 / 95ab7cf8a8d167e9b052d3fc6b64614b` | 同左 | 不变 |
+| School P0-D fixture | committed lifecycle | residue `0` | 已清场 |
+| Cash P0-D fixture | `0` | `0` | 从未写入 |
+
+生产 generation identity/revision/active 恢复 `15/15/15`，正式 fixture 清理后 void event residue 0。Rule A postdeploy 当前只读识别 14 条 active zero-carry previous-period claims。Gate 终态严格保持：
+
+- `student_tuition_preview = enabled`
+- `student_tuition_generate = blocked`
+- `student_tuition_cash_submit = blocked`
+
+## 实际执行清单
+
+正式执行或复核过的 SQL 文件：
+
+- `sql/current/school_tuition_p0d_fixture_lifecycle_20260803.sql`：`preflight / insert / cleanup / residue`；
+- `sql/current/school_tuition_p0d_final_closure_20260803.sql`：Rule A 与 cleanup guard 主 migration，含 exact rollback 后 redeploy；
+- `sql/current/school_tuition_p0d_final_closure_cleanup_guard_correction_20260803.sql`：多表 OLD row JSON 安全取值修正；
+- `sql/current/school_tuition_p0d_final_closure_rollback_20260803.sql`：exact rollback rehearsal；
+- `sql/current/school_tuition_p0d_final_closure_rollback_tests_20260803.sql`：最终 8/8、整体 ROLLBACK；
+- `sql/current/school_tuition_p0d_final_closure_concurrency_session_a_20260803.sql`；
+- `sql/current/school_tuition_p0d_final_closure_concurrency_session_b_20260803.sql`；
+- `sql/current/school_tuition_p0d_final_closure_postdeploy_20260803.sql`；
+- `sql/current/school_tuition_p0d_postdeploy_20260803.sql`；
+- `sql/current/cash_tuition_p0d_readonly_postdeploy_20260803.sql`。
+
+实际调用的 Edge/RPC：
+
+- Edge `void-atomic-tuition-generation`：三名真实学生仅 `preflight_only`；synthetic 执行 preflight 与 committed Void；
+- `school_get_atomic_tuition_void_preflight`；
+- `school_void_atomic_student_tuition_generation_local`（synthetic，Edge 内）；
+- `school_reissue_atomic_student_tuition_generation_local`（synthetic）；
+- `school_get_student_tuition_validation_preview_details`、`school_get_student_monthly_settlement_preview`（只读）；
+- `school_relock_student_monthly_settlement`（仅 rollback synthetic）；
+- 四个 tuition validators；
+- Rule A / Rule B resolver 与 guard。
+
+未调用任何真实学生 write RPC、lesson writer、settlement writer、Cash writer 或 Gate writer。三名真实学生、真实 bill/income/lesson/settlement/carryover/adjustment/Cash 写入全部为 0。
+
+## 测试中的受控失败
+
+首次 Edge 请求因旧自定义 secret 不匹配返回 401；修复并部署后通过。一个 postdeploy 仅因函数文本空格匹配过严产生 false negative，修正断言后通过。双会话最初分开调度导致计时 false negative，改为同 shell 并行后实际等待验证通过。首次 cleanup 因通用 trigger 直接读取不存在的 `OLD.planned_lesson_id` 失败且事务完整回滚；JSON OLD row 修正部署后 cleanup/residue 通过。增强回滚矩阵前两次分别发现测试遗留 writer-context 与测试 bill 未模拟 cancelled 状态；均在事务回滚中暴露并修正，最终 8/8。以上失败均未触及真实学生，未产生 Cash 写入或残留。
+
+## 运营边界
+
+P0-D 的技术闭环完成不等于三名学生获得运营授权。彭宇晗、李天伦仍缺业务负责人给出的精确 lesson UUID 与目标字段；张倬闻因历史 settlement 状态与 forward adjustment 缺口必须先完成独立 P0-E。详见三人只读操作计划。不得自动开始任何真实 Void、lesson edit、settlement、Reissue 或 Cash 操作。

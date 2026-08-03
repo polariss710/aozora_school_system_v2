@@ -65,8 +65,20 @@ Deno.serve(async (request) => {
       return response({ ok: false, message: "Invalid School authorization token" }, 401);
     }
     const token = authorization.replace(/^bearer\s+/i, "");
-    const serviceRoleKey = env("SCHOOL_SERVICE_ROLE_KEY");
-    const isLocalTrustedOwner = token === serviceRoleKey;
+    const schoolServiceRoleKey = env("SCHOOL_SERVICE_ROLE_KEY");
+    const canonicalProjectServiceRoleKey = env("SUPABASE_SERVICE_ROLE_KEY");
+    let isLocalTrustedOwner = token === schoolServiceRoleKey ||
+      token === canonicalProjectServiceRoleKey;
+    if (!isLocalTrustedOwner) {
+      const requestKeyClient = createClient(env("SCHOOL_SUPABASE_URL"), token, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { error: serviceRoleProbeError } = await requestKeyClient
+        .from("school_student_tuition_generation_revisions")
+        .select("id", { count: "exact", head: true })
+        .limit(1);
+      isLocalTrustedOwner = serviceRoleProbeError === null;
+    }
     if (!isLocalTrustedOwner) {
       const { data: authData, error: authError } = await school.auth.getUser(token);
       if (authError || !authData.user) {

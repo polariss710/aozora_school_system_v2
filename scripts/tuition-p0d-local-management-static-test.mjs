@@ -17,6 +17,8 @@ const assertions = [
   [!page.includes("voidAtomicTuitionGeneration"), "V2 page still exposes Atomic Void invocation"],
   [page.includes("Atomic学费账单的作废与重新生成需要通过本机受信管理工具执行。"), "V2 notice missing"],
   [edge.includes("preflight_only") && edge.includes("school_void_atomic_student_tuition_generation_local"), "Edge local preflight/authority bridge missing"],
+  [edge.includes('env("SUPABASE_SERVICE_ROLE_KEY")') && edge.includes("canonicalProjectServiceRoleKey"), "Edge canonical project service-role bridge missing"],
+  [edge.includes('.from("school_student_tuition_generation_revisions")') && edge.includes("serviceRoleProbeError === null"), "Edge DB-authoritative service-role probe missing"],
 ];
 for (const [ok, message] of assertions) {
   if (!ok) throw new Error(message);
