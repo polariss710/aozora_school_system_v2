@@ -6,18 +6,18 @@
 
 | 学生 | 当前 active revision | pending income | settlement / carry | 业务终态 |
 |---|---|---|---|---|
-| 彭宇晗 | rev2 `49e530ee-d190-45e2-8f2f-24b16713b194`；12条relation；JPY204,000 | `363ac949-7315-4207-8d75-ebab1a0623f2` / CNY7,841.25 | locked July `6ec3b815-5540-44bd-88ee-9e30a5284770` / `-624.75`，已被新bill唯一消费 | Void、受控课时作废、July lock、普通 Reissue均完成；等待另行Cash授权 |
-| 李天伦 | rev2 `8002e02c-a556-4161-bf01-6532f0eae0dd`；10条relation/lesson count15；JPY220,000 | `acdd46db-0d44-4860-8c6d-672ea0b546bc` / CNY9,394.00 | July settlement不存在 / carry0 | Void、受控课时作废、普通 Reissue均完成；等待另行Cash授权 |
+| 彭宇晗 | rev3 `f7bbd000-9753-4f00-9d3a-d8705ee8d5e9`；12条relation；JPY204,000；rate0.043 | `648e264d-3435-43f1-a797-cf1394011f65` / CNY8,147.25 | locked July `6ec3b815-5540-44bd-88ee-9e30a5284770` / `-624.75`，由rev3持有唯一active claim | 汇率修正Void/Reissue完成；等待另行Cash授权 |
+| 李天伦 | rev3 `f7150ce5-fb77-4b7f-99f8-207bfbbced91`；10条relation/lesson count15；JPY220,000；rate0.042 | `efd670bc-8dba-4926-82c4-2d194281a609` / CNY9,240.00 | July settlement不存在 / carry0 | 汇率修正Void/Reissue完成；等待另行Cash授权 |
 | 张倬闻 | rev2 `7d319b0d-8f62-41e9-95bf-c1a0c6ed7090` | `d980cedd-ebba-4be1-afcb-b25dfa26798a` / CNY27,950.00 | historical consumed immutable / forward neutralized | Void + P0-E Reissue已完成；等待另行Cash授权 |
 
-本轮彭/李 Reissue 没有修改 lesson、settlement、P0-E adjustment、Cash、Gate或张倬闻链。完整证据见 `docs/school-v2-peng-li-202608-tuition-reissue-operation-20260804.md`。
+本轮汇率修正 Reissue 没有修改 lesson、settlement、P0-E adjustment、Cash、Gate或张倬闻链。完整证据见 `docs/school-v2-peng-li-202608-tuition-rate-correction-reissue-operation-20260804.md`；上一轮证据保留在 `docs/school-v2-peng-li-202608-tuition-reissue-operation-20260804.md`。
 
 ## 分流结论
 
 | 学生 | Void 技术条件 | July settlement | 仍缺输入 | Reissue / 当前 Go-No-Go |
 |---|---|---|---|---|
-| 彭宇晗 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `48dbdd0d-0934-4270-a6cb-230537bee86f` | locked `6ec3b815-5540-44bd-88ee-9e30a5284770`；carry `-624.75` | 已作废3条错误planned课时，DB candidate降为12条 | rev2已唯一 active；CNY7,841.25；**Completed** |
-| 李天伦 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `9af7d2b3-7905-4dd6-a325-515ca22a304e` | 不存在；carry `0`，不创建零金额 settlement | 已作废6条错误planned课时，DB candidate降为10条 | rev2已唯一 active；CNY9,394.00；**Completed** |
+| 彭宇晗 | rev1与rev2均已专用Void；本轮rev2 void event `a5548110-8020-48d8-8966-5e56aecfcdfd` | locked `6ec3b815-5540-44bd-88ee-9e30a5284770`；carry `-624.75` | 已作废3条错误planned课时，DB candidate为12条 | rev3已唯一active；rate0.043 / CNY8,147.25；**Completed** |
+| 李天伦 | rev1与rev2均已专用Void；本轮rev2 void event `1a39e70d-1203-4cb7-ba44-e316345d91d9` | 不存在；carry `0`，不创建零金额 settlement | 已作废6条错误planned课时，DB candidate为10条 | rev3已唯一active；rate0.042 / CNY9,240.00；**Completed** |
 | 张倬闻 | 已按单独业务授权完成真实 Void | July 物理状态仍为 `unlocked`；有效状态 `historically_consumed_immutable`；未 relock/覆盖 | 无 | P0-E revision 2 已唯一 active；pending CNY `27950.00`；**Completed** |
 
 ## 彭宇晗
@@ -168,16 +168,16 @@ Void 后 16 条 active claim 已释放；历史 relation 保留。逐行核对�
 
 P0-E 合同完成后，业务负责人另行明确授权了张倬闻真实操作。正式工具先作废错误 rate `0.042` 的 revision 1，再以 DB 权威 `neutralize_historical_carryover_v1`、rate `0.043`、historical carry `107.50`、forward adjustment `-107.50` 创建 revision 2，最终 pending income 为 CNY `27950.00`。July settlement 未修改，仍显示“已被历史学费账单消费（不可重开）”。普通 Reissue fail-closed、P0-E duplicate idempotency、五个 validators、School/Cash 哈希均已验收。完整证据见 `docs/school-v2-zhang-zhuowen-202608-tuition-void-p0e-reissue-operation-20260803.md`。
 
-## 彭宇晗、李天伦真实 Void 完成状态
+## 彭宇晗、李天伦首次真实 Void 完成状态（历史阶段）
 
 - 彭宇晗 void event：`48dbdd0d-0934-4270-a6cb-230537bee86f`；李天伦 void event：`9af7d2b3-7905-4dd6-a325-515ca22a304e`。两次 duplicate 均稳定零写入拒绝，没有第二条事件。
 - 两人 old revision/bill/income/relation/snapshot/manifest 全部保留；active revision 与 active claim 均为 0；lesson 全表 `730 / 034d3ee24d639e587447a9458244797c`、settlement 全表 `17 / 85c829ebc3bb0a4100393d9c8d6421d7` 不变。
 - 详细证据见 `docs/school-v2-peng-li-202608-tuition-void-operation-20260803.md` 与 `docs/school-v2-peng-yuhan-202607-settlement-reconciliation-20260803.md`。
 
-## 最终操作纪律
+## 最终操作纪律（已由后续精确授权更新）
 
-- 彭宇晗与李天伦的专用 Void 已完成；二人的 lesson 删除均被历史 bill snapshot guard 阻止，不得直接尝试页面删除或清除历史证据。
-- 彭宇晗 July 的 `-624.75` 不是现有 DB 合同结果；唯一合同 mode 为 `carry_final_balance`，当前结果 `+92.44`，但在业务差异调查完成前不得锁定。
+- 彭宇晗与李天伦的首次专用 Void 已完成；后续P0-F受控作废、彭宇晗July locked settlement及本轮汇率修正Void/Reissue均按各自单独授权完成。不得清除历史relation、bill snapshot或revision证据。
+- 彭宇晗 July 的旧`+92.44`结论已由后续P0-F权威净额化合同取代；settlement已按单独授权锁定为carry `-624.75`，并由当前rev3唯一active claim消费。不得再次保存、解锁或重锁。
 - 张倬闻的单独授权操作已完成；不得据此继续提交 Cash，也不得外推为彭宇晗或李天伦的授权。
-- 任一未来 lesson/settlement/Reissue 操作必须获得新的精确业务授权，重新执行 DB preview/preflight/validators，并以当时 exact facts/manifests 为准。
+- 任一未来 lesson/settlement/Reissue/Cash 操作必须获得新的精确业务授权，重新执行 DB preview/preflight/validators，并以当时 exact facts/manifests 为准。
 - 不得自动调用 lesson writer、settlement writer、Reissue、Cash writer 或 Gate writer。
