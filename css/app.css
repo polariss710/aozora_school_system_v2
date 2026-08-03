@@ -4910,6 +4910,27 @@ h2 {
   font-weight: 700;
 }
 
+.dialog-error-primary,
+.dialog-error-code {
+  margin: 0;
+}
+
+.dialog-error-code {
+  margin-top: 4px;
+  color: #991b1b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
 .dialog-warning {
   margin-top: 12px;
   border: 1px solid #fed7aa;

@@ -10,7 +10,11 @@ import {
   setStudentSettlementSourceTreatmentDraft,
   setStudentMonthlySettlementDraftAdjustment,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js?v=p0f-dialog-20260803-1";
+} from "../api/settlement-api.js?v=settlement-error-i18n-20260803-1";
+import {
+  formatSettlementBusinessError,
+  settlementMonthDateRange,
+} from "../api/business-error.js?v=settlement-error-i18n-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -238,6 +242,10 @@ function bindEvents() {
     element?.addEventListener("input", () => {
       clearAdjustmentFieldInvalid(fieldId);
       invalidateAdjustmentPreview();
+      if (fieldId === "settlementRateDate") {
+        validateSettlementRateDateInput({ showError: true });
+      }
+      hideAdjustmentErrorIfClean();
     });
   });
   dom.adjustmentConfirmCheckbox?.addEventListener("change", () => {
@@ -627,7 +635,9 @@ async function handleLockSubmit() {
     });
     showMessage("success", `学生月度结算已锁定：${shortId(result?.settlement_id || result?.id)}。`);
   } catch (error) {
-    showLockError(error.message || String(error));
+    showLockError(formatSettlementBusinessError(error, {
+      yearMonth: currentLockSettlement?.year_month,
+    }));
   } finally {
     setLockSubmitting(false);
   }
@@ -644,13 +654,13 @@ function setLockSubmitting(isSubmitting) {
   }
 }
 
-function showLockError(message) {
-  dom.lockError.textContent = message;
+function showLockError(errorDisplay) {
+  renderDialogBusinessError(dom.lockError, errorDisplay);
   dom.lockError.classList.remove("is-hidden");
 }
 
 function clearLockErrors() {
-  dom.lockError.textContent = "";
+  dom.lockError.replaceChildren();
   dom.lockError.classList.add("is-hidden");
   clearLockFieldInvalid("confirm");
 }
@@ -829,7 +839,9 @@ async function handleStatusActionSubmit() {
       ? `学生月度结算锁定已撤销：${shortId(result?.settlement_id || result?.id)}。`
       : `学生月度结算已重新锁定：${shortId(result?.settlement_id || result?.id)}。`);
   } catch (error) {
-    showStatusActionError(error.message || String(error));
+    showStatusActionError(formatSettlementBusinessError(error, {
+      yearMonth: currentStatusActionSettlement?.year_month,
+    }));
   } finally {
     setStatusActionSubmitting(false);
   }
@@ -854,13 +866,13 @@ function setStatusActionSubmitting(isSubmitting) {
   }
 }
 
-function showStatusActionError(message) {
-  dom.statusActionError.textContent = message;
+function showStatusActionError(errorDisplay) {
+  renderDialogBusinessError(dom.statusActionError, errorDisplay);
   dom.statusActionError.classList.remove("is-hidden");
 }
 
 function clearStatusActionErrors() {
-  dom.statusActionError.textContent = "";
+  dom.statusActionError.replaceChildren();
   dom.statusActionError.classList.add("is-hidden");
   clearStatusActionFieldInvalid("reason");
   clearStatusActionFieldInvalid("confirm");
@@ -911,6 +923,7 @@ function openAdjustmentDialog(settlementId) {
   }
 
   currentAdjustmentSettlement = row;
+  applySettlementRateDateRange(row.year_month);
   dom.sourceTreatmentModeInput.value = row.source_treatment_mode
     || SOURCE_TREATMENT_MODES.SEPARATE;
   dom.settlementExchangeRateInput.value = row.settlement_exchange_rate ?? "";
@@ -1100,7 +1113,7 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
   if (!input) {
     invalidateAdjustmentPreview();
     if (!silentValidation) {
-      showAdjustmentError("请完整填写当前模式所需输入后再更新数据库预览。");
+      showAdjustmentError(adjustmentPreviewValidationMessage());
     }
     return;
   }
@@ -1128,7 +1141,9 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
       return;
     }
     if (responsePreviewSignature(result) !== requestSignature) {
-      throw new Error("数据库预览返回的 expected facts 与当前表单不一致，请重新更新预览。");
+      const mismatchError = new Error("数据库预览返回的 expected facts 与当前表单不一致，请重新更新预览。");
+      mismatchError.userMessage = "数据库预览与当前表单不一致，请重新更新预览。";
+      throw mismatchError;
     }
     currentAdjustmentState = result.current_state || null;
     currentAdjustmentPreview = result;
@@ -1141,10 +1156,14 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
     );
   } catch (error) {
     if (requestSequence !== adjustmentPreviewRequestSequence) return;
+    const displayError = formatAdjustmentBusinessError(error);
     currentAdjustmentPreview = null;
     currentAdjustmentPreviewSignature = "";
-    renderAdjustmentPendingPreview(null, "数据库预览失败，保存已禁用。", "失败");
-    showAdjustmentError(error.message || String(error));
+    renderAdjustmentPendingPreview(null, displayError.message, "失败");
+    if (displayError.code === "SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH") {
+      setAdjustmentFieldInvalid("settlementRateDate", true);
+    }
+    showAdjustmentError(displayError);
   } finally {
     if (requestSequence === adjustmentPreviewRequestSequence) {
       isAdjustmentPreviewLoading = false;
@@ -1342,7 +1361,7 @@ async function handleAdjustmentSubmit() {
     });
     showMessage("success", `锁定前差额调整已保存：${shortId(result?.draft_id)}；数据库权威调整 ${formatCurrency(result?.adjustment_amount_cny, "CNY")}，权威结转 ${formatCurrency(result?.locked_carryover_cny, "CNY")}。`);
   } catch (error) {
-    showAdjustmentError(error.message || String(error));
+    showAdjustmentError(formatAdjustmentBusinessError(error));
   } finally {
     setAdjustmentSubmitting(false);
   }
@@ -1369,21 +1388,37 @@ function updateAdjustmentActionState() {
 }
 
 function clearAdjustmentErrors() {
-  dom.adjustmentError.textContent = "";
+  dom.adjustmentError.replaceChildren();
   dom.adjustmentError.classList.add("is-hidden");
   ["amount", "source", "reason", "confirm", "sourceTreatmentMode",
     "settlementRate", "settlementRateSource", "settlementRateDate"]
     .forEach(clearAdjustmentFieldInvalid);
 }
 
-function showAdjustmentError(message) {
-  dom.adjustmentError.textContent = message;
+function showAdjustmentError(errorDisplay) {
+  renderDialogBusinessError(dom.adjustmentError, errorDisplay);
   dom.adjustmentError.classList.remove("is-hidden");
+}
+
+function renderDialogBusinessError(container, errorDisplay) {
+  const display = typeof errorDisplay === "string"
+    ? { message: errorDisplay, code: "" }
+    : errorDisplay;
+  const primary = document.createElement("p");
+  primary.className = "dialog-error-primary";
+  primary.textContent = display?.message || "操作未完成，请检查输入或刷新数据后重试。";
+  container.replaceChildren(primary);
+  if (display?.code) {
+    const code = document.createElement("p");
+    code.className = "dialog-error-code";
+    code.textContent = `错误代码：${display.code}`;
+    container.append(code);
+  }
 }
 
 function hideAdjustmentErrorIfClean() {
   if (!dom.adjustmentDialog?.querySelector(".field.is-invalid")) {
-    dom.adjustmentError.textContent = "";
+    dom.adjustmentError.replaceChildren();
     dom.adjustmentError.classList.add("is-hidden");
   }
 }
@@ -1395,6 +1430,51 @@ function setAdjustmentFieldInvalid(fieldId, invalid) {
 
 function clearAdjustmentFieldInvalid(fieldId) {
   setAdjustmentFieldInvalid(fieldId, false);
+}
+
+function applySettlementRateDateRange(yearMonth) {
+  const range = settlementMonthDateRange(yearMonth);
+  dom.settlementExchangeRateEffectiveDateInput.min = range?.min || "";
+  dom.settlementExchangeRateEffectiveDateInput.max = range?.max || "";
+}
+
+function validateSettlementRateDateInput({ showError = false } = {}) {
+  const range = settlementMonthDateRange(currentAdjustmentSettlement?.year_month);
+  const value = dom.settlementExchangeRateEffectiveDateInput.value;
+  const invalid = Boolean(range && value && (value < range.min || value > range.max));
+  setAdjustmentFieldInvalid("settlementRateDate", invalid);
+  if (invalid && showError) {
+    showAdjustmentError(formatSettlementBusinessError(
+      new Error("SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH"),
+      { yearMonth: currentAdjustmentSettlement?.year_month }
+    ));
+  }
+  return !invalid;
+}
+
+function formatAdjustmentBusinessError(error) {
+  if (error?.userMessage) {
+    return { message: error.userMessage, code: "" };
+  }
+  return formatSettlementBusinessError(error, {
+    yearMonth: currentAdjustmentSettlement?.year_month,
+  });
+}
+
+function adjustmentPreviewValidationMessage() {
+  if (dom.sourceTreatmentModeInput.value === SOURCE_TREATMENT_MODES.NET_FINANCIAL) {
+    const rateText = dom.settlementExchangeRateInput.value.trim();
+    const rate = rateText === "" ? null : Number(rateText);
+    if (rate === null) return "请输入结算汇率。";
+    if (!Number.isFinite(rate) || rate <= 0) return "结算汇率必须是大于0的有效数字。";
+    if (!dom.settlementExchangeRateSourceInput.value.trim()) return "请输入汇率来源。";
+    if (!dom.settlementExchangeRateEffectiveDateInput.value) return "请选择汇率生效日。";
+  }
+  if (dom.adjustmentSourceInput.value === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT
+      && !dom.adjustmentAmountInput.value.trim()) {
+    return "手动调整必须明确填写调整金额。";
+  }
+  return "请完整填写当前模式所需输入后再更新数据库预览。";
 }
 
 function adjustmentModeForRow(row) {
