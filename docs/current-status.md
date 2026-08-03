@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-03 P0-F 上线后课时页 anon 读取事故已紧急修复：根因是新辅助 reader `school_get_planned_lesson_tuition_history_state(uuid[])` 漏授 anon EXECUTE，主 reader 200/127行后辅助请求返回401/42501并被页面聚合 catch 放大为整页清空。现仅为该 `STABLE / SECURITY DEFINER / 固定search_path` 纯只读 reader补最小anon EXECUTE，owner helper/draft writer仍拒绝anon，P0-F表DML权限未扩大；前端新增辅助reader失败/结果不完整的fail-closed降级，保留主列表但隐藏edit/delete/void并显示明确警告，主reader错误仍不吞。生产Chrome `v10.4.6 / p0f-readfix-20260803-1`验证8月彭15/李16个唯一受控作废入口、删除/编辑0、张倬闻及7月actual/pending makeup/makeup completed、左右/普通视图和各筛选均正常，Console error0。School/Cash全行哈希与Gate `enabled / blocked / blocked`前后不变，真实业务写入0。修复提交`44101a0`已推送；详见`docs/school-v2-p0f-lesson-page-read-failure-fix-20260803.md`。
+
 Status date: 2026-08-03
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
