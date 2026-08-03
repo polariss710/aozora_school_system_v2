@@ -60,7 +60,7 @@ Git 基线：`649c14eb08b726172dd95535286e07d3d2f59f97`
 
 ## Git 与受保护文件
 
-实现及幂等收紧提交已随本轮最终交付普通 push 至 `origin/main`。六份受保护 untracked 文件保持未跟踪且 SHA-256 不变：
+实现及幂等收紧提交已随本轮最终交付普通 push 至 `origin/main`；报告提交为 `31d90d6`（parent `1d3e08c`）。最终 `git status --short` 仅列下述六份受保护 untracked 文件，无 tracked 修改。六份文件保持未跟踪且 SHA-256 不变：
 
 - `docs/school-v2-2026-05-06-tuition-candidate-manual-review-completed-20260801.csv`：`272d08531c39b69d1f7392f367229536174e20f54c86883f6cf469c0d2578432`
 - `docs/school-v2-r1b-eight-api-complete-git-diff-20260727.txt`：`5b11f064b4caa01c3015b3b55b6db8bf5c38fd3607182d1b124a120662db2093`

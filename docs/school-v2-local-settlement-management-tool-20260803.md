@@ -77,6 +77,6 @@ wrapper `school_save_student_settlement_draft_local`、`school_lock_student_mont
 
 静态、zsh syntax、API/page 边界、权限矩阵和多会话共享锁回归均通过。工具不会执行 Reissue、Cash、Gate、lesson mutation、unlock 或 relock。
 
-Git：功能提交 `fb3812c`（parent `649c14e`），幂等与 history/status 收紧提交 `1d3e08c`（parent `fb3812c`），均随最终交付普通 push `origin/main`。
+Git：功能提交 `fb3812c`（parent `649c14e`），幂等与 history/status 收紧提交 `1d3e08c`（parent `fb3812c`），报告提交 `31d90d6`（parent `1d3e08c`），均随最终交付普通 push `origin/main`。最终 status 仅有六份受保护 untracked 文件。
 
 六份受保护 untracked 文件 SHA-256：`272d0853…8432`、`5b11f064…2093`、`b8e02481…b54f38d`、`5dc7c39c…fda1a`、`b9c13ddc…0773`、`7ed27844…f5939b`，完整值见权限冲突报告和真实操作报告，均未变化。
