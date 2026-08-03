@@ -1631,6 +1631,7 @@ function renderTuitionBillPreview(preview) {
   dom.generateTuitionBillPreview.innerHTML = `
     <div><dt>预览状态</dt><dd>${escapeHtml(preview.feature_state)}</dd></div>
     <div><dt>原子生成状态</dt><dd>${escapeHtml(preview.generate_feature_state)}</dd></div>
+    <div><dt>Revision</dt><dd>${escapeHtml(preview.message || "-")}</dd></div>
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
     <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>

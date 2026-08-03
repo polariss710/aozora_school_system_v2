@@ -381,12 +381,12 @@
       <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="cancelIncomeTitle">
         <div class="section-heading">
           <h2 id="cancelIncomeTitle">作废收入</h2>
-          <p class="section-note">仅用于未入账、Cash 已拒绝或未进入 Cash 请求的待确认收入。作废后不会删除记录，不会删除 Cash linkage，也不会生成账户流水。</p>
+          <p id="cancelIncomeNote" class="section-note">仅用于未入账、Cash 已拒绝或未进入 Cash 请求的待确认收入。作废后不会删除记录，不会删除 Cash linkage，也不会生成账户流水。</p>
         </div>
 
         <div id="cancelIncomeSummary" class="dialog-summary"></div>
 
-        <div class="dialog-warning reimbursement-reverse-warning">
+        <div id="cancelIncomeWarning" class="dialog-warning reimbursement-reverse-warning">
           作废后该收入会标记为已作废，不能再次提交 Cash。请确认这条待确认收入确实不应继续处理。
         </div>
 
@@ -399,7 +399,7 @@
 
         <label class="field confirm-check" data-cancel-income-field="confirmCheck">
           <input id="cancelIncomeConfirmCheck" type="checkbox">
-          <span>我确认要作废这条待确认收入记录，并理解系统不会删除原记录或 Cash linkage。</span>
+          <span id="cancelIncomeConfirmText">我确认要作废这条待确认收入记录，并理解系统不会删除原记录或 Cash linkage。</span>
         </label>
 
         <div class="dialog-actions">
@@ -409,6 +409,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-detail-app.js?v=v10.3.83-historical-work-status"></script>
+    <script type="module" src="./js/income-detail-app.js?v=v10.4.4-tuition-p0c-void-reissue"></script>
   </body>
 </html>

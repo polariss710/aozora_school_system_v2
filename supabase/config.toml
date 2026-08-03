@@ -1,2 +1,5 @@
 [functions.sync-cash-request-result]
 verify_jwt = false
+
+[functions.void-atomic-tuition-generation]
+verify_jwt = false

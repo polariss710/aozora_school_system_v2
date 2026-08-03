@@ -146,7 +146,7 @@ const CASH_INCOME_LINKAGE_COLUMNS = [
 export async function fetchIncomeDetailPage(incomeId) {
   const income = await fetchIncomeDetail(incomeId);
 
-  const [lookups, settlements, transactions, cashIncomeLinkageEvents, preflightResult] = await Promise.all([
+  const [lookups, settlements, transactions, cashIncomeLinkageEvents, preflightResult, tuitionVoidPreflightResult] = await Promise.all([
     fetchIncomeDetailLookups(),
     fetchSettlementReferences(income),
     fetchAccountTransactions(income.id),
@@ -154,10 +154,16 @@ export async function fetchIncomeDetailPage(incomeId) {
     supabase.rpc("school_get_cash_income_submission_preflight", {
       p_income_record_ids: [income.id],
     }),
+    income.source_type === "student_tuition_bill"
+      ? supabase.rpc("school_get_atomic_tuition_void_preflight", { p_income_record_id: income.id })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (preflightResult.error) {
     throw preflightResult.error;
+  }
+  if (tuitionVoidPreflightResult.error) {
+    throw tuitionVoidPreflightResult.error;
   }
 
   return {
@@ -167,6 +173,7 @@ export async function fetchIncomeDetailPage(incomeId) {
     transactions,
     cashIncomeLinkageEvents,
     cashSubmissionPreflight: (preflightResult.data || [])[0] || null,
+    tuitionVoidPreflight: (tuitionVoidPreflightResult.data || [])[0] || null,
   };
 }
 
@@ -206,6 +213,30 @@ export async function cancelPendingIncomeRecord(payload) {
   }
 
   return result;
+}
+
+export async function voidAtomicTuitionGeneration(payload) {
+  const { data, error } = await supabase.functions.invoke(
+    "void-atomic-tuition-generation",
+    {
+      body: {
+        generation_revision_id: requireUuid(payload.generationRevisionId, "generation_revision_id"),
+        tuition_bill_id: requireUuid(payload.tuitionBillId, "tuition_bill_id"),
+        income_record_id: requireUuid(payload.incomeId, "income_record_id"),
+        expected_generation_manifest_sha256: payload.expectedGenerationManifestSha256,
+        reason: payload.reason,
+      },
+    },
+  );
+  if (error) {
+    throw await buildFunctionError(error, data, "学费账单作废失败。");
+  }
+  if (!data?.ok || !data?.result) {
+    const failure = new Error(data?.message || "学费账单作废失败。");
+    failure.code = data?.code || null;
+    throw failure;
+  }
+  return data.result;
 }
 
 export async function updateIncomeRecord(payload) {
