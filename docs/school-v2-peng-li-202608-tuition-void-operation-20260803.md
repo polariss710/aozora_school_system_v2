@@ -152,6 +152,6 @@ manage-atomic-tuition.zsh void
 - 临时 SQL：`/private/tmp/peng_li_void_pre_baseline.sql`、`peng_li_cash_pre_baseline.sql`、`peng_li_readonly_catalog.sql`、`peng_li_readonly_reconciliation.sql`、`peng_july_compact_readonly.sql`、`peng_july_cash_readonly.sql`、`peng_li_post_compact_readonly.sql`、`peng_li_cash_post_compact_readonly.sql`、`peng_li_reconstruct_pre_hash.sql`、`revision_columns_readonly.sql`；全部 `SELECT`/`BEGIN READ ONLY`，未执行 repo SQL 文件。
 - School 真实写入精确为：两条 revision active→voided；两张 bill income_created→cancelled；两条 income pending→cancelled；新增上述两条 void event。测试/白名单写入 0，测试记录 ID 不适用。
 - 本轮 lesson、settlement/draft/adjustment/carryover、Reissue、P0-E adjustment、Cash request/transaction、School account transaction、Gate、张倬闻写入均为 0。
-- Git 首个交付 commit 的 parent 必须为 `100fc0c2f49b56e52d16156419974e8ae92f297c`；commit/push 结果将在完成后回填。六份受保护 untracked 文件不纳入提交。
+- Git 操作文档 commit：`1bfb7e2976db3b463291ad12690693672d04f134`；parent：`100fc0c2f49b56e52d16156419974e8ae92f297c`。该 commit 后 status 仅为原六份受保护 untracked 文件。本条 Git 结果回填由紧随其后的收尾 commit 记录；两次提交均已普通推送 `origin/main`，最终 HEAD 以 Git history 与任务回执为准。六份受保护文件未纳入提交。
 
 最终状态：两次 Void 已完成；后续 lesson 删除因历史 bill snapshot guard **No-Go**；本任务在只读核对、报告与 Git 交付后停止，不执行 Reissue 或 Cash。
