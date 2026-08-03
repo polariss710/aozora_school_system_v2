@@ -1,13 +1,23 @@
 # P0-D 三名真实学生操作状态
 
-日期：2026-08-03。本文最初记录三名学生的生产只读操作前事实；业务负责人随后分别授权并完成张倬闻真实 Void + P0-E Reissue，以及彭宇晗、李天伦真实专用 Void。三人当前状态均已在本文件更新。
+日期：2026-08-03，最终更新：2026-08-04。本文最初记录三名学生的生产只读操作前事实；业务负责人随后分别授权并完成三人的 Void/Reissue。下方历史分析保留为操作证据，以本节最终状态为准。
+
+## 2026-08-04 最终状态
+
+| 学生 | 当前 active revision | pending income | settlement / carry | 业务终态 |
+|---|---|---|---|---|
+| 彭宇晗 | rev2 `49e530ee-d190-45e2-8f2f-24b16713b194`；12条relation；JPY204,000 | `363ac949-7315-4207-8d75-ebab1a0623f2` / CNY7,841.25 | locked July `6ec3b815-5540-44bd-88ee-9e30a5284770` / `-624.75`，已被新bill唯一消费 | Void、受控课时作废、July lock、普通 Reissue均完成；等待另行Cash授权 |
+| 李天伦 | rev2 `8002e02c-a556-4161-bf01-6532f0eae0dd`；10条relation/lesson count15；JPY220,000 | `acdd46db-0d44-4860-8c6d-672ea0b546bc` / CNY9,394.00 | July settlement不存在 / carry0 | Void、受控课时作废、普通 Reissue均完成；等待另行Cash授权 |
+| 张倬闻 | rev2 `7d319b0d-8f62-41e9-95bf-c1a0c6ed7090` | `d980cedd-ebba-4be1-afcb-b25dfa26798a` / CNY27,950.00 | historical consumed immutable / forward neutralized | Void + P0-E Reissue已完成；等待另行Cash授权 |
+
+本轮彭/李 Reissue 没有修改 lesson、settlement、P0-E adjustment、Cash、Gate或张倬闻链。完整证据见 `docs/school-v2-peng-li-202608-tuition-reissue-operation-20260804.md`。
 
 ## 分流结论
 
 | 学生 | Void 技术条件 | July settlement | 仍缺输入 | Reissue / 当前 Go-No-Go |
 |---|---|---|---|---|
-| 彭宇晗 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `48dbdd0d-0934-4270-a6cb-230537bee86f`；active claim 0 | 不存在；最新 DB preview system/carry `+92.44`；未保存/锁定 | 15 条课时页面会显示删除，但 DB 因历史 bill snapshot 全部拒绝；July 业务目标与 DB 合同还存在差异 | 删除、July lock、Reissue 均 **No-Go** |
-| 李天伦 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `9af7d2b3-7905-4dd6-a325-515ca22a304e`；active claim 0 | 不存在；DB preview carry `0`，不创建零金额 settlement | 16 条课时页面会显示删除，但 DB 因历史 bill snapshot 全部拒绝 | 删除与 Reissue 均 **No-Go** |
+| 彭宇晗 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `48dbdd0d-0934-4270-a6cb-230537bee86f` | locked `6ec3b815-5540-44bd-88ee-9e30a5284770`；carry `-624.75` | 已作废3条错误planned课时，DB candidate降为12条 | rev2已唯一 active；CNY7,841.25；**Completed** |
+| 李天伦 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `9af7d2b3-7905-4dd6-a325-515ca22a304e` | 不存在；carry `0`，不创建零金额 settlement | 已作废6条错误planned课时，DB candidate降为10条 | rev2已唯一 active；CNY9,394.00；**Completed** |
 | 张倬闻 | 已按单独业务授权完成真实 Void | July 物理状态仍为 `unlocked`；有效状态 `historically_consumed_immutable`；未 relock/覆盖 | 无 | P0-E revision 2 已唯一 active；pending CNY `27950.00`；**Completed** |
 
 ## 彭宇晗
