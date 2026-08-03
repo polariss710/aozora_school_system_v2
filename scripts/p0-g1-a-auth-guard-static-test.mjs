@@ -80,6 +80,15 @@ assert.match(client, /persistSession: true/);
 assert.match(client, /detectSessionInUrl: false/);
 assert.doesNotMatch(client, /keyPrefix|slice\(0, 5\)/);
 
+for (const file of readdirSync("js", { recursive: true }).filter((file) => file.endsWith(".js"))) {
+  const source = readFileSync(`js/${file}`, "utf8");
+  assert.doesNotMatch(
+    source,
+    /supabase-client\.js\?v=/,
+    `js/${file} must reuse the canonical Supabase Auth client instance`
+  );
+}
+
 const css = readFileSync("css/app.css", "utf8");
 assert.match(css, /html\.auth-pending body\s*\{\s*visibility: hidden;/);
 assert.match(css, /html\.auth-authorized body\s*\{\s*visibility: visible;/);

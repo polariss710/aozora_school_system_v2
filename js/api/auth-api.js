@@ -1,4 +1,4 @@
-import { hasSupabaseConfig, supabase } from "../supabase-client.js?v=p0-g1-a-20260804-1";
+import { hasSupabaseConfig, supabase } from "../supabase-client.js";
 
 const VALID_ROLES = new Set(["admin", "operator", "read_only"]);
 let currentAuthContext = null;

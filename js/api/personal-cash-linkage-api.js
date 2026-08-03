@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js?v=v2.112.0-cash-retry-attempts-20260614";
+import { supabase } from "../supabase-client.js";
 
 export async function fetchPersonalCashLinkageEvents(filters = {}) {
   const { data, error } = await supabase.rpc("school_get_personal_cash_linkage_events", {
