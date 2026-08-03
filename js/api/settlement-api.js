@@ -385,28 +385,32 @@ export async function relockStudentMonthlySettlement(payload) {
   return Array.isArray(data) ? data[0] : data;
 }
 
-export async function applyStudentMonthlySettlementAdjustment(payload) {
-  const { data, error } = await supabase.rpc("school_apply_student_monthly_settlement_adjustment", {
-    p_settlement_id: payload.settlementId,
-    p_adjustment_amount_cny: payload.adjustmentAmountCny,
-    p_adjustment_source: payload.adjustmentSource || "manual",
-    p_adjustment_reason: payload.adjustmentReason,
-    p_note: payload.note || null,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.isArray(data) ? data[0] : data;
-}
-
 export async function setStudentMonthlySettlementDraftAdjustment(payload) {
+  const adjustmentMode = payload.adjustmentSource;
+  const allowedModes = new Set([
+    "carry_final_balance",
+    "clear_balance",
+    "manual_adjustment",
+  ]);
+  if (!allowedModes.has(adjustmentMode)) {
+    throw new Error("请选择有效的差额调整方式。");
+  }
+  const explicitUserAmount = payload.adjustmentAmountCny ?? null;
+  if (adjustmentMode === "manual_adjustment" && explicitUserAmount === null) {
+    throw new Error("手动调整必须填写明确金额。");
+  }
+  if (adjustmentMode === "manual_adjustment"
+      && (typeof explicitUserAmount !== "number" || !Number.isFinite(explicitUserAmount))) {
+    throw new Error("手动调整金额必须是有效数字。");
+  }
+  if (adjustmentMode !== "manual_adjustment" && explicitUserAmount !== null) {
+    throw new Error("该调整方式的金额必须由数据库计算。");
+  }
   const { data, error } = await supabase.rpc("school_set_student_monthly_settlement_draft_adjustment", {
     p_student_id: payload.studentId,
     p_year_month: payload.yearMonth,
-    p_adjustment_amount_cny: payload.adjustmentAmountCny,
-    p_adjustment_source: payload.adjustmentSource || "manual",
+    p_adjustment_amount_cny: explicitUserAmount,
+    p_adjustment_source: adjustmentMode,
     p_adjustment_reason: payload.adjustmentReason,
     p_note: payload.note || null,
   });

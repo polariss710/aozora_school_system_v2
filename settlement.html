@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生月度结算</title>
-    <link rel="stylesheet" href="./css/app.css?v=v10.3.96-authoritative-overage-ui">
+    <link rel="stylesheet" href="./css/app.css?v=v10.4.3-p0b2-adjustment-authority">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -256,14 +256,14 @@
       <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settlementAdjustmentTitle">
         <div class="section-heading">
           <h2 id="settlementAdjustmentTitle">保存锁定前差额调整</h2>
-          <p class="section-note">差额调整会参与锁定前预览，并在锁定时随结算快照一起固化；不会修改课时、收入、账户、支出或工资。</p>
+          <p class="section-note">数据库按调整方式计算权威调整额与结转额，并在锁定时按最新课时、收入事实重新解析后固化；页面不计算财务结果。</p>
         </div>
 
         <div id="settlementAdjustmentSummary" class="dialog-summary"></div>
         <div id="settlementAdjustmentError" class="dialog-error is-hidden" aria-live="polite"></div>
 
         <label class="field" data-settlement-adjustment-field="amount">
-          <span>调整金额 CNY</span>
+          <span>手动调整金额 CNY（仅手动调整填写）</span>
           <input id="settlementAdjustmentAmountInput" type="number" step="0.01" inputmode="decimal">
         </label>
 
@@ -298,6 +298,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=v10.3.96-authoritative-overage-ui"></script>
+    <script type="module" src="./js/settlement-app.js?v=v10.4.3-p0b2-adjustment-authority-2"></script>
   </body>
 </html>

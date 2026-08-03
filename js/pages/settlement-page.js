@@ -886,27 +886,20 @@ function renderAdjustmentSummary(row) {
   }
 
   const mode = dom.adjustmentSourceInput.value || adjustmentModeForRow(row);
-  const hasInputAmount = dom.adjustmentAmountInput?.value !== ""
-    && Number.isFinite(Number(dom.adjustmentAmountInput?.value));
-  const hasSavedModeAmount = row.adjustment_source === mode
-    && Number.isFinite(Number(row.adjustment_amount_cny));
-  const shouldDisplayCalculatedAfterSave = mode === ADJUSTMENT_MODES.CLEAR_BALANCE
-    && !hasInputAmount
-    && !hasSavedModeAmount;
-  const adjustmentAmount = mode === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE
-    ? 0
-    : hasInputAmount
-      ? Number(dom.adjustmentAmountInput.value)
-      : numberOrZero(row.adjustment_amount_cny);
-  const carryoverAmount = numberOrZero(row.system_difference_cny) + adjustmentAmount;
-  const calculatedAfterSaveLabel = "保存后由系统计算";
+  const isSavedMode = row.adjustment_source === mode;
+  const authoritativeAdjustment = isSavedMode
+    ? formatCurrency(row.adjustment_amount_cny, "CNY")
+    : "保存后由数据库计算";
+  const authoritativeCarryover = isSavedMode
+    ? formatCurrency(row.carryover_amount_cny, "CNY")
+    : "保存后由数据库计算";
   dom.adjustmentSummary.innerHTML = [
     ["学生", nameById(students, row.student_id, studentName)],
     ["结算月份", formatMonth(row.year_month)],
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
-    ["当前调整", shouldDisplayCalculatedAfterSave ? calculatedAfterSaveLabel : formatCurrency(adjustmentAmount, "CNY")],
-    ["当前结转", shouldDisplayCalculatedAfterSave ? calculatedAfterSaveLabel : formatCurrency(carryoverAmount, "CNY")],
+    ["数据库权威调整", authoritativeAdjustment],
+    ["数据库权威结转", authoritativeCarryover],
   ].map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
@@ -932,8 +925,9 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
     dom.adjustmentAmountInput.value = currentAdjustmentSettlement.adjustment_source === mode
       ? formatCnyInput(currentAdjustmentSettlement.adjustment_amount_cny)
       : "";
-  } else if (!preserveManualAmount && !dom.adjustmentAmountInput.value) {
-    dom.adjustmentAmountInput.value = formatCnyInput(0);
+  } else if (!preserveManualAmount
+      && currentAdjustmentSettlement.adjustment_source !== mode) {
+    dom.adjustmentAmountInput.value = "";
   }
 
   renderAdjustmentSummary(currentAdjustmentSettlement);
@@ -953,17 +947,22 @@ async function handleAdjustmentSubmit() {
 
   const source = dom.adjustmentSourceInput.value.trim();
   const isManual = source === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
-  const amount = isManual ? Number(dom.adjustmentAmountInput.value) : null;
+  const explicitAmountText = dom.adjustmentAmountInput.value.trim();
+  const amount = isManual && explicitAmountText !== ""
+    ? Number(explicitAmountText)
+    : null;
   const reason = dom.adjustmentReasonInput.value.trim();
   const invalidFields = [];
-  if (isManual && !Number.isFinite(amount)) invalidFields.push("amount");
+  if (isManual && (amount === null || !Number.isFinite(amount))) invalidFields.push("amount");
   if (!source) invalidFields.push("source");
   if (!reason) invalidFields.push("reason");
   if (!dom.adjustmentConfirmCheckbox.checked) invalidFields.push("confirm");
 
   if (invalidFields.length) {
     invalidFields.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
-    showAdjustmentError("请选择调整方式，填写差额调整金额、理由，并勾选确认。");
+    showAdjustmentError(isManual
+      ? "请选择调整方式，填写手动调整金额与理由，并勾选确认。"
+      : "请选择调整方式，填写理由，并勾选确认。金额由数据库计算。");
     return;
   }
 
@@ -986,7 +985,7 @@ async function handleAdjustmentSubmit() {
       ...(filtersBeforeSubmit || {}),
       month: sourceRow.year_month,
     });
-    showMessage("success", `锁定前差额调整已保存：${shortId(result?.draft_id)}；预览结转已更新。`);
+    showMessage("success", `锁定前差额调整已保存：${shortId(result?.draft_id)}；数据库权威调整 ${formatCurrency(result?.adjustment_amount_cny, "CNY")}，权威结转 ${formatCurrency(result?.locked_carryover_cny, "CNY")}。`);
   } catch (error) {
     showAdjustmentError(error.message || String(error));
   } finally {
@@ -1045,8 +1044,8 @@ function numberOrZero(value) {
 }
 
 function formatCnyInput(value) {
-  const rounded = Math.round(numberOrZero(value) * 100) / 100;
-  return String(Object.is(rounded, -0) ? 0 : rounded);
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? String(numberValue) : "";
 }
 
 function filterSettlements(rows, filters) {

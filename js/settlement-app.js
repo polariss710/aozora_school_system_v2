@@ -1,5 +1,5 @@
-import { APP_VERSION } from "./config.js";
-import { initSettlementPage } from "./pages/settlement-page.js?v=v10.3.96-authoritative-overage-ui";
+import { APP_VERSION } from "./config.js?v=v10.4.3-p0b2-adjustment-authority-2";
+import { initSettlementPage } from "./pages/settlement-page.js?v=v10.4.3-p0b2-adjustment-authority-2";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
