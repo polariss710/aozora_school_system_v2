@@ -166,9 +166,9 @@ Gate 前后均为 `student_tuition_preview=enabled / student_tuition_generate=bl
 
 - baseline：`993909e9b11b3dcd804489839ef56c42aecb567b`
 - tool routing fix：`09d414a`
-- 文档交付提交：`PENDING_DOC_COMMIT`
-- 收尾提交：`PENDING_CLOSEOUT_COMMIT`
-- push：`PENDING_PUSH`
+- 文档交付提交：`a9b7451`，parent `09d414a`
+- 收尾：本段由文档交付后的独立 closeout 提交记录；精确 commit 与 parent 见最终交付答复及 `git log`
+- push：按任务要求普通推送 `main` 至 `origin/main`；最终远端 ref 与工作区状态见最终交付答复
 
 六份受保护 untracked 文件未读取改写、未 stage、未提交，最终 SHA-256 仍为：
 
