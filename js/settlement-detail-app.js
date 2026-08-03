@@ -1,13 +1,15 @@
-import { APP_VERSION } from "./config.js";
-import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=r2-f-f2-b-year-month-closure";
+import { APP_VERSION } from "./config.js?v=p0e-20260803-1";
+import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=p0e-20260803-1";
+
+const SETTLEMENT_PAGE_VERSION = "p0e-20260803-1";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
-    versionEl.textContent = APP_VERSION;
+    versionEl.textContent = `${APP_VERSION} · ${SETTLEMENT_PAGE_VERSION}`;
   }
 
-  console.info("[aozora-school-v2]", APP_VERSION);
+  console.info("[aozora-school-v2]", APP_VERSION, SETTLEMENT_PAGE_VERSION);
 
   try {
     initSettlementDetailPage();

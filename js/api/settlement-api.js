@@ -71,7 +71,27 @@ async function fetchStudentSettlementSnapshots(yearMonth) {
     throw error;
   }
 
-  return mergeUnlockedSnapshotPreviews(data || []);
+  const rowsWithEffectiveState = await mergeSettlementEffectiveStates(data || []);
+  return mergeUnlockedSnapshotPreviews(rowsWithEffectiveState);
+}
+
+async function mergeSettlementEffectiveStates(rows) {
+  const ids = rows.map((row) => row.id).filter(Boolean);
+  if (!ids.length) {
+    return rows;
+  }
+  const { data, error } = await supabase.rpc(
+    "school_get_student_monthly_settlement_effective_states",
+    { p_settlement_ids: ids }
+  );
+  if (error) {
+    throw error;
+  }
+  const byId = new Map((data || []).map((state) => [state.settlement_id, state]));
+  return rows.map((row) => ({
+    ...row,
+    ...(byId.get(row.id) || {}),
+  }));
 }
 
 async function fetchStudentSettlementPreviewCandidates(yearMonth) {
@@ -209,7 +229,7 @@ async function fetchStudentSettlementWageBlockers(yearMonth) {
 async function mergeUnlockedSnapshotPreviews(rows) {
   const mergedRows = [];
   for (const row of rows) {
-    if (row.settlement_status !== "unlocked") {
+    if (row.settlement_status !== "unlocked" || row.editable === false) {
       mergedRows.push(row);
       continue;
     }
@@ -305,6 +325,11 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
     adjustment_draft_status: summary.draft_status,
     adjustment_draft_updated_at: summary.draft_updated_at,
     settlement_status: "preview",
+    physical_status: "preview",
+    effective_status: "preview",
+    editable: true,
+    unlockable: false,
+    relockable: false,
     locked_at: null,
     unlocked_at: null,
     unlock_reason: "",

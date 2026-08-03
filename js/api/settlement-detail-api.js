@@ -113,15 +113,17 @@ const ADJUSTMENT_COLUMNS = [
 ].join(",");
 
 export async function fetchSettlementDetailPage(settlementId) {
-  const settlement = await fetchSettlement(settlementId);
+  const physicalSettlement = await fetchSettlement(settlementId);
 
-  const [lookups, lessons, incomes, adjustments, wageBlockers] = await Promise.all([
+  const [effectiveState, lookups, lessons, incomes, adjustments, wageBlockers] = await Promise.all([
+    fetchSettlementEffectiveState(physicalSettlement.id),
     fetchSettlementDetailLookups(),
-    fetchLessonReferences(settlement),
-    fetchIncomeReferences(settlement),
-    fetchAdjustmentReferences(settlement.id),
-    fetchStudentSettlementWageBlockers(settlement.year_month, settlement.student_id),
+    fetchLessonReferences(physicalSettlement),
+    fetchIncomeReferences(physicalSettlement),
+    fetchAdjustmentReferences(physicalSettlement.id),
+    fetchStudentSettlementWageBlockers(physicalSettlement.year_month, physicalSettlement.student_id),
   ]);
+  const settlement = { ...physicalSettlement, ...effectiveState };
 
   return {
     settlement: mergeWageBlocker(settlement, wageBlockers[0]),
@@ -130,6 +132,17 @@ export async function fetchSettlementDetailPage(settlementId) {
     incomes,
     adjustments,
   };
+}
+
+async function fetchSettlementEffectiveState(settlementId) {
+  const { data, error } = await supabase.rpc(
+    "school_get_student_monthly_settlement_effective_states",
+    { p_settlement_ids: [settlementId] }
+  );
+  if (error) {
+    throw error;
+  }
+  return (data || [])[0] || {};
 }
 
 async function fetchSettlement(settlementId) {

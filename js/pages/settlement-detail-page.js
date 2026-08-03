@@ -1,9 +1,9 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=r2-f-f2-b-year-month-closure";
+import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=p0e-20260803-1";
 import {
   relockStudentMonthlySettlement,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js";
+} from "../api/settlement-api.js?v=p0e-20260803-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   buildActualOverageDisplay,
@@ -14,6 +14,7 @@ import {
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
   unlocked: "锁定已撤销",
+  historically_consumed_immutable: "已被历史学费账单消费（不可重开）",
 };
 
 const LESSON_TYPE_LABELS = {
@@ -175,7 +176,9 @@ function renderSettlementDetail(data) {
     ["学生", studentNameById(settlement.student_id)],
     ["学生编号", displayValue(student?.student_code)],
     ["业务归属", businessNameById(settlement.business_entity_id)],
-    ["结算状态", settlementStatusLabel(settlement.settlement_status)],
+    ["物理状态", settlementStatusLabel(settlement.physical_status || settlement.settlement_status)],
+    ["有效业务状态", settlementStatusLabel(settlement.effective_status || settlement.settlement_status)],
+    ["不可修改原因", displayValue(settlement.immutable_reason)],
     ["后续锁定", teacherWageBlockerDisplay(settlement)],
     ["锁定时间", formatDate(settlement.locked_at)],
     ["撤销锁定时间", formatDate(settlement.unlocked_at)],
@@ -215,6 +218,7 @@ function renderSettlementDetail(data) {
     ["调整金额 CNY", formatCurrency(settlement.adjustment_amount_cny, "CNY")],
     ["调整理由", displayValue(settlement.adjustment_reason)],
     ["本月结转 CNY", formatCurrency(settlement.carryover_amount_cny, "CNY")],
+    ["历史冻结结转 CNY", formatCurrency(settlement.frozen_carryover_cny, "CNY")],
   ]);
 
   dom.studentInfo.innerHTML = renderDefinitionList([
@@ -230,6 +234,11 @@ function renderSettlementDetail(data) {
     ["student_id", shortId(settlement.student_id)],
     ["business_entity_id", shortId(settlement.business_entity_id)],
     ["teacher_wage_blocker", teacherWageBlockerDisplay(settlement)],
+    ["effective_status", displayValue(settlement.effective_status)],
+    ["immutable_error_code", displayValue(settlement.immutable_error_code)],
+    ["editable", settlement.editable === false ? "否" : "是"],
+    ["unlockable", settlement.unlockable ? "是" : "否"],
+    ["relockable", settlement.relockable ? "是" : "否"],
     ["created_at", formatDate(settlement.created_at)],
     ["updated_at", formatDate(settlement.updated_at)],
   ]);
@@ -242,9 +251,19 @@ function renderSettlementDetail(data) {
 
 function renderActionControls(settlement) {
   const status = settlement.settlement_status;
+  const effectiveStatus = settlement.effective_status || status;
   const blockerReason = teacherWageBlockerReason(settlement);
-  dom.actionStatus.textContent = settlementStatusLabel(status);
-  dom.actionStatus.className = `status-badge ${statusClass(status)}`;
+  dom.actionStatus.textContent = settlement.display_label || settlementStatusLabel(effectiveStatus);
+  dom.actionStatus.className = `status-badge ${statusClass(effectiveStatus)}`;
+  if (settlement.editable === false || effectiveStatus === "historically_consumed_immutable") {
+    dom.unlockButton.classList.add("is-hidden");
+    dom.relockButton.classList.add("is-hidden");
+    dom.unlockButton.disabled = true;
+    dom.relockButton.disabled = true;
+    dom.unlockButton.title = settlement.immutable_reason || "不可修改";
+    dom.relockButton.title = settlement.immutable_reason || "不可修改";
+    return;
+  }
   dom.unlockButton.classList.toggle("is-hidden", status !== "locked");
   dom.relockButton.classList.toggle("is-hidden", status !== "unlocked");
   dom.unlockButton.disabled = Boolean(blockerReason);

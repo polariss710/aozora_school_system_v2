@@ -8,7 +8,7 @@ import {
   relockStudentMonthlySettlement,
   setStudentMonthlySettlementDraftAdjustment,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js";
+} from "../api/settlement-api.js?v=p0e-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -30,6 +30,7 @@ const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
   unlocked: "锁定已撤销",
   preview: "未锁定 / 预览",
+  historically_consumed_immutable: "已被历史学费账单消费（不可重开）",
 };
 
 const ADJUSTMENT_MODES = {
@@ -332,7 +333,7 @@ function renderMasterOptions() {
 function renderStatusOptions(rows) {
   const options = ['<option value="">全部</option>'];
 
-  for (const value of distinctValues(rows, "settlement_status")) {
+  for (const value of [...new Set(rows.map((row) => effectiveSettlementStatus(row)))].sort()) {
     options.push(
       `<option value="${escapeAttribute(value)}">${escapeHtml(settlementStatusLabel(value))}</option>`
     );
@@ -368,7 +369,7 @@ function renderSettlements(rows) {
       <td class="settlement-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td>${escapeHtml(nameById(students, row.student_id, studentName))}</td>
       <td>${escapeHtml(nameById(businessEntities, row.business_entity_id, businessEntityName))}</td>
-      <td><span class="status-badge ${escapeAttribute(statusClass(row.settlement_status))}">${escapeHtml(settlementStatusLabel(row.settlement_status))}</span></td>
+      <td><span class="status-badge ${escapeAttribute(statusClass(effectiveSettlementStatus(row)))}" title="${escapeAttribute(row.immutable_reason || "")}">${escapeHtml(settlementStatusLabel(effectiveSettlementStatus(row)))}</span></td>
       <td>${renderTeacherWageBlocker(row)}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.previous_balance_cny, "CNY"))}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.planned_lesson_fee_jpy, "JPY"))}</td>
@@ -418,6 +419,10 @@ function renderSettlementDetailAction(row) {
 
 function renderSettlementStatusAction(row) {
   const blockerReason = teacherWageBlockerReason(row);
+
+  if (row.editable === false || effectiveSettlementStatus(row) === "historically_consumed_immutable") {
+    return `<span class="table-cell-summary" title="${escapeAttribute(row.immutable_reason || row.display_label || "不可修改")}">只读</span>`;
+  }
 
   if (row.settlement_status === "locked") {
     if (blockerReason) {
@@ -841,6 +846,11 @@ function openAdjustmentDialog(settlementId) {
     return;
   }
 
+  if (row.editable === false) {
+    showMessage("error", row.immutable_reason || row.display_label || "该结算为不可变历史事实，不能调整。");
+    return;
+  }
+
   const blockerReason = teacherWageBlockerReason(row);
   if (blockerReason) {
     showMessage("error", blockerReason);
@@ -916,6 +926,11 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
   const mode = dom.adjustmentSourceInput.value || ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   const isManual = mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   dom.adjustmentAmountInput.readOnly = !isManual;
+
+  if (!preserveManualAmount) {
+    dom.adjustmentAmountInput.value = "";
+    clearAdjustmentErrors();
+  }
 
   if (mode === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE) {
     dom.adjustmentAmountInput.value = currentAdjustmentSettlement.adjustment_source === mode
@@ -1058,7 +1073,7 @@ function filterSettlements(rows, filters) {
       return false;
     }
 
-    if (filters.status && row.settlement_status !== filters.status) {
+    if (filters.status && effectiveSettlementStatus(row) !== filters.status) {
       return false;
     }
 
@@ -1075,13 +1090,20 @@ function matchesKeyword(row, keyword) {
   return [
     nameById(students, row.student_id, studentName),
     nameById(businessEntities, row.business_entity_id, businessEntityName),
-    settlementStatusLabel(row.settlement_status),
-    row.settlement_status,
+    settlementStatusLabel(effectiveSettlementStatus(row)),
+    effectiveSettlementStatus(row),
+    row.physical_status,
+    row.immutable_error_code,
+    row.immutable_reason,
     row.note,
     row.adjustment_reason,
   ]
     .map((value) => safeText(value).toLowerCase())
     .some((value) => value.includes(normalizedKeyword));
+}
+
+function effectiveSettlementStatus(row) {
+  return row.effective_status || row.settlement_status;
 }
 
 function sortSettlements(rows) {
