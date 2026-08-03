@@ -110,6 +110,6 @@ manage-atomic-tuition.zsh reissue
 - 测试白名单写入：0；普通 Reissue 探针在事务内失败并回滚，净写入 0。测试记录 ID：不适用。
 - 执行的临时 SQL：`/private/tmp/zhang_p0e_school_baseline.sql`、`/private/tmp/zhang_p0e_cash_baseline.sql`、`/private/tmp/zhang_p0e_ordinary_reissue_rollback_probe.sql`、`/private/tmp/zhang_p0e_post_acceptance.sql`；除回滚探针外均为 read-only。
 - 正式调用：管理工具 `status/history/void-preflight/void/reissue-preview/reissue`；School RPC 包括 Void preflight/专用 Void、P0-E preview/专用 Reissue、五个 validators、settlement effective-state reader、Cash submission preflight。P0-E duplicate 为幂等调用。
-- Git parent：`b9b4332316750703b912f5d7d086ccdc699f003d`。操作文档 commit 与 push 在本报告完成后执行；最终 hash 以紧随本报告的 Git 交付记录及任务最终回执为准，避免文档自嵌 commit hash 的递归变化。
+- Git 操作文档 commit：`2d0ffe5f91e68e7f5492326453f92e83e4de980a`；parent：`b9b4332316750703b912f5d7d086ccdc699f003d`；已成功普通推送 `origin/main`。该 commit 后 status 仅为原六份受保护 untracked 文件。本条交付结果回填本身由紧随其后的收尾 commit 记录，其 hash 以 Git history 与任务最终回执为准，避免文档无限自嵌。
 
 最终结论：**张倬闻 2026-08 已达到 CNY 27,950.00 pending income；本轮未提交 Cash，工作流完成。**
