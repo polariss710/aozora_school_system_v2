@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-03 P0-F 彭宇晗月结未保存 Preview 与 Dialog 已修复：生产 DB 公式原本正确，根因是旧 Dialog 继续展示列表行旧分离合同且表单变化未调用完整只读 preview。新增最小 anon 只读 `school_preview_student_settlement_adjustment_dialog`，current state 与 pending preview 分卡，expected facts/manifest/sequence/signature 防竞态，输入变化立即使 preview 过期并禁用保存；桌面改1040px双列、固定标题/footer、内部滚动、窄屏单列。生产 Chrome `v10.4.6 · p0f-dialog-20260803-1` 精确显示2h unused `-JPY17,000/-CNY714`、0.25h overage `+JPY2,125/+CNY89.25`、net `-1.75h/-JPY14,875/-CNY624.75`及两条source UUID，Console error/warning 0，未保存/锁定。两人既有9条lesson void与August claims 0保持；School/Cash全行哈希和Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`56c7783`已推送；详见`docs/school-v2-p0f-peng-settlement-preview-dialog-fix-20260803.md`。
+
 - 2026-08-03 P0-F 上线后课时页 anon 读取事故已紧急修复：根因是新辅助 reader `school_get_planned_lesson_tuition_history_state(uuid[])` 漏授 anon EXECUTE，主 reader 200/127行后辅助请求返回401/42501并被页面聚合 catch 放大为整页清空。现仅为该 `STABLE / SECURITY DEFINER / 固定search_path` 纯只读 reader补最小anon EXECUTE，owner helper/draft writer仍拒绝anon，P0-F表DML权限未扩大；前端新增辅助reader失败/结果不完整的fail-closed降级，保留主列表但隐藏edit/delete/void并显示明确警告，主reader错误仍不吞。生产Chrome `v10.4.6 / p0f-readfix-20260803-1`验证8月彭15/李16个唯一受控作废入口、删除/编辑0、张倬闻及7月actual/pending makeup/makeup completed、左右/普通视图和各筛选均正常，Console error0。School/Cash全行哈希与Gate `enabled / blocked / blocked`前后不变，真实业务写入0。修复提交`44101a0`已推送；详见`docs/school-v2-p0f-lesson-page-read-failure-fix-20260803.md`。
 
 Status date: 2026-08-03
@@ -7,6 +9,8 @@ Status date: 2026-08-03
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
 ## Current System State
+
+- 2026-08-03 P0-F 月结 Dialog 修复已完成：新增只读组合 preview，在真实保存前返回逐source、expected facts、manifest及DB resolver投影；页面不计算金额，表单与响应不一致时fail-closed。彭宇晗生产只读权威结果为 `-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`，current state仍为settlement/source draft/adjustment draft/claim全0。生产 Chrome 双列布局与竞态回归通过，未点击保存或锁定；业务表、两人既有lesson void、Cash和Gate均不变。实现提交`56c7783`已推送，详见`docs/school-v2-p0f-peng-settlement-preview-dialog-fix-20260803.md`。
 
 - 2026-08-03 学费财务 P0-F 已完成 DB 合同、前端、生产 Chrome 与 Git 交付：新增获批的 source-treatment draft、immutable lesson-variance claim 和 settlement 13个冻结字段；全员可显式选择 `net_lesson_variance_to_financial_credit_v1`，默认仍为旧分离模式且历史不回填。彭宇晗生产只读 DB preview 权威得到 `2h / -JPY17,000 + 0.25h / +JPY2,125 = -JPY14,875 / -CNY624.75`；彭/李 15/16 条8月 planned 的 active claim 均为0，页面保留历史 relation 但隐藏物理删除/编辑，仅显示受控“作废预定课时”，本轮未作废。P0-F rollback、全员mode矩阵、whitelist commit/cleanup、并发、P0-B1/P0-C/P0-E回归、exact rollback、School/Cash postdeploy均通过；本任务真实学生/Cash写入0，Gate保持`enabled / blocked / blocked`。验收期间操作员为范围外学生孙陈锋新增一条正式actual，lesson基线因此由730变731，已保留并单列，不归因于P0-F。Chrome `v10.4.5` 验证彭宇晗 DB preview `-CNY624.75`、15个唯一受控作废入口且删除/编辑为0；收入页显示张倬闻 `历史107.50 / forward -107.50 / 净0 / 最终27,950`。实施提交 `ce119e8`、路由收口 `31ae291` 均已推送。详见`docs/school-v2-tuition-p0f-lesson-variance-and-controlled-void-implementation-report-20260803.md`。
 
