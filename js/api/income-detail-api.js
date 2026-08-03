@@ -152,9 +152,7 @@ export async function fetchIncomeDetailPage(incomeId) {
     fetchSettlementReferences(income),
     fetchAccountTransactions(income.id),
     fetchPersonalCashIncomeLinkageEvents(income.id),
-    isTuition
-      ? Promise.resolve({ data: [], error: null })
-      : supabase.rpc("school_get_cash_income_submission_preflight", {
+    supabase.rpc("school_get_cash_income_submission_preflight", {
         p_income_record_ids: [income.id],
       }),
     Promise.resolve({ data: [], error: null }),
@@ -268,6 +266,12 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
       cash_account_id: payload.cashAccountId,
       actual_received_date: payload.actualReceivedDate,
       note: payload.note || null,
+      expected_student_id: payload.expectedStudentId,
+      expected_settlement_month: payload.expectedSettlementMonth,
+      expected_tuition_bill_id: payload.expectedTuitionBillId,
+      expected_generation_revision_id: payload.expectedGenerationRevisionId,
+      expected_payment_currency: payload.expectedPaymentCurrency,
+      expected_payment_amount: payload.expectedPaymentAmount,
     }
     : {
       income_record_id: incomeRecordId,
@@ -291,7 +295,7 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
   }
 
   if (!data?.ok) {
-    throw new Error(data?.details || data?.message || "Cash System 收入确认请求提交失败。");
+    throw new Error(data?.message || "Cash System 收入确认请求提交失败。");
   }
 
   if (data.cash_request_status !== "pending") {

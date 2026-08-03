@@ -223,6 +223,12 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
       cash_account_id: payload.cashAccountId,
       actual_received_date: payload.actualReceivedDate,
       note: payload.note || null,
+      expected_student_id: payload.expectedStudentId,
+      expected_settlement_month: payload.expectedSettlementMonth,
+      expected_tuition_bill_id: payload.expectedTuitionBillId,
+      expected_generation_revision_id: payload.expectedGenerationRevisionId,
+      expected_payment_currency: payload.expectedPaymentCurrency,
+      expected_payment_amount: payload.expectedPaymentAmount,
     }
     : {
       income_record_id: incomeRecordId,
@@ -247,7 +253,7 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
   }
 
   if (!data?.ok) {
-    throw new Error(data?.details || data?.message || "Cash System 收入确认请求提交失败。");
+    throw new Error(data?.message || "Cash System 收入确认请求提交失败。");
   }
 
   if (data.cash_request_status !== "pending") {
@@ -255,6 +261,24 @@ export async function requestCashIncomeConfirmationForRecord(payload) {
   }
 
   return data;
+}
+
+export async function fetchCashIncomeSubmissionPreflight(incomeRecordIds) {
+  const ids = Array.from(new Set((incomeRecordIds || []).map((id) => (
+    requireUuid(id, "income_record_id")
+  ))));
+  if (!ids.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase.rpc(
+    "school_get_cash_income_submission_preflight",
+    { p_income_record_ids: ids },
+  );
+  if (error) {
+    throw new Error("无法重新确认 Cash 提交资格，请刷新页面后重试。");
+  }
+  return data || [];
 }
 
 export async function fetchIncomeLookups() {

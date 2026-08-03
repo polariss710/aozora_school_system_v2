@@ -28,6 +28,12 @@ type RequestBody = {
   tax_category?: string | null;
   receipt_status?: string | null;
   note?: string | null;
+  expected_student_id?: string;
+  expected_settlement_month?: string;
+  expected_tuition_bill_id?: string;
+  expected_generation_revision_id?: string;
+  expected_payment_currency?: string;
+  expected_payment_amount?: number | string;
 };
 
 type CashAccountRow = {
@@ -74,6 +80,27 @@ type CashRequestResult = {
   created_transaction_id?: string | null;
   message?: string;
 };
+
+type CashSubmissionPreflightRow = {
+  income_record_id: string;
+  classification: string;
+  eligible: boolean;
+  gate_state: string;
+  payment_currency: string | null;
+  payment_amount: number | string | null;
+};
+
+class PublicRequestError extends Error {
+  code: string;
+  status: number;
+
+  constructor(code: string, message: string, status: number) {
+    super(message);
+    this.name = "PublicRequestError";
+    this.code = code;
+    this.status = status;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -265,6 +292,22 @@ function createSupabaseClient(urlEnv: string, keyEnv: string) {
   });
 }
 
+function createUserScopedSchoolClient(authorization: string) {
+  return createClient(
+    getRequiredEnv("SCHOOL_SUPABASE_URL"),
+    getRequiredEnv("SUPABASE_ANON_KEY"),
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+      global: {
+        headers: { Authorization: authorization },
+      },
+    },
+  );
+}
+
 async function requireSchoolUser(
   schoolClient: ReturnType<typeof createClient>,
   authorization: string,
@@ -283,6 +326,73 @@ async function requireSchoolUser(
   return userData.user;
 }
 
+async function requireCurrentActiveAdmin(
+  userScopedSchoolClient: ReturnType<typeof createClient>,
+  verifiedUserId: string,
+): Promise<string> {
+  const { data, error } = await userScopedSchoolClient.rpc(
+    "school_require_current_app_admin",
+  );
+  const actorId = typeof data === "string" ? data : "";
+  if (error || actorId.toLowerCase() !== verifiedUserId.toLowerCase()) {
+    throw new PublicRequestError(
+      "P0G1_ACTIVE_ADMIN_REQUIRED",
+      "仅已启用的管理员账号可以提交 Cash 确认请求。",
+      403,
+    );
+  }
+  return actorId;
+}
+
+function requireTuitionExpectedFacts(
+  body: RequestBody,
+  incomeData: Record<string, unknown>,
+  preflight: CashSubmissionPreflightRow,
+) {
+  const expectedStudentId = requireUuid(
+    body.expected_student_id,
+    "expected_student_id",
+  );
+  const expectedBillId = requireUuid(
+    body.expected_tuition_bill_id,
+    "expected_tuition_bill_id",
+  );
+  const expectedRevisionId = requireUuid(
+    body.expected_generation_revision_id,
+    "expected_generation_revision_id",
+  );
+  const expectedMonth = requireSettlementMonth(body.expected_settlement_month);
+  const expectedCurrency = requireCurrency(body.expected_payment_currency);
+  const expectedAmount = requirePositiveNumber(
+    body.expected_payment_amount,
+    "expected_payment_amount",
+  );
+  const snapshot = incomeData.source_snapshot &&
+      typeof incomeData.source_snapshot === "object"
+    ? incomeData.source_snapshot as Record<string, unknown>
+    : {};
+
+  if (
+    incomeData.student_id !== expectedStudentId ||
+    incomeData.settlement_month !== expectedMonth ||
+    incomeData.source_id !== expectedBillId ||
+    incomeData.tuition_bill_id !== expectedBillId ||
+    snapshot.generation_revision_id !== expectedRevisionId ||
+    preflight.income_record_id !== incomeData.id ||
+    preflight.classification !== "ELIGIBLE_FOR_CASH_SUBMIT" ||
+    preflight.eligible !== true ||
+    preflight.gate_state !== "enabled" ||
+    preflight.payment_currency !== expectedCurrency ||
+    Number(preflight.payment_amount) !== expectedAmount
+  ) {
+    throw new PublicRequestError(
+      "TUITION_CASH_EXPECTED_FACTS_STALE",
+      "学费账单、收入或当前有效版本已变化，请刷新页面后重新核对。",
+      409,
+    );
+  }
+}
+
 async function listEligibleAccounts(
   cashClient: ReturnType<typeof createClient>,
 ): Promise<CashAccountRow[]> {
@@ -295,7 +405,7 @@ async function listEligibleAccounts(
     .order("name", { ascending: true });
 
   if (error) {
-    throw new Error(`Cash eligible account lookup failed: ${error.message}`);
+    throw new Error("Cash eligible account lookup failed");
   }
 
   return (data || []) as CashAccountRow[];
@@ -312,7 +422,7 @@ async function fetchStudentDisplayName(
     .maybeSingle();
 
   if (error) {
-    console.warn("School student display lookup failed", error.message);
+    console.warn("School student display lookup failed");
     return null;
   }
 
@@ -327,13 +437,30 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   if (request.method !== "POST") {
     return jsonResponse(
-      { ok: false, message: "Only POST is supported" },
+      { ok: false, message: "仅支持 POST 请求。" },
       405,
     );
   }
 
   try {
     const authorization = request.headers.get("authorization") ?? "";
+    const userScopedSchoolClient = createUserScopedSchoolClient(authorization);
+    const schoolUser = await requireSchoolUser(
+      userScopedSchoolClient,
+      authorization,
+    );
+    if (!schoolUser) {
+      return jsonResponse(
+        {
+          ok: false,
+          code: "SCHOOL_AUTH_REQUIRED",
+          message: "School 登录状态无效或已过期，请重新登录。",
+        },
+        401,
+      );
+    }
+    await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id);
+
     const body = (await request.json()) as RequestBody;
     const schoolClient = createSupabaseClient(
       "SCHOOL_SUPABASE_URL",
@@ -343,14 +470,6 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "CASH_SUPABASE_URL",
       "CASH_SERVICE_ROLE_KEY",
     );
-
-    const schoolUser = await requireSchoolUser(schoolClient, authorization);
-    if (!schoolUser) {
-      return jsonResponse(
-        { ok: false, message: "Invalid School authorization token" },
-        401,
-      );
-    }
 
     const existingIncomeRecordId = optionalUuid(
       body.income_record_id,
@@ -362,7 +481,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       const { data: incomeData, error: incomeError } = await schoolClient
         .from("school_income_records")
-        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_type,source_label,currency,amount,amount_jpy")
+        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_type,source_id,source_label,source_snapshot,tuition_bill_id,currency,amount,amount_jpy,status")
         .eq("id", existingIncomeRecordId)
         .maybeSingle();
 
@@ -370,8 +489,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         return jsonResponse(
           {
             ok: false,
-            message: "School income record lookup failed",
-            details: incomeError?.message ?? null,
+            message: "未找到可提交的 School 收入记录。",
           },
           404,
         );
@@ -421,6 +539,32 @@ Deno.serve(async (request: Request): Promise<Response> => {
             400,
           );
         }
+
+        await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id);
+        const { data: preflightData, error: preflightError } =
+          await userScopedSchoolClient.rpc(
+            "school_get_cash_income_submission_preflight",
+            { p_income_record_ids: [existingIncomeRecordId] },
+          );
+        if (preflightError) {
+          throw new PublicRequestError(
+            "TUITION_CASH_PREFLIGHT_FAILED",
+            "无法确认学费 Cash 提交资格，请刷新后重试。",
+            409,
+          );
+        }
+        const preflight = unwrapSingleRow<CashSubmissionPreflightRow>(
+          preflightData as
+            | CashSubmissionPreflightRow[]
+            | CashSubmissionPreflightRow
+            | null,
+          "school_get_cash_income_submission_preflight",
+        );
+        requireTuitionExpectedFacts(
+          body,
+          incomeData as Record<string, unknown>,
+          preflight,
+        );
       }
 
       const actualReceivedAmount = isTuitionBill
@@ -447,7 +591,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         exchangeRate === null
       ) {
         return jsonResponse(
-          { ok: false, message: "Backend-calculated cross-currency amount requires exchange_rate" },
+          { ok: false, message: "跨币种到账需要提供参考汇率。" },
           400,
         );
       }
@@ -457,7 +601,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         exchangeRate !== 1
       ) {
         return jsonResponse(
-          { ok: false, message: "Same-currency actual received exchange_rate must be empty or 1" },
+          { ok: false, message: "同币种到账汇率必须为空或 1。" },
           400,
         );
       }
@@ -467,7 +611,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           return jsonResponse(
             {
               ok: false,
-              message: "Backend-calculated cross-currency amount requires rounding_mode",
+              message: "跨币种后端计算需要选择取整方式。",
             },
             400,
           );
@@ -481,7 +625,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       if (!cashAccount) {
         return jsonResponse(
-          { ok: false, message: "Selected Cash account is not School-eligible" },
+          { ok: false, message: "所选 Cash 账户不可用于 School 请求。" },
           400,
         );
       }
@@ -491,7 +635,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         return jsonResponse(
           {
             ok: false,
-            message: "Selected Cash account currency does not match actual received currency",
+            message: "所选 Cash 账户币种与实际到账币种不一致。",
             account_currency: cashAccount.currency,
             actual_received_currency: requiredCashCurrency,
           },
@@ -499,6 +643,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         );
       }
 
+      await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id);
       const { data: schoolRequestData, error: schoolRequestError } =
         await schoolClient.rpc("school_request_cash_income_confirmation_for_record", {
           p_income_record_id: existingIncomeRecordId,
@@ -521,8 +666,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         return jsonResponse(
           {
             ok: false,
-            message: "School Cash income confirmation request failed",
-            details: schoolRequestError.message,
+            message: "School Cash 确认准备失败，请刷新后重试。",
           },
           400,
         );
@@ -539,7 +683,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       const cashAmount = Number(schoolRequest.payment_amount);
       if (!Number.isFinite(cashAmount) || cashAmount <= 0) {
         return jsonResponse(
-          { ok: false, message: "Actual received amount must be greater than 0" },
+          { ok: false, message: "实际到账金额必须大于 0。" },
           400,
         );
       }
@@ -603,6 +747,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         note: optionalText(body.note),
       };
 
+      await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id);
       const { data: cashRequestData, error: cashRequestError } =
         await cashClient.rpc("home_create_external_transaction_request", {
           p_user_id: schoolRequest.cash_user_id,
@@ -628,8 +773,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
             ok: false,
             income_id: schoolRequest.income_id,
             linkage_event_id: schoolRequest.linkage_event_id,
-            message: "Cash pending request creation failed",
-            details: cashRequestError.message,
+            message: "Cash 待确认请求创建失败，请刷新后重试。",
           },
           502,
         );
@@ -642,8 +786,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
             ok: false,
             income_id: schoolRequest.income_id,
             linkage_event_id: schoolRequest.linkage_event_id,
-            message: cashRequest?.message ??
-              "Cash pending request was not created",
+            message: "Cash 待确认请求未创建，请刷新后重试。",
             cash_status: cashRequest?.status ?? null,
           },
           409,
@@ -658,7 +801,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
             linkage_event_id: schoolRequest.linkage_event_id,
             cash_request_id: cashRequest.request_id,
             cash_request_status: cashRequest.status ?? null,
-            message: "Cash request already exists but is not pending",
+            message: "该收入已存在非待确认状态的 Cash 请求。",
           },
           409,
         );
@@ -679,8 +822,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
             linkage_event_id: schoolRequest.linkage_event_id,
             cash_request_id: cashRequest.request_id,
             cash_request_status: cashRequest.status ?? null,
-            message: "Cash request was created but School submitted writeback failed",
-            details: submittedError.message,
+            message: "Cash 请求已存在，但 School 状态同步失败，请勿重复点击并联系管理员。",
           },
           502,
         );
@@ -744,7 +886,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (currency === "JPY" && exchangeRate !== null && exchangeRate !== 1) {
       return jsonResponse(
-        { ok: false, message: "JPY income exchange_rate must be empty or 1" },
+        { ok: false, message: "JPY 同币种收入汇率必须为空或 1。" },
         400,
       );
     }
@@ -756,7 +898,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (!cashAccount) {
       return jsonResponse(
-        { ok: false, message: "Selected Cash account is not School-eligible" },
+        { ok: false, message: "所选 Cash 账户不可用于 School 请求。" },
         400,
       );
     }
@@ -765,7 +907,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       return jsonResponse(
         {
           ok: false,
-          message: "Selected Cash account currency does not match income currency",
+          message: "所选 Cash 账户币种与收入币种不一致。",
           account_currency: cashAccount.currency,
           income_currency: currency,
         },
@@ -773,6 +915,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
+    await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id);
     const { data: schoolRequestData, error: schoolRequestError } =
       await schoolClient.rpc("school_create_cash_income_confirmation", {
         p_income_date: incomeDate,
@@ -799,8 +942,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       return jsonResponse(
         {
           ok: false,
-          message: "School Cash income confirmation request failed",
-          details: schoolRequestError.message,
+          message: "School Cash 确认准备失败，请刷新后重试。",
         },
         400,
       );
@@ -817,7 +959,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const cashAmount = Number(schoolRequest.amount);
     if (!Number.isFinite(cashAmount) || cashAmount <= 0) {
       return jsonResponse(
-        { ok: false, message: "School income amount must be greater than 0" },
+        { ok: false, message: "School 收入金额必须大于 0。" },
         400,
       );
     }
@@ -857,6 +999,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       school_message: schoolRequest.message,
     };
 
+    await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id);
     const { data: cashRequestData, error: cashRequestError } =
       await cashClient.rpc("home_create_external_transaction_request", {
         p_user_id: schoolRequest.cash_user_id,
@@ -882,8 +1025,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           ok: false,
           income_id: schoolRequest.income_id,
           linkage_event_id: schoolRequest.linkage_event_id,
-          message: "Cash pending request creation failed",
-          details: cashRequestError.message,
+          message: "Cash 待确认请求创建失败，请刷新后重试。",
         },
         502,
       );
@@ -896,8 +1038,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           ok: false,
           income_id: schoolRequest.income_id,
           linkage_event_id: schoolRequest.linkage_event_id,
-          message: cashRequest?.message ??
-            "Cash pending request was not created",
+          message: "Cash 待确认请求未创建，请刷新后重试。",
           cash_status: cashRequest?.status ?? null,
         },
         409,
@@ -912,7 +1053,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           linkage_event_id: schoolRequest.linkage_event_id,
           cash_request_id: cashRequest.request_id,
           cash_request_status: cashRequest.status ?? null,
-          message: "Cash request already exists but is not pending",
+          message: "该收入已存在非待确认状态的 Cash 请求。",
         },
         409,
       );
@@ -933,8 +1074,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           linkage_event_id: schoolRequest.linkage_event_id,
           cash_request_id: cashRequest.request_id,
           cash_request_status: cashRequest.status ?? null,
-          message: "Cash request was created but School submitted writeback failed",
-          details: submittedError.message,
+          message: "Cash 请求已存在，但 School 状态同步失败，请勿重复点击并联系管理员。",
         },
         502,
       );
@@ -983,7 +1123,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
       message: submitted.message,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return jsonResponse({ ok: false, message }, 500);
+    if (error instanceof PublicRequestError) {
+      return jsonResponse(
+        { ok: false, code: error.code, message: error.message },
+        error.status,
+      );
+    }
+    return jsonResponse(
+      {
+        ok: false,
+        code: "CASH_REQUEST_PROCESSING_FAILED",
+        message: "Cash 请求处理失败，请刷新页面后重试。",
+      },
+      500,
+    );
   }
 });

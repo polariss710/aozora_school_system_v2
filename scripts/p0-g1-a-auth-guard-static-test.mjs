@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
 const AUTH_ASSET_VERSION = "p0-g1-a-20260804-1";
+const P0_G1_B1_ENTRY_VERSION = "p0-g1-b1-20260804-1";
 const rootHtmlFiles = readdirSync(".")
   .filter((file) => file.endsWith(".html") && file !== "login.html")
   .sort();
@@ -19,7 +20,10 @@ for (const htmlFile of rootHtmlFiles) {
 
   const moduleMatch = html.match(/<script type="module" src="\.\/(js\/[^"?]+\.js)\?v=([^"?]+)"><\/script>/);
   assert.ok(moduleMatch, `${htmlFile} must have a versioned entry module`);
-  assert.equal(moduleMatch[2], AUTH_ASSET_VERSION, `${htmlFile} entry module cache must be busted`);
+  const expectedEntryVersion = ["income.html", "income-detail.html"].includes(htmlFile)
+    ? P0_G1_B1_ENTRY_VERSION
+    : AUTH_ASSET_VERSION;
+  assert.equal(moduleMatch[2], expectedEntryVersion, `${htmlFile} entry module cache must be busted`);
 
   const entry = readFileSync(moduleMatch[1], "utf8");
   assert.ok(

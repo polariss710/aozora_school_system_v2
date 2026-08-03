@@ -1,15 +1,20 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js";
+import {
+  initSchoolAuth,
+  isActiveAdmin,
+  requireActiveAdminForCashConfirmation,
+} from "../auth.js?v=p0-g1-b1-20260804-1";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createIncomeRecord,
   createPendingCashIncomeRecord,
+  fetchCashIncomeSubmissionPreflight,
   fetchIncomeLookups,
   fetchIncomeRecords,
   fetchStudentTuitionValidationPreviewDetails,
   generateStudentTuitionBillAtomic,
   requestCashIncomeConfirmationForRecord,
-} from "../api/income-api.js?v=p0f-20260803-1";
+} from "../api/income-api.js?v=p0-g1-b1-20260804-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { fetchLessonSubjects, fetchLessonTeachers } from "../api/lesson-api.js";
 import {
@@ -678,7 +683,7 @@ async function openBatchCashIncomeDialog(rows) {
   }
 
   if (
-    !requireLoginForCashConfirmation((_type, message) => {
+    !requireActiveAdminForCashConfirmation((_type, message) => {
       showMessage("error", message);
     })
   ) {
@@ -940,12 +945,28 @@ async function submitBatchCashIncomeRequests() {
     return;
   }
 
+  if (
+    !requireActiveAdminForCashConfirmation((_type, message) => {
+      showBatchCashIncomeError(message);
+    })
+  ) {
+    return;
+  }
+
   const payloads = readBatchCashIncomePayloads();
   if (!payloads) {
     return;
   }
 
-  if (!window.confirm(`确认提交 ${payloads.length} 条 Cash 收入确认请求？Cash 确认后才会生成交易。`)) {
+  let confirmationText;
+  try {
+    confirmationText = await buildFreshCashSubmissionConfirmation(payloads);
+  } catch (error) {
+    showBatchCashIncomeError(error?.message || "Cash 提交资格已变化，请刷新后重试。");
+    return;
+  }
+
+  if (!window.confirm(confirmationText)) {
     return;
   }
 
@@ -973,6 +994,63 @@ async function submitBatchCashIncomeRequests() {
   }
 }
 
+async function buildFreshCashSubmissionConfirmation(payloads) {
+  const tuitionItems = payloads.filter((item) => item.payload.isTuition === true);
+  const freshByIncomeId = new Map();
+  if (tuitionItems.length > 0) {
+    const freshRows = await fetchCashIncomeSubmissionPreflight(
+      tuitionItems.map((item) => item.payload.incomeRecordId)
+    );
+    for (const row of freshRows) {
+      freshByIncomeId.set(row.income_record_id, row);
+    }
+  }
+
+  const summaries = [];
+  for (const item of payloads) {
+    const { income } = item.state;
+    if (!item.payload.isTuition) {
+      summaries.push(
+        `${incomeObjectName(income)}｜income ${shortId(income.id)}｜幂等：同一收入仅允许一个active Cash request`
+      );
+      continue;
+    }
+
+    const fresh = freshByIncomeId.get(item.payload.incomeRecordId);
+    if (
+      !fresh ||
+      fresh.eligible !== true ||
+      fresh.gate_state !== "enabled" ||
+      fresh.classification !== "ELIGIBLE_FOR_CASH_SUBMIT" ||
+      fresh.payment_currency !== item.payload.expectedPaymentCurrency ||
+      Number(fresh.payment_amount) !== item.payload.expectedPaymentAmount ||
+      income.source_id !== item.payload.expectedTuitionBillId ||
+      income.source_snapshot?.generation_revision_id !==
+        item.payload.expectedGenerationRevisionId
+    ) {
+      throw new Error("学费账单、收入、金额或active revision已变化，请刷新页面后重新核对。");
+    }
+
+    income.cashSubmissionPreflight = fresh;
+    summaries.push([
+      `学生 ${studentNameById(income.student_id)}`,
+      `结算月 ${income.settlement_month}`,
+      `bill ${shortId(item.payload.expectedTuitionBillId)}`,
+      `income ${shortId(income.id)}`,
+      `active revision ${shortId(item.payload.expectedGenerationRevisionId)}`,
+      `冻结到账 ${formatCurrency(fresh.payment_amount, fresh.payment_currency)}`,
+      `幂等：同一income/active attempt仅创建一个Cash request`,
+    ].join("｜"));
+  }
+
+  return [
+    `最终确认：提交 ${payloads.length} 条 Cash 待确认请求。`,
+    ...summaries,
+    "警告：提交Cash后不可通过普通页面撤销；Cash确认后才会生成交易。",
+    "请再次确认以上学生、月份、bill、income、active revision、币种和金额均正确。",
+  ].join("\n");
+}
+
 function readBatchCashIncomePayloads() {
   syncBatchCashIncomeRowsFromDom();
   clearBatchCashIncomeError();
@@ -995,8 +1073,29 @@ function readBatchCashIncomePayloads() {
 
     if (income.source_type === "student_tuition_bill") {
       const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
+      const expectedRevisionId = safeText(
+        income.source_snapshot?.generation_revision_id
+      ).trim();
+      const expectedBillId = safeText(income.source_id).trim();
+      const expectedPaymentCurrency = safeText(
+        income.cashSubmissionPreflight?.payment_currency
+      ).trim();
+      const expectedPaymentAmount = Number(
+        income.cashSubmissionPreflight?.payment_amount
+      );
       if (!cashAccount || cashAccount.currency !== "CNY") {
         state.errors.account = "请选择 CNY Cash 收款账户";
+      }
+      if (
+        !income.student_id ||
+        !income.settlement_month ||
+        !expectedBillId ||
+        !expectedRevisionId ||
+        expectedPaymentCurrency !== "CNY" ||
+        !Number.isFinite(expectedPaymentAmount) ||
+        expectedPaymentAmount <= 0
+      ) {
+        state.errors.amount = "账单、active revision 或冻结到账事实不完整，请刷新后重试";
       }
       if (Object.keys(state.errors).length > 0) {
         hasError = true;
@@ -1011,6 +1110,12 @@ function readBatchCashIncomePayloads() {
           actualReceivedDate: state.receivedDate,
           isTuition: true,
           note: state.note,
+          expectedStudentId: income.student_id,
+          expectedSettlementMonth: income.settlement_month,
+          expectedTuitionBillId: expectedBillId,
+          expectedGenerationRevisionId: expectedRevisionId,
+          expectedPaymentCurrency,
+          expectedPaymentAmount,
         },
       });
       continue;
@@ -2325,6 +2430,9 @@ function filterIncomeRecords(rows, filters) {
 }
 
 function canRequestCashIncome(row) {
+  if (!isActiveAdmin()) {
+    return false;
+  }
   if (!row || row.status !== "pending" || row.status === "cancelled") {
     return false;
   }
@@ -2362,6 +2470,7 @@ function canGenerateTuitionReceipt(row) {
 
 function cashIncomeRequestNotAllowedMessage(row) {
   if (!row) return "收入记录不存在，请刷新后重试。";
+  if (!isActiveAdmin()) return "仅已启用的管理员账号可以提交 Cash。";
   if (row.source_type === "student_tuition_bill") {
     const preflight = row.cashSubmissionPreflight;
     if (preflight?.gate_state !== "enabled") return "学费 Cash Gate 当前未开放。";

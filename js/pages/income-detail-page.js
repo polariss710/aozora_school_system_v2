@@ -1,11 +1,15 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
+  isActiveAdmin,
+  requireActiveAdminForCashConfirmation,
+} from "../auth.js?v=p0-g1-b1-20260804-1";
+import {
   cancelPendingIncomeRecord,
   fetchIncomeDetailPage,
   requestCashIncomeConfirmationForRecord,
   reverseIncomeRecord,
   updateIncomeRecord,
-} from "../api/income-detail-api.js?v=p0f-20260803-1";
+} from "../api/income-detail-api.js?v=p0-g1-b1-20260804-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -456,6 +460,9 @@ function renderActionArea(data) {
 }
 
 function canRequestCashIncome(data) {
+  if (!isActiveAdmin()) {
+    return false;
+  }
   const income = data?.income;
   if (!income || income.status !== "pending" || income.account_id) {
     return false;
@@ -644,6 +651,13 @@ function renderCashSyncInfo(event) {
 }
 
 async function openCashIncomeRequestDialog() {
+  if (
+    !requireActiveAdminForCashConfirmation((_type, message) => {
+      showMessage("error", message);
+    })
+  ) {
+    return;
+  }
   if (!canRequestCashIncome(detailData)) {
     showMessage("error", "当前收入记录不能提交 Cash 确认请求。");
     return;
@@ -732,6 +746,14 @@ async function submitCashIncomeRequest() {
     return;
   }
 
+  if (
+    !requireActiveAdminForCashConfirmation((_type, message) => {
+      showCashIncomeRequestError(message);
+    })
+  ) {
+    return;
+  }
+
   const payload = readCashIncomeRequestPayload();
   if (!payload) {
     return;
@@ -778,8 +800,32 @@ function readCashIncomeRequestPayload() {
 
   if (isTuition) {
     const cashAccount = cashEligibleAccounts.find((account) => account.id === cashAccountId);
+    const preflight = detailData.cashSubmissionPreflight;
+    const expectedRevisionId = safeText(
+      income.source_snapshot?.generation_revision_id
+    ).trim();
+    const expectedBillId = safeText(income.source_id).trim();
+    const expectedPaymentCurrency = safeText(preflight?.payment_currency).trim();
+    const expectedPaymentAmount = Number(preflight?.payment_amount);
     if (!cashAccount || cashAccount.currency !== "CNY") {
       showCashIncomeRequestError("学费 Cash 只能选择 CNY 收款账户。", ["cashAccount"]);
+      return null;
+    }
+    if (
+      preflight?.eligible !== true ||
+      preflight?.gate_state !== "enabled" ||
+      preflight?.classification !== "ELIGIBLE_FOR_CASH_SUBMIT" ||
+      !income.student_id ||
+      !income.settlement_month ||
+      !expectedBillId ||
+      !expectedRevisionId ||
+      expectedPaymentCurrency !== "CNY" ||
+      !Number.isFinite(expectedPaymentAmount) ||
+      expectedPaymentAmount <= 0
+    ) {
+      showCashIncomeRequestError(
+        "学费账单、active revision 或冻结到账事实已变化，请刷新后重试。"
+      );
       return null;
     }
     return {
@@ -788,6 +834,12 @@ function readCashIncomeRequestPayload() {
       actualReceivedDate,
       isTuition: true,
       note: dom.cashIncomeNoteInput.value.trim() || null,
+      expectedStudentId: income.student_id,
+      expectedSettlementMonth: income.settlement_month,
+      expectedTuitionBillId: expectedBillId,
+      expectedGenerationRevisionId: expectedRevisionId,
+      expectedPaymentCurrency,
+      expectedPaymentAmount,
     };
   }
 

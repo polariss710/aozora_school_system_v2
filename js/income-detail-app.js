@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=p0f-20260803-1";
+import { APP_VERSION } from "./config.js?v=p0-g1-b1-20260804-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=p0f-20260803-1";
+import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=p0-g1-b1-20260804-1";
 
 const globalSessionPromise = requireGlobalSession();
 

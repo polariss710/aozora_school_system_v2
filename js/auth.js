@@ -16,6 +16,24 @@ export function isLoggedIn() {
   return Boolean(getVerifiedSession()?.user && getCurrentAuthContext()?.membership?.is_active);
 }
 
+export function isActiveAdmin() {
+  const context = getCurrentAuthContext();
+  return Boolean(
+    getVerifiedSession()?.user &&
+    context?.membership?.is_active === true &&
+    context.membership.role === "admin"
+  );
+}
+
+export function requireActiveAdminForCashConfirmation(showMessage) {
+  if (isActiveAdmin()) return true;
+
+  if (typeof showMessage === "function") {
+    showMessage("error", "仅已启用的管理员账号可以提交 Cash 确认请求。");
+  }
+  return false;
+}
+
 export function requireLoginForCashConfirmation(showMessage) {
   if (isLoggedIn()) return true;
 
