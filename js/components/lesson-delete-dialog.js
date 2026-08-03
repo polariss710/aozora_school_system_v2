@@ -1,6 +1,6 @@
-import { deleteFreshPlannedLesson } from "../api/lesson-api.js";
+import { deleteFreshPlannedLesson } from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
 import { formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=p0f-readfix-20260803-1";
 
 const DELETE_LESSON_FIELD_IDS = ["confirm"];
 

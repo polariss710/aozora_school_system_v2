@@ -1,7 +1,7 @@
-import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=tuition-p0b1-20260803";
+import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
 import { formatMonth, safeText } from "../utils/format.js";
-import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=r2-f-f2-b-year-month-closure";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=r2-f-f2-b-year-month-closure";
+import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=p0f-readfix-20260803-1";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=p0f-readfix-20260803-1";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",

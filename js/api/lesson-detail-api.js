@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { mergeLessonTuitionHistoryState } from "../utils/lesson-tuition-history-state.js?v=p0f-readfix-20260803-1";
 
 const LESSON_COLUMNS = [
   "id",
@@ -163,7 +164,7 @@ async function fetchLesson(lessonId) {
 
 async function attachTuitionHistoryState(lesson) {
   if (lesson?.lesson_type !== "planned" || !lesson.id) {
-    return lesson;
+    return mergeLessonTuitionHistoryState(lesson, []);
   }
 
   const { data, error } = await supabase.rpc(
@@ -171,16 +172,9 @@ async function attachTuitionHistoryState(lesson) {
     { p_lesson_ids: [lesson.id] }
   );
   if (error) {
-    throw error;
+    return mergeLessonTuitionHistoryState(lesson, [], true);
   }
-
-  const state = (data || [])[0];
-  return {
-    ...lesson,
-    tuition_revision_count: Number(state?.tuition_revision_count || 0),
-    voided_tuition_revision_count: Number(state?.voided_tuition_revision_count || 0),
-    active_tuition_revision_count: Number(state?.active_tuition_revision_count || 0),
-  };
+  return mergeLessonTuitionHistoryState(lesson, data || []);
 }
 
 async function fetchLessonSourceChain(lesson) {

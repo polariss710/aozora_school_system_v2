@@ -21,10 +21,10 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=p0f-20260803-2";
-import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=tuition-p0b1-20260803";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-2";
+} from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
+import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=p0f-readfix-20260803-1";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -33,25 +33,25 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=r2-f-f2-b-year-month-closure";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=p0f-readfix-20260803-1";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
   shouldDisplayPlannedAirconDetails,
-} from "../utils/planned-aircon-display.js?v=aircon-display-dedup-20260801";
+} from "../utils/planned-aircon-display.js?v=p0f-readfix-20260803-1";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
   hasFrozenActualOverage,
   validateActualDurationForFlow,
-} from "../utils/actual-overage.js?v=r2-f-f2-b-year-month-closure";
+} from "../utils/actual-overage.js?v=p0f-readfix-20260803-1";
 import {
   createLatestRequestGate,
   listStudentSettlementMonthWeeks,
   normalizeStudentSettlementWeekStart,
   partitionAuthoritativeLessonRecords,
   validateUniqueLessonRecordIds,
-} from "../utils/lesson-settlement-filter.js?v=r2-f-f2-c-authoritative-month-refresh";
+} from "../utils/lesson-settlement-filter.js?v=p0f-readfix-20260803-1";
 import {
   defaultNewBusinessEntityId,
   isNewBusinessEntityId,
@@ -69,6 +69,8 @@ const DEFAULT_FILTERS = {
   isBillable: "",
   keyword: "",
 };
+
+const TUITION_HISTORY_STATE_WARNING = "课时历史状态暂时无法读取，相关修改操作已隐藏。";
 
 const DEFAULT_LESSON_VIEW = "pair";
 
@@ -1126,7 +1128,7 @@ async function loadInitialData() {
     if (!applied) return;
     restoreFilterSelections(filters);
     applyCurrentFilters();
-    showMessage("success", "课时管理数据已加载。");
+    showLessonRecordsReadyMessage("课时管理数据已加载。");
   } catch (error) {
     if (!lessonRecordsRequestGate.isCurrent(requestToken)) return;
     students = [];
@@ -1171,7 +1173,7 @@ async function applyQuery(options = {}) {
       if (!applied) return;
       restoreFilterSelections(filters);
       applyCurrentFilters();
-      showMessage("success", "课时记录已加载。");
+      showLessonRecordsReadyMessage("课时记录已加载。");
     } catch (error) {
       if (!lessonRecordsRequestGate.isCurrent(requestToken)) return;
       lessonRecords = [];
@@ -1188,6 +1190,15 @@ async function applyQuery(options = {}) {
   }
 
   applyCurrentFilters();
+  showLessonRecordsReadyMessage("课时记录已加载。");
+}
+
+function showLessonRecordsReadyMessage(successMessage) {
+  if (lessonRecords.some((record) => record.tuition_history_state_available === false)) {
+    showMessage("warning", TUITION_HISTORY_STATE_WARNING);
+    return;
+  }
+  showMessage("success", successMessage);
 }
 
 function beginLessonRecordsRequest() {
@@ -6638,6 +6649,9 @@ function canGenerateActualFromPlanned(planned) {
 }
 
 function renderLessonEditAction(record) {
+  if (record?.tuition_history_state_available === false) {
+    return "";
+  }
   if (hasTuitionRevisionHistory(record)) {
     return "";
   }
@@ -6645,6 +6659,9 @@ function renderLessonEditAction(record) {
 }
 
 function renderLessonDeleteAction(record) {
+  if (record?.tuition_history_state_available === false) {
+    return "";
+  }
   if (hasTuitionRevisionHistory(record)) {
     return "";
   }
@@ -6652,6 +6669,9 @@ function renderLessonDeleteAction(record) {
 }
 
 function renderLessonVoidAction(record) {
+  if (record?.tuition_history_state_available === false) {
+    return "";
+  }
   if (!hasVoidedOnlyTuitionHistory(record)) {
     return "";
   }

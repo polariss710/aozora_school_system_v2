@@ -44,8 +44,12 @@ begin
        'public.school_get_tuition_income_forward_adjustment_display(uuid[])','EXECUTE')
      or not has_function_privilege('authenticated',
        'public.school_get_planned_lesson_tuition_history_state(uuid[])','EXECUTE')
+     or not has_function_privilege('anon',
+       'public.school_get_planned_lesson_tuition_history_state(uuid[])','EXECUTE')
      or has_function_privilege('anon',
-       'public.school_get_planned_lesson_tuition_history_state(uuid[])','EXECUTE') then
+       'public.school_void_planned_lesson_after_tuition_void(uuid,timestamp with time zone,text,text)','EXECUTE')
+     or has_function_privilege('anon',
+       'public.school_set_student_settlement_source_treatment_draft(uuid,text,text,numeric,text,date,text)','EXECUTE') then
     raise exception 'P0F_POSTDEPLOY_FUNCTION_MARKER_FAILED';
   end if;
   if not exists(select 1 from public.school_feature_gates

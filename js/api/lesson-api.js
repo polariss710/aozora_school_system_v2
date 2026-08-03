@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { mergeLessonTuitionHistoryStates } from "../utils/lesson-tuition-history-state.js?v=p0f-readfix-20260803-1";
 
 const LESSON_COLUMNS = [
   "id",
@@ -345,7 +346,7 @@ async function attachTuitionHistoryStates(records) {
     .filter((record) => record.lesson_type === "planned" && record.id)
     .map((record) => record.id))];
   if (!lessonIds.length) {
-    return records || [];
+    return mergeLessonTuitionHistoryStates(records, []);
   }
 
   const { data, error } = await supabase.rpc(
@@ -353,19 +354,9 @@ async function attachTuitionHistoryStates(records) {
     { p_lesson_ids: lessonIds }
   );
   if (error) {
-    throw error;
+    return mergeLessonTuitionHistoryStates(records, [], true);
   }
-
-  const stateByLessonId = new Map((data || []).map((row) => [row.lesson_id, row]));
-  return (records || []).map((record) => {
-    const state = stateByLessonId.get(record.id);
-    return {
-      ...record,
-      tuition_revision_count: Number(state?.tuition_revision_count || 0),
-      voided_tuition_revision_count: Number(state?.voided_tuition_revision_count || 0),
-      active_tuition_revision_count: Number(state?.active_tuition_revision_count || 0),
-    };
-  });
+  return mergeLessonTuitionHistoryStates(records, data || []);
 }
 
 async function fetchAuthoritativeLessonStudentMonth(lessonId) {

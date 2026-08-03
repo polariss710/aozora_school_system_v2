@@ -77,7 +77,7 @@ $function$;
 revoke all on function public.school_get_planned_lesson_tuition_history_state(uuid[])
   from public,anon;
 grant execute on function public.school_get_planned_lesson_tuition_history_state(uuid[])
-  to authenticated,service_role;
+  to anon,authenticated,service_role;
 
 comment on function public.school_get_planned_lesson_tuition_history_state(uuid[]) is
   'Read-only lesson-page routing facts. Any tuition revision history closes physical delete; voided history with no active revision exposes the P0-F controlled soft-void action.';
