@@ -38,6 +38,7 @@ begin
     select settlement_id into strict v_locked
     from public.school_lock_student_monthly_settlement(v_student,'2020-06',v_marker);
     perform * from public.school_unlock_student_monthly_settlement(v_locked,v_marker);
+    perform * from public.school_relock_student_monthly_settlement(v_locked,v_marker);
   elsif v_scenario='preview_edit' then
     perform * from public.school_get_student_monthly_settlement_preview(
       v_student,'2020-06');

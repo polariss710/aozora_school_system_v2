@@ -21,6 +21,36 @@ begin
     raise exception 'P0B2_TEST_FIXTURE_OWNERSHIP_FAILED';
   end if;
 
+  -- Successful relock path: create an implicit-carry lock, unlock it, save a
+  -- clear draft, and prove relock freezes the re-resolved mode atomically.
+  begin
+    select settlement_id into strict v_locked
+    from public.school_lock_student_monthly_settlement(
+      v_student,'2020-06',v_marker);
+    perform * from public.school_unlock_student_monthly_settlement(
+      v_locked,v_marker);
+    perform * from public.school_set_student_monthly_settlement_draft_adjustment(
+      v_student,'2020-06',null,'clear_balance',v_marker,v_marker);
+    perform * from public.school_relock_student_monthly_settlement(
+      v_locked,v_marker);
+    if not exists (
+      select 1 from public.school_student_monthly_settlements m
+      join public.school_student_settlement_adjustments a
+        on a.settlement_id=m.id
+      join public.school_student_settlement_adjustment_drafts d
+        on d.settlement_id=m.id
+      where m.id=v_locked and m.settlement_status='locked'
+        and m.system_difference_cny=3000
+        and m.adjustment_amount_cny=-3000 and m.carryover_amount_cny=0
+        and a.adjustment_source='clear_balance'
+        and a.adjustment_amount_cny=-3000 and a.status='posted'
+        and d.status='consumed' and d.adjustment_amount_cny=-3000
+    ) then raise exception 'P0B2_RELOCK_FREEZE_FAILED'; end if;
+    raise exception 'P0B2_RELOCK_SUBTEST_ROLLBACK';
+  exception when others then
+    if sqlerrm<>'P0B2_RELOCK_SUBTEST_ROLLBACK' then raise; end if;
+  end;
+
   -- Atomic Generate consumes the previous settlement inside this savepoint;
   -- a draft write against that consumed settlement month must fail closed.
   begin

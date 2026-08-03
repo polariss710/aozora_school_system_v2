@@ -90,6 +90,7 @@
 - PostgreSQL CNY 舍入（如 `12.345 -> 12.35`）；
 - 三类非法参数组合与第四 mode 拒绝；
 - 正式 draft RPC、preview、lock 的权威结果；
+- `lock -> unlock -> clear draft -> relock` 成功路径及 relock 固化结果；
 - save clear 后用正式 Lesson RPC 修改来源事实，再 preview/lock，最终 `3200 / -3200 / 0`；
 - posted audit、settlement snapshot 防篡改；
 - Atomic Generate 消费 previous settlement 后 draft 写入拒绝；
