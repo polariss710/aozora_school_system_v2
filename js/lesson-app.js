@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initLessonPage } from "./pages/lesson-page.js?v=tuition-p0b1-20260803";
+import { initLessonPage } from "./pages/lesson-page.js?v=p0f-20260803-1";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

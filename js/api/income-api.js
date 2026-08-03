@@ -302,7 +302,7 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
     return incomeRows;
   }
 
-  const [linkageResult, preflightResult] = await Promise.all([
+  const [linkageResult, preflightResult, forwardAdjustmentResult] = await Promise.all([
     supabase
       .from("school_personal_cash_income_linkage_events")
       .select(CASH_INCOME_LINKAGE_COLUMNS)
@@ -312,6 +312,9 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
       .order("created_at", { ascending: false }),
     supabase.rpc("school_get_cash_income_submission_preflight", {
       p_income_record_ids: incomeIds,
+    }),
+    supabase.rpc("school_get_tuition_income_forward_adjustment_display", {
+      p_income_ids: incomeIds,
     }),
   ]);
 
@@ -334,13 +337,20 @@ async function mergeCashIncomeLinkageEvents(incomeRows) {
   if (preflightResult.error) {
     throw preflightResult.error;
   }
+  if (forwardAdjustmentResult.error) {
+    throw forwardAdjustmentResult.error;
+  }
   const preflightByIncomeId = new Map(
     (preflightResult.data || []).map((row) => [row.income_record_id, row]),
+  );
+  const forwardAdjustmentByIncomeId = new Map(
+    (forwardAdjustmentResult.data || []).map((row) => [row.income_id, row]),
   );
 
   return incomeRows.map((row) => ({
     ...row,
     cashIncomeLinkageEvent: linkageByIncomeId.get(row.id) || null,
     cashSubmissionPreflight: preflightByIncomeId.get(row.id) || null,
+    forwardAdjustmentDisplay: forwardAdjustmentByIncomeId.get(row.id) || null,
   }));
 }

@@ -9,7 +9,7 @@ import {
   fetchStudentTuitionValidationPreviewDetails,
   generateStudentTuitionBillAtomic,
   requestCashIncomeConfirmationForRecord,
-} from "../api/income-api.js";
+} from "../api/income-api.js?v=p0f-20260803-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { fetchLessonSubjects, fetchLessonTeachers } from "../api/lesson-api.js";
 import {
@@ -494,7 +494,7 @@ function renderIncomeRecords(rows) {
       <td class="income-nowrap month-cell">${escapeHtml(formatMonth(row.year_month))}</td>
       <td class="income-nowrap date-cell">${escapeHtml(formatDateOnly(row.income_date))}</td>
       <td class="number-cell income-nowrap amount-cell">${escapeHtml(formatIncomeListAmount(row))}</td>
-      <td class="number-cell income-nowrap carryover-amount-cell">${escapeHtml(formatIncomeListCarryoverAmount(row))}</td>
+      <td class="number-cell income-nowrap carryover-amount-cell">${renderIncomeListCarryoverImpact(row)}</td>
       <td class="number-cell income-nowrap notice-amount-cell">${escapeHtml(formatIncomeListNoticeAmount(row))}</td>
       <td>${renderIncomeStatusSummary(row)}</td>
       <td class="income-related-cell">${renderIncomeRelatedCell(row)}</td>
@@ -2603,7 +2603,7 @@ function formatIncomeListAmount(row) {
   return formatCurrency(row.amount, row.currency);
 }
 
-function formatIncomeListCarryoverAmount(row) {
+function renderIncomeListCarryoverImpact(row) {
   if (row?.source_type !== "student_tuition_bill") {
     return "-";
   }
@@ -2616,10 +2616,22 @@ function formatIncomeListCarryoverAmount(row) {
   }
 
   const carryover = Number(snapshot.previous_carryover_cny);
-  return Number.isFinite(carryover) ? formatCurrency(carryover, "CNY") : "-";
+  if (!Number.isFinite(carryover)) return "-";
+  const display = row.forwardAdjustmentDisplay;
+  if (!display) {
+    return escapeHtml(formatCurrency(carryover, "CNY"));
+  }
+  return `
+    <div title="历史结转">历史 ${escapeHtml(formatCurrency(display.historical_carryover_cny, "CNY"))}</div>
+    <div title="本期 forward adjustment">调整 ${escapeHtml(formatCurrency(display.forward_adjustment_cny, "CNY"))}</div>
+    <div title="净结转影响">净影响 ${escapeHtml(formatCurrency(display.net_carryover_impact_cny, "CNY"))}</div>
+  `;
 }
 
 function formatIncomeListNoticeAmount(row) {
+  if (row?.forwardAdjustmentDisplay) {
+    return formatCurrency(row.forwardAdjustmentDisplay.final_notice_amount_cny, "CNY");
+  }
   const billingAmountCny = studentTuitionBillBillingAmountCny(row);
   return billingAmountCny ? formatCurrency(billingAmountCny, "CNY") : "-";
 }

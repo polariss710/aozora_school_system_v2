@@ -118,7 +118,7 @@ export function createLessonVoidDialogController(options) {
   }
 
   function blockDirectDismiss() {
-    showError("误录作废窗口不能通过背景或 Esc 关闭，请点击取消。");
+    showError("作废预定课时窗口不能通过背景或 Esc 关闭，请点击取消。");
   }
 
   function renderAction(record) {
@@ -126,7 +126,7 @@ export function createLessonVoidDialogController(options) {
       return "";
     }
 
-    return `<button class="button table-action-button" type="button" data-void-planned-lesson-id="${escapeAttribute(record.id)}">误录作废</button>`;
+    return `<button class="button table-action-button" type="button" data-void-planned-lesson-id="${escapeAttribute(record.id)}">作废预定课时</button>`;
   }
 
   function blockReason(record) {
@@ -260,7 +260,7 @@ export function createLessonVoidDialogController(options) {
     if (typeof setExternalBusy === "function") {
       setExternalBusy(isBusy);
     }
-    dom.submitButton.textContent = isBusy ? "误录作废中..." : "确认误录作废";
+    dom.submitButton.textContent = isBusy ? "作废中..." : "确认作废预定课时";
   }
 
   function clearErrors() {

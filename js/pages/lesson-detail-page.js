@@ -1,7 +1,7 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=r2-f-f2-b-year-month-closure";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-f2-b-year-month-closure";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   hasAuthoritativePlannedFeeBundle,

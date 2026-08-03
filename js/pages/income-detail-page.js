@@ -5,7 +5,7 @@ import {
   requestCashIncomeConfirmationForRecord,
   reverseIncomeRecord,
   updateIncomeRecord,
-} from "../api/income-detail-api.js";
+} from "../api/income-detail-api.js?v=p0f-20260803-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -404,14 +404,17 @@ function renderTuitionBillSnapshotCard(data) {
 
   const snapshot = tuitionBillSnapshot(income);
   const revision = tuitionRevisionSnapshot(income);
+  const forward = data.forwardAdjustmentDisplay;
   return `
     <article class="detail-list-card">
       <h3>学费应收快照</h3>
       ${renderDefinitionList([
         ["学费月份", formatMonth(snapshot.billing_month || income.year_month)],
         ["预定课时费", formatCurrency(snapshot.planned_lesson_fee_jpy || snapshot.bill_amount_jpy || income.amount_jpy || income.amount, "JPY")],
-        ["上月结转", studentTuitionBillCarryoverText(income)],
-        ["通知金额", studentTuitionBillBillingAmountText(income)],
+        [forward ? "历史结转" : "上月结转", forward ? formatCurrency(forward.historical_carryover_cny, "CNY") : studentTuitionBillCarryoverText(income)],
+        ["本期 forward adjustment", forward ? formatCurrency(forward.forward_adjustment_cny, "CNY") : "-"],
+        ["净结转影响", forward ? formatCurrency(forward.net_carryover_impact_cny, "CNY") : "-"],
+        ["最终通知金额", forward ? formatCurrency(forward.final_notice_amount_cny, "CNY") : studentTuitionBillBillingAmountText(income)],
         ["通知汇率", displayValue(studentTuitionBillBillingExchangeRate(income))],
         ["上月结算月", formatMonth(snapshot.previous_settlement_month)],
         ["上月结算", shortId(snapshot.previous_settlement_id)],

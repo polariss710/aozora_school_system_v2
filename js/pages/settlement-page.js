@@ -3,12 +3,14 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchSettlementBusinessEntities,
   fetchSettlementStudents,
+  fetchStudentSettlementSourceTreatmentPreview,
   fetchStudentSettlements,
   lockStudentMonthlySettlement,
   relockStudentMonthlySettlement,
+  setStudentSettlementSourceTreatmentDraft,
   setStudentMonthlySettlementDraftAdjustment,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js?v=p0e-20260803-1";
+} from "../api/settlement-api.js?v=p0f-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -37,6 +39,11 @@ const ADJUSTMENT_MODES = {
   CARRY_FINAL_BALANCE: "carry_final_balance",
   CLEAR_BALANCE: "clear_balance",
   MANUAL_ADJUSTMENT: "manual_adjustment",
+};
+
+const SOURCE_TREATMENT_MODES = {
+  SEPARATE: "separate_makeup_and_overage_v1",
+  NET_FINANCIAL: "net_lesson_variance_to_financial_credit_v1",
 };
 
 const dom = {};
@@ -109,6 +116,12 @@ function cacheDom() {
   dom.adjustmentSummary = document.querySelector("#settlementAdjustmentSummary");
   dom.adjustmentError = document.querySelector("#settlementAdjustmentError");
   dom.adjustmentAmountInput = document.querySelector("#settlementAdjustmentAmountInput");
+  dom.sourceTreatmentModeInput = document.querySelector("#settlementSourceTreatmentModeInput");
+  dom.sourceTreatmentRateFields = document.querySelector("#settlementSourceTreatmentRateFields");
+  dom.sourceTreatmentWarning = document.querySelector("#settlementSourceTreatmentWarning");
+  dom.settlementExchangeRateInput = document.querySelector("#settlementExchangeRateInput");
+  dom.settlementExchangeRateSourceInput = document.querySelector("#settlementExchangeRateSourceInput");
+  dom.settlementExchangeRateEffectiveDateInput = document.querySelector("#settlementExchangeRateEffectiveDateInput");
   dom.adjustmentSourceInput = document.querySelector("#settlementAdjustmentSourceInput");
   dom.adjustmentReasonInput = document.querySelector("#settlementAdjustmentReasonInput");
   dom.adjustmentNoteInput = document.querySelector("#settlementAdjustmentNoteInput");
@@ -199,6 +212,20 @@ function bindEvents() {
     clearAdjustmentFieldInvalid("source");
     applyAdjustmentMode();
     hideAdjustmentErrorIfClean();
+  });
+  dom.sourceTreatmentModeInput?.addEventListener("change", () => {
+    applySourceTreatmentMode();
+    refreshSourceTreatmentPreview();
+  });
+  [
+    ["settlementRate", dom.settlementExchangeRateInput],
+    ["settlementRateSource", dom.settlementExchangeRateSourceInput],
+    ["settlementRateDate", dom.settlementExchangeRateEffectiveDateInput],
+  ].forEach(([fieldId, element]) => {
+    element?.addEventListener("change", () => {
+      clearAdjustmentFieldInvalid(fieldId);
+      refreshSourceTreatmentPreview();
+    });
   });
   dom.adjustmentConfirmCheckbox?.addEventListener("change", () => {
     clearAdjustmentFieldInvalid("confirm");
@@ -531,6 +558,14 @@ function renderLockSummary(row) {
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["预定课时费", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
     ["实际课时费", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
+    ["课时差额处理", sourceTreatmentModeLabel(row.source_treatment_mode)],
+    ["未履约 credit", formatCurrency(row.unused_planned_credit_jpy, "JPY")],
+    ["待补权益小时", displayValue(row.pending_makeup_hours)],
+    ["实际超额收费", formatCurrency(row.overage_charge_jpy ?? row.duration_overage_fee_jpy, "JPY")],
+    ["课时净额", formatCurrency(row.net_lesson_variance_jpy, "JPY")],
+    ["显式结算汇率", displayValue(row.settlement_exchange_rate)],
+    ["课时净额 CNY", formatCurrency(row.net_lesson_variance_cny, "CNY")],
+    ["source 数量", displayValue(row.lesson_variance_source_count)],
     ["系统差额（含后端冻结超额）", formatCurrency(row.system_difference_cny, "CNY")],
     ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
     ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
@@ -863,6 +898,12 @@ function openAdjustmentDialog(settlementId) {
   }
 
   currentAdjustmentSettlement = row;
+  dom.sourceTreatmentModeInput.value = row.source_treatment_mode
+    || SOURCE_TREATMENT_MODES.SEPARATE;
+  dom.settlementExchangeRateInput.value = row.settlement_exchange_rate ?? "";
+  dom.settlementExchangeRateSourceInput.value = row.settlement_exchange_rate_source || "";
+  dom.settlementExchangeRateEffectiveDateInput.value = row.settlement_exchange_rate_effective_date
+    || `${row.year_month}-01`;
   dom.adjustmentAmountInput.value = Number.isFinite(Number(row.adjustment_amount_cny))
     ? formatCnyInput(row.adjustment_amount_cny)
     : "";
@@ -872,6 +913,7 @@ function openAdjustmentDialog(settlementId) {
   dom.adjustmentConfirmCheckbox.checked = false;
   clearAdjustmentErrors();
   applyAdjustmentMode({ preserveManualAmount: true });
+  applySourceTreatmentMode();
   setAdjustmentSubmitting(false);
   dom.adjustmentDialog.classList.remove("is-hidden");
   dom.adjustmentDialog.setAttribute("aria-hidden", "false");
@@ -907,6 +949,17 @@ function renderAdjustmentSummary(row) {
     ["学生", nameById(students, row.student_id, studentName)],
     ["结算月份", formatMonth(row.year_month)],
     ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
+    ["课时差额处理", sourceTreatmentModeLabel(row.source_treatment_mode)],
+    ["预定金额", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
+    ["实际履约金额", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
+    ["未履约 credit", formatCurrency(row.unused_planned_credit_jpy, "JPY")],
+    ["待补小时", displayValue(row.pending_makeup_hours)],
+    ["超额小时", displayValue(row.overage_hours)],
+    ["超额收费", formatCurrency(row.overage_charge_jpy, "JPY")],
+    ["课时净额", formatCurrency(row.net_lesson_variance_jpy, "JPY")],
+    ["显式结算汇率", displayValue(row.settlement_exchange_rate)],
+    ["课时净额 CNY", formatCurrency(row.net_lesson_variance_cny, "CNY")],
+    ["前期结转", formatCurrency(row.previous_balance_cny, "CNY")],
     ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
     ["数据库权威调整", authoritativeAdjustment],
     ["数据库权威结转", authoritativeCarryover],
@@ -916,6 +969,65 @@ function renderAdjustmentSummary(row) {
       <span>${escapeHtml(displayValue(value))}</span>
     </div>
   `).join("");
+}
+
+function applySourceTreatmentMode() {
+  const isNet = dom.sourceTreatmentModeInput.value === SOURCE_TREATMENT_MODES.NET_FINANCIAL;
+  dom.sourceTreatmentRateFields.classList.toggle("is-hidden", !isNet);
+  dom.sourceTreatmentWarning.classList.toggle("is-hidden", !isNet);
+  if (!isNet) {
+    dom.settlementExchangeRateInput.value = "";
+    dom.settlementExchangeRateSourceInput.value = "";
+    ["settlementRate", "settlementRateSource", "settlementRateDate"]
+      .forEach(clearAdjustmentFieldInvalid);
+  }
+}
+
+async function refreshSourceTreatmentPreview() {
+  if (!currentAdjustmentSettlement || isAdjustmentSubmitting) return;
+  const treatment = readSourceTreatmentInput({ validate: false });
+  if (!treatment) return;
+  try {
+    const preview = await fetchStudentSettlementSourceTreatmentPreview({
+      studentId: currentAdjustmentSettlement.student_id,
+      yearMonth: currentAdjustmentSettlement.year_month,
+      ...treatment,
+    });
+    currentAdjustmentSettlement = { ...currentAdjustmentSettlement, ...preview };
+    renderAdjustmentSummary(currentAdjustmentSettlement);
+  } catch (error) {
+    showAdjustmentError(error.message || String(error));
+  }
+}
+
+function readSourceTreatmentInput({ validate = true } = {}) {
+  const sourceTreatmentMode = dom.sourceTreatmentModeInput.value;
+  if (sourceTreatmentMode === SOURCE_TREATMENT_MODES.SEPARATE) {
+    return {
+      sourceTreatmentMode,
+      settlementExchangeRate: null,
+      settlementExchangeRateSource: null,
+      settlementExchangeRateEffectiveDate: null,
+    };
+  }
+  const rateText = dom.settlementExchangeRateInput.value.trim();
+  const rate = rateText === "" ? null : Number(rateText);
+  const rateSource = dom.settlementExchangeRateSourceInput.value.trim();
+  const effectiveDate = dom.settlementExchangeRateEffectiveDateInput.value;
+  if (!validate && (rate === null || !Number.isFinite(rate) || rate <= 0
+      || !rateSource || !effectiveDate)) return null;
+  const invalid = [];
+  if (rate === null || !Number.isFinite(rate) || rate <= 0) invalid.push("settlementRate");
+  if (!rateSource) invalid.push("settlementRateSource");
+  if (!effectiveDate) invalid.push("settlementRateDate");
+  invalid.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
+  if (invalid.length) return null;
+  return {
+    sourceTreatmentMode,
+    settlementExchangeRate: rate,
+    settlementExchangeRateSource: rateSource,
+    settlementExchangeRateEffectiveDate: effectiveDate,
+  };
 }
 
 function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
@@ -967,11 +1079,13 @@ async function handleAdjustmentSubmit() {
     ? Number(explicitAmountText)
     : null;
   const reason = dom.adjustmentReasonInput.value.trim();
+  const treatment = readSourceTreatmentInput();
   const invalidFields = [];
   if (isManual && (amount === null || !Number.isFinite(amount))) invalidFields.push("amount");
   if (!source) invalidFields.push("source");
   if (!reason) invalidFields.push("reason");
   if (!dom.adjustmentConfirmCheckbox.checked) invalidFields.push("confirm");
+  if (!treatment) invalidFields.push("sourceTreatmentMode");
 
   if (invalidFields.length) {
     invalidFields.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
@@ -986,6 +1100,12 @@ async function handleAdjustmentSubmit() {
   try {
     const sourceRow = currentAdjustmentSettlement;
     const filtersBeforeSubmit = readFilters();
+    await setStudentSettlementSourceTreatmentDraft({
+      studentId: sourceRow.student_id,
+      yearMonth: sourceRow.year_month,
+      ...treatment,
+      reason,
+    });
     const result = await setStudentMonthlySettlementDraftAdjustment({
       studentId: sourceRow.student_id,
       yearMonth: sourceRow.year_month,
@@ -1018,7 +1138,9 @@ function setAdjustmentSubmitting(isSubmitting) {
 function clearAdjustmentErrors() {
   dom.adjustmentError.textContent = "";
   dom.adjustmentError.classList.add("is-hidden");
-  ["amount", "source", "reason", "confirm"].forEach(clearAdjustmentFieldInvalid);
+  ["amount", "source", "reason", "confirm", "sourceTreatmentMode",
+    "settlementRate", "settlementRateSource", "settlementRateDate"]
+    .forEach(clearAdjustmentFieldInvalid);
 }
 
 function showAdjustmentError(message) {
@@ -1051,6 +1173,13 @@ function adjustmentModeForRow(row) {
     return ADJUSTMENT_MODES.CARRY_FINAL_BALANCE;
   }
   return ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
+}
+
+function sourceTreatmentModeLabel(value) {
+  if (value === SOURCE_TREATMENT_MODES.NET_FINANCIAL) {
+    return "待补与超额转财务净额";
+  }
+  return "待补与超额分别处理（旧合同）";
 }
 
 function numberOrZero(value) {

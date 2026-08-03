@@ -6,6 +6,19 @@ const SETTLEMENT_COLUMNS = [
   "year_month",
   "business_entity_id",
   "preset_exchange_rate",
+  "source_treatment_mode",
+  "settlement_exchange_rate",
+  "settlement_exchange_rate_source",
+  "settlement_exchange_rate_effective_date",
+  "lesson_variance_calculation_version",
+  "unused_planned_credit_jpy",
+  "unused_planned_credit_cny",
+  "pending_makeup_hours",
+  "lesson_variance_display_hours",
+  "net_lesson_variance_jpy",
+  "net_lesson_variance_cny",
+  "lesson_variance_source_count",
+  "lesson_variance_manifest_sha256",
   "planned_lesson_fee_jpy",
   "planned_lesson_fee_cny",
   "actual_lesson_fee_jpy",
@@ -202,16 +215,43 @@ async function fetchStudentDefaultBusinessEntities(studentIds) {
 }
 
 async function fetchStudentSettlementPreviewSummary(studentId, yearMonth) {
-  const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_preview", {
-    p_student_id: studentId,
-    p_year_month: yearMonth,
-  });
+  const [settlementPreview, sourcePreview] = await Promise.all([
+    fetchRpcSingle("school_get_student_monthly_settlement_preview", {
+      p_student_id: studentId,
+      p_year_month: yearMonth,
+    }),
+    fetchStudentSettlementSourceTreatmentPreview({ studentId, yearMonth }),
+  ]);
+  return settlementPreview ? { ...settlementPreview, ...sourcePreview } : settlementPreview;
+}
 
-  if (error) {
-    throw error;
-  }
-
+async function fetchRpcSingle(functionName, args) {
+  const { data, error } = await supabase.rpc(functionName, args);
+  if (error) throw error;
   return Array.isArray(data) ? data[0] : data;
+}
+
+export async function fetchStudentSettlementSourceTreatmentPreview(payload) {
+  return fetchRpcSingle("school_preview_student_settlement_source_treatment", {
+    p_student_id: payload.studentId,
+    p_year_month: payload.yearMonth,
+    p_source_treatment_mode: payload.sourceTreatmentMode || null,
+    p_settlement_exchange_rate: payload.settlementExchangeRate ?? null,
+    p_settlement_exchange_rate_source: payload.settlementExchangeRateSource || null,
+    p_settlement_exchange_rate_effective_date: payload.settlementExchangeRateEffectiveDate || null,
+  });
+}
+
+export async function setStudentSettlementSourceTreatmentDraft(payload) {
+  return fetchRpcSingle("school_set_student_settlement_source_treatment_draft", {
+    p_student_id: payload.studentId,
+    p_year_month: payload.yearMonth,
+    p_source_treatment_mode: payload.sourceTreatmentMode,
+    p_settlement_exchange_rate: payload.settlementExchangeRate ?? null,
+    p_settlement_exchange_rate_source: payload.settlementExchangeRateSource || null,
+    p_settlement_exchange_rate_effective_date: payload.settlementExchangeRateEffectiveDate || null,
+    p_reason: payload.reason,
+  });
 }
 
 async function fetchStudentSettlementWageBlockers(yearMonth) {
@@ -307,6 +347,22 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
     year_month: summary.year_month,
     business_entity_id: summary.business_entity_id || businessEntityId,
     preset_exchange_rate: summary.exchange_rate,
+    source_treatment_mode: summary.source_treatment_mode,
+    settlement_exchange_rate: summary.settlement_exchange_rate,
+    settlement_exchange_rate_source: summary.settlement_exchange_rate_source,
+    settlement_exchange_rate_effective_date: summary.settlement_exchange_rate_effective_date,
+    lesson_variance_calculation_version: summary.lesson_variance_calculation_version,
+    unused_planned_credit_jpy: summary.unused_planned_credit_jpy,
+    unused_planned_credit_cny: summary.unused_planned_credit_cny,
+    pending_makeup_hours: summary.pending_makeup_hours,
+    overage_hours: summary.overage_hours,
+    overage_charge_jpy: summary.overage_charge_jpy,
+    overage_charge_cny: summary.overage_charge_cny,
+    lesson_variance_display_hours: summary.lesson_variance_display_hours,
+    net_lesson_variance_jpy: summary.net_lesson_variance_jpy,
+    net_lesson_variance_cny: summary.net_lesson_variance_cny,
+    lesson_variance_source_count: summary.lesson_variance_source_count,
+    lesson_variance_manifest_sha256: summary.lesson_variance_manifest_sha256,
     planned_lesson_fee_jpy: summary.planned_fee_jpy,
     planned_lesson_fee_cny: summary.planned_fee_cny,
     actual_lesson_fee_jpy: summary.actual_fee_jpy,

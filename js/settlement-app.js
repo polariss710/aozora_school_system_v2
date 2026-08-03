@@ -1,7 +1,7 @@
-import { APP_VERSION } from "./config.js?v=p0e-20260803-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=p0e-20260803-1";
+import { APP_VERSION } from "./config.js?v=p0f-20260803-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=p0f-20260803-1";
 
-const SETTLEMENT_PAGE_VERSION = "p0e-20260803-1";
+const SETTLEMENT_PAGE_VERSION = "p0f-20260803-1";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

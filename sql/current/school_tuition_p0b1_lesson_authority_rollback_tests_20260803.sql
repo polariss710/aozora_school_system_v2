@@ -271,7 +271,11 @@ begin
         'school_create_planned_lesson_record','school_delete_fresh_planned_lesson',
         'school_generate_planned_lessons_batch','school_update_lesson_record_guarded',
         'school_update_lesson_record_guarded_with_venue','school_void_planned_lesson')
-      and pg_get_functiondef(p.oid) like '%school_tuition_p0b1_lock_%')<10 then
+      and pg_get_functiondef(p.oid) like '%school_tuition_p0b1_lock_%')<9
+     or position('school_void_planned_lesson_after_tuition_void' in pg_get_functiondef(
+       'public.school_void_planned_lesson(uuid,timestamp with time zone,text)'::regprocedure))=0
+     or position('school_tuition_p0a_lock_settlement_mutation_scope' in pg_get_functiondef(
+       'public.school_void_planned_lesson_after_tuition_void(uuid,timestamp with time zone,text,text)'::regprocedure))=0 then
     raise exception 'P0B1_WRITER_LOCK_COVERAGE';
   end if;
   insert into p0b1_results values('catalog_contract',true,'SELECT-only RLS and lock injection present');

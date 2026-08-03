@@ -193,6 +193,18 @@ function renderSettlementDetail(data) {
     ["实际学费 JPY", formatCurrency(settlement.actual_lesson_fee_jpy, "JPY")],
     ["实际学费 CNY", formatCurrency(settlement.actual_lesson_fee_cny, "CNY")],
     ["预设汇率", displayValue(settlement.preset_exchange_rate)],
+    ["课时差额处理", displayValue(settlement.source_treatment_mode)],
+    ["显式结算汇率", displayValue(settlement.settlement_exchange_rate)],
+    ["汇率来源", displayValue(settlement.settlement_exchange_rate_source)],
+    ["汇率生效日", displayValue(settlement.settlement_exchange_rate_effective_date)],
+    ["未履约 credit JPY", formatCurrency(settlement.unused_planned_credit_jpy, "JPY")],
+    ["未履约 credit CNY", formatCurrency(settlement.unused_planned_credit_cny, "CNY")],
+    ["待补小时", displayValue(settlement.pending_makeup_hours)],
+    ["净展示小时", displayValue(settlement.lesson_variance_display_hours)],
+    ["课时净额 JPY", formatCurrency(settlement.net_lesson_variance_jpy, "JPY")],
+    ["课时净额 CNY", formatCurrency(settlement.net_lesson_variance_cny, "CNY")],
+    ["source 数量", displayValue(settlement.lesson_variance_source_count)],
+    ["manifest", displayValue(settlement.lesson_variance_manifest_sha256)],
   ];
   if (hasFrozenSettlementOverage(settlement)) {
     feeRows.push(

@@ -147,7 +147,7 @@ export async function fetchIncomeDetailPage(incomeId) {
   const income = await fetchIncomeDetail(incomeId);
   const isTuition = income.source_type === "student_tuition_bill";
 
-  const [lookups, settlements, transactions, cashIncomeLinkageEvents, preflightResult, tuitionVoidPreflightResult] = await Promise.all([
+  const [lookups, settlements, transactions, cashIncomeLinkageEvents, preflightResult, tuitionVoidPreflightResult, forwardAdjustmentResult] = await Promise.all([
     fetchIncomeDetailLookups(),
     fetchSettlementReferences(income),
     fetchAccountTransactions(income.id),
@@ -158,6 +158,11 @@ export async function fetchIncomeDetailPage(incomeId) {
         p_income_record_ids: [income.id],
       }),
     Promise.resolve({ data: [], error: null }),
+    isTuition
+      ? supabase.rpc("school_get_tuition_income_forward_adjustment_display", {
+        p_income_ids: [income.id],
+      })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (preflightResult.error) {
@@ -165,6 +170,9 @@ export async function fetchIncomeDetailPage(incomeId) {
   }
   if (tuitionVoidPreflightResult.error) {
     throw tuitionVoidPreflightResult.error;
+  }
+  if (forwardAdjustmentResult.error) {
+    throw forwardAdjustmentResult.error;
   }
 
   return {
@@ -175,6 +183,7 @@ export async function fetchIncomeDetailPage(incomeId) {
     cashIncomeLinkageEvents,
     cashSubmissionPreflight: (preflightResult.data || [])[0] || null,
     tuitionVoidPreflight: (tuitionVoidPreflightResult.data || [])[0] || null,
+    forwardAdjustmentDisplay: (forwardAdjustmentResult.data || [])[0] || null,
   };
 }
 

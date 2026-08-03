@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js";
-import { initIncomePage } from "./pages/income-page.js?v=v2.116.0-tuition-p0c-revision";
+import { initIncomePage } from "./pages/income-page.js?v=p0f-20260803-1";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

@@ -24,7 +24,7 @@ import {
 } from "../api/lesson-api.js?v=tuition-p0b1-20260803";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=tuition-p0b1-20260803";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=r2-f-e1-lesson-generation-closure";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
