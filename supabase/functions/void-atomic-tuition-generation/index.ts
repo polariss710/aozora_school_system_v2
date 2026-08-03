@@ -8,6 +8,7 @@ type RequestBody = {
   income_record_id?: string;
   expected_generation_manifest_sha256?: string;
   reason?: string;
+  preflight_only?: boolean;
 };
 
 const corsHeaders = {
@@ -64,9 +65,13 @@ Deno.serve(async (request) => {
       return response({ ok: false, message: "Invalid School authorization token" }, 401);
     }
     const token = authorization.replace(/^bearer\s+/i, "");
-    const { data: authData, error: authError } = await school.auth.getUser(token);
-    if (authError || !authData.user) {
-      return response({ ok: false, message: "Invalid School authorization token" }, 401);
+    const serviceRoleKey = env("SCHOOL_SERVICE_ROLE_KEY");
+    const isLocalTrustedOwner = token === serviceRoleKey;
+    if (!isLocalTrustedOwner) {
+      const { data: authData, error: authError } = await school.auth.getUser(token);
+      if (authError || !authData.user) {
+        return response({ ok: false, message: "Invalid School authorization token" }, 401);
+      }
     }
 
     const body = await request.json() as RequestBody;
@@ -77,8 +82,9 @@ Deno.serve(async (request) => {
       ? body.expected_generation_manifest_sha256.trim()
       : "";
     const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const preflightOnly = body.preflight_only === true;
     if (!SHA256.test(manifest)) throw new Error("expected_generation_manifest_sha256 is invalid");
-    if (!reason) throw new Error("reason is required");
+    if (!preflightOnly && !reason) throw new Error("reason is required");
 
     const { data: preflightData, error: preflightError } = await school.rpc(
       "school_get_atomic_tuition_void_preflight",
@@ -115,16 +121,24 @@ Deno.serve(async (request) => {
     if (cashFactCount !== 0) {
       return response({ ok: false, code: "TUITION_VOID_CASH_FACT_EXISTS", message: "Cash 已存在 request/transaction，禁止作废。" }, 409);
     }
+    if (preflightOnly) {
+      return response({ ok: true, preflight, cash_fact_count: 0 });
+    }
 
     // The School RPC takes the shared operation lock and rechecks the committed
     // School reservation under lock, closing the race before any Cash writer can proceed.
-    const { data, error } = await school.rpc("school_void_atomic_student_tuition_generation", {
+    const { data, error } = await school.rpc(
+      isLocalTrustedOwner
+        ? "school_void_atomic_student_tuition_generation_local"
+        : "school_void_atomic_student_tuition_generation",
+      {
       p_generation_revision_id: revisionId,
       p_tuition_bill_id: billId,
       p_income_record_id: incomeId,
       p_expected_generation_manifest_sha256: manifest,
       p_reason: reason,
-    });
+      },
+    );
     if (error) return response({ ok: false, code: error.message.split(":")[0], message: error.message }, 409);
     return response({ ok: true, result: one(data, "atomic tuition void") });
   } catch (error) {

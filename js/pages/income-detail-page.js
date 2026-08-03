@@ -5,7 +5,6 @@ import {
   requestCashIncomeConfirmationForRecord,
   reverseIncomeRecord,
   updateIncomeRecord,
-  voidAtomicTuitionGeneration,
 } from "../api/income-detail-api.js";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
@@ -404,7 +403,7 @@ function renderTuitionBillSnapshotCard(data) {
   }
 
   const snapshot = tuitionBillSnapshot(income);
-  const revision = data?.tuitionVoidPreflight;
+  const revision = tuitionRevisionSnapshot(income);
   return `
     <article class="detail-list-card">
       <h3>学费应收快照</h3>
@@ -419,10 +418,9 @@ function renderTuitionBillSnapshotCard(data) {
         ["预定课时", displayValue(snapshot.planned_lesson_count)],
         ["预定小时", displayValue(snapshot.planned_lesson_hours)],
         ["tuition_bill_id", shortId(snapshot.tuition_bill_id || income.source_id)],
-        ["Generation revision", revision ? `revision ${revision.revision_no} / ${revision.lifecycle_status}` : "-"],
+        ["Generation revision", revision.label],
         ["Revision manifest kind", displayValue(revision?.manifest_kind)],
-        ["专用作废原因", displayValue(revision?.void_reason)],
-        ["专用作废时间", formatDate(revision?.voided_at)],
+        ["Atomic 管理", "Atomic学费账单的作废与重新生成需要通过本机受信管理工具执行。"],
       ])}
     </article>
   `;
@@ -433,7 +431,6 @@ function renderActionArea(data) {
   const status = income?.status || "";
   const canReverse = canReverseIncome(data);
   const canCancel = canCancelPendingIncome(data);
-  const canVoidTuition = canVoidAtomicTuition(data);
   const canEdit = canEditIncome(data);
   const canRequestCash = canRequestCashIncome(data);
   const canGenerateReceipt = canGenerateTuitionReceipt(data);
@@ -450,9 +447,9 @@ function renderActionArea(data) {
   dom.openEditIncomeButton.disabled = !canEdit;
   dom.openReverseIncomeButton.classList.toggle("is-hidden", !canReverse);
   dom.openReverseIncomeButton.disabled = !canReverse;
-  dom.openCancelIncomeButton.classList.toggle("is-hidden", !canCancel && !canVoidTuition);
-  dom.openCancelIncomeButton.disabled = !canCancel && !canVoidTuition;
-  dom.openCancelIncomeButton.textContent = canVoidTuition ? "作废学费账单" : "作废收入";
+  dom.openCancelIncomeButton.classList.toggle("is-hidden", !canCancel);
+  dom.openCancelIncomeButton.disabled = !canCancel;
+  dom.openCancelIncomeButton.textContent = "作废收入";
 }
 
 function canRequestCashIncome(data) {
@@ -536,17 +533,9 @@ function canCancelPendingIncome(data) {
   return event.sync_status === "cash_rejected" || event.cash_request_status === "rejected";
 }
 
-function canVoidAtomicTuition(data) {
-  return data?.income?.source_type === "student_tuition_bill"
-    && data?.tuitionVoidPreflight?.eligible === true;
-}
-
 function tuitionVoidActionMessage(data) {
   if (data?.income?.source_type !== "student_tuition_bill") return "";
-  const preflight = data?.tuitionVoidPreflight;
-  if (!preflight) return "学费专用作废状态不可用，请刷新。";
-  if (preflight.eligible) return "";
-  return preflight.blocker_message || preflight.blocker_code || "当前学费链不能专用作废。";
+  return "Atomic学费账单的作废与重新生成需要通过本机受信管理工具执行。";
 }
 
 function canEditIncome(data) {
@@ -888,6 +877,23 @@ function tuitionBillSnapshot(income) {
   return income?.source_snapshot && typeof income.source_snapshot === "object"
     ? income.source_snapshot
     : {};
+}
+
+function tuitionRevisionSnapshot(income) {
+  const snapshot = tuitionBillSnapshot(income);
+  const revisionNo = snapshot.revision_no;
+  const isAtomic = snapshot.generation_source === "student_tuition_atomic_generate_v1";
+  if (!revisionNo && !isAtomic) {
+    return {
+      label: "historical revision / 第一版 Void 不支持",
+      manifest_kind: "historical_registration_v1",
+    };
+  }
+  const lifecycle = income?.status === "cancelled" ? "voided" : "active";
+  return {
+    label: `revision ${revisionNo || 1} / ${lifecycle}${isAtomic ? "" : " / 第一版 Void 不支持"}`,
+    manifest_kind: isAtomic ? "atomic_generation_v1" : "historical_registration_v1",
+  };
 }
 
 function studentTuitionBillCarryoverValue(income) {
@@ -1262,27 +1268,20 @@ function openCancelDialog() {
     return;
   }
 
-  const isTuitionVoid = canVoidAtomicTuition(detailData);
-  if (!isTuitionVoid && !canCancelPendingIncome(detailData)) {
+  if (!canCancelPendingIncome(detailData)) {
     showMessage("error", cancelNotAllowedMessage(detailData));
     return;
   }
 
   clearCancelErrors();
   const title = dom.cancelDialog.querySelector("#cancelIncomeTitle");
-  if (title) title.textContent = isTuitionVoid ? "作废学费账单" : "作废收入";
+  if (title) title.textContent = "作废收入";
   const note = dom.cancelDialog.querySelector("#cancelIncomeNote");
   const warning = dom.cancelDialog.querySelector("#cancelIncomeWarning");
   const confirmText = dom.cancelDialog.querySelector("#cancelIncomeConfirmText");
-  if (note) note.textContent = isTuitionVoid
-    ? "专用流程只允许 active Atomic pending/no-Cash 完整链；受信后端会再次核验 School 与 Cash 两库。"
-    : "仅用于未入账、Cash 已拒绝或未进入 Cash 请求的待确认收入。";
-  if (warning) warning.textContent = isTuitionVoid
-    ? "作废只释放 active lesson/carryover claim，不删除任何历史记录，也不解除 settlement 永久冻结。"
-    : "作废后该收入会标记为已作废，不能再次提交 Cash。";
-  if (confirmText) confirmText.textContent = isTuitionVoid
-    ? "我确认保留全部历史记录，并会在必要时修改课时、重新预览后手动生成下一 revision。"
-    : "我确认要作废这条待确认收入记录，并理解系统不会删除原记录或 Cash linkage。";
+  if (note) note.textContent = "仅用于未入账、Cash 已拒绝或未进入 Cash 请求的待确认收入。";
+  if (warning) warning.textContent = "作废后该收入会标记为已作废，不能再次提交 Cash。";
+  if (confirmText) confirmText.textContent = "我确认要作废这条待确认收入记录，并理解系统不会删除原记录或 Cash linkage。";
   dom.cancelSummary.innerHTML = renderCancelSummary(detailData.income);
   dom.cancelReasonInput.value = "";
   dom.cancelConfirmCheck.checked = false;
@@ -1314,16 +1313,11 @@ async function submitCancelIncome() {
   setCancelSubmitting(true);
 
   try {
-    const isTuitionVoid = detailData?.income?.source_type === "student_tuition_bill";
-    if (isTuitionVoid) {
-      await voidAtomicTuitionGeneration(payload);
-    } else {
-      await cancelPendingIncomeRecord(payload);
-    }
+    await cancelPendingIncomeRecord(payload);
     setCancelSubmitting(false);
     closeCancelDialog();
     await loadIncomeDetail(payload.incomeId);
-    showMessage("success", isTuitionVoid ? "学费账单已专用作废；历史链已保留。" : "收入已作废。");
+    showMessage("success", "收入已作废。");
   } catch (error) {
     console.error(error);
     showCancelError(`作废收入失败：${error.message || error}`, cancelFieldIdsForError(error.message || ""));
@@ -1339,8 +1333,7 @@ function readCancelPayload() {
     return null;
   }
 
-  const isTuitionVoid = canVoidAtomicTuition(detailData);
-  if (!isTuitionVoid && !canCancelPendingIncome(detailData)) {
+  if (!canCancelPendingIncome(detailData)) {
     showCancelError(cancelNotAllowedMessage(detailData));
     return null;
   }
@@ -1360,35 +1353,10 @@ function readCancelPayload() {
     incomeId: income.id,
     reason,
   };
-  if (isTuitionVoid) {
-    const preflight = detailData.tuitionVoidPreflight;
-    payload.generationRevisionId = preflight.generation_revision_id;
-    payload.tuitionBillId = preflight.tuition_bill_id;
-    payload.expectedGenerationManifestSha256 = preflight.generation_manifest_sha256;
-  }
   return payload;
 }
 
 function renderCancelSummary(income) {
-  const preflight = detailData?.tuitionVoidPreflight;
-  if (income?.source_type === "student_tuition_bill" && preflight) {
-    return renderDefinitionList([
-      ["学生", displayValue(preflight.student_name)],
-      ["结算月份", formatMonth(preflight.billing_month)],
-      ["业务归属", displayValue(preflight.business_entity_name)],
-      ["Revision", displayValue(preflight.revision_no)],
-      ["Bill", shortId(preflight.tuition_bill_id)],
-      ["Income", shortId(preflight.income_record_id)],
-      ["冻结 JPY", formatCurrency(preflight.bill_amount_jpy, "JPY")],
-      ["冻结 CNY", formatCurrency(preflight.billing_amount_cny, "CNY")],
-      ["冻结汇率", displayValue(preflight.billing_exchange_rate)],
-      ["课时数量", displayValue(preflight.lesson_count)],
-      ["上月结转", formatCurrency(preflight.previous_carryover_cny, "CNY")],
-      ["Cash 状态", preflight.school_cash_linkage_count ? "存在 School linkage" : "School 无 linkage；提交时再核验 Cash DB"],
-      ["历史保留", "旧 bill、income、relations、snapshot 与 manifest 永久保留，不会删除。"],
-      ["后续操作", "如需纠错，请先修改课时，再重新预览并手动生成下一 revision。"],
-    ]);
-  }
   return renderDefinitionList([
     ["收入日期", formatDateOnly(income.income_date)],
     ["结算月份", formatMonth(income.settlement_month)],
