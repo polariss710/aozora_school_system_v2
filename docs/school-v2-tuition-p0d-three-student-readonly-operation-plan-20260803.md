@@ -1,6 +1,6 @@
-# P0-D 三名真实学生最终只读操作前检查
+# P0-D 三名真实学生操作状态
 
-日期：2026-08-03。本文只记录生产只读事实，不授权或执行真实 Void、Reissue、课时编辑、settlement 或 Cash 提交。三人目标账期均为 `2026-08`；真实业务写入均为 0。
+日期：2026-08-03。本文最初记录三名学生的生产只读操作前事实；后续业务负责人已单独授权并完成张倬闻真实 Void + P0-E Reissue，状态已在本文件更新。彭宇晗、李天伦仍未获真实执行授权。
 
 ## 分流结论
 
@@ -8,7 +8,7 @@
 |---|---|---|---|---|
 | 彭宇晗 | School eligible、Cash/downstream 0；技术可行，但尚无真实执行授权 | 当前不存在；active August zero-carry claim 期间被 Rule A 冻结；Void 后可创建/锁定，DB 当前 preview carry `92.44` | 业务负责人必须给出精确 lesson UUID、目标字段和值 | lesson 修改与 July lock 后必须重新取 DB preview/manifests；当前 **No-Go** |
 | 李天伦 | School eligible、Cash/downstream 0；技术可行，但尚无真实执行授权 | 当前不存在；DB preview 明确 carry `0`，无业务必要时不创建零金额 settlement | 业务负责人必须给出精确 lesson UUID、目标字段和值 | Void/修改后重新取 DB preview/manifests；当前 **No-Go** |
-| 张倬闻 | School eligible、Cash/downstream 0，仅说明 Void 技术前置满足 | July settlement 已被历史 revision 消费却为 `unlocked`；Rule B 永久禁止 relock/覆盖 | 不是 lesson 输入问题；缺 DB 权威 forward adjustment 合同 | 路径 1 金额虽为 `27950`，状态仍错误；必须先独立 P0-E；当前 **No-Go** |
+| 张倬闻 | 已按单独业务授权完成真实 Void | July 物理状态仍为 `unlocked`；有效状态 `historically_consumed_immutable`；未 relock/覆盖 | 无 | P0-E revision 2 已唯一 active；pending CNY `27950.00`；**Completed** |
 
 ## 彭宇晗
 
@@ -106,18 +106,18 @@ Void 后 16 条 claim 会释放；系统仍不能推断要修改哪些 lesson。
 | 字段 | 只读事实 |
 |---|---|
 | student | `7aef8061-7037-4881-a847-a2cdb031c0f4` |
-| generation / revision | `96000000-0000-4000-8000-202608030009` / `96000000-0000-4000-8000-202608031009` |
-| revision | `1 / atomic_generation_v1 / active` |
-| manifest | `3aaa288b6b4edfcd3c897f36c7f6ffb638553ed9e566a68041457036a9773f38` |
-| bill | `553a24ba-81cf-4af0-b723-169a09914c79 / income_created` |
-| income | `be64a9e2-f15e-44b0-a9de-2ee91bdf9567 / pending` |
-| frozen money | currency `JPY`；JPY `650000`；rate `0.042`；carry `107.50`；CNY `27407.50` |
+| generation / revisions | `96000000-0000-4000-8000-202608030009` / rev1 `96000000-0000-4000-8000-202608031009` / rev2 `7d319b0d-8f62-41e9-95bf-c1a0c6ed7090` |
+| revision state | rev1 `voided`；rev2 `atomic_generation_v1 / active / previous=rev1` |
+| manifests | old `3aaa288b6b4edfcd3c897f36c7f6ffb638553ed9e566a68041457036a9773f38`；new `a35fa72406378c94c1d92574aaa054f46628057175e47155beafd5d704e3a677` |
+| bills | old `553a24ba-81cf-4af0-b723-169a09914c79 / cancelled`；new `013a7766-101b-4b5b-bcae-c008825b14fa / income_created` |
+| incomes | old `be64a9e2-f15e-44b0-a9de-2ee91bdf9567 / cancelled`；new `d980cedd-ebba-4be1-afcb-b25dfa26798a / pending` |
+| active frozen money | JPY `650000`；rate `0.043`；historical carry `107.50`；forward adjustment `-107.50`；CNY `27950.00` |
 | previous settlement | `b699209d-2f61-4cfa-959b-45686e2fe19b / unlocked`；system difference `107.50`；carry `107.50`；后于 2026-08-02 异常 unlock |
-| relation | 30 rows；lesson_count 合计 35；JPY `650000`；relation hash `775919f454621c7c6e51736a2232b2cc` |
+| relation | old 30 rows永久保留；new active 30 rows；lesson_count 合计35；JPY `650000`；lesson业务行未修改 |
 | Cash / downstream | request `0`；CNY transaction `0`；JPY transaction `0`；School linkage/account transaction/actual/wage facts均 `0` |
-| validators | identity、bill-income、bill-lessons、generation-revision：`4/4 PASS` |
-| Void preflight | Edge `preflight_only ok=true`；School eligible；blocker `NULL`；active lesson claims 30 |
-| 永久冻结 | resolver 返回 bill `553a…9c79`；July settlement 曾被历史 revision 消费，故 revision Void 后仍受 Rule B 永久冻结 |
+| validators | rev2四个 tuition validators + adjustment validator：全部 PASS |
+| Void / P0-E | void event `03ec26aa-fedb-4f18-861a-956acb771f83`；adjustment `df043dee-0013-4fb6-b31f-0ea5f446bbc1`；duplicate idempotent=true |
+| 永久冻结 | July settlement继续受 Rule B 永久冻结；Cash未提交；Gate未开启 |
 
 当前 30 条 relation 均为 `planned / planned / billable=true`，aircon 0；每行 unit `10000`，TOEFL 3h/JPY30000，其余 2h/JPY20000：
 
@@ -154,21 +154,13 @@ Void 后 16 条 claim 会释放；系统仍不能推断要修改哪些 lesson。
 | `adc0b06c-eee3-40ca-8992-592f5d4b009b` | 2026-08-31 | EJU化学 / 王黎曦 | 1 / 2 / 20000 |
 | `dbe16731-803b-49db-8cc0-f826e911bb41` | 2026-08-31 | EJU日语 / 赵天歌 | 1 / 2 / 20000 |
 
-### 三条路径必须分开判断
+### 真实操作完成状态
 
-1. **Void → 不恢复 July → rate 0.043 Reissue**：synthetic formal preview 已证明 carry `0`、`650000 × 0.043 = 27950.00`。但真实 July row 仍为 `unlocked`，Rule B 使其永远不能 relock。结算页面状态映射显示“锁定已撤销”，locked-only reader/report 不会把它当作已锁定结算。因此这是“金额正确、July 结算状态错误”，不可运营。
-2. **Void → 恢复原 July locked snapshot 107.50 → rate 0.043 Reissue**：金额推演为 `650000 × 0.043 + 107.50 = 28057.50`；但恢复/覆盖 July 被 Rule B 明确禁止，只能作为 counterfactual，不可执行。
-3. **保持历史 July locked snapshot 107.50 + August forward adjustment -107.50 + rate 0.043**：净额 `28057.50 - 107.50 = 27950.00`。这是同时满足 July 已结算、历史消费关系保留、August 等于实付、不篡改旧 revision、调整有独立审计留痕的唯一账务完整方向。
-
-当前系统没有获批且 DB-authoritative 的 generation forward adjustment 事实，因此张倬闻必须 **No-Go**。路径 1 金额碰巧正确不能替代结算状态正确。
-
-### P0-E 最小范围（本轮不实施）
-
-P0-E 需由业务负责人另行逐项批准精确业务模型扩展后才能写 SQL/code：一个 DB 权威、不可变且可审计的 forward adjustment 对象/语义；明确绑定 generation/billing month/source settlement；金额 `-107.50` 必须来自业务负责人显式输入或 DB 权威计算；具备 idempotency、manifest 纳入、validator/reader 唯一 authority、共享锁、rollback/concurrency；不得改写 July settlement 或旧 revision；页面仅经 API/RPC，前端不得计算保存金额。P0-D 不自动启动 P0-E。
+P0-E 合同完成后，业务负责人另行明确授权了张倬闻真实操作。正式工具先作废错误 rate `0.042` 的 revision 1，再以 DB 权威 `neutralize_historical_carryover_v1`、rate `0.043`、historical carry `107.50`、forward adjustment `-107.50` 创建 revision 2，最终 pending income 为 CNY `27950.00`。July settlement 未修改，仍显示“已被历史学费账单消费（不可重开）”。普通 Reissue fail-closed、P0-E duplicate idempotency、五个 validators、School/Cash 哈希均已验收。完整证据见 `docs/school-v2-zhang-zhuowen-202608-tuition-void-p0e-reissue-operation-20260803.md`。
 
 ## 最终操作纪律
 
 - 彭宇晗与李天伦的特殊问题互不阻断；但二人都缺精确 lesson 修改指令，因此当前均不可执行真实 Void/Reissue。
-- 张倬闻的技术 preflight 通过不构成业务 Go；必须先有获批并完成的 P0-E。
+- 张倬闻的单独授权操作已完成；不得据此继续提交 Cash，也不得外推为彭宇晗或李天伦的授权。
 - 任一未来真实操作前都要重新执行 Edge Cash preflight、School preflight、四 validator 与 DB preview，并以当时 exact manifests/amounts 为准。
 - 不得自动调用任何真实 Void、lesson writer、settlement writer、Reissue、Cash writer 或 Gate writer。
