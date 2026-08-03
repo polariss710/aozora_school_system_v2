@@ -37,10 +37,10 @@ declare
   v_revision constant uuid:='d0d00000-0000-4000-8000-000000004001';
   v_snapshot record; v_line jsonb; v_line_no integer:=0; v_now timestamptz:=clock_timestamp();
 begin
-  if v_action not in ('preflight','insert','cleanup','residue') then
+  if v_action not in ('preflight','insert','insert_locked','cleanup','residue') then
     raise exception 'P0E_FIXTURE_ACTION_INVALID';
   end if;
-  if v_action in ('preflight','insert') and exists(
+  if v_action in ('preflight','insert','insert_locked') and exists(
     select 1 from public.school_business_entities where id=v_entity or code='codex-test-tuition-p0e-forward-adjustment'
     union all select 1 from public.school_subjects where id=v_subject or name='codex-test P0-E subject'
     union all select 1 from public.school_teachers where id=v_teacher or teacher_code='codex-test-p0e-teacher'
@@ -53,7 +53,7 @@ begin
     union all select 1 from public.school_student_tuition_generation_identities where id=v_generation or student_id=v_student
   ) then raise exception 'P0E_FIXTURE_COLLISION'; end if;
 
-  if v_action='insert' then
+  if v_action in ('insert','insert_locked') then
     insert into public.school_business_entities(id,code,name,entity_type,default_currency,is_active,note)
     values(v_entity,'codex-test-tuition-p0e-forward-adjustment','codex-test P0-E entity','company','JPY',true,v_marker);
     insert into public.school_subjects(id,name,category,is_active,note,primary_category)
@@ -192,9 +192,11 @@ begin
     insert into public.school_student_tuition_generation_identities(
       id,student_id,business_entity_id,billing_month,legacy_billing_identity_id,created_at,created_by_authority
     ) values(v_generation,v_student,v_entity,date '2020-08-01',v_legacy,v_now,v_marker);
-    update public.school_student_monthly_settlements
-    set settlement_status='unlocked',locked_at=null,carryover_amount_cny=0,updated_at=v_now
-    where id=v_settlement;
+    if v_action='insert' then
+      update public.school_student_monthly_settlements
+      set settlement_status='unlocked',locked_at=null,carryover_amount_cny=0,updated_at=v_now
+      where id=v_settlement;
+    end if;
     insert into public.school_student_tuition_generation_revisions(
       id,generation_identity_id,tuition_bill_id,revision_no,previous_revision_id,
       generation_manifest_sha256,manifest_kind,lifecycle_status,created_at,
