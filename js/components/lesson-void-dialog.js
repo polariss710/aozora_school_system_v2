@@ -1,4 +1,4 @@
-import { voidPlannedLesson } from "../api/lesson-api.js";
+import { voidPlannedLesson } from "../api/lesson-api.js?v=p0f-20260803-2";
 import { formatMonth, safeText } from "../utils/format.js";
 import { lessonUserErrorMessage } from "../utils/lesson-error-message.js";
 
@@ -72,13 +72,13 @@ export function createLessonVoidDialogController(options) {
 
   function open(lessonId) {
     if (!hasSupabaseConfig()) {
-      showMessage("error", "当前 Supabase 配置不可用，不能误录作废预定课时。");
+      showMessage("error", "当前 Supabase 配置不可用，不能作废预定课时。");
       return;
     }
 
     const lesson = findLesson(lessonId);
     if (!lesson) {
-      showMessage("error", "未找到要误录作废的预定课时。");
+      showMessage("error", "未找到要作废的预定课时。");
       return;
     }
 
@@ -106,7 +106,7 @@ export function createLessonVoidDialogController(options) {
     if (!force && hasFormInput()) {
       if (!closeConfirmPending) {
         closeConfirmPending = true;
-        showError("误录作废原因已有输入或已勾选确认。再次点击取消将关闭窗口。");
+        showError("作废原因已有输入或已勾选确认。再次点击取消将关闭窗口。");
         return;
       }
     }
@@ -135,7 +135,7 @@ export function createLessonVoidDialogController(options) {
     }
 
     if (record.lesson_type !== "planned") {
-      return "只允许误录作废 planned 预定课时。";
+      return "只允许作废 planned 预定课时。";
     }
 
     if (record.voided_at) {
@@ -143,15 +143,15 @@ export function createLessonVoidDialogController(options) {
     }
 
     if (!["planned", "pending_makeup"].includes(record.status)) {
-      return `当前 planned 状态不允许误录作废：${lessonStatusLabel(record.status)}。`;
+      return `当前 planned 状态不允许作废：${lessonStatusLabel(record.status)}。`;
     }
 
     if (hasLinkedActual(record.id)) {
-      return "该 planned 已有关联 actual，不能误录作废。";
+      return "该 planned 已有关联 actual，不能作废。";
     }
 
     if (!safeText(record.updated_at)) {
-      return "缺少 updated_at，不能误录作废。";
+      return "缺少 updated_at，不能作废。";
     }
 
     return "";
@@ -215,7 +215,7 @@ export function createLessonVoidDialogController(options) {
           await onVoided(result, sourceLesson);
         } catch (refreshError) {
           console.error("Lesson void refresh failed", refreshError);
-          showMessage("error", "预定课时已误录作废，但列表刷新失败，请重新查询。");
+          showMessage("error", "预定课时已作废，但列表刷新失败，请重新查询。");
         }
       }
     } catch (error) {
@@ -228,7 +228,7 @@ export function createLessonVoidDialogController(options) {
 
   function readPayload() {
     if (!currentLesson) {
-      showError("缺少要误录作废的预定课时，请重新打开窗口。");
+      showError("缺少要作废的预定课时，请重新打开窗口。");
       return null;
     }
 
@@ -242,7 +242,7 @@ export function createLessonVoidDialogController(options) {
     }
 
     if (invalidFields.length) {
-      showError("请填写误录作废原因，并勾选确认误录作废。", invalidFields);
+      showError("请填写作废原因，并勾选确认作废。", invalidFields);
       return null;
     }
 

@@ -1,7 +1,7 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=r2-f-f2-b-year-month-closure";
+import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=p0f-20260803-2";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=r2-f-f2-b-year-month-closure";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-1";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-2";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   hasAuthoritativePlannedFeeBundle,
@@ -118,7 +118,7 @@ function setupLessonVoidController() {
       const nextLessonId = result?.lesson_id || result?.id || sourceLesson?.id || currentLessonId;
       currentLessonId = nextLessonId;
       await loadLessonDetail(nextLessonId);
-      showMessage("success", `预定课时已误录作废：${shortId(nextLessonId)}`);
+      showMessage("success", `预定课时已作废：${shortId(nextLessonId)}`);
     },
     getLinkedActualExists: hasLinkedActualLesson,
   });
@@ -490,17 +490,23 @@ function renderEditAction(lesson) {
     return;
   }
 
+  const hasTuitionHistory = lesson?.lesson_type === "planned"
+    && Number(lesson.tuition_revision_count || 0) > 0;
+  const hasVoidedOnlyTuitionHistory = hasTuitionHistory
+    && Number(lesson.voided_tuition_revision_count || 0) > 0
+    && Number(lesson.active_tuition_revision_count || 0) === 0;
   const reason = lessonEditController?.blockReason(lesson) || "";
   const voidReason = lessonVoidController?.blockReason(lesson) || "";
   dom.editButton.dataset.editLessonId = lesson.id || "";
-  dom.editButton.disabled = Boolean(reason);
+  dom.editButton.classList.toggle("is-hidden", hasTuitionHistory);
+  dom.editButton.disabled = hasTuitionHistory || Boolean(reason);
   dom.editButton.title = reason || "编辑课时";
   dom.editButton.textContent = reason ? "不可编辑" : "编辑";
   if (dom.voidButton) {
     dom.voidButton.dataset.voidPlannedLessonId = lesson.id || "";
-    dom.voidButton.classList.toggle("is-hidden", Boolean(voidReason));
-    dom.voidButton.disabled = Boolean(voidReason);
-    dom.voidButton.title = voidReason || "误录作废预定课时";
+    dom.voidButton.classList.toggle("is-hidden", !hasVoidedOnlyTuitionHistory || Boolean(voidReason));
+    dom.voidButton.disabled = !hasVoidedOnlyTuitionHistory || Boolean(voidReason);
+    dom.voidButton.title = voidReason || "作废预定课时";
   }
   dom.editActionArea.classList.remove("is-hidden");
 }

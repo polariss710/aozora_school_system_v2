@@ -157,7 +157,30 @@ async function fetchLesson(lessonId) {
     throw new Error("没有找到对应的课时记录。");
   }
 
-  return attachAuthoritativeStudentMonth(data);
+  const lesson = await attachAuthoritativeStudentMonth(data);
+  return attachTuitionHistoryState(lesson);
+}
+
+async function attachTuitionHistoryState(lesson) {
+  if (lesson?.lesson_type !== "planned" || !lesson.id) {
+    return lesson;
+  }
+
+  const { data, error } = await supabase.rpc(
+    "school_get_planned_lesson_tuition_history_state",
+    { p_lesson_ids: [lesson.id] }
+  );
+  if (error) {
+    throw error;
+  }
+
+  const state = (data || [])[0];
+  return {
+    ...lesson,
+    tuition_revision_count: Number(state?.tuition_revision_count || 0),
+    voided_tuition_revision_count: Number(state?.voided_tuition_revision_count || 0),
+    active_tuition_revision_count: Number(state?.active_tuition_revision_count || 0),
+  };
 }
 
 async function fetchLessonSourceChain(lesson) {

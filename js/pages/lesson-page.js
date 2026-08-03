@@ -21,10 +21,10 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=tuition-p0b1-20260803";
+} from "../api/lesson-api.js?v=p0f-20260803-2";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=r2-f-e1-lesson-generation-closure";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=tuition-p0b1-20260803";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-1";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-20260803-2";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -2044,7 +2044,7 @@ async function refreshAfterCreateActualLesson(_createdLesson, previousFilters = 
 async function refreshAfterVoidLesson(result, sourceLesson) {
   const filters = readFilters() || { month: loadedMonth, status: "" };
   await refreshLessonMonthPreservingFilters(filters.month, filters);
-  showMessage("success", `预定课时已误录作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
+  showMessage("success", `预定课时已作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
 
 async function refreshAfterDeleteLesson(result, sourceLesson) {
@@ -6638,16 +6638,40 @@ function canGenerateActualFromPlanned(planned) {
 }
 
 function renderLessonEditAction(record) {
+  if (hasTuitionRevisionHistory(record)) {
+    return "";
+  }
   return lessonEditController?.renderAction(record) || "";
 }
 
 function renderLessonDeleteAction(record) {
+  if (hasTuitionRevisionHistory(record)) {
+    return "";
+  }
   return lessonDeleteController?.renderAction(record) || "";
+}
+
+function renderLessonVoidAction(record) {
+  if (!hasVoidedOnlyTuitionHistory(record)) {
+    return "";
+  }
+  return lessonVoidController?.renderAction(record) || "";
+}
+
+function hasTuitionRevisionHistory(record) {
+  return record?.lesson_type === "planned" && Number(record.tuition_revision_count || 0) > 0;
+}
+
+function hasVoidedOnlyTuitionHistory(record) {
+  return hasTuitionRevisionHistory(record)
+    && Number(record.voided_tuition_revision_count || 0) > 0
+    && Number(record.active_tuition_revision_count || 0) === 0;
 }
 
 function renderLessonActions(record) {
   return [
     renderLessonEditAction(record),
+    renderLessonVoidAction(record),
     renderLessonDeleteAction(record),
   ].filter(Boolean).join(" ");
 }

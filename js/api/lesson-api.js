@@ -95,7 +95,8 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
     throw error;
   }
 
-  return attachAuthoritativeStudentMonths(data || []);
+  const records = await attachAuthoritativeStudentMonths(data || []);
+  return attachTuitionHistoryStates(records);
 }
 
 export async function fetchLessonManagementStats(filters = {}) {
@@ -337,6 +338,34 @@ async function attachAuthoritativeStudentMonths(records) {
     ...record,
     authoritative_student_month: await fetchAuthoritativeLessonStudentMonth(record.id),
   })));
+}
+
+async function attachTuitionHistoryStates(records) {
+  const lessonIds = [...new Set((records || [])
+    .filter((record) => record.lesson_type === "planned" && record.id)
+    .map((record) => record.id))];
+  if (!lessonIds.length) {
+    return records || [];
+  }
+
+  const { data, error } = await supabase.rpc(
+    "school_get_planned_lesson_tuition_history_state",
+    { p_lesson_ids: lessonIds }
+  );
+  if (error) {
+    throw error;
+  }
+
+  const stateByLessonId = new Map((data || []).map((row) => [row.lesson_id, row]));
+  return (records || []).map((record) => {
+    const state = stateByLessonId.get(record.id);
+    return {
+      ...record,
+      tuition_revision_count: Number(state?.tuition_revision_count || 0),
+      voided_tuition_revision_count: Number(state?.voided_tuition_revision_count || 0),
+      active_tuition_revision_count: Number(state?.active_tuition_revision_count || 0),
+    };
+  });
 }
 
 async function fetchAuthoritativeLessonStudentMonth(lessonId) {

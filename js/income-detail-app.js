@@ -1,4 +1,4 @@
-import { APP_VERSION } from "./config.js";
+import { APP_VERSION } from "./config.js?v=p0f-20260803-1";
 import { initIncomeDetailPage } from "./pages/income-detail-page.js?v=p0f-20260803-1";
 
 document.addEventListener("DOMContentLoaded", () => {

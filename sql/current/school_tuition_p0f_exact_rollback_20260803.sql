@@ -24,6 +24,7 @@ end
 $preflight$;
 
 drop function public.school_get_tuition_income_forward_adjustment_display(uuid[]);
+drop function public.school_get_planned_lesson_tuition_history_state(uuid[]);
 
 do $restore_open_credit_reader$
 declare v_definition text; v_restored text;
