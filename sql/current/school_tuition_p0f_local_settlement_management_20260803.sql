@@ -247,14 +247,68 @@ begin
     raise exception 'TUITION_ACTIVE_PREVIOUS_PERIOD_CLAIM_IMMUTABLE';
   end if;
 
+  select * into v_settlement
+  from public.school_student_monthly_settlements s
+  where s.student_id = p_student_id
+    and s.business_entity_id = p_business_entity_id
+    and s.year_month = p_year_month
+    and s.settlement_status = 'locked';
+  if found then
+    select count(*) into v_claim_count
+    from public.school_student_settlement_lesson_variance_claims c
+    where c.settlement_id = v_settlement.id
+      and c.claim_status = 'active';
+    if v_settlement.system_difference_cny is distinct from p_expected_system_difference_cny
+       or v_settlement.carryover_amount_cny is distinct from p_expected_final_carryover_cny
+       or v_settlement.lesson_variance_manifest_sha256
+            is distinct from p_expected_lesson_variance_manifest_sha256
+       or v_settlement.lesson_variance_source_count is distinct from p_expected_source_count
+       or v_claim_count is distinct from p_expected_source_count
+       or not exists (
+         select 1 from public.school_student_settlement_source_treatment_drafts d
+         where d.id = p_expected_source_treatment_draft_id
+           and d.updated_at = p_expected_source_treatment_draft_updated_at
+           and d.settlement_id = v_settlement.id and d.status = 'consumed'
+       )
+       or not exists (
+         select 1 from public.school_student_settlement_adjustment_drafts d
+         where d.id = p_expected_adjustment_draft_id
+           and d.updated_at = p_expected_adjustment_draft_updated_at
+           and d.settlement_id = v_settlement.id and d.status = 'consumed'
+       ) then
+      raise exception 'SETTLEMENT_LOCAL_DUPLICATE_LOCK_FACTS_MISMATCH';
+    end if;
+    return jsonb_build_object(
+      'ok', true,
+      'idempotent', true,
+      'operation', 'lock_student_monthly_settlement_local_v1',
+      'settlement_id', v_settlement.id,
+      'student_id', v_settlement.student_id,
+      'business_entity_id', v_settlement.business_entity_id,
+      'year_month', v_settlement.year_month,
+      'settlement_status', v_settlement.settlement_status,
+      'locked_at', v_settlement.locked_at,
+      'system_difference_cny', v_settlement.system_difference_cny,
+      'adjustment_amount_cny', v_settlement.adjustment_amount_cny,
+      'final_carryover_cny', v_settlement.carryover_amount_cny,
+      'lesson_variance_source_count', v_settlement.lesson_variance_source_count,
+      'lesson_variance_manifest_sha256', v_settlement.lesson_variance_manifest_sha256,
+      'active_claim_count', v_claim_count,
+      'source_treatment_draft_id', p_expected_source_treatment_draft_id,
+      'adjustment_draft_id', p_expected_adjustment_draft_id
+    );
+  end if;
+
   select * into strict v_source_draft
   from public.school_student_settlement_source_treatment_drafts d
   where d.student_id = p_student_id
+    and d.business_entity_id = p_business_entity_id
     and d.year_month = p_year_month
     and d.status = 'active';
   select * into strict v_adjustment_draft
   from public.school_student_settlement_adjustment_drafts d
   where d.student_id = p_student_id
+    and d.business_entity_id = p_business_entity_id
     and d.year_month = p_year_month
     and d.status = 'active';
   if v_source_draft.id is distinct from p_expected_source_treatment_draft_id

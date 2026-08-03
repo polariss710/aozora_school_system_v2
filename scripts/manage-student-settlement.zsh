@@ -11,6 +11,7 @@ Usage: scripts/manage-student-settlement.zsh COMMAND [exact options]
 
 Commands:
   status       --student UUID --entity UUID --month YYYY-MM
+  history      --student UUID --entity UUID --month YYYY-MM
   preview      --student UUID --entity UUID --month YYYY-MM --source-mode MODE
                --rate NUMERIC --rate-source TEXT --rate-date YYYY-MM-DD
                --adjustment-mode MODE [--explicit-amount-cny NUMERIC]
@@ -208,6 +209,18 @@ commit;
 SQL
 }
 
+locked_settlement_json() {
+  psql_json -v student="$STUDENT" -v entity="$ENTITY" -v month="$MONTH" <<'SQL'
+select coalesce((
+  select to_jsonb(s) from public.school_student_monthly_settlements s
+  where s.student_id=:'student'::uuid
+    and s.business_entity_id=:'entity'::uuid
+    and s.year_month=:'month'
+    and s.settlement_status='locked'
+), 'null'::jsonb)::text;
+SQL
+}
+
 case "$CMD" in
   status)
     require_scope
@@ -234,7 +247,97 @@ select jsonb_pretty(jsonb_build_object(
       and g.billing_month=(to_date(:'month'||'-01','YYYY-MM-DD')+interval '1 month')::date
       and r.lifecycle_status='active'),
   'gate',(select jsonb_object_agg(feature_key,state) from public.school_feature_gates
-    where feature_key like 'student_tuition_%')
+    where feature_key like 'student_tuition_%'),
+  'authoritative_state',jsonb_build_object(
+    'source_treatment_mode',coalesce(
+      (select s.source_treatment_mode from public.school_student_monthly_settlements s
+       where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+         and s.year_month=:'month' order by s.created_at desc limit 1),
+      (select d.source_treatment_mode from public.school_student_settlement_source_treatment_drafts d
+       where d.student_id=:'student'::uuid and d.business_entity_id=:'entity'::uuid
+         and d.year_month=:'month' order by d.created_at desc limit 1)),
+    'settlement_exchange_rate',coalesce(
+      (select s.settlement_exchange_rate from public.school_student_monthly_settlements s
+       where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+         and s.year_month=:'month' order by s.created_at desc limit 1),
+      (select d.settlement_exchange_rate from public.school_student_settlement_source_treatment_drafts d
+       where d.student_id=:'student'::uuid and d.business_entity_id=:'entity'::uuid
+         and d.year_month=:'month' order by d.created_at desc limit 1)),
+    'adjustment_mode',(select d.adjustment_source from public.school_student_settlement_adjustment_drafts d
+      where d.student_id=:'student'::uuid and d.business_entity_id=:'entity'::uuid
+        and d.year_month=:'month' order by d.created_at desc limit 1),
+    'source_count',(select s.lesson_variance_source_count from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+        and s.year_month=:'month' order by s.created_at desc limit 1),
+    'source_manifest_sha256',(select s.lesson_variance_manifest_sha256 from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+        and s.year_month=:'month' order by s.created_at desc limit 1),
+    'unused_planned_credit_jpy',(select s.unused_planned_credit_jpy from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+        and s.year_month=:'month' order by s.created_at desc limit 1),
+    'net_lesson_variance_jpy',(select s.net_lesson_variance_jpy from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+        and s.year_month=:'month' order by s.created_at desc limit 1),
+    'net_lesson_variance_cny',(select s.net_lesson_variance_cny from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+        and s.year_month=:'month' order by s.created_at desc limit 1),
+    'final_carryover_cny',(select s.carryover_amount_cny from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+        and s.year_month=:'month' order by s.created_at desc limit 1),
+    'historical_consumed_blocker_count',(select count(*) from public.school_student_tuition_generation_revisions r
+      join public.school_student_tuition_bills b on b.id=r.tuition_bill_id
+      where b.previous_settlement_id in (select s.id from public.school_student_monthly_settlements s
+        where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+          and s.year_month=:'month')),
+    'active_tuition_claim_count',(select count(*) from public.school_student_tuition_generation_revisions r
+      join public.school_student_tuition_bills b on b.id=r.tuition_bill_id
+      where r.lifecycle_status='active' and b.previous_settlement_id in (
+        select s.id from public.school_student_monthly_settlements s
+        where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+          and s.year_month=:'month')),
+    'lock_eligibility',case
+      when exists(select 1 from public.school_student_monthly_settlements s
+        where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid
+          and s.year_month=:'month' and s.settlement_status='locked')
+        then 'already_locked'
+      when exists(select 1 from public.school_student_tuition_generation_identities g
+        join public.school_student_tuition_generation_revisions r on r.generation_identity_id=g.id
+        where g.student_id=:'student'::uuid and g.business_entity_id=:'entity'::uuid
+          and g.billing_month=(to_date(:'month'||'-01','YYYY-MM-DD')+interval '1 month')::date
+          and r.lifecycle_status='active') then 'blocked_by_active_tuition_revision'
+      else 'requires_fresh_preview_and_exact_facts'
+    end
+  )
+))::text;
+SQL
+    ;;
+  history)
+    require_scope
+    psql_json -v student="$STUDENT" -v entity="$ENTITY" -v month="$MONTH" <<'SQL'
+select jsonb_pretty(jsonb_build_object(
+  'student_id',:'student'::uuid,
+  'business_entity_id',:'entity'::uuid,
+  'year_month',:'month',
+  'events',coalesce((
+    select jsonb_agg(e.payload order by e.occurred_at,e.event_order)
+    from (
+      select s.created_at occurred_at,1 event_order,to_jsonb(s)||jsonb_build_object('event_type','settlement') payload
+      from public.school_student_monthly_settlements s
+      where s.student_id=:'student'::uuid and s.business_entity_id=:'entity'::uuid and s.year_month=:'month'
+      union all
+      select d.created_at,2,to_jsonb(d)||jsonb_build_object('event_type','source_treatment_draft')
+      from public.school_student_settlement_source_treatment_drafts d
+      where d.student_id=:'student'::uuid and d.business_entity_id=:'entity'::uuid and d.year_month=:'month'
+      union all
+      select d.created_at,3,to_jsonb(d)||jsonb_build_object('event_type','adjustment_draft')
+      from public.school_student_settlement_adjustment_drafts d
+      where d.student_id=:'student'::uuid and d.business_entity_id=:'entity'::uuid and d.year_month=:'month'
+      union all
+      select c.created_at,4,to_jsonb(c)||jsonb_build_object('event_type','lesson_variance_claim')
+      from public.school_student_settlement_lesson_variance_claims c
+      where c.student_id=:'student'::uuid and c.business_entity_id=:'entity'::uuid and c.year_month=:'month'
+    ) e
+  ),'[]'::jsonb)
 ))::text;
 SQL
     ;;
@@ -256,8 +359,14 @@ SQL
     require_expected
     [[ -n "$SOURCE_DRAFT" && -n "$SOURCE_DRAFT_UPDATED_AT" && -n "$ADJUSTMENT_DRAFT" && -n "$ADJUSTMENT_DRAFT_UPDATED_AT" ]] \
       || fail 'lock requires both expected draft UUIDs and updated_at values'
-    PREVIEW="$(preview_json)"; print -- "$PREVIEW"; verify_preview "$PREVIEW"
-    if (( ! EXECUTE )); then print -- 'DRY-RUN: exact facts match; no write performed.'; exit 0; fi
+    LOCKED_SETTLEMENT="$(locked_settlement_json)"
+    if [[ "$LOCKED_SETTLEMENT" == 'null' ]]; then
+      PREVIEW="$(preview_json)"; print -- "$PREVIEW"; verify_preview "$PREVIEW"
+      if (( ! EXECUTE )); then print -- 'DRY-RUN: exact facts match; no write performed.'; exit 0; fi
+    else
+      print -- "$LOCKED_SETTLEMENT" | jq .
+      if (( ! EXECUTE )); then print -- 'DRY-RUN: existing locked settlement will be checked by the idempotent wrapper; no write performed.'; exit 0; fi
+    fi
     EXPECTED_CONFIRM="LOCK STUDENT SETTLEMENT $STUDENT $MONTH MANIFEST $PREVIEW_MANIFEST CARRY $EXPECTED_FINAL_CARRYOVER"
     [[ "$CONFIRM" == "$EXPECTED_CONFIRM" ]] || fail "Confirmation mismatch; expected: $EXPECTED_CONFIRM"
     RESULT="$(lock_execute_json)" \

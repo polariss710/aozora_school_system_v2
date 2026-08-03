@@ -121,13 +121,26 @@ begin
     perform public.school_save_student_settlement_draft_local(
       v_student,v_entity,'2020-07','net_lesson_variance_to_financial_credit_v1',
       0.042,'codex_test_confirmed_rate_v1','2020-07-01','carry_final_balance',null,
+      v_manifest,v_lesson_manifest,2,-17000,2125,-14875,-624.75,-624.75,-624.75,
+      v_reason,v_reason,'local_trusted_business_owner_v1','WRONG CONFIRMATION'
+    );
+    raise exception 'EXPECTED_CONFIRMATION_REJECTION_MISSING';
+  exception when others then
+    if position('SETTLEMENT_LOCAL_CONFIRMATION_MISMATCH' in sqlerrm)=0 then raise; end if;
+  end;
+  begin
+    perform public.school_save_student_settlement_draft_local(
+      v_student,v_entity,'2020-07','net_lesson_variance_to_financial_credit_v1',
+      0.042,'codex_test_confirmed_rate_v1','2020-07-01','carry_final_balance',null,
       repeat('0',64),v_lesson_manifest,2,-17000,2125,-14875,-624.75,-624.75,-624.75,
-      v_reason,v_reason,'local_trusted_business_owner_v1',v_confirmation
+      v_reason,v_reason,'local_trusted_business_owner_v1',format(
+        'SAVE STUDENT SETTLEMENT DRAFT %s %s MANIFEST %s',
+        v_student,'2020-07',repeat('0',64)
+      )
     );
     raise exception 'EXPECTED_STALE_PREVIEW_REJECTION_MISSING';
   exception when others then
-    if position('SETTLEMENT_LOCAL_CONFIRMATION_MISMATCH' in sqlerrm)=0
-       and position('SETTLEMENT_LOCAL_EXPECTED_FACTS_MISMATCH' in sqlerrm)=0 then raise; end if;
+    if position('SETTLEMENT_LOCAL_EXPECTED_FACTS_MISMATCH' in sqlerrm)=0 then raise; end if;
   end;
 
   v_save := public.school_save_student_settlement_draft_local(
@@ -160,6 +173,30 @@ begin
      or (v_lock->>'active_claim_count')::integer <> 2
      or (v_lock->>'final_carryover_cny')::numeric <> -624.75 then
     raise exception 'P0F_LOCAL_WRAPPER_LOCK_FAILED: %',v_lock;
+  end if;
+  begin
+    perform public.school_lock_student_monthly_settlement_local(
+      v_student,v_entity,'2020-07','net_lesson_variance_to_financial_credit_v1',
+      0.042,'codex_test_confirmed_rate_v1','2020-07-01','carry_final_balance',null,
+      v_manifest,v_lesson_manifest,2,-17000,2125,-14875,-624.75,-624.75,-624.75,
+      v_source_id,v_source_updated + interval '1 second',v_adjustment_id,v_adjustment_updated,
+      v_reason,'local_trusted_business_owner_v1',v_confirmation
+    );
+    raise exception 'EXPECTED_DUPLICATE_LOCK_STALE_DRAFT_REJECTION_MISSING';
+  exception when others then
+    if position('SETTLEMENT_LOCAL_DUPLICATE_LOCK_FACTS_MISMATCH' in sqlerrm)=0 then raise; end if;
+  end;
+  v_lock := public.school_lock_student_monthly_settlement_local(
+    v_student,v_entity,'2020-07','net_lesson_variance_to_financial_credit_v1',
+    0.042,'codex_test_confirmed_rate_v1','2020-07-01','carry_final_balance',null,
+    v_manifest,v_lesson_manifest,2,-17000,2125,-14875,-624.75,-624.75,-624.75,
+    v_source_id,v_source_updated,v_adjustment_id,v_adjustment_updated,
+    v_reason,'local_trusted_business_owner_v1',v_confirmation
+  );
+  if not coalesce((v_lock->>'idempotent')::boolean,false)
+     or v_lock->>'settlement_status' <> 'locked'
+     or (v_lock->>'active_claim_count')::integer <> 2 then
+    raise exception 'P0F_LOCAL_WRAPPER_DUPLICATE_LOCK_FAILED: %',v_lock;
   end if;
 end
 $service_role_test$;
