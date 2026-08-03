@@ -3,14 +3,14 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchSettlementBusinessEntities,
   fetchSettlementStudents,
-  fetchStudentSettlementSourceTreatmentPreview,
+  fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
   lockStudentMonthlySettlement,
   relockStudentMonthlySettlement,
   setStudentSettlementSourceTreatmentDraft,
   setStudentMonthlySettlementDraftAdjustment,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js?v=p0f-20260803-1";
+} from "../api/settlement-api.js?v=p0f-dialog-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -58,6 +58,11 @@ let currentStatusAction = "";
 let isStatusActionSubmitting = false;
 let currentAdjustmentSettlement = null;
 let isAdjustmentSubmitting = false;
+let isAdjustmentPreviewLoading = false;
+let currentAdjustmentPreview = null;
+let currentAdjustmentPreviewSignature = "";
+let currentAdjustmentState = null;
+let adjustmentPreviewRequestSequence = 0;
 
 export function initSettlementPage() {
   cacheDom();
@@ -113,7 +118,12 @@ function cacheDom() {
   dom.statusActionSubmitButton = document.querySelector("#settlementStatusActionSubmitButton");
   dom.statusActionCancelButton = document.querySelector("#settlementStatusActionCancelButton");
   dom.adjustmentDialog = document.querySelector("#settlementAdjustmentDialog");
+  dom.adjustmentCurrentState = document.querySelector("#settlementAdjustmentCurrentState");
+  dom.adjustmentCurrentStateBadge = document.querySelector("#settlementAdjustmentCurrentStateBadge");
   dom.adjustmentSummary = document.querySelector("#settlementAdjustmentSummary");
+  dom.adjustmentSourceLines = document.querySelector("#settlementAdjustmentSourceLines");
+  dom.adjustmentPreviewStatus = document.querySelector("#settlementAdjustmentPreviewStatus");
+  dom.adjustmentPreviewBadge = document.querySelector("#settlementAdjustmentPreviewBadge");
   dom.adjustmentError = document.querySelector("#settlementAdjustmentError");
   dom.adjustmentAmountInput = document.querySelector("#settlementAdjustmentAmountInput");
   dom.sourceTreatmentModeInput = document.querySelector("#settlementSourceTreatmentModeInput");
@@ -126,6 +136,7 @@ function cacheDom() {
   dom.adjustmentReasonInput = document.querySelector("#settlementAdjustmentReasonInput");
   dom.adjustmentNoteInput = document.querySelector("#settlementAdjustmentNoteInput");
   dom.adjustmentConfirmCheckbox = document.querySelector("#settlementAdjustmentConfirmCheckbox");
+  dom.adjustmentPreviewButton = document.querySelector("#settlementAdjustmentPreviewButton");
   dom.adjustmentSubmitButton = document.querySelector("#settlementAdjustmentSubmitButton");
   dom.adjustmentCancelButton = document.querySelector("#settlementAdjustmentCancelButton");
 }
@@ -194,6 +205,7 @@ function bindEvents() {
   });
 
   dom.adjustmentCancelButton?.addEventListener("click", () => closeAdjustmentDialog());
+  dom.adjustmentPreviewButton?.addEventListener("click", () => refreshAdjustmentDialogPreview());
   dom.adjustmentSubmitButton?.addEventListener("click", handleAdjustmentSubmit);
   [
     ["amount", dom.adjustmentAmountInput],
@@ -203,7 +215,7 @@ function bindEvents() {
     element?.addEventListener("input", () => {
       clearAdjustmentFieldInvalid(fieldId);
       if (fieldId === "amount") {
-        renderAdjustmentSummary(currentAdjustmentSettlement);
+        invalidateAdjustmentPreview();
       }
       hideAdjustmentErrorIfClean();
     });
@@ -211,20 +223,21 @@ function bindEvents() {
   dom.adjustmentSourceInput?.addEventListener("change", () => {
     clearAdjustmentFieldInvalid("source");
     applyAdjustmentMode();
+    invalidateAdjustmentPreview();
     hideAdjustmentErrorIfClean();
   });
   dom.sourceTreatmentModeInput?.addEventListener("change", () => {
     applySourceTreatmentMode();
-    refreshSourceTreatmentPreview();
+    invalidateAdjustmentPreview();
   });
   [
     ["settlementRate", dom.settlementExchangeRateInput],
     ["settlementRateSource", dom.settlementExchangeRateSourceInput],
     ["settlementRateDate", dom.settlementExchangeRateEffectiveDateInput],
   ].forEach(([fieldId, element]) => {
-    element?.addEventListener("change", () => {
+    element?.addEventListener("input", () => {
       clearAdjustmentFieldInvalid(fieldId);
-      refreshSourceTreatmentPreview();
+      invalidateAdjustmentPreview();
     });
   });
   dom.adjustmentConfirmCheckbox?.addEventListener("change", () => {
@@ -914,10 +927,18 @@ function openAdjustmentDialog(settlementId) {
   clearAdjustmentErrors();
   applyAdjustmentMode({ preserveManualAmount: true });
   applySourceTreatmentMode();
+  adjustmentPreviewRequestSequence += 1;
+  currentAdjustmentPreview = null;
+  currentAdjustmentPreviewSignature = "";
+  currentAdjustmentState = null;
+  isAdjustmentPreviewLoading = false;
+  renderAdjustmentCurrentState(null, row);
+  renderAdjustmentPendingPreview(null, "正在取得数据库只读预览…", "读取中");
   setAdjustmentSubmitting(false);
   dom.adjustmentDialog.classList.remove("is-hidden");
   dom.adjustmentDialog.setAttribute("aria-hidden", "false");
   dom.adjustmentSourceInput.focus();
+  void refreshAdjustmentDialogPreview({ silentValidation: true });
 }
 
 function closeAdjustmentDialog(force = false) {
@@ -927,48 +948,123 @@ function closeAdjustmentDialog(force = false) {
 
   dom.adjustmentDialog?.classList.add("is-hidden");
   dom.adjustmentDialog?.setAttribute("aria-hidden", "true");
+  adjustmentPreviewRequestSequence += 1;
   currentAdjustmentSettlement = null;
+  currentAdjustmentPreview = null;
+  currentAdjustmentPreviewSignature = "";
+  currentAdjustmentState = null;
+  isAdjustmentPreviewLoading = false;
   clearAdjustmentErrors();
 }
 
-function renderAdjustmentSummary(row) {
-  if (!row) {
-    dom.adjustmentSummary.innerHTML = "";
-    return;
-  }
-
-  const mode = dom.adjustmentSourceInput.value || adjustmentModeForRow(row);
-  const isSavedMode = row.adjustment_source === mode;
-  const authoritativeAdjustment = isSavedMode
-    ? formatCurrency(row.adjustment_amount_cny, "CNY")
-    : "保存后由数据库计算";
-  const authoritativeCarryover = isSavedMode
-    ? formatCurrency(row.carryover_amount_cny, "CNY")
-    : "保存后由数据库计算";
-  dom.adjustmentSummary.innerHTML = [
-    ["学生", nameById(students, row.student_id, studentName)],
-    ["结算月份", formatMonth(row.year_month)],
-    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
-    ["课时差额处理", sourceTreatmentModeLabel(row.source_treatment_mode)],
-    ["预定金额", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
-    ["实际履约金额", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
-    ["未履约 credit", formatCurrency(row.unused_planned_credit_jpy, "JPY")],
-    ["待补小时", displayValue(row.pending_makeup_hours)],
-    ["超额小时", displayValue(row.overage_hours)],
-    ["超额收费", formatCurrency(row.overage_charge_jpy, "JPY")],
-    ["课时净额", formatCurrency(row.net_lesson_variance_jpy, "JPY")],
-    ["显式结算汇率", displayValue(row.settlement_exchange_rate)],
-    ["课时净额 CNY", formatCurrency(row.net_lesson_variance_cny, "CNY")],
-    ["前期结转", formatCurrency(row.previous_balance_cny, "CNY")],
-    ["系统差额", formatCurrency(row.system_difference_cny, "CNY")],
-    ["数据库权威调整", authoritativeAdjustment],
-    ["数据库权威结转", authoritativeCarryover],
-  ].map(([label, value]) => `
+function renderSummaryRows(rows) {
+  return rows.map(([label, value]) => `
     <div class="dialog-summary-row">
       <span class="dialog-summary-label">${escapeHtml(label)}</span>
       <span>${escapeHtml(displayValue(value))}</span>
     </div>
   `).join("");
+}
+
+function renderAdjustmentCurrentState(state, row = currentAdjustmentSettlement) {
+  if (!row) return;
+  if (!state) {
+    dom.adjustmentCurrentStateBadge.textContent = "读取中";
+    dom.adjustmentCurrentState.innerHTML = renderSummaryRows([
+      ["学生", nameById(students, row.student_id, studentName)],
+      ["结算月份", formatMonth(row.year_month)],
+      ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
+      ["数据库状态", "正在读取…"],
+    ]);
+    return;
+  }
+  dom.adjustmentCurrentStateBadge.textContent = state.is_saved ? "已保存" : "尚未保存";
+  dom.adjustmentCurrentState.innerHTML = renderSummaryRows([
+    ["学生", nameById(students, row.student_id, studentName)],
+    ["结算月份", formatMonth(row.year_month)],
+    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
+    ["保存状态", state.is_saved ? "已有数据库保存事实" : "尚未保存"],
+    ["结算状态", state.settlement_status
+      ? (SETTLEMENT_STATUS_LABELS[state.settlement_status] || state.settlement_status)
+      : "尚未创建"],
+    ["锁定状态", state.is_locked ? "已锁定" : "未锁定"],
+    ["source draft", state.source_treatment_draft_id || "尚未保存"],
+    ["当前处理方式", state.source_treatment_mode
+      ? sourceTreatmentModeLabel(state.source_treatment_mode) : "尚未保存"],
+    ["当前汇率", state.settlement_exchange_rate ?? "-"],
+    ["adjustment draft", state.adjustment_draft_id || "尚未保存"],
+    ["当前调整方式", state.adjustment_mode
+      ? adjustmentModeLabel(state.adjustment_mode) : "尚未保存"],
+    ["当前 draft 调整", formatCurrency(state.draft_adjustment_amount_cny, "CNY")],
+    ["已固化调整", formatCurrency(state.posted_adjustment_amount_cny, "CNY")],
+    ["已固化结转", formatCurrency(state.posted_carryover_cny, "CNY")],
+  ]);
+}
+
+function renderAdjustmentPendingPreview(result, message, badge = "待更新") {
+  dom.adjustmentPreviewBadge.textContent = badge;
+  dom.adjustmentPreviewStatus.textContent = message;
+  if (!result?.preview) {
+    dom.adjustmentSummary.innerHTML = "";
+    dom.adjustmentSourceLines.innerHTML = "";
+    return;
+  }
+  const preview = result.preview;
+  const state = result.current_state || {};
+  dom.adjustmentSummary.innerHTML = renderSummaryRows([
+    ["课时差额处理", sourceTreatmentModeLabel(preview.source_treatment_mode)],
+    ["预定摘要", `${displayValue(preview.planned_hours)} 小时 / ${formatCurrency(preview.planned_fee_jpy, "JPY")}`],
+    ["实际摘要", `${displayValue(preview.actual_hours)} 小时 / ${formatCurrency(preview.actual_fee_jpy, "JPY")}`],
+    ["待补小时", `${displayValue(preview.pending_makeup_hours)} 小时`],
+    ["未履约 credit", formatSignedCurrency(preview.unused_planned_credit_jpy, "JPY")],
+    ["超额小时", `${displayValue(preview.overage_hours)} 小时`],
+    ["超额收费", formatSignedCurrency(preview.overage_charge_jpy, "JPY")],
+    ["课时净小时", `${displayValue(preview.lesson_variance_display_hours)} 小时`],
+    ["课时净额 JPY", formatSignedCurrency(preview.net_lesson_variance_jpy, "JPY")],
+    ["显式结算汇率", displayValue(preview.settlement_exchange_rate)],
+    ["课时净额 CNY", formatSignedCurrency(preview.net_lesson_variance_cny, "CNY")],
+    ["前期结转", formatSignedCurrency(preview.previous_carryover_cny, "CNY")],
+    ["收款等值", formatSignedCurrency(preview.received_equivalent_cny, "CNY")],
+    ["收款基础差额", formatSignedCurrency(preview.base_receivable_difference_cny, "CNY")],
+    ["当前 draft 调整", formatSignedCurrency(state.draft_adjustment_amount_cny, "CNY")],
+    ["已固化调整", formatSignedCurrency(state.posted_adjustment_amount_cny, "CNY")],
+    ["projected system difference", formatSignedCurrency(preview.system_difference_cny, "CNY")],
+    ["projected adjustment", formatSignedCurrency(preview.projected_adjustment_amount_cny, "CNY")],
+    ["projected final carryover", formatSignedCurrency(preview.projected_final_carryover_cny, "CNY")],
+    ["来源 manifest", result.preview_manifest_sha256],
+    ["来源更新时间", formatDate(preview.source_updated_at)],
+    ["预览生成时间", formatDate(result.preview_generated_at)],
+  ]);
+  renderAdjustmentSourceLines(preview.source_lines || []);
+}
+
+function renderAdjustmentSourceLines(lines) {
+  if (!lines.length) {
+    dom.adjustmentSourceLines.innerHTML = '<p class="section-note">当前模式没有可财务净额化的 source。</p>';
+    return;
+  }
+  dom.adjustmentSourceLines.innerHTML = `
+    <table class="settlement-adjustment-source-table">
+      <thead><tr><th>来源</th><th>日期 / 科目</th><th>小时</th><th>单价</th><th>JPY</th><th>CNY</th><th>claim</th></tr></thead>
+      <tbody>${lines.map((line) => {
+        const isUnused = line.source_type === "unused_planned_credit_v1";
+        const sourceId = isUnused ? line.source_planned_lesson_id : line.source_actual_lesson_id;
+        const sourceDate = isUnused ? line.planned_lesson_date : line.actual_lesson_date;
+        const sourceHours = isUnused
+          ? `${displayValue(line.remaining_hours)} 小时剩余`
+          : `${displayValue(line.overage_hours)} 小时 / ${displayValue(line.overage_minutes)} 分钟`;
+        return `<tr>
+          <td>${escapeHtml(isUnused ? "待补未履约" : "actual 超额")}
+            <code class="settlement-adjustment-source-id">${escapeHtml(sourceId)}</code></td>
+          <td>${escapeHtml(displayValue(sourceDate))}<br>${escapeHtml(displayValue(line.subject_name))}</td>
+          <td>${escapeHtml(sourceHours)}</td>
+          <td>${escapeHtml(formatCurrency(line.unit_price_jpy, "JPY"))}</td>
+          <td>${escapeHtml(formatSignedCurrency(line.source_amount_jpy, "JPY"))}</td>
+          <td>${escapeHtml(formatSignedCurrency(line.source_amount_cny, "CNY"))}</td>
+          <td>${escapeHtml(line.claim_eligible ? "eligible" : (line.exclusion_reason || "excluded"))}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>`;
 }
 
 function applySourceTreatmentMode() {
@@ -983,20 +1079,77 @@ function applySourceTreatmentMode() {
   }
 }
 
-async function refreshSourceTreatmentPreview() {
+function invalidateAdjustmentPreview() {
+  if (!currentAdjustmentSettlement) return;
+  adjustmentPreviewRequestSequence += 1;
+  isAdjustmentPreviewLoading = false;
+  currentAdjustmentPreview = null;
+  currentAdjustmentPreviewSignature = "";
+  renderAdjustmentPendingPreview(
+    null,
+    "表单已变更，旧预览已失效。请点击“更新数据库预览”。",
+    "已过期"
+  );
+  updateAdjustmentActionState();
+}
+
+async function refreshAdjustmentDialogPreview({ silentValidation = false } = {}) {
   if (!currentAdjustmentSettlement || isAdjustmentSubmitting) return;
-  const treatment = readSourceTreatmentInput({ validate: false });
-  if (!treatment) return;
+  clearAdjustmentPreviewFieldErrors();
+  const input = readAdjustmentPreviewInput({ validate: !silentValidation });
+  if (!input) {
+    invalidateAdjustmentPreview();
+    if (!silentValidation) {
+      showAdjustmentError("请完整填写当前模式所需输入后再更新数据库预览。");
+    }
+    return;
+  }
+  const requestSequence = ++adjustmentPreviewRequestSequence;
+  const requestSignature = adjustmentPreviewSignature(input);
+  const settlementKey = `${currentAdjustmentSettlement.student_id}|${currentAdjustmentSettlement.year_month}`;
+  isAdjustmentPreviewLoading = true;
+  currentAdjustmentPreview = null;
+  currentAdjustmentPreviewSignature = "";
+  renderAdjustmentPendingPreview(null, "正在更新数据库只读预览…", "更新中");
+  updateAdjustmentActionState();
   try {
-    const preview = await fetchStudentSettlementSourceTreatmentPreview({
+    const result = await fetchStudentSettlementAdjustmentDialogPreview({
       studentId: currentAdjustmentSettlement.student_id,
+      businessEntityId: currentAdjustmentSettlement.business_entity_id,
       yearMonth: currentAdjustmentSettlement.year_month,
-      ...treatment,
+      ...input,
     });
-    currentAdjustmentSettlement = { ...currentAdjustmentSettlement, ...preview };
-    renderAdjustmentSummary(currentAdjustmentSettlement);
+    const activeKey = currentAdjustmentSettlement
+      ? `${currentAdjustmentSettlement.student_id}|${currentAdjustmentSettlement.year_month}` : "";
+    if (requestSequence !== adjustmentPreviewRequestSequence || activeKey !== settlementKey) return;
+    const currentInput = readAdjustmentPreviewInput({ validate: false });
+    if (!currentInput || adjustmentPreviewSignature(currentInput) !== requestSignature) {
+      invalidateAdjustmentPreview();
+      return;
+    }
+    if (responsePreviewSignature(result) !== requestSignature) {
+      throw new Error("数据库预览返回的 expected facts 与当前表单不一致，请重新更新预览。");
+    }
+    currentAdjustmentState = result.current_state || null;
+    currentAdjustmentPreview = result;
+    currentAdjustmentPreviewSignature = requestSignature;
+    renderAdjustmentCurrentState(currentAdjustmentState);
+    renderAdjustmentPendingPreview(
+      result,
+      "以下金额为数据库只读预览，尚未保存。",
+      "DB 已更新"
+    );
   } catch (error) {
+    if (requestSequence !== adjustmentPreviewRequestSequence) return;
+    currentAdjustmentPreview = null;
+    currentAdjustmentPreviewSignature = "";
+    renderAdjustmentPendingPreview(null, "数据库预览失败，保存已禁用。", "失败");
     showAdjustmentError(error.message || String(error));
+  } finally {
+    if (requestSequence === adjustmentPreviewRequestSequence) {
+      isAdjustmentPreviewLoading = false;
+      updateAdjustmentActionState();
+    }
   }
 }
 
@@ -1020,7 +1173,7 @@ function readSourceTreatmentInput({ validate = true } = {}) {
   if (rate === null || !Number.isFinite(rate) || rate <= 0) invalid.push("settlementRate");
   if (!rateSource) invalid.push("settlementRateSource");
   if (!effectiveDate) invalid.push("settlementRateDate");
-  invalid.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
+  if (validate) invalid.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
   if (invalid.length) return null;
   return {
     sourceTreatmentMode,
@@ -1028,6 +1181,61 @@ function readSourceTreatmentInput({ validate = true } = {}) {
     settlementExchangeRateSource: rateSource,
     settlementExchangeRateEffectiveDate: effectiveDate,
   };
+}
+
+function readAdjustmentPreviewInput({ validate = true } = {}) {
+  const treatment = readSourceTreatmentInput({ validate });
+  const adjustmentMode = dom.adjustmentSourceInput.value.trim();
+  const isManual = adjustmentMode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
+  const amountText = dom.adjustmentAmountInput.value.trim();
+  const explicitUserAmountCny = isManual && amountText !== "" ? Number(amountText) : null;
+  const invalid = [];
+  if (!treatment) invalid.push("sourceTreatmentMode");
+  if (!Object.values(ADJUSTMENT_MODES).includes(adjustmentMode)) invalid.push("source");
+  if (isManual && (explicitUserAmountCny === null || !Number.isFinite(explicitUserAmountCny))) {
+    invalid.push("amount");
+  }
+  if (!validate && invalid.length) return null;
+  if (validate) invalid.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
+  if (invalid.length) return null;
+  return {
+    ...treatment,
+    adjustmentMode,
+    explicitUserAmountCny,
+  };
+}
+
+function adjustmentPreviewSignature(input) {
+  return JSON.stringify({
+    sourceTreatmentMode: input.sourceTreatmentMode,
+    settlementExchangeRate: input.settlementExchangeRate ?? null,
+    settlementExchangeRateSource: input.settlementExchangeRateSource || null,
+    settlementExchangeRateEffectiveDate: input.settlementExchangeRateEffectiveDate || null,
+    adjustmentMode: input.adjustmentMode,
+    explicitUserAmountCny: input.explicitUserAmountCny ?? null,
+  });
+}
+
+function responsePreviewSignature(result) {
+  const expected = result?.preview_expected_facts || {};
+  return adjustmentPreviewSignature({
+    sourceTreatmentMode: expected.source_treatment_mode,
+    settlementExchangeRate: expected.settlement_exchange_rate === null
+      || expected.settlement_exchange_rate === undefined
+      ? null : Number(expected.settlement_exchange_rate),
+    settlementExchangeRateSource: expected.settlement_exchange_rate_source || null,
+    settlementExchangeRateEffectiveDate: expected.settlement_exchange_rate_effective_date || null,
+    adjustmentMode: expected.adjustment_mode,
+    explicitUserAmountCny: expected.explicit_user_amount_cny === null
+      || expected.explicit_user_amount_cny === undefined
+      ? null : Number(expected.explicit_user_amount_cny),
+  });
+}
+
+function clearAdjustmentPreviewFieldErrors() {
+  ["amount", "source", "sourceTreatmentMode", "settlementRate",
+    "settlementRateSource", "settlementRateDate"].forEach(clearAdjustmentFieldInvalid);
+  hideAdjustmentErrorIfClean();
 }
 
 function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
@@ -1057,7 +1265,7 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
     dom.adjustmentAmountInput.value = "";
   }
 
-  renderAdjustmentSummary(currentAdjustmentSettlement);
+  updateAdjustmentActionState();
 }
 
 async function handleAdjustmentSubmit() {
@@ -1072,14 +1280,26 @@ async function handleAdjustmentSubmit() {
     return;
   }
 
-  const source = dom.adjustmentSourceInput.value.trim();
+  const previewInput = readAdjustmentPreviewInput();
+  const previewIsCurrent = previewInput
+    && currentAdjustmentPreview
+    && currentAdjustmentPreviewSignature === adjustmentPreviewSignature(previewInput);
+  if (!previewIsCurrent || isAdjustmentPreviewLoading) {
+    invalidateAdjustmentPreview();
+    showAdjustmentError("当前表单尚无匹配的数据库只读预览，请先点击“更新数据库预览”。");
+    return;
+  }
+
+  const source = previewInput.adjustmentMode;
   const isManual = source === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
-  const explicitAmountText = dom.adjustmentAmountInput.value.trim();
-  const amount = isManual && explicitAmountText !== ""
-    ? Number(explicitAmountText)
-    : null;
+  const amount = previewInput.explicitUserAmountCny;
   const reason = dom.adjustmentReasonInput.value.trim();
-  const treatment = readSourceTreatmentInput();
+  const treatment = {
+    sourceTreatmentMode: previewInput.sourceTreatmentMode,
+    settlementExchangeRate: previewInput.settlementExchangeRate,
+    settlementExchangeRateSource: previewInput.settlementExchangeRateSource,
+    settlementExchangeRateEffectiveDate: previewInput.settlementExchangeRateEffectiveDate,
+  };
   const invalidFields = [];
   if (isManual && (amount === null || !Number.isFinite(amount))) invalidFields.push("amount");
   if (!source) invalidFields.push("source");
@@ -1130,9 +1350,22 @@ async function handleAdjustmentSubmit() {
 
 function setAdjustmentSubmitting(isSubmitting) {
   isAdjustmentSubmitting = isSubmitting;
-  dom.adjustmentSubmitButton.disabled = isSubmitting;
   dom.adjustmentCancelButton.disabled = isSubmitting;
-  dom.adjustmentSubmitButton.textContent = isSubmitting ? "保存中..." : "保存差额调整";
+  dom.adjustmentSubmitButton.textContent = isSubmitting ? "保存中..." : "保存锁定前设置";
+  updateAdjustmentActionState();
+}
+
+function updateAdjustmentActionState() {
+  const input = currentAdjustmentSettlement
+    ? readAdjustmentPreviewInput({ validate: false }) : null;
+  const previewIsCurrent = Boolean(
+    input && currentAdjustmentPreview
+    && currentAdjustmentPreviewSignature === adjustmentPreviewSignature(input)
+  );
+  dom.adjustmentPreviewButton.disabled = isAdjustmentSubmitting || isAdjustmentPreviewLoading;
+  dom.adjustmentPreviewButton.textContent = isAdjustmentPreviewLoading
+    ? "更新中..." : "更新数据库预览";
+  dom.adjustmentSubmitButton.disabled = isAdjustmentSubmitting || !previewIsCurrent;
 }
 
 function clearAdjustmentErrors() {
@@ -1180,6 +1413,21 @@ function sourceTreatmentModeLabel(value) {
     return "待补与超额转财务净额";
   }
   return "待补与超额分别处理（旧合同）";
+}
+
+function adjustmentModeLabel(value) {
+  if (value === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE) return "按最终差额结转";
+  if (value === ADJUSTMENT_MODES.CLEAR_BALANCE) return "抹平差额";
+  if (value === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT) return "手动调整";
+  return displayValue(value);
+}
+
+function formatSignedCurrency(value, currency) {
+  if (value === null || value === undefined || value === "") return "-";
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return formatCurrency(value, currency);
+  const formatted = formatCurrency(numberValue, currency);
+  return numberValue > 0 ? `+${formatted}` : formatted;
 }
 
 function numberOrZero(value) {

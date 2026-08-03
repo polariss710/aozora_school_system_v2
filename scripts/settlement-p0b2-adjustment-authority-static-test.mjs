@@ -17,8 +17,8 @@ assert.doesNotMatch(api, /school_apply_student_monthly_settlement_adjustment/);
 assert.match(api, /p_adjustment_amount_cny:\s*explicitUserAmount/);
 assert.match(api, /p_adjustment_source:\s*adjustmentMode/);
 assert.match(api, /adjustmentMode !== "manual_adjustment" && explicitUserAmount !== null/);
-assert.match(page, /explicitAmountText !== ""/);
-assert.match(page, /amount === null \|\| !Number\.isFinite\(amount\)/);
+assert.match(page, /isManual && amountText !== ""/);
+assert.match(page, /explicitUserAmountCny === null \|\| !Number\.isFinite\(explicitUserAmountCny\)/);
 
 const optionModes = [...html.matchAll(/<option value="([^"]+)">(?:按最终差额结转|抹平差额|手动调整)<\/option>/g)]
   .map((match) => match[1]);

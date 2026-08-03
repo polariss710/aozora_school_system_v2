@@ -242,6 +242,20 @@ export async function fetchStudentSettlementSourceTreatmentPreview(payload) {
   });
 }
 
+export async function fetchStudentSettlementAdjustmentDialogPreview(payload) {
+  return fetchRpcSingle("school_preview_student_settlement_adjustment_dialog", {
+    p_student_id: payload.studentId,
+    p_business_entity_id: payload.businessEntityId,
+    p_year_month: payload.yearMonth,
+    p_source_treatment_mode: payload.sourceTreatmentMode,
+    p_settlement_exchange_rate: payload.settlementExchangeRate ?? null,
+    p_settlement_exchange_rate_source: payload.settlementExchangeRateSource || null,
+    p_settlement_exchange_rate_effective_date: payload.settlementExchangeRateEffectiveDate || null,
+    p_adjustment_mode: payload.adjustmentMode,
+    p_explicit_user_amount_cny: payload.explicitUserAmountCny ?? null,
+  });
+}
+
 export async function setStudentSettlementSourceTreatmentDraft(payload) {
   return fetchRpcSingle("school_set_student_settlement_source_treatment_draft", {
     p_student_id: payload.studentId,

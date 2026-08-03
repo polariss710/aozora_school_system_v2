@@ -4737,6 +4737,139 @@ h2 {
   width: min(620px, 100%);
 }
 
+.settlement-adjustment-dialog-panel {
+  display: flex;
+  width: min(1040px, 100%);
+  max-height: min(90vh, calc(100vh - 32px));
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+@supports (height: 100dvh) {
+  .settlement-adjustment-dialog-panel {
+    max-height: min(90dvh, calc(100dvh - 32px));
+  }
+}
+
+.settlement-adjustment-dialog-panel > .section-heading {
+  flex: 0 0 auto;
+  margin: 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  padding: 16px 18px 12px;
+}
+
+.settlement-adjustment-dialog-panel > .dialog-error {
+  flex: 0 0 auto;
+  margin: 10px 18px 0;
+}
+
+.settlement-adjustment-dialog-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 18px;
+}
+
+.settlement-adjustment-dialog-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(330px, 0.88fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.settlement-adjustment-preview-column,
+.settlement-adjustment-input-column {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
+}
+
+.settlement-adjustment-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 11px;
+}
+
+.settlement-adjustment-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.settlement-adjustment-card-heading h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.settlement-adjustment-card .dialog-summary {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 12px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.settlement-adjustment-card .dialog-summary-row {
+  grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);
+  border-bottom: 1px solid #edf1f5;
+  padding: 6px 0;
+}
+
+.settlement-adjustment-card .dialog-summary-row > :last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.settlement-adjustment-source-lines {
+  margin-top: 10px;
+  overflow-x: auto;
+}
+
+.settlement-adjustment-source-table {
+  width: 100%;
+  min-width: 660px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.settlement-adjustment-source-table th,
+.settlement-adjustment-source-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.settlement-adjustment-source-table th {
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.settlement-adjustment-source-id {
+  display: block;
+  max-width: 180px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.settlement-adjustment-footer {
+  flex: 0 0 auto;
+  margin: 0;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+  padding: 12px 18px;
+}
+
 .reimbursement-reversal-links {
   display: flex;
   flex-wrap: wrap;
@@ -5051,8 +5184,26 @@ h2 {
     max-height: calc(100vh - 24px);
   }
 
+  .settlement-adjustment-dialog-panel {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+  }
+
+  .settlement-adjustment-dialog-grid,
+  .settlement-adjustment-card .dialog-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settlement-adjustment-footer {
+    flex-wrap: wrap;
+  }
+
   @supports (height: 100dvh) {
     .tuition-bill-dialog-panel {
+      max-height: calc(100dvh - 24px);
+    }
+
+    .settlement-adjustment-dialog-panel {
       max-height: calc(100dvh - 24px);
     }
   }
