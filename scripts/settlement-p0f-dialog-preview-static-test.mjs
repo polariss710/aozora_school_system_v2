@@ -16,7 +16,7 @@ assert.match(html, /当前已保存状态/);
 assert.match(html, /表单待提交 Preview/);
 assert.match(html, /id="settlementAdjustmentPreviewButton"[^>]*>更新数据库预览/);
 assert.match(html, /id="settlementAdjustmentSubmitButton"[^>]*disabled[^>]*>仅本机受信工具可保存/);
-assert.match(html, /settlement-trusted-tool-20260803-1/g);
+assert.match(html, /settlement-app\.js\?v=p0-g1-a-20260804-1/);
 
 assert.match(css, /\.settlement-adjustment-dialog-panel\s*\{[\s\S]*?width:\s*min\(1040px, 100%\)/);
 assert.match(css, /grid-template-columns:\s*minmax\(0, 1\.12fr\) minmax\(330px, 0\.88fr\)/);

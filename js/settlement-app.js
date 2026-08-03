@@ -1,9 +1,13 @@
 import { APP_VERSION } from "./config.js?v=settlement-trusted-tool-20260803-1";
+import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
 import { initSettlementPage } from "./pages/settlement-page.js?v=settlement-trusted-tool-20260803-1";
 
 const SETTLEMENT_PAGE_VERSION = "settlement-trusted-tool-20260803-1";
 
-document.addEventListener("DOMContentLoaded", () => {
+const globalSessionPromise = requireGlobalSession();
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await globalSessionPromise;
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = `${APP_VERSION} · ${SETTLEMENT_PAGE_VERSION}`;

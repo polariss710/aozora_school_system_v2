@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>青空塾 管理系统 v2 / 登录</title>
+    <link rel="stylesheet" href="./css/app.css?v=p0-g1-a-20260804-1">
+  </head>
+  <body class="login-page">
+    <main class="login-shell">
+      <section class="login-card" aria-labelledby="loginTitle">
+        <p class="page-kicker">青空进学塾 管理系统 v2</p>
+        <h1 id="loginTitle">管理员登录</h1>
+        <p class="login-help">请使用已由业务负责人授权的School账号登录。</p>
+        <form id="loginForm" class="login-form">
+          <label>
+            <span>邮箱</span>
+            <input id="loginEmail" name="email" type="email" autocomplete="username" required>
+          </label>
+          <label>
+            <span>密码</span>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required>
+          </label>
+          <button id="loginSubmit" class="button button-primary" type="submit">登录</button>
+        </form>
+        <p id="loginMessage" class="login-message" role="status" aria-live="polite"></p>
+        <p class="login-version">版本 <span id="loginVersion"></span></p>
+      </section>
+    </main>
+    <script type="module" src="./js/login-app.js?v=p0-g1-a-20260804-1"></script>
+  </body>
+</html>

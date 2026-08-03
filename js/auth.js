@@ -1,58 +1,37 @@
-import { hasSupabaseConfig, supabase } from "./supabase-client.js";
+import {
+  getCurrentAuthContext,
+  getCurrentSession as getVerifiedSession,
+  signInAndVerify,
+  signOutLocal,
+} from "./api/auth-api.js?v=p0-g1-a-20260804-1";
 
 const authDom = {};
-let currentSession = null;
 let isInitialized = false;
 
 export function getCurrentSession() {
-  return currentSession;
+  return getVerifiedSession();
 }
 
 export function isLoggedIn() {
-  return Boolean(currentSession?.user);
+  return Boolean(getVerifiedSession()?.user && getCurrentAuthContext()?.membership?.is_active);
 }
 
 export function requireLoginForCashConfirmation(showMessage) {
-  if (isLoggedIn()) {
-    return true;
-  }
+  if (isLoggedIn()) return true;
 
   if (typeof showMessage === "function") {
-    showMessage("error", "请先登录后再提交到 Cash 确认。");
+    showMessage("error", "当前登录状态或系统权限无效，请重新登录。");
   }
-
   return false;
 }
 
 export async function initSchoolAuth() {
   cacheAuthDom();
-
-  if (!authDom.panel || isInitialized) {
-    return;
-  }
+  if (!authDom.panel || isInitialized) return;
 
   isInitialized = true;
   bindAuthEvents();
-
-  if (!hasSupabaseConfig()) {
-    renderAuthMessage("Supabase 未配置，登录不可用。", "error");
-    setAuthFormDisabled(true);
-    renderAuthState();
-    return;
-  }
-
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    renderAuthMessage(`读取登录状态失败：${error.message || error}`, "error");
-  }
-
-  currentSession = data?.session || null;
   renderAuthState();
-
-  supabase.auth.onAuthStateChange((_event, session) => {
-    currentSession = session || null;
-    renderAuthState();
-  });
 }
 
 function cacheAuthDom() {
@@ -74,92 +53,56 @@ function bindAuthEvents() {
 
 async function handleAuthLogin(event) {
   event.preventDefault();
-
-  const email = authDom.emailInput?.value.trim();
+  const email = authDom.emailInput?.value || "";
   const password = authDom.passwordInput?.value || "";
 
-  if (!email || !password) {
-    renderAuthMessage("请输入 email 和 password。", "error");
-    return;
-  }
-
   setAuthFormDisabled(true);
-  renderAuthMessage("正在登录...", "info");
-
+  renderAuthMessage("正在验证登录和系统权限…", "info");
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      throw error;
-    }
-
-    currentSession = data?.session || null;
+    await signInAndVerify(email, password);
     renderAuthMessage("登录成功。", "success");
     renderAuthState();
   } catch (error) {
-    renderAuthMessage(`登录失败：${error.message || error}`, "error");
+    renderAuthMessage(error?.message || "登录失败，请重试。", "error");
   } finally {
-    if (authDom.passwordInput) {
-      authDom.passwordInput.value = "";
-    }
+    if (authDom.passwordInput) authDom.passwordInput.value = "";
     setAuthFormDisabled(false);
   }
 }
 
 async function handleAuthLogout() {
   setAuthFormDisabled(true);
-  renderAuthMessage("正在登出...", "info");
-
+  renderAuthMessage("正在退出…", "info");
   try {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      throw error;
-    }
-
-    currentSession = null;
-    renderAuthMessage("已登出。", "success");
-    renderAuthState();
+    await signOutLocal();
+    window.location.replace(new URL("./login.html?reason=signed_out", window.location.href).href);
   } catch (error) {
-    renderAuthMessage(`登出失败：${error.message || error}`, "error");
-  } finally {
+    renderAuthMessage(error?.message || "退出失败，请重试。", "error");
     setAuthFormDisabled(false);
   }
 }
 
 function renderAuthState() {
-  const userEmail = currentSession?.user?.email || "";
+  const context = getCurrentAuthContext();
+  const userEmail = context?.user?.email || "";
+  const role = context?.membership?.role || "";
 
   authDom.form?.classList.toggle("is-hidden", Boolean(userEmail));
   authDom.userPanel?.classList.toggle("is-hidden", !userEmail);
-
   if (authDom.statusText) {
-    authDom.statusText.textContent = userEmail ? `已登录：${userEmail}` : "未登录";
+    authDom.statusText.textContent = userEmail ? `已登录：${userEmail}（${role}）` : "未登录";
   }
 }
 
 function renderAuthMessage(text, type) {
-  if (!authDom.message) {
-    return;
-  }
-
+  if (!authDom.message) return;
   authDom.message.textContent = text || "";
   authDom.message.className = text ? `auth-message auth-message-${type}` : "auth-message";
 }
 
 function setAuthFormDisabled(isDisabled) {
-  if (authDom.emailInput) {
-    authDom.emailInput.disabled = isDisabled;
-  }
-  if (authDom.passwordInput) {
-    authDom.passwordInput.disabled = isDisabled;
-  }
-  if (authDom.loginButton) {
-    authDom.loginButton.disabled = isDisabled;
-  }
-  if (authDom.logoutButton) {
-    authDom.logoutButton.disabled = isDisabled;
-  }
+  if (authDom.emailInput) authDom.emailInput.disabled = isDisabled;
+  if (authDom.passwordInput) authDom.passwordInput.disabled = isDisabled;
+  if (authDom.loginButton) authDom.loginButton.disabled = isDisabled;
+  if (authDom.logoutButton) authDom.logoutButton.disabled = isDisabled;
 }

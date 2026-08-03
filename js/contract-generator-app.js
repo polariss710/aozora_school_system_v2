@@ -1,7 +1,11 @@
 import { APP_VERSION } from "./config.js";
+import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
 import { initContractGeneratorPage } from "./pages/contract-generator-page.js?v=v10.3.31-contract-generator-beta";
 
-document.addEventListener("DOMContentLoaded", () => {
+const globalSessionPromise = requireGlobalSession();
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await globalSessionPromise;
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = APP_VERSION;

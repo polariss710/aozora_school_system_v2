@@ -6664,3 +6664,120 @@ h2 {
     padding: 4pt 6pt;
   }
 }
+html.auth-pending body {
+  visibility: hidden;
+}
+
+html.auth-authorized body {
+  visibility: visible;
+}
+
+.global-session-guard .auth-panel {
+  display: none !important;
+}
+
+.global-session-bar {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 8px 10px 8px 14px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.global-session-identity {
+  min-width: 0;
+  overflow: hidden;
+  color: #334155;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-session-logout {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 5px 12px;
+}
+
+.login-page {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.12), transparent 34%),
+    linear-gradient(145deg, #f8fafc, #eef2ff);
+}
+
+.login-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(430px, 100%);
+  padding: clamp(28px, 6vw, 44px);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.14);
+}
+
+.login-card h1 {
+  margin: 8px 0 10px;
+}
+
+.login-help,
+.login-version {
+  color: #64748b;
+}
+
+.login-form {
+  display: grid;
+  gap: 18px;
+  margin-top: 28px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-weight: 600;
+}
+
+.login-form input {
+  width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.login-message {
+  min-height: 22px;
+  margin: 18px 0 0;
+}
+
+.login-message-error {
+  color: #b91c1c;
+}
+
+.login-message-success {
+  color: #047857;
+}
+
+.login-message-info {
+  color: #1d4ed8;
+}
+
+.login-version {
+  margin: 20px 0 0;
+  font-size: 12px;
+}

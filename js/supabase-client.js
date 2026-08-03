@@ -13,18 +13,16 @@ const isConfigured = Boolean(
 const clientUrl = isConfigured ? normalizedConfig.url : "https://placeholder.supabase.co";
 const clientKey = isConfigured ? normalizedConfig.anonKey : "placeholder-anon-key";
 
-console.info("[aozora-school-v2:supabase-config]", {
-  hasUrl: Boolean(normalizedConfig.url),
-  hasAnonKey: Boolean(normalizedConfig.anonKey),
-  keyLength: normalizedConfig.anonKey.length,
-  keyPrefix: normalizedConfig.anonKey.slice(0, 5),
-});
-
 export function hasSupabaseConfig() {
   return isConfigured;
 }
 
 export const supabase = createClient(clientUrl, clientKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
   global: {
     headers: {
       apikey: clientKey,

@@ -1,7 +1,11 @@
 import { APP_VERSION } from "./config.js?v=p0f-readfix-20260803-1";
+import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
 import { initLessonPage } from "./pages/lesson-page.js?v=p0f-readfix-20260803-1";
 
-document.addEventListener("DOMContentLoaded", () => {
+const globalSessionPromise = requireGlobalSession();
+
+document.addEventListener("DOMContentLoaded", async () => {
+  await globalSessionPromise;
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = APP_VERSION;

@@ -25,8 +25,8 @@ assert.match(detailPage, /settlement\.editable === false/);
 assert.match(page, /if \(!preserveManualAmount\) \{[\s\S]*clearAdjustmentErrors\(\)/);
 assert.match(api, /adjustmentMode !== "manual_adjustment" && explicitUserAmount !== null/);
 assert.match(api, /p_adjustment_amount_cny:\s*explicitUserAmount/);
-assert.match(html, /settlement-trusted-tool-20260803-1/);
-assert.match(detailHtml, /p0e-20260803-1/);
+assert.match(html, /settlement-app\.js\?v=p0-g1-a-20260804-1/);
+assert.match(detailHtml, /settlement-detail-app\.js\?v=p0-g1-a-20260804-1/);
 
 assert.match(schema, /school_student_tuition_generation_revision_adjustments/);
 assert.match(schema, /adjustment_type='neutralize_historical_carryover_v1'/);
