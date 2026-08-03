@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-03 P0-F 月结 42501 权限冲突及彭宇晗真实 2026-07 月结已闭环：确认生产失败为 anon 对 `school_set_student_settlement_source_treatment_draft` 缺 EXECUTE（HTTP401/42501），函数体前拒绝且部分写入0；未给 anon 增权，页面升级 `v10.4.7 · settlement-trusted-tool-20260803-1` 后仅保留 DB Preview、隐藏财务写入口。新增 service-role-only 本机 `manage-student-settlement.zsh` 与两个最小 wrapper，完整校验 expected facts/manifest/确认文本并复用既有 P0-F/P0-B2 core；rollback、fixture residue0、ACL、幂等和共享锁回归通过。获本任务明确授权后，彭宇晗 July 已正式锁定 settlement `6ec3b815-5540-44bd-88ee-9e30a5284770`，两份 draft均 consumed、2条 immutable claim，DB权威 `-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`，carry `-624.75`。lesson、generation/revision、Cash与Gate未改；真实业务写入严格限于该 settlement/draft/zero adjustment/claims。提交 `fb3812c`、`1d3e08c` 已交付；等待彭宇晗、李天伦最终 Reissue 独立授权。
+
 - 2026-08-03 月结业务错误中文化与汇率日期限制已完成：新增集中 `js/api/business-error.js`，按仓库真实 P0-A至P0-F稳定码精确翻译月结错误，未知码显示通用中文并在次要位置保留稳定码；Dialog按settlement month动态设置汇率生效日`min/max`，越界立即使旧Preview失效并禁用保存，修正后必须重新调用DB Preview。DB日期guard、公式和权威未改。生产Chrome `v10.4.6 · settlement-error-i18n-20260803-1`确认彭宇晗7月范围`2026-07-01..31`，8月1日请求被HTTP400/`SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH`拒绝且主提示为动态中文，合法日期恢复`-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`；Console error/warning 0，未保存/锁定。School/Cash哈希与Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`7ad4305`已推送；详见`docs/school-v2-settlement-business-error-localization-20260803.md`。
 
 - 2026-08-03 P0-F 彭宇晗月结未保存 Preview 与 Dialog 已修复：生产 DB 公式原本正确，根因是旧 Dialog 继续展示列表行旧分离合同且表单变化未调用完整只读 preview。新增最小 anon 只读 `school_preview_student_settlement_adjustment_dialog`，current state 与 pending preview 分卡，expected facts/manifest/sequence/signature 防竞态，输入变化立即使 preview 过期并禁用保存；桌面改1040px双列、固定标题/footer、内部滚动、窄屏单列。生产 Chrome `v10.4.6 · p0f-dialog-20260803-1` 精确显示2h unused `-JPY17,000/-CNY714`、0.25h overage `+JPY2,125/+CNY89.25`、net `-1.75h/-JPY14,875/-CNY624.75`及两条source UUID，Console error/warning 0，未保存/锁定。两人既有9条lesson void与August claims 0保持；School/Cash全行哈希和Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`56c7783`已推送；详见`docs/school-v2-p0f-peng-settlement-preview-dialog-fix-20260803.md`。
@@ -11,6 +13,8 @@ Status date: 2026-08-03
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
 ## Current System State
+
+- 2026-08-03 P0-F 月结写入现为“anon页面只读 + 本机受信工具写入”：两个 wrapper仅service_role可执行，固定search path、JWT role/operator/确认文本、完整expected facts和共享锁，owner core继续owner-only，anon/authenticated writer与表DML未开放。彭宇晗2026-07已按单独授权锁定为 `6ec3b815-5540-44bd-88ee-9e30a5284770`，carry `-CNY624.75`，两条source/claim唯一消费；页面只读展示locked且无unlock/relock。Cash写入0，Gate仍`enabled / blocked / blocked`。详见三份 `school-v2-p0f-settlement-42501-*`、`school-v2-local-settlement-*`、`school-v2-peng-yuhan-202607-*` 报告。
 
 - 2026-08-03 月结错误中文化已完成：稳定业务码在统一API模块精确映射，未知稳定码不再把英文详情作为主信息；汇率生效日按当前结算月动态限制并保持DB最终guard。生产Chrome确认7月越界8月1日为HTTP400/既有稳定码、Preview失败且保存禁用，合法7月日期重新Preview后权威结转为`-CNY624.75`。本次无DB对象变更、无writer RPC、真实业务写入0，School/Cash哈希和Gate不变。详见`docs/school-v2-settlement-business-error-localization-20260803.md`。
 
@@ -71,7 +75,7 @@ This is the lightweight daily entry document. It intentionally keeps only the cu
 
 Stop and report immediately for:
 
-- 学费财务运营冻结：P0-A、P0-B1、P0-B2、P0-C均已完成，但在全量E2E复审和业务负责人另行恢复运营授权前，仍不得执行真实student settlement lock/unlock/revoke/relock、差额调整、tuition generate、Atomic Void/Reissue、tuition Cash submit或真实修复。生产Gate现为`enabled / blocked / blocked`，不得视为安全运营授权。
+- 学费财务运营继续按操作逐次授权：本轮彭宇晗2026-07 `save-draft + lock` 是已完成的单次明确例外，不构成通用恢复。后续仍不得执行任何未单独授权的 settlement save/lock/unlock/relock、tuition generate、Atomic Void/Reissue、Cash submit、历史修复或Gate开启；尤其彭宇晗、李天伦最终 Reissue 当前仍是 hard stop。生产Gate `enabled / blocked / blocked` 不等于运营授权。
 - missing required phase DB environment, unavailable `psql`, static check failure, rollback/commit test failure, abnormal git status, or unclear ownership of test data that cannot be solved by creating safe test data; School DB phases use `SCHOOL_SUPABASE_DB_URL`, Cash DB phases use `CASH_SUPABASE_DB_URL`, and secrets must not be printed or stored;
 - frontend/page JS deciding or computing persisted business-result values, including amounts, rounding, settlement/carryover defaults, wage totals, exchange-derived values, Cash request amounts, or lock snapshot totals, instead of using DB/RPC or backend API authority or explicit user input;
 - need for non-whitelisted real business data, current/unclosed real-month write validation, broad historical-data modification, historical repair, broad backfill, destructive cleanup, `delete`, `truncate`, `drop`, broad permission changes, or irreversible production operation;
@@ -79,6 +83,9 @@ Stop and report immediately for:
 - P0-C 已按业务负责人精确批准完成三表、历史manifest、consumed settlement、共享锁和固定synthetic fixture生命周期；旧的P0-C前置硬停止已解除。后续仍禁止未获批准的真实Void/Reissue、历史修复、Cash写入或Gate开启。
 
 ## Latest Key Updates
+
+1. P0-F 月结42501权限冲突与彭宇晗真实结算，2026-08-03：
+   anon writer未开放；页面改为只读Preview，本机service-role-only工具分步save/lock。彭宇晗July settlement `6ec3b815-5540-44bd-88ee-9e30a5284770` locked，2条claim，carry `-624.75`，Cash/Gate/lesson不变。提交 `fb3812c`、`1d3e08c`。等待最终Reissue独立授权。
 
 1. School V2 tuition finance P0-D final closure and three-student readonly preflight, 2026-08-03：
    固定whitelist fixture已通过正式本机工具、Edge/service-role、Cash只读preflight的committed Void/Reissue；Rule A zero-carry active claim与Rule B historical permanent freeze分离闭合，8/8 rollback、双会话、validator、idempotency、fail-closed、exact cleanup和School/Cash postdeploy全部通过。真实学生写入0，Gate仍`enabled / blocked / blocked`。彭宇晗、李天伦因缺精确lesson修改指令保持No-Go；张倬闻因July历史settlement状态异常且只能用forward adjustment完整纠正，等待独立P0-E批准与实施。详见`docs/school-v2-tuition-p0d-e2e-implementation-report-20260803.md`。
