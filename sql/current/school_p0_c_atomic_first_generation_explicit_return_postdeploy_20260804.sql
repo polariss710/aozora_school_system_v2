@@ -12,9 +12,10 @@ declare
   v_definition text;
   v_proc pg_proc%rowtype;
 begin
-  select p,pg_get_functiondef(p.oid)
-  into strict v_proc,v_definition
+  select p.*
+  into strict v_proc
   from pg_proc p where p.oid=v_signature;
+  v_definition:=pg_get_functiondef(v_proc.oid);
 
   if md5(v_definition)<>'95a68598215b61f55e5b63c74eeaa3f1' then
     raise exception 'P0_C_EXPLICIT_RETURN_DEFINITION_MD5_INVALID';

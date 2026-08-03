@@ -17,6 +17,7 @@ declare
   v_lesson uuid;
   v_generation_id uuid;
   v_revision_id uuid;
+  v_return_column_count integer;
 begin
   if (select count(*) from public.school_feature_gates
       where (feature_key='student_tuition_preview' and state='enabled')
@@ -63,10 +64,12 @@ begin
   from public.school_generate_student_tuition_bill_atomic_core(
     v_student,'2099-10',0.05,v_preview.generation_manifest_sha256,v_marker,null
   );
+  select count(*)::integer into strict v_return_column_count
+  from jsonb_object_keys(to_jsonb(v_first));
   if v_first.idempotent or v_first.student_id<>v_student
      or v_first.billing_month<>'2099-10'
      or v_first.generation_manifest_sha256<>v_preview.generation_manifest_sha256
-     or jsonb_object_length(to_jsonb(v_first))<>20 then
+     or v_return_column_count<>20 then
     raise exception 'P0_C_TEST_FIRST_RETURN_CONTRACT_INVALID';
   end if;
 
