@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-03 月结业务错误中文化与汇率日期限制已完成：新增集中 `js/api/business-error.js`，按仓库真实 P0-A至P0-F稳定码精确翻译月结错误，未知码显示通用中文并在次要位置保留稳定码；Dialog按settlement month动态设置汇率生效日`min/max`，越界立即使旧Preview失效并禁用保存，修正后必须重新调用DB Preview。DB日期guard、公式和权威未改。生产Chrome `v10.4.6 · settlement-error-i18n-20260803-1`确认彭宇晗7月范围`2026-07-01..31`，8月1日请求被HTTP400/`SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH`拒绝且主提示为动态中文，合法日期恢复`-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`；Console error/warning 0，未保存/锁定。School/Cash哈希与Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`7ad4305`已推送；详见`docs/school-v2-settlement-business-error-localization-20260803.md`。
+
 - 2026-08-03 P0-F 彭宇晗月结未保存 Preview 与 Dialog 已修复：生产 DB 公式原本正确，根因是旧 Dialog 继续展示列表行旧分离合同且表单变化未调用完整只读 preview。新增最小 anon 只读 `school_preview_student_settlement_adjustment_dialog`，current state 与 pending preview 分卡，expected facts/manifest/sequence/signature 防竞态，输入变化立即使 preview 过期并禁用保存；桌面改1040px双列、固定标题/footer、内部滚动、窄屏单列。生产 Chrome `v10.4.6 · p0f-dialog-20260803-1` 精确显示2h unused `-JPY17,000/-CNY714`、0.25h overage `+JPY2,125/+CNY89.25`、net `-1.75h/-JPY14,875/-CNY624.75`及两条source UUID，Console error/warning 0，未保存/锁定。两人既有9条lesson void与August claims 0保持；School/Cash全行哈希和Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`56c7783`已推送；详见`docs/school-v2-p0f-peng-settlement-preview-dialog-fix-20260803.md`。
 
 - 2026-08-03 P0-F 上线后课时页 anon 读取事故已紧急修复：根因是新辅助 reader `school_get_planned_lesson_tuition_history_state(uuid[])` 漏授 anon EXECUTE，主 reader 200/127行后辅助请求返回401/42501并被页面聚合 catch 放大为整页清空。现仅为该 `STABLE / SECURITY DEFINER / 固定search_path` 纯只读 reader补最小anon EXECUTE，owner helper/draft writer仍拒绝anon，P0-F表DML权限未扩大；前端新增辅助reader失败/结果不完整的fail-closed降级，保留主列表但隐藏edit/delete/void并显示明确警告，主reader错误仍不吞。生产Chrome `v10.4.6 / p0f-readfix-20260803-1`验证8月彭15/李16个唯一受控作废入口、删除/编辑0、张倬闻及7月actual/pending makeup/makeup completed、左右/普通视图和各筛选均正常，Console error0。School/Cash全行哈希与Gate `enabled / blocked / blocked`前后不变，真实业务写入0。修复提交`44101a0`已推送；详见`docs/school-v2-p0f-lesson-page-read-failure-fix-20260803.md`。
@@ -9,6 +11,8 @@ Status date: 2026-08-03
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
 ## Current System State
+
+- 2026-08-03 月结错误中文化已完成：稳定业务码在统一API模块精确映射，未知稳定码不再把英文详情作为主信息；汇率生效日按当前结算月动态限制并保持DB最终guard。生产Chrome确认7月越界8月1日为HTTP400/既有稳定码、Preview失败且保存禁用，合法7月日期重新Preview后权威结转为`-CNY624.75`。本次无DB对象变更、无writer RPC、真实业务写入0，School/Cash哈希和Gate不变。详见`docs/school-v2-settlement-business-error-localization-20260803.md`。
 
 - 2026-08-03 P0-F 月结 Dialog 修复已完成：新增只读组合 preview，在真实保存前返回逐source、expected facts、manifest及DB resolver投影；页面不计算金额，表单与响应不一致时fail-closed。彭宇晗生产只读权威结果为 `-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`，current state仍为settlement/source draft/adjustment draft/claim全0。生产 Chrome 双列布局与竞态回归通过，未点击保存或锁定；业务表、两人既有lesson void、Cash和Gate均不变。实现提交`56c7783`已推送，详见`docs/school-v2-p0f-peng-settlement-preview-dialog-fix-20260803.md`。
 
