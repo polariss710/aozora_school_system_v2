@@ -180,6 +180,38 @@ case "$CMD" in
     [[ -z "$FORWARD_ADJUSTMENT_MODE" || -n "${REASON//[[:space:]]/}" ]] || fail 'forward-adjustment preview requires --reason'
     DB_ADJUSTMENT_TYPE=''
     [[ "$FORWARD_ADJUSTMENT_MODE" == 'neutralize-historical-carryover' ]] && DB_ADJUSTMENT_TYPE='neutralize_historical_carryover_v1'
+    if [[ -z "$DB_ADJUSTMENT_TYPE" ]]; then
+      psql_json -v student="$STUDENT" -v entity="$ENTITY" -v month="$MONTH" -v generation="$GENERATION" -v rate="$RATE" <<'SQL'
+with guard as (
+ select g.id,
+   (select r.id from public.school_student_tuition_generation_revisions r
+    where r.generation_identity_id=g.id order by r.revision_no desc limit 1) previous_revision_id,
+   (select r.revision_no+1 from public.school_student_tuition_generation_revisions r
+    where r.generation_identity_id=g.id order by r.revision_no desc limit 1) next_revision_no
+ from public.school_student_tuition_generation_identities g
+ where g.id=:'generation'::uuid and g.student_id=:'student'::uuid
+   and g.business_entity_id=:'entity'::uuid
+   and g.billing_month=to_date(:'month'||'-01','YYYY-MM-DD')
+   and not exists(select 1 from public.school_student_tuition_generation_revisions r
+     where r.generation_identity_id=g.id and r.lifecycle_status='active')
+   and exists(select 1 from public.school_student_tuition_generation_revisions r
+     where r.generation_identity_id=g.id and r.lifecycle_status='voided'
+       and r.manifest_kind='atomic_generation_v1')
+), preview as (
+ select p.* from guard cross join lateral public.school_build_student_tuition_generation_snapshot(
+   :'student'::uuid,:'month',:'rate'::numeric
+ ) p
+)
+select jsonb_pretty(to_jsonb(preview)||jsonb_build_object(
+  'generation_identity_id',(select id from guard),
+  'previous_revision_id',(select previous_revision_id from guard),
+  'next_revision_no',(select next_revision_no from guard),
+  'script_forward_adjustment_mode',null,
+  'amount_authority','database','dry_run',true
+))::text from preview;
+SQL
+      exit 0
+    fi
     psql_json -v student="$STUDENT" -v entity="$ENTITY" -v month="$MONTH" -v generation="$GENERATION" -v rate="$RATE" -v adjustment_type="$DB_ADJUSTMENT_TYPE" -v reason="$REASON" <<'SQL'
 with guard as (
  select g.id,(select id from public.school_student_tuition_generation_revisions r where r.generation_identity_id=g.id order by revision_no desc limit 1) previous_revision_id

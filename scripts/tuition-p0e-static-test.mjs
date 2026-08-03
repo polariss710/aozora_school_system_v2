@@ -25,7 +25,7 @@ assert.match(detailPage, /settlement\.editable === false/);
 assert.match(page, /if \(!preserveManualAmount\) \{[\s\S]*clearAdjustmentErrors\(\)/);
 assert.match(api, /adjustmentMode !== "manual_adjustment" && explicitUserAmount !== null/);
 assert.match(api, /p_adjustment_amount_cny:\s*explicitUserAmount/);
-assert.match(html, /p0e-20260803-1/);
+assert.match(html, /settlement-trusted-tool-20260803-1/);
 assert.match(detailHtml, /p0e-20260803-1/);
 
 assert.match(schema, /school_student_tuition_generation_revision_adjustments/);
@@ -48,6 +48,8 @@ for (const flag of [
   assert.ok(tool.includes(flag), `management tool missing ${flag}`);
 }
 assert.match(tool, /school_get_atomic_tuition_reissue_preview_p0e/);
+assert.match(tool, /school_build_student_tuition_generation_snapshot/);
+assert.match(tool, /if \[\[ -z "\$DB_ADJUSTMENT_TYPE" \]\]/);
 assert.match(tool, /school_reissue_atomic_student_tuition_generation_p0e_local/);
 assert.doesNotMatch(tool, /CASH_SUPABASE_DB_URL|load_cash_db/);
 assert.doesNotMatch(tool, /insert into|update public|delete from|truncate|drop table/i);
