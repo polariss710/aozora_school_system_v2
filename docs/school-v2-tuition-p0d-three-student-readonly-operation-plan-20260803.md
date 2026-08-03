@@ -1,18 +1,18 @@
 # P0-D 三名真实学生操作状态
 
-日期：2026-08-03。本文最初记录三名学生的生产只读操作前事实；后续业务负责人已单独授权并完成张倬闻真实 Void + P0-E Reissue，状态已在本文件更新。彭宇晗、李天伦仍未获真实执行授权。
+日期：2026-08-03。本文最初记录三名学生的生产只读操作前事实；业务负责人随后分别授权并完成张倬闻真实 Void + P0-E Reissue，以及彭宇晗、李天伦真实专用 Void。三人当前状态均已在本文件更新。
 
 ## 分流结论
 
 | 学生 | Void 技术条件 | July settlement | 仍缺输入 | Reissue / 当前 Go-No-Go |
 |---|---|---|---|---|
-| 彭宇晗 | School eligible、Cash/downstream 0；技术可行，但尚无真实执行授权 | 当前不存在；active August zero-carry claim 期间被 Rule A 冻结；Void 后可创建/锁定，DB 当前 preview carry `92.44` | 业务负责人必须给出精确 lesson UUID、目标字段和值 | lesson 修改与 July lock 后必须重新取 DB preview/manifests；当前 **No-Go** |
-| 李天伦 | School eligible、Cash/downstream 0；技术可行，但尚无真实执行授权 | 当前不存在；DB preview 明确 carry `0`，无业务必要时不创建零金额 settlement | 业务负责人必须给出精确 lesson UUID、目标字段和值 | Void/修改后重新取 DB preview/manifests；当前 **No-Go** |
+| 彭宇晗 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `48dbdd0d-0934-4270-a6cb-230537bee86f`；active claim 0 | 不存在；最新 DB preview system/carry `+92.44`；未保存/锁定 | 15 条课时页面会显示删除，但 DB 因历史 bill snapshot 全部拒绝；July 业务目标与 DB 合同还存在差异 | 删除、July lock、Reissue 均 **No-Go** |
+| 李天伦 | 已完成；rev1/bill/income=`voided/cancelled/cancelled`；void event `9af7d2b3-7905-4dd6-a325-515ca22a304e`；active claim 0 | 不存在；DB preview carry `0`，不创建零金额 settlement | 16 条课时页面会显示删除，但 DB 因历史 bill snapshot 全部拒绝 | 删除与 Reissue 均 **No-Go** |
 | 张倬闻 | 已按单独业务授权完成真实 Void | July 物理状态仍为 `unlocked`；有效状态 `historically_consumed_immutable`；未 relock/覆盖 | 无 | P0-E revision 2 已唯一 active；pending CNY `27950.00`；**Completed** |
 
 ## 彭宇晗
 
-### 核心事实
+### Void 前冻结事实（历史基线）
 
 | 字段 | 只读事实 |
 |---|---|
@@ -52,11 +52,11 @@ July DB-authoritative preview（只读、以当前事实为准）：rate `0.0435
 | `e1b67843-469c-473a-82fa-23aa8c2df260` | 2026-09-03 | EJU数学 / 吴峰 | 1 / 2 | 8500 / 17000 |
 | `44641bf9-c445-4bf8-b35d-d9f20c33e206` | 2026-09-04 | EJU物理 / 宋弘德 | 1 / 2 | 8500 / 17000 |
 
-Void 后这 15 条 active claims 会释放并重新进入 DB candidate 判定，但系统不能推断应改哪条。用户必须逐条提供 lesson UUID、目标字段与目标值。若课时事实不改且 July 最终锁定仍为 `92.44`，仅可做非最终投影 `255000 × 0.0415 + 92.44 = 10674.94`；实际 Reissue 金额、candidate manifest 与 generation manifest 必须在 lesson RPC 和 July lock 完成后由 DB 重新返回，当前不可作为 execute 输入。
+Void 后 15 条 active claim 已释放；历史 relation 保留。只读删除核对发现页面 guard 会显示删除，但正式 `school_delete_fresh_planned_lesson(...)` 因旧 bill snapshot 保留而逐行拒绝，稳定原因为“该预定课时已进入学生学费应收快照，不能删除”。不得删除历史 relation/旧 revision 来绕过。July 最新 reconciliation 同时确认 1.75h/JPY14,875 净履约差成立，但现有 planned-receivable 合同权威 carry 为 `+92.44`；在删除合同与结算差异获得新业务决定前，不执行 lesson writer、settlement lock 或 Reissue。
 
 ## 李天伦
 
-### 核心事实
+### Void 前冻结事实（历史基线）
 
 | 字段 | 只读事实 |
 |---|---|
@@ -97,7 +97,7 @@ July DB-authoritative preview：rate `0.05`；planned `20h / JPY260000 / CNY1300
 | `6ce1da2f-0621-4ceb-ace4-b9994ef21fb1` | 2026-08-31 | EJU文综 / 高若天 | 1 / 2 | 11000 / 22000 |
 | `8eacbb08-ea3a-4b5d-9f62-fc772a36d31c` | 2026-08-31 | EJU日语 / 赵天歌 | 1 / 2 | 11000 / 22000 |
 
-Void 后 16 条 claim 会释放；系统仍不能推断要修改哪些 lesson。若不改任何课时，当前事实的 Reissue carry 仍为 `0`、JPY `352000`；但 execute 所需金额与 manifests 必须在用户给出精确修改并完成 RPC 后由 DB 重新生成，当前不可执行。
+Void 后 16 条 active claim 已释放；历史 relation 保留。逐行核对同样确认页面 guard 会显示删除，但 DB 因旧 bill snapshot 永久证据全部拒绝。July settlement/draft/adjustment仍不存在，preview carry 仍为 0，不创建零金额 settlement。删除合同获得新业务决定并完成合法课时修改前，不执行 Reissue。
 
 ## 张倬闻
 
@@ -158,9 +158,16 @@ Void 后 16 条 claim 会释放；系统仍不能推断要修改哪些 lesson。
 
 P0-E 合同完成后，业务负责人另行明确授权了张倬闻真实操作。正式工具先作废错误 rate `0.042` 的 revision 1，再以 DB 权威 `neutralize_historical_carryover_v1`、rate `0.043`、historical carry `107.50`、forward adjustment `-107.50` 创建 revision 2，最终 pending income 为 CNY `27950.00`。July settlement 未修改，仍显示“已被历史学费账单消费（不可重开）”。普通 Reissue fail-closed、P0-E duplicate idempotency、五个 validators、School/Cash 哈希均已验收。完整证据见 `docs/school-v2-zhang-zhuowen-202608-tuition-void-p0e-reissue-operation-20260803.md`。
 
+## 彭宇晗、李天伦真实 Void 完成状态
+
+- 彭宇晗 void event：`48dbdd0d-0934-4270-a6cb-230537bee86f`；李天伦 void event：`9af7d2b3-7905-4dd6-a325-515ca22a304e`。两次 duplicate 均稳定零写入拒绝，没有第二条事件。
+- 两人 old revision/bill/income/relation/snapshot/manifest 全部保留；active revision 与 active claim 均为 0；lesson 全表 `730 / 034d3ee24d639e587447a9458244797c`、settlement 全表 `17 / 85c829ebc3bb0a4100393d9c8d6421d7` 不变。
+- 详细证据见 `docs/school-v2-peng-li-202608-tuition-void-operation-20260803.md` 与 `docs/school-v2-peng-yuhan-202607-settlement-reconciliation-20260803.md`。
+
 ## 最终操作纪律
 
-- 彭宇晗与李天伦的特殊问题互不阻断；但二人都缺精确 lesson 修改指令，因此当前均不可执行真实 Void/Reissue。
+- 彭宇晗与李天伦的专用 Void 已完成；二人的 lesson 删除均被历史 bill snapshot guard 阻止，不得直接尝试页面删除或清除历史证据。
+- 彭宇晗 July 的 `-624.75` 不是现有 DB 合同结果；唯一合同 mode 为 `carry_final_balance`，当前结果 `+92.44`，但在业务差异调查完成前不得锁定。
 - 张倬闻的单独授权操作已完成；不得据此继续提交 Cash，也不得外推为彭宇晗或李天伦的授权。
-- 任一未来真实操作前都要重新执行 Edge Cash preflight、School preflight、四 validator 与 DB preview，并以当时 exact manifests/amounts 为准。
-- 不得自动调用任何真实 Void、lesson writer、settlement writer、Reissue、Cash writer 或 Gate writer。
+- 任一未来 lesson/settlement/Reissue 操作必须获得新的精确业务授权，重新执行 DB preview/preflight/validators，并以当时 exact facts/manifests 为准。
+- 不得自动调用 lesson writer、settlement writer、Reissue、Cash writer 或 Gate writer。
