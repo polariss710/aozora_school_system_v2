@@ -38,7 +38,7 @@ P0-F 已按业务负责人精确批准的模型实施：
 
 未新增 enum、通用账务表、历史回填、双写、fallback 或 legacy reader precedence。`preset_exchange_rate` 语义不变；新模式只接受显式 `settlement_exchange_rate`，缺失时 fail-closed。
 
-只读收入展示 RPC `school_get_tuition_income_forward_adjustment_display(uuid[])` 不增加业务事实，只把既有 P0-E immutable adjustment 与冻结通知金额作为 DB reader 结果返回。
+只读收入展示 RPC `school_get_tuition_income_forward_adjustment_display(uuid[])` 不增加业务事实，只把既有 P0-E immutable adjustment 与冻结通知金额作为 DB reader 结果返回。只读页面路由 RPC `school_get_planned_lesson_tuition_history_state(uuid[])` 只汇总既有 revision/lesson relation 状态，用于区分 active claim、voided history 与真正 fresh lesson；它不改变历史 relation 的业务含义。
 
 ## 3. 权威合同
 
@@ -84,6 +84,7 @@ P0-F 已按业务负责人精确批准的模型实施：
 - `school_set_student_settlement_source_treatment_draft(...)`
 - `school_void_planned_lesson_after_tuition_void(...)`
 - `school_get_tuition_income_forward_adjustment_display(uuid[])`
+- `school_get_planned_lesson_tuition_history_state(uuid[])`（只读页面路由）
 
 settlement summary/lock/unlock/relock、open makeup reader、canonical lesson void router 与 lesson source writer 已收口到同一 DB authority 和 `student_tuition_operation_v1` 锁域。页面只通过 API 模块调用 RPC；页面没有直接 `.rpc()` 或 DML。
 
@@ -171,19 +172,23 @@ Cash 前后完全一致：request `39 / 303e10bc1a28a0abd8b27afd3929cfd8`；CNY 
 
 ## 8. 页面与 Chrome
 
-页面版本：`v10.4.5`，静态资源 cache key `p0f-20260803-1`。
+页面版本：`v10.4.5`；settlement/income 静态资源 cache key 为 `p0f-20260803-1`，Lesson 最终路由修正为 `p0f-20260803-2`。
 
 - settlement preview/save/lock/relock 展示并消费同一 DB resolver 结果；
 - 新模式显式输入 rate/source/effective date，金额与换算不由前端计算；
 - lesson 页面文案统一为“作废预定课时”；
 - income list/detail 四项 P0-E 金额均读取 DB reader；
-- Chrome 生产只读验收：待最终 GitHub Pages 发布后补录。
+- Chrome 生产只读验收通过，页面实际版本均为 `v10.4.5`：
+  - settlement 页面切换到 `net_lesson_variance_to_financial_credit_v1` 并输入显式 `0.042 / business_owner_confirmed_monthly_settlement_rate_v1 / 2026-07-01` 后，DB preview 显示 unused `-JPY17,000`、overage `+JPY2,125`、net `-JPY14,875`、`-CNY624.75`；仅预览并取消弹窗，未保存；
+  - 彭宇晗 2026-08 课时列表得到 15 个唯一受控“作废预定课时”入口（响应式视图 DOM 共 30 个按钮），物理“删除”与“编辑”入口均为 0；详情页同样显示“作废预定课时”，编辑隐藏；未点击作废；
+  - 张倬闻收入行显示历史 `CNY107.50`、调整 `-CNY107.50`、净影响 `CNY0.00`、最终 `CNY27,950.00`；
+  - 张倬闻 July settlement 继续显示历史消费永久冻结，只读且没有 unlock/relock/adjustment 操作入口。
 
 ## 9. 写入边界、Git 与保护文件
 
 真实学生 lesson/settlement/draft/adjustment/carryover/Reissue/Cash/Gate 写入均为 0。数据库永久变更仅为获批 schema、RPC、trigger、ACL/RLS、reader 定义；业务写测试仅限固定 whitelist fixture 并已清零。
 
-Git 基线/首个 parent：`0412a94cb63e8cff2053b28e896ec88958989e7e`。最终 commit/push 在 Chrome 生产验收后补录。
+Git 基线/首个 parent：`0412a94cb63e8cff2053b28e896ec88958989e7e`。实施提交 `ce119e8`，Lesson 历史路由收口提交 `31ae291`；两者均已普通推送 `origin/main`，且 Chrome 验收时 `HEAD=origin/main=31ae29163038d61d90acd607a869217235f6c6ad`。
 
 六份受保护 untracked 文件 SHA-256 未变：
 
