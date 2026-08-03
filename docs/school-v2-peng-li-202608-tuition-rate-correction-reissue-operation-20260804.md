@@ -164,7 +164,7 @@ Cash request/CNY/JPY transaction前后分别保持：
 
 - parent：`017a584086fb8d4d1dd33df7bfdfa7f22fd21825`
 - verified SQL commit：`baed587`
-- docs commit：`PENDING_DOC_COMMIT`
+- docs commit：`094d7ffe031f6dc92775a3ee5e5ab8859002f167`
 - closeout/push/final status：见最终交付答复
 
 六份受保护untracked文件未修改、未stage、未提交；最终SHA-256在Git收尾前再次核验。
