@@ -1,7 +1,7 @@
-import { APP_VERSION } from "./config.js?v=settlement-error-i18n-20260803-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=settlement-error-i18n-20260803-1";
+import { APP_VERSION } from "./config.js?v=settlement-trusted-tool-20260803-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=settlement-trusted-tool-20260803-1";
 
-const SETTLEMENT_PAGE_VERSION = "settlement-error-i18n-20260803-1";
+const SETTLEMENT_PAGE_VERSION = "settlement-trusted-tool-20260803-1";
 
 document.addEventListener("DOMContentLoaded", () => {
   const versionEl = document.querySelector("#appVersion");

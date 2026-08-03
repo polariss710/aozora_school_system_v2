@@ -42,6 +42,7 @@ const SETTLEMENT_BUSINESS_ERROR_MESSAGES = new Map([
 ]);
 
 const SETTLEMENT_SQLSTATE_MESSAGES = new Map([
+  ["42501", "当前页面没有执行该财务写操作的受信权限，请使用本机管理工具。"],
   ["55P03", "另一项月结或学费操作正在处理同一业务范围，请刷新数据后重试。"],
 ]);
 

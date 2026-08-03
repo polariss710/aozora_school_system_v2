@@ -15,8 +15,8 @@ assert.match(html, /settlement-adjustment-dialog-grid/);
 assert.match(html, /当前已保存状态/);
 assert.match(html, /表单待提交 Preview/);
 assert.match(html, /id="settlementAdjustmentPreviewButton"[^>]*>更新数据库预览/);
-assert.match(html, /id="settlementAdjustmentSubmitButton"[^>]*disabled>保存锁定前设置/);
-assert.match(html, /settlement-error-i18n-20260803-1/g);
+assert.match(html, /id="settlementAdjustmentSubmitButton"[^>]*disabled[^>]*>仅本机受信工具可保存/);
+assert.match(html, /settlement-trusted-tool-20260803-1/g);
 
 assert.match(css, /\.settlement-adjustment-dialog-panel\s*\{[\s\S]*?width:\s*min\(1040px, 100%\)/);
 assert.match(css, /grid-template-columns:\s*minmax\(0, 1\.12fr\) minmax\(330px, 0\.88fr\)/);
@@ -45,14 +45,13 @@ assert.match(page, /requestSequence !== adjustmentPreviewRequestSequence/);
 assert.match(page, /responsePreviewSignature\(result\) !== requestSignature/);
 assert.match(page, /表单已变更，旧预览已失效/);
 assert.match(page, /以下金额为数据库只读预览，尚未保存/);
-assert.match(page, /currentAdjustmentPreviewSignature === adjustmentPreviewSignature\(input\)/);
-assert.match(page, /dom\.adjustmentSubmitButton\.disabled = isAdjustmentSubmitting \|\| !previewIsCurrent/);
+assert.match(page, /dom\.adjustmentSubmitButton\.disabled = true/);
 assert.match(page, /projected_final_carryover_cny/);
 assert.match(page, /source_planned_lesson_id/);
 assert.match(page, /source_actual_lesson_id/);
 assert.doesNotMatch(page, /net_lesson_variance_jpy\s*[+\-*\/]|system_difference_cny\s*[+\-*\/]/);
 
-assert.match(app, /settlement-error-i18n-20260803-1/g);
+assert.match(app, /settlement-trusted-tool-20260803-1/g);
 assert.match(rpc, /security definer/);
 assert.match(rpc, /set search_path=pg_catalog,public/);
 assert.match(rpc, /school_tuition_p0f_source_lines/);

@@ -5,16 +5,11 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-  lockStudentMonthlySettlement,
-  relockStudentMonthlySettlement,
-  setStudentSettlementSourceTreatmentDraft,
-  setStudentMonthlySettlementDraftAdjustment,
-  unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js?v=settlement-error-i18n-20260803-1";
+} from "../api/settlement-api.js?v=settlement-trusted-tool-20260803-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
-} from "../api/business-error.js?v=settlement-error-i18n-20260803-1";
+} from "../api/business-error.js?v=settlement-trusted-tool-20260803-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -49,6 +44,8 @@ const SOURCE_TREATMENT_MODES = {
   SEPARATE: "separate_makeup_and_overage_v1",
   NET_FINANCIAL: "net_lesson_variance_to_financial_credit_v1",
 };
+
+const TRUSTED_TOOL_MESSAGE = "V2财务写操作请使用本机受信管理工具执行。";
 
 const dom = {};
 let students = [];
@@ -450,8 +447,8 @@ function renderSettlementDetailAction(row) {
     return `
       <div class="table-action-group">
         <span class="status-badge status-pending">预览</span>
-        <button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">差额调整</button>
-        <button class="button table-action-button button-primary" type="button" data-lock-settlement-id="${escapeAttribute(row.id)}">锁定</button>
+        <button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">DB只读 Preview</button>
+        <span class="table-cell-summary" title="${TRUSTED_TOOL_MESSAGE}">本机工具写入</span>
       </div>
     `;
   }
@@ -466,58 +463,10 @@ function renderSettlementDetailAction(row) {
 }
 
 function renderSettlementStatusAction(row) {
-  const blockerReason = teacherWageBlockerReason(row);
-
   if (row.editable === false || effectiveSettlementStatus(row) === "historically_consumed_immutable") {
     return `<span class="table-cell-summary" title="${escapeAttribute(row.immutable_reason || row.display_label || "不可修改")}">只读</span>`;
   }
-
-  if (row.settlement_status === "locked") {
-    if (blockerReason) {
-      return `
-        <button
-          class="button table-action-button"
-          type="button"
-          disabled
-          title="${escapeAttribute(blockerReason)}"
-        >不可撤销</button>
-      `;
-    }
-
-    return `
-      <button
-        class="button table-action-button button-danger"
-        type="button"
-        data-settlement-action-id="${escapeAttribute(row.id)}"
-        data-settlement-action="unlock"
-      >撤销锁定</button>
-    `;
-  }
-
-  if (row.settlement_status === "unlocked") {
-    if (blockerReason) {
-      return `
-        <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可调整</button>
-        <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可重新锁定</button>
-      `;
-    }
-
-    return `
-      <button
-        class="button table-action-button"
-        type="button"
-        data-settlement-adjustment-id="${escapeAttribute(row.id)}"
-      >差额调整</button>
-      <button
-        class="button table-action-button button-primary"
-        type="button"
-        data-settlement-action-id="${escapeAttribute(row.id)}"
-        data-settlement-action="relock"
-      >重新锁定</button>
-    `;
-  }
-
-  return "";
+  return `<span class="table-cell-summary" title="${TRUSTED_TOOL_MESSAGE}">只读；写入使用本机工具</span>`;
 }
 
 function renderTeacherWageBlocker(row) {
@@ -600,54 +549,15 @@ function renderLockSummary(row) {
 }
 
 async function handleLockSubmit() {
-  if (isLockSubmitting) {
-    return;
-  }
-
-  clearLockErrors();
-
-  if (!currentLockSettlement) {
-    showLockError("未找到可锁定的实时预览记录。");
-    return;
-  }
-
-  if (!dom.lockConfirmCheckbox.checked) {
-    setLockFieldInvalid("confirm", true);
-    showLockError("请先勾选确认后再锁定。");
-    return;
-  }
-
-  setLockSubmitting(true);
-
-  try {
-    const sourceRow = currentLockSettlement;
-    const filtersBeforeSubmit = readFilters();
-    const result = await lockStudentMonthlySettlement({
-      studentId: sourceRow.student_id,
-      yearMonth: sourceRow.year_month,
-      note: dom.lockNoteInput.value.trim(),
-    });
-    closeLockDialog(true);
-    await loadSettlementMonth(sourceRow.year_month);
-    renderWithFilters({
-      ...(filtersBeforeSubmit || {}),
-      month: sourceRow.year_month,
-    });
-    showMessage("success", `学生月度结算已锁定：${shortId(result?.settlement_id || result?.id)}。`);
-  } catch (error) {
-    showLockError(formatSettlementBusinessError(error, {
-      yearMonth: currentLockSettlement?.year_month,
-    }));
-  } finally {
-    setLockSubmitting(false);
-  }
+  showLockError(TRUSTED_TOOL_MESSAGE);
 }
 
 function setLockSubmitting(isSubmitting) {
   isLockSubmitting = isSubmitting;
   if (dom.lockSubmitButton) {
-    dom.lockSubmitButton.disabled = isSubmitting;
-    dom.lockSubmitButton.textContent = isSubmitting ? "锁定中..." : "确认锁定";
+    dom.lockSubmitButton.disabled = true;
+    dom.lockSubmitButton.textContent = "仅本机受信工具可锁定";
+    dom.lockSubmitButton.title = TRUSTED_TOOL_MESSAGE;
   }
   if (dom.lockCancelButton) {
     dom.lockCancelButton.disabled = isSubmitting;
@@ -788,78 +698,15 @@ function renderStatusActionSummary(row) {
 }
 
 async function handleStatusActionSubmit() {
-  if (isStatusActionSubmitting) {
-    return;
-  }
-
-  clearStatusActionErrors();
-
-  if (!currentStatusActionSettlement || !currentStatusAction) {
-    showStatusActionError("未找到可变更状态的结算快照。");
-    return;
-  }
-
-  if (currentStatusAction === "unlock") {
-    const reason = dom.statusActionReasonInput.value.trim();
-    if (!reason) {
-      setStatusActionFieldInvalid("reason", true);
-      showStatusActionError("请填写撤销锁定原因。");
-      return;
-    }
-  }
-
-  if (!dom.statusActionConfirmCheckbox.checked) {
-    setStatusActionFieldInvalid("confirm", true);
-    showStatusActionError("请先勾选确认后再继续。");
-    return;
-  }
-
-  setStatusActionSubmitting(true);
-
-  try {
-    const sourceRow = currentStatusActionSettlement;
-    const action = currentStatusAction;
-    const filtersBeforeSubmit = readFilters();
-    const result = action === "unlock"
-      ? await unlockStudentMonthlySettlement({
-        settlementId: sourceRow.id,
-        reason: dom.statusActionReasonInput.value.trim(),
-      })
-      : await relockStudentMonthlySettlement({
-        settlementId: sourceRow.id,
-        note: dom.statusActionNoteInput.value.trim(),
-      });
-    closeStatusActionDialog(true);
-    await loadSettlementMonth(sourceRow.year_month);
-    renderWithFilters({
-      ...(filtersBeforeSubmit || {}),
-      month: sourceRow.year_month,
-    });
-    showMessage("success", action === "unlock"
-      ? `学生月度结算锁定已撤销：${shortId(result?.settlement_id || result?.id)}。`
-      : `学生月度结算已重新锁定：${shortId(result?.settlement_id || result?.id)}。`);
-  } catch (error) {
-    showStatusActionError(formatSettlementBusinessError(error, {
-      yearMonth: currentStatusActionSettlement?.year_month,
-    }));
-  } finally {
-    setStatusActionSubmitting(false);
-  }
+  showStatusActionError(TRUSTED_TOOL_MESSAGE);
 }
 
 function setStatusActionSubmitting(isSubmitting) {
   isStatusActionSubmitting = isSubmitting;
   if (dom.statusActionSubmitButton) {
-    dom.statusActionSubmitButton.disabled = isSubmitting;
-    if (isSubmitting) {
-      dom.statusActionSubmitButton.textContent = currentStatusAction === "unlock"
-        ? "撤销中..."
-        : "重新锁定中...";
-    } else {
-      dom.statusActionSubmitButton.textContent = currentStatusAction === "unlock"
-        ? "确认撤销锁定"
-        : "确认重新锁定";
-    }
+    dom.statusActionSubmitButton.disabled = true;
+    dom.statusActionSubmitButton.textContent = "仅本机受信工具可变更";
+    dom.statusActionSubmitButton.title = TRUSTED_TOOL_MESSAGE;
   }
   if (dom.statusActionCancelButton) {
     dom.statusActionCancelButton.disabled = isSubmitting;
@@ -1288,103 +1135,22 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
 }
 
 async function handleAdjustmentSubmit() {
-  if (isAdjustmentSubmitting) {
-    return;
-  }
-
-  clearAdjustmentErrors();
-
-  if (!currentAdjustmentSettlement) {
-    showAdjustmentError("未找到可调整的结算预览。");
-    return;
-  }
-
-  const previewInput = readAdjustmentPreviewInput();
-  const previewIsCurrent = previewInput
-    && currentAdjustmentPreview
-    && currentAdjustmentPreviewSignature === adjustmentPreviewSignature(previewInput);
-  if (!previewIsCurrent || isAdjustmentPreviewLoading) {
-    invalidateAdjustmentPreview();
-    showAdjustmentError("当前表单尚无匹配的数据库只读预览，请先点击“更新数据库预览”。");
-    return;
-  }
-
-  const source = previewInput.adjustmentMode;
-  const isManual = source === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
-  const amount = previewInput.explicitUserAmountCny;
-  const reason = dom.adjustmentReasonInput.value.trim();
-  const treatment = {
-    sourceTreatmentMode: previewInput.sourceTreatmentMode,
-    settlementExchangeRate: previewInput.settlementExchangeRate,
-    settlementExchangeRateSource: previewInput.settlementExchangeRateSource,
-    settlementExchangeRateEffectiveDate: previewInput.settlementExchangeRateEffectiveDate,
-  };
-  const invalidFields = [];
-  if (isManual && (amount === null || !Number.isFinite(amount))) invalidFields.push("amount");
-  if (!source) invalidFields.push("source");
-  if (!reason) invalidFields.push("reason");
-  if (!dom.adjustmentConfirmCheckbox.checked) invalidFields.push("confirm");
-  if (!treatment) invalidFields.push("sourceTreatmentMode");
-
-  if (invalidFields.length) {
-    invalidFields.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
-    showAdjustmentError(isManual
-      ? "请选择调整方式，填写手动调整金额与理由，并勾选确认。"
-      : "请选择调整方式，填写理由，并勾选确认。金额由数据库计算。");
-    return;
-  }
-
-  setAdjustmentSubmitting(true);
-
-  try {
-    const sourceRow = currentAdjustmentSettlement;
-    const filtersBeforeSubmit = readFilters();
-    await setStudentSettlementSourceTreatmentDraft({
-      studentId: sourceRow.student_id,
-      yearMonth: sourceRow.year_month,
-      ...treatment,
-      reason,
-    });
-    const result = await setStudentMonthlySettlementDraftAdjustment({
-      studentId: sourceRow.student_id,
-      yearMonth: sourceRow.year_month,
-      adjustmentAmountCny: amount,
-      adjustmentSource: source,
-      adjustmentReason: reason,
-      note: dom.adjustmentNoteInput.value.trim(),
-    });
-    closeAdjustmentDialog(true);
-    await loadSettlementMonth(sourceRow.year_month);
-    renderWithFilters({
-      ...(filtersBeforeSubmit || {}),
-      month: sourceRow.year_month,
-    });
-    showMessage("success", `锁定前差额调整已保存：${shortId(result?.draft_id)}；数据库权威调整 ${formatCurrency(result?.adjustment_amount_cny, "CNY")}，权威结转 ${formatCurrency(result?.locked_carryover_cny, "CNY")}。`);
-  } catch (error) {
-    showAdjustmentError(formatAdjustmentBusinessError(error));
-  } finally {
-    setAdjustmentSubmitting(false);
-  }
+  showAdjustmentError(TRUSTED_TOOL_MESSAGE);
 }
 
 function setAdjustmentSubmitting(isSubmitting) {
   isAdjustmentSubmitting = isSubmitting;
   dom.adjustmentCancelButton.disabled = isSubmitting;
-  dom.adjustmentSubmitButton.textContent = isSubmitting ? "保存中..." : "保存锁定前设置";
+  dom.adjustmentSubmitButton.textContent = "仅本机受信工具可保存";
   updateAdjustmentActionState();
 }
 
 function updateAdjustmentActionState() {
-  const input = currentAdjustmentSettlement
-    ? readAdjustmentPreviewInput({ validate: false }) : null;
-  const previewIsCurrent = Boolean(
-    input && currentAdjustmentPreview
-    && currentAdjustmentPreviewSignature === adjustmentPreviewSignature(input)
-  );
   dom.adjustmentPreviewButton.disabled = isAdjustmentSubmitting || isAdjustmentPreviewLoading;
   dom.adjustmentPreviewButton.textContent = isAdjustmentPreviewLoading
     ? "更新中..." : "更新数据库预览";
-  dom.adjustmentSubmitButton.disabled = isAdjustmentSubmitting || !previewIsCurrent;
+  dom.adjustmentSubmitButton.disabled = true;
+  dom.adjustmentSubmitButton.title = TRUSTED_TOOL_MESSAGE;
 }
 
 function clearAdjustmentErrors() {

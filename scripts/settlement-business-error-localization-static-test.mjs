@@ -41,6 +41,9 @@ const unknown = formatSettlementBusinessError({
 assert.equal(unknown.message, "操作未完成，请检查输入或刷新数据后重试。");
 assert.equal(unknown.code, "SETTLEMENT_NEW_UNKNOWN_CODE");
 assert.equal(formatSettlementBusinessError({ code: "55P03", message: "lock not available" }).code, "55P03");
+const permissionDenied = formatSettlementBusinessError({ code: "42501", message: "permission denied" });
+assert.equal(permissionDenied.message, "当前页面没有执行该财务写操作的受信权限，请使用本机管理工具。");
+assert.equal(permissionDenied.code, "42501");
 
 for (const code of [
   "SETTLEMENT_EXPLICIT_EXCHANGE_RATE_REQUIRED",
@@ -65,7 +68,7 @@ assert.match(page, /settlementExchangeRateEffectiveDateInput\.max = range\?\.max
 assert.match(page, /SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH/);
 assert.match(page, /renderAdjustmentPendingPreview\(null, displayError\.message, "失败"\)/);
 assert.match(page, /showAdjustmentError\(displayError\)/);
-assert.match(page, /dom\.adjustmentSubmitButton\.disabled = isAdjustmentSubmitting \|\| !previewIsCurrent/);
+assert.match(page, /dom\.adjustmentSubmitButton\.disabled = true/);
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 assert.equal(fs.existsSync("js/legacy-core.js"), false);
 
