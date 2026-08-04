@@ -2,17 +2,6 @@
 -- Purpose: Let DB/RPC compute Cash expense request payment_amount when the
 -- frontend sends a calculation intent instead of an explicit user amount.
 
-drop function if exists public.school_request_cash_expense_payment_confirmation(
-  uuid,
-  uuid,
-  uuid,
-  text,
-  text,
-  numeric,
-  text,
-  text
-);
-
 create or replace function public.school_request_cash_expense_payment_confirmation(
   p_expense_record_id uuid,
   p_cash_user_id uuid,
@@ -94,6 +83,27 @@ begin
 
   if v_expense.reversed_at is not null or v_expense.status = 'reversed' then
     raise exception 'reversed expense records cannot request Cash confirmation.';
+  end if;
+
+  if v_expense.source_type = 'manual_cash' then
+    if v_expense.cash_creation_event_id is null
+       or v_expense.created_by_user_id is null
+       or v_expense.account_id is not null
+       or v_expense.payment_method is not null then
+      raise exception using
+        errcode = '55000',
+        message = 'P0_MANUAL_CASH_EXPENSE_AUDIT_INVARIANT_VIOLATION';
+    end if;
+  elsif v_expense.source_type = 'teacher_wage' then
+    if v_expense.source_id is null then
+      raise exception using
+        errcode = '55000',
+        message = 'P0_TEACHER_WAGE_EXPENSE_SOURCE_ID_REQUIRED';
+    end if;
+  else
+    raise exception using
+      errcode = '42501',
+      message = 'P0_EXPENSE_CASH_REQUEST_SOURCE_NOT_ALLOWED';
   end if;
 
   if v_expense.status = 'paid' then
@@ -239,7 +249,7 @@ comment on function public.school_request_cash_expense_payment_confirmation(
   numeric,
   text
 ) is
-  'Prepares a Cash pending request attempt for a canonical school_expense_records row. If payment_amount is null, DB/RPC computes it from the expense amount, payment currency, exchange rate, and rounding mode.';
+  'Service-only preparation of a Cash request for canonical manual_cash or teacher_wage expenses. It fail-closes on creation/source invariants and computes payment amount in DB/RPC when payment_amount is null.';
 
 revoke all on function public.school_request_cash_expense_payment_confirmation(
   uuid,

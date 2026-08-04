@@ -1,7 +1,7 @@
 -- school_create_expense_record_rpc.sql
 -- RPC: public.school_create_expense_record
--- Status: Authoritative source; P0 active-admin hardening is deployed separately.
--- Version: p0-expense-permission-closure-20260804
+-- Status: Authoritative source; active-admin and creator-audit hardened.
+-- Version: p0-cash-create-and-creator-audit-20260804
 --
 -- Scope:
 -- - Create one ordinary paid school expense record.
@@ -245,6 +245,10 @@ begin
     reimbursement_note,
     note,
     app_type,
+    source_type,
+    source_id,
+    cash_creation_event_id,
+    created_by_user_id,
     created_at,
     updated_at
   )
@@ -272,6 +276,10 @@ begin
     null,
     v_note,
     'school',
+    'manual_school',
+    null,
+    null,
+    v_actor,
     v_now,
     v_now
   )
@@ -350,7 +358,7 @@ comment on function public.school_create_expense_record(
   uuid,
   text
 ) is
-  'Active-admin-only RPC for ordinary paid School expense creation. Creates one paid expense, deducts one School account balance once, and inserts one negative expense_adjust transaction.';
+  'Active-admin-only RPC for ordinary paid School expense creation. Creates one paid manual_school expense with DB-authoritative creator audit, deducts one School account balance once, and inserts one negative expense_adjust transaction.';
 
 revoke all on function public.school_create_expense_record(
   date, uuid, uuid, text, text, text, numeric, numeric, text, boolean,
