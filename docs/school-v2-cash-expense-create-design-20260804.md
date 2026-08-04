@@ -2,7 +2,7 @@
 
 ## 状态
 
-- 当前阶段：后端实现已通过静态复核、生产事务回滚演练和白名单回滚测试，尚未执行正式部署。
+- 当前阶段：后端、前端与生产部署均已完成；双库终态只读审计、回滚矩阵、双会话、静态检查、Pages 与 Chrome 无写验收通过。技术结论为 Go，第一笔真实业务 Cash 支出由业务负责人执行。
 - 业务授权：本轮任务《恢复“Cash端新增支出”——正式设计、实现、部署与验收》及其明确引用的两阶段 P0 权限封口结论。
 - 非目标：学费 Gate、历史 30 条孤儿数据、历史支出回填、删除式测试清理、Cash Edge 协议改造。
 
@@ -62,3 +62,10 @@
 - 功能测试使用 `e4200000-*` 白名单 fixture，所有行和账务效果在同一事务回滚。
 - 不通过提交后 `DELETE` 清理测试数据，因此不执行会留下真实 School/Cash 记录的跨库 commit E2E；首个真实 Cash 业务动作留给业务负责人。
 - 后端 SQL 必须先 commit/push，之后才允许正式 DB 部署；DB postdeploy 通过后才实施前端。
+
+## 最终发布结论
+
+- School DB 已正式部署最小 identity/creator audit schema、新 pending writer、paid writer audit 补强及 Cash prepare 来源约束。
+- 页面版本为 `v10.5.4`；Pages run `30885216682` 成功，未修改或部署任何 Cash Edge Function。
+- 生产浏览器仅完成 active-admin 无写验收：验证两种处理方式、默认 School、Cash 字段切换、文案和按钮后取消弹窗；未创建 School 支出、Cash request 或 Cash transaction。
+- 没有可证明能跨 School/Cash/Storage 完整清理的双库白名单 E2E，因此未制造虚假生产 Cash request；这不构成技术未完成，剩余步骤是业务负责人使用真实业务事实提交第一笔支出并观察既有审批链。
