@@ -143,7 +143,6 @@ let isCreateSubmitting = false;
 let createExpenseClientRequestId = "";
 let batchCashExpenseRows = [];
 let isBatchCashSubmitting = false;
-let batchCashExpenseOrigin = "";
 let initialMonth = "";
 
 export async function initExpensePage() {
@@ -233,9 +232,7 @@ function bindEvents() {
   dom.selectAllCashRequests.addEventListener("change", handleExpenseSelectAllChange);
   dom.tableBody.addEventListener("click", handleExpenseTableClick);
   dom.tableBody.addEventListener("change", handleExpenseTableChange);
-  dom.batchCashExpenseCancelButton.addEventListener("click", () => {
-    closeBatchCashExpenseDialog({ notifyPendingSaved: true });
-  });
+  dom.batchCashExpenseCancelButton.addEventListener("click", closeBatchCashExpenseDialog);
   dom.batchCashExpenseSubmitButton.addEventListener("click", submitBatchCashExpenseRequests);
   dom.batchCashExpenseTableBody.addEventListener("input", handleBatchCashExpenseInput);
   dom.batchCashExpenseTableBody.addEventListener("change", handleBatchCashExpenseInput);
@@ -687,15 +684,16 @@ async function submitCreateExpense() {
   try {
     if (payload.handlingMode === "cash") {
       const result = await createPendingCashExpenseRecord(payload);
-      const pendingExpense = result.expense_record;
       setCreateSubmitting(false);
       closeCreateExpenseDialog();
+      let refreshSucceeded = true;
       try {
         await refreshCurrentExpenseList();
       } catch (refreshError) {
         console.error(refreshError);
+        refreshSucceeded = false;
       }
-      await openBatchCashExpenseDialog([pendingExpense], { origin: "new-cash-expense" });
+      showPendingCashExpenseCreateSuccess(result, { refreshSucceeded });
       return;
     }
 
@@ -867,9 +865,9 @@ function updateCreateExpenseMode() {
       : "School 模式由数据库按账户判定";
   }
   dom.createExpenseModeSummary.textContent = cashMode
-    ? "提交至 Cash 审批：先保存为待支付支出，再提交至 Cash 审批；不会扣减 School 账户余额。"
+    ? "提交至 Cash 审批：保存为待支付支出，不会扣减 School 账户余额。保存后可从支出列表单独提交至 Cash。"
     : "从 School 账户直接支出：保存后立即记为已支付，并扣减 School 账户余额。";
-  dom.createExpenseSubmitButton.textContent = cashMode ? "保存并提交至 Cash" : "保存 School 支出";
+  dom.createExpenseSubmitButton.textContent = cashMode ? "保存待支付支出" : "保存 School 支出";
   clearCreateFieldInvalid(cashMode ? "account" : "currency");
   clearCreateFieldInvalid(cashMode ? "paymentMethod" : "currency");
   hideCreateErrorIfClean();
@@ -893,6 +891,24 @@ function showExpenseCreateSuccess(result) {
     dom.messageArea.innerHTML = `支出已新增并自动出账。<a href="${escapeAttribute(expenseDetailUrl(expenseId))}">查看详情</a>`;
   } else {
     dom.messageArea.textContent = "支出已新增并自动出账。";
+  }
+}
+
+function showPendingCashExpenseCreateSuccess(result, options = {}) {
+  const expenseId = result?.expense_id || result?.expense_record?.id;
+  const isVisible = Boolean(expenseId) && renderedExpenseRows.some((row) => row.id === expenseId);
+  let message = "支出已保存为待支付记录，尚未提交 Cash。请从支出列表单独提交至 Cash。";
+  if (options.refreshSucceeded === false) {
+    message += " 列表刷新失败，请刷新页面后继续。";
+  } else if (!isVisible) {
+    message += " 当前筛选条件未显示该记录，请调整月份或筛选条件后继续。";
+  }
+
+  dom.messageArea.className = "message message-success";
+  if (expenseId) {
+    dom.messageArea.innerHTML = `${escapeHtml(message)} <a href="${escapeAttribute(expenseDetailUrl(expenseId))}">查看详情</a>`;
+  } else {
+    dom.messageArea.textContent = message;
   }
 }
 
@@ -921,7 +937,7 @@ function updateExpenseBatchControls() {
   dom.selectAllCashRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
 }
 
-async function openBatchCashExpenseDialog(rows, options = {}) {
+async function openBatchCashExpenseDialog(rows) {
   const targets = (rows || []).filter(canRequestCashExpense);
   if (!targets.length) {
     showMessage("error", "请选择可提交 Cash 支付确认的支出记录。");
@@ -939,16 +955,10 @@ async function openBatchCashExpenseDialog(rows, options = {}) {
   try {
     await ensureCashEligibleAccountsLoaded();
   } catch (error) {
-    showMessage(
-      "error",
-      options.origin === "new-cash-expense"
-        ? `支出已保存为待支付记录，但 Cash 账户读取失败：${error.message || error}。可稍后从支出列表重新提交。`
-        : `Cash System 账户读取失败：${error.message || error}`
-    );
+    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
     return;
   }
 
-  batchCashExpenseOrigin = options.origin || "";
   batchCashExpenseRows = targets.map((expense) => ({
     expense,
     amount: expense.amount ?? "",
@@ -969,20 +979,14 @@ async function openBatchCashExpenseDialog(rows, options = {}) {
   dom.batchCashExpenseDialog.setAttribute("aria-hidden", "false");
 }
 
-function closeBatchCashExpenseDialog(options = {}) {
+function closeBatchCashExpenseDialog() {
   if (isBatchCashSubmitting) {
     return;
   }
 
-  const shouldNotifyPendingSaved = options.notifyPendingSaved === true
-    && batchCashExpenseOrigin === "new-cash-expense";
   batchCashExpenseRows = [];
-  batchCashExpenseOrigin = "";
   dom.batchCashExpenseDialog.classList.add("is-hidden");
   dom.batchCashExpenseDialog.setAttribute("aria-hidden", "true");
-  if (shouldNotifyPendingSaved) {
-    showMessage("info", "支出已保存为待提交，可稍后从支出列表提交 Cash。");
-  }
 }
 
 async function ensureCashEligibleAccountsLoaded() {
@@ -1242,13 +1246,9 @@ async function submitBatchCashExpenseRequests() {
 
   const failedCount = payloads.length - successCount;
   if (failedCount > 0) {
-    showBatchCashExpenseError(
-      batchCashExpenseOrigin === "new-cash-expense"
-        ? "支出已保存为待支付记录，但尚未成功提交至 Cash。请从支出列表重试。"
-        : `已提交 ${successCount} 条，失败 ${failedCount} 条。请稍后重试或回到支出列表确认 Cash 状态。`
-    );
+    showBatchCashExpenseError(`已提交 ${successCount} 条，失败 ${failedCount} 条。请稍后重试或回到支出列表确认 Cash 状态。`);
   } else {
-    closeBatchCashExpenseDialog({ notifyPendingSaved: false });
+    closeBatchCashExpenseDialog();
     showMessage("success", `已提交 ${successCount} 条 Cash 支付确认请求，等待 Cash 侧确认。`);
   }
 }
@@ -1397,7 +1397,7 @@ function setCreateSubmitting(isSubmitting) {
   dom.createExpenseCancelButton.disabled = isSubmitting;
   dom.createExpenseSubmitButton.textContent = isSubmitting
     ? (createExpenseHandlingMode() === "cash" ? "正在保存待支付记录..." : "正在保存 School 支出...")
-    : (createExpenseHandlingMode() === "cash" ? "保存并提交至 Cash" : "保存 School 支出");
+    : (createExpenseHandlingMode() === "cash" ? "保存待支付支出" : "保存 School 支出");
 }
 
 function clearCreateErrors() {

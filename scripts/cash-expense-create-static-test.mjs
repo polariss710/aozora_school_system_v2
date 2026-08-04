@@ -3,6 +3,8 @@ import { readdirSync, readFileSync } from "node:fs";
 
 const api = readFileSync("js/api/expense-api.js", "utf8");
 const page = readFileSync("js/pages/expense-page.js", "utf8");
+const detailApi = readFileSync("js/api/expense-detail-api.js", "utf8");
+const detailPage = readFileSync("js/pages/expense-detail-page.js", "utf8");
 const html = readFileSync("expense.html", "utf8");
 const config = readFileSync("js/config.js", "utf8");
 const schema = readFileSync(
@@ -29,12 +31,29 @@ assert.match(api, /cash_creation_event_id/);
 assert.match(api, /created_by_user_id/);
 
 assert.match(page, /crypto\.randomUUID\(\)/);
+assert.match(page, /if \(isCreateSubmitting\) \{\s*return;\s*\}/);
+assert.match(page, /createExpenseClientRequestId = ""/);
 assert.match(page, /createPendingCashExpenseRecord\(payload\)/);
-assert.match(page, /openBatchCashExpenseDialog\(\[pendingExpense\], \{ origin: "new-cash-expense" \}\)/);
-assert.match(page, /支出已保存为待提交，可稍后从支出列表提交 Cash/);
-assert.match(page, /支出已保存为待支付记录，但尚未成功提交至 Cash/);
+const createSubmitFlow = page.match(
+  /async function submitCreateExpense\(\)[\s\S]*?\n\}\n\nfunction readCreateExpensePayload/u,
+)?.[0] ?? "";
+assert.match(createSubmitFlow, /createPendingCashExpenseRecord\(payload\)/);
+assert.match(createSubmitFlow, /refreshCurrentExpenseList\(\)/);
+assert.match(createSubmitFlow, /showPendingCashExpenseCreateSuccess\(result, \{ refreshSucceeded \}\)/);
+assert.doesNotMatch(createSubmitFlow, /openBatchCashExpenseDialog|requestCashExpenseConfirmation/);
+assert.doesNotMatch(createSubmitFlow, /selectedExpenseIds\.add/);
+assert.match(page, /支出已保存为待支付记录，尚未提交 Cash。请从支出列表单独提交至 Cash。/);
+assert.doesNotMatch(page, /batchCashExpenseOrigin|origin: "new-cash-expense"/);
+assert.doesNotMatch(page, /保存并提交至 Cash/);
 assert.match(page, /requireActiveAdminForCashConfirmation/);
 assert.match(page, /\["manual_cash", "teacher_wage"\]\.includes\(row\.source_type\)/);
+assert.match(page, /row\.status !== "pending"/);
+assert.match(page, /Cash未提交/);
+assert.match(page, /data-expense-cash-request-id/);
+assert.match(page, /async function submitBatchCashExpenseRequests\(\)[\s\S]*requestCashExpenseConfirmation\(item\.payload\)/);
+assert.match(detailApi, /request-cash-expense-confirmation/);
+assert.match(detailPage, /\["manual_cash", "teacher_wage"\]\.includes\(expense\.source_type\)/);
+assert.match(detailPage, /requestCashExpenseConfirmation\(payload\)/);
 assert.doesNotMatch(page, /\bsupabase\s*\./);
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 
@@ -51,7 +70,10 @@ assert.match(html, /data-create-expense-school-only/);
 assert.match(html, /data-create-expense-cash-only hidden/);
 assert.match(html, /从 School 账户直接支出/);
 assert.match(html, /提交至 Cash 审批/);
-assert.match(config, /APP_VERSION = "v10\.5\.4"/);
+assert.match(html, /保存为待支付支出，不会扣减 School 账户余额。保存后可从支出列表单独提交至 Cash。/);
+assert.match(page, /保存待支付支出/);
+assert.doesNotMatch(html, /先保存为待支付支出，再提交至 Cash 审批/);
+assert.match(config, /APP_VERSION = "v10\.5\.5"/);
 
 assert.match(schema, /add column if not exists cash_creation_event_id uuid/);
 assert.match(schema, /add column if not exists created_by_user_id uuid/);
