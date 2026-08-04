@@ -90,6 +90,16 @@ begin
   ) then
     raise exception 'P0_PENDING_CASH_HISTORICAL_AUDIT_FIELDS_CHANGED';
   end if;
+
+  if (select count(*) from public.school_expense_records)<>46
+     or (select count(*) from public.school_expense_records where source_type='teacher_wage')<>17
+     or (select count(*) from public.school_expense_records where source_type is null)<>29
+     or md5((select string_agg(
+       md5((to_jsonb(e)-'cash_creation_event_id'-'created_by_user_id')::text),
+       '' order by e.id
+     ) from public.school_expense_records e))<>'1a55bca9448e7549399f0a4abca99ac8' then
+    raise exception 'P0_PENDING_CASH_HISTORICAL_FINGERPRINT_DRIFT';
+  end if;
 end;
 $verify$;
 
@@ -108,8 +118,8 @@ select count(*) as expense_count,
 from public.school_expense_records;
 
 select md5(string_agg(
-  md5(to_jsonb(e)::text),'' order by e.id
-)) as school_expense_records_content_md5
+  md5((to_jsonb(e)-'cash_creation_event_id'-'created_by_user_id')::text),'' order by e.id
+)) as school_expense_records_pre_schema_shape_md5
 from public.school_expense_records e;
 
 select p.oid::regprocedure::text as signature,p.prosecdef,p.proconfig,p.proacl,

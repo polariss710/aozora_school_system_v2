@@ -1,14 +1,19 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { initSchoolAuth, requireLoginForCashConfirmation } from "../auth.js";
+import {
+  initSchoolAuth,
+  isActiveAdmin,
+  requireActiveAdminForCashConfirmation,
+} from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createExpenseRecord,
+  createPendingCashExpenseRecord,
   fetchExpenseAttachmentCounts,
   fetchExpenseLookups,
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
   requestCashExpenseConfirmation,
-} from "../api/expense-api.js";
+} from "../api/expense-api.js?v=cash-expense-create-20260804-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
   currentJapanDate,
@@ -93,6 +98,7 @@ const CREATE_EXPENSE_FIELD_IDS = [
   "expenseDate",
   "businessEntity",
   "account",
+  "currency",
   "expenseCategory",
   "description",
   "amount",
@@ -134,13 +140,16 @@ let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
 let loadedMonth = "";
 let isCreateSubmitting = false;
+let createExpenseClientRequestId = "";
 let batchCashExpenseRows = [];
 let isBatchCashSubmitting = false;
+let batchCashExpenseOrigin = "";
 let initialMonth = "";
 
 export async function initExpensePage() {
   cacheDom();
   await initSchoolAuth();
+  updateExpenseAdminControls();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   initialMonth = initialYearMonthFromUrl();
@@ -189,6 +198,8 @@ function cacheDom() {
   dom.createExpenseDateInput = document.querySelector("#createExpenseDateInput");
   dom.createExpenseBusinessEntitySelect = document.querySelector("#createExpenseBusinessEntitySelect");
   dom.createExpenseAccountSelect = document.querySelector("#createExpenseAccountSelect");
+  dom.createExpenseCurrencySelect = document.querySelector("#createExpenseCurrencySelect");
+  dom.createExpenseModeSummary = document.querySelector("#createExpenseModeSummary");
   dom.createExpenseCategorySelect = document.querySelector("#createExpenseCategorySelect");
   dom.createExpenseAmountInput = document.querySelector("#createExpenseAmountInput");
   dom.createExpenseDescriptionInput = document.querySelector("#createExpenseDescriptionInput");
@@ -222,7 +233,9 @@ function bindEvents() {
   dom.selectAllCashRequests.addEventListener("change", handleExpenseSelectAllChange);
   dom.tableBody.addEventListener("click", handleExpenseTableClick);
   dom.tableBody.addEventListener("change", handleExpenseTableChange);
-  dom.batchCashExpenseCancelButton.addEventListener("click", closeBatchCashExpenseDialog);
+  dom.batchCashExpenseCancelButton.addEventListener("click", () => {
+    closeBatchCashExpenseDialog({ notifyPendingSaved: true });
+  });
   dom.batchCashExpenseSubmitButton.addEventListener("click", submitBatchCashExpenseRequests);
   dom.batchCashExpenseTableBody.addEventListener("input", handleBatchCashExpenseInput);
   dom.batchCashExpenseTableBody.addEventListener("change", handleBatchCashExpenseInput);
@@ -232,14 +245,15 @@ function bindEvents() {
   dom.batchCashExpenseRateToolbar?.addEventListener("click", handleBatchCashExpenseClick);
   dom.createExpenseCancelButton.addEventListener("click", closeCreateExpenseDialog);
   dom.createExpenseSubmitButton.addEventListener("click", submitCreateExpense);
+  for (const input of dom.createExpenseDialog.querySelectorAll('[name="createExpenseHandlingMode"]')) {
+    input.addEventListener("change", updateCreateExpenseMode);
+  }
   dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
     renderCreateAccountOptions();
-    updateCreateReimbursementDefault();
     clearCreateFieldInvalid("businessEntity");
     hideCreateErrorIfClean();
   });
   dom.createExpenseAccountSelect.addEventListener("change", () => {
-    updateCreateReimbursementDefault();
     clearCreateFieldInvalid("account");
     hideCreateErrorIfClean();
   });
@@ -254,6 +268,7 @@ function bindEvents() {
     [dom.createExpenseReimbursementStatusSelect, "reimbursementStatus"],
     [dom.createExpenseTaxCategoryInput, "taxCategory"],
     [dom.createExpenseExchangeRateInput, "exchangeRate"],
+    [dom.createExpenseCurrencySelect, "currency"],
   ]) {
     input.addEventListener("input", () => {
       clearCreateFieldInvalid(fieldId);
@@ -264,6 +279,13 @@ function bindEvents() {
       hideCreateErrorIfClean();
     });
   }
+}
+
+function updateExpenseAdminControls() {
+  const activeAdmin = isActiveAdmin();
+  dom.openCreateExpenseButton.hidden = !activeAdmin;
+  dom.openBatchCashExpenseButton.hidden = !activeAdmin;
+  dom.selectAllCashRequests.hidden = !activeAdmin;
 }
 
 function setDefaultFilters(overrides = null) {
@@ -444,6 +466,7 @@ function renderValueOptions(selectEl, values, labelGetter) {
 }
 
 function renderExpenseRecords(rows) {
+  updateExpenseAdminControls();
   renderedExpenseRows = rows;
   pruneSelectedExpenseIds();
   const cashRequestableCount = rows.filter(canRequestCashExpense).length;
@@ -583,8 +606,22 @@ function openCreateExpenseDialog() {
     return;
   }
 
+  if (
+    !requireActiveAdminForCashConfirmation((_type, message) => {
+      showMessage("error", message.replace("提交 Cash 确认请求", "新增支出"));
+    })
+  ) {
+    return;
+  }
+
+  if (!globalThis.crypto?.randomUUID) {
+    showMessage("error", "当前浏览器无法生成安全的新增请求身份，请升级浏览器后重试。");
+    return;
+  }
+
   clearCreateErrors();
   setCreateSubmitting(false);
+  createExpenseClientRequestId = globalThis.crypto.randomUUID();
 
   const filters = readFilters();
   const activeBusinessEntities = newBusinessEntities(businessEntities);
@@ -598,9 +635,13 @@ function openCreateExpenseDialog() {
   dom.createExpenseDescriptionInput.value = "";
   dom.createExpensePaymentMethodSelect.value = "";
   dom.createExpenseReceiptStatusSelect.value = "待确认";
+  dom.createExpenseReimbursementStatusSelect.value = "";
   dom.createExpenseTaxCategoryInput.value = "待确认";
   dom.createExpenseExchangeRateInput.value = "";
+  dom.createExpenseCurrencySelect.value = "JPY";
   dom.createExpenseNoteInput.value = "";
+  const schoolModeInput = dom.createExpenseDialog.querySelector('[name="createExpenseHandlingMode"][value="school"]');
+  if (schoolModeInput) schoolModeInput.checked = true;
   renderCreateCategoryOptions();
 
   renderCreateBusinessEntityOptions(activeBusinessEntities);
@@ -613,7 +654,7 @@ function openCreateExpenseDialog() {
     ? defaultAccountId
     : "";
 
-  updateCreateReimbursementDefault();
+  updateCreateExpenseMode();
 
   dom.createExpenseDialog.classList.remove("is-hidden");
   dom.createExpenseDialog.setAttribute("aria-hidden", "false");
@@ -626,6 +667,7 @@ function closeCreateExpenseDialog() {
 
   dom.createExpenseDialog.classList.add("is-hidden");
   dom.createExpenseDialog.setAttribute("aria-hidden", "true");
+  createExpenseClientRequestId = "";
 }
 
 async function submitCreateExpense() {
@@ -643,6 +685,20 @@ async function submitCreateExpense() {
   setCreateSubmitting(true);
 
   try {
+    if (payload.handlingMode === "cash") {
+      const result = await createPendingCashExpenseRecord(payload);
+      const pendingExpense = result.expense_record;
+      setCreateSubmitting(false);
+      closeCreateExpenseDialog();
+      try {
+        await refreshCurrentExpenseList();
+      } catch (refreshError) {
+        console.error(refreshError);
+      }
+      await openBatchCashExpenseDialog([pendingExpense], { origin: "new-cash-expense" });
+      return;
+    }
+
     const result = await createExpenseRecord(payload);
     setCreateSubmitting(false);
     closeCreateExpenseDialog();
@@ -657,6 +713,7 @@ async function submitCreateExpense() {
 }
 
 function readCreateExpensePayload() {
+  const handlingMode = createExpenseHandlingMode();
   const expenseDate = dom.createExpenseDateInput.value;
   if (!expenseDate) {
     showCreateError("请选择支出日期。", ["expenseDate"]);
@@ -669,26 +726,42 @@ function readCreateExpensePayload() {
     return null;
   }
 
-  const accountId = dom.createExpenseAccountSelect.value;
-  if (!accountId) {
-    showCreateError("请选择付款账户。", ["account"]);
-    return null;
-  }
+  let accountId = null;
+  let account = null;
+  let currency = "";
+  if (handlingMode === "school") {
+    accountId = dom.createExpenseAccountSelect.value;
+    if (!accountId) {
+      showCreateError("请选择付款账户。", ["account"]);
+      return null;
+    }
 
-  const account = accounts.find((item) => item.id === accountId);
-  if (!account || account.is_active !== true || account.app_type !== "school") {
-    showCreateError("付款账户无效或已停用。", ["account"]);
-    return null;
-  }
+    account = accounts.find((item) => item.id === accountId);
+    if (!account || account.is_active !== true || account.app_type !== "school") {
+      showCreateError("付款账户无效或已停用。", ["account"]);
+      return null;
+    }
 
-  if (account.business_entity_id !== businessEntityId) {
-    showCreateError("付款账户与业务归属不一致。", ["account"]);
-    return null;
-  }
+    if (account.business_entity_id !== businessEntityId) {
+      showCreateError("付款账户与业务归属不一致。", ["account"]);
+      return null;
+    }
 
-  if (!account.currency) {
-    showCreateError("付款账户缺少币种。", ["account"]);
-    return null;
+    if (!account.currency) {
+      showCreateError("付款账户缺少币种。", ["account"]);
+      return null;
+    }
+    currency = account.currency;
+  } else {
+    currency = dom.createExpenseCurrencySelect.value;
+    if (!CASH_EXPENSE_CURRENCIES.includes(currency)) {
+      showCreateError("请选择 JPY 或 CNY 支出币种。", ["currency"]);
+      return null;
+    }
+    if (!createExpenseClientRequestId) {
+      showCreateError("新增请求身份已失效，请关闭对话框后重新打开。");
+      return null;
+    }
   }
 
   const expenseCategory = dom.createExpenseCategorySelect.value;
@@ -714,8 +787,10 @@ function readCreateExpensePayload() {
     return null;
   }
 
-  const paymentMethod = dom.createExpensePaymentMethodSelect.value;
-  if (!CREATE_PAYMENT_METHOD_OPTIONS.includes(paymentMethod)) {
+  const paymentMethod = handlingMode === "school"
+    ? dom.createExpensePaymentMethodSelect.value
+    : null;
+  if (handlingMode === "school" && !CREATE_PAYMENT_METHOD_OPTIONS.includes(paymentMethod)) {
     showCreateError("请选择支付方式。", ["paymentMethod"]);
     return null;
   }
@@ -727,7 +802,12 @@ function readCreateExpensePayload() {
   }
 
   const reimbursementStatus = dom.createExpenseReimbursementStatusSelect.value;
-  if (!CREATE_REIMBURSEMENT_STATUS_OPTIONS.includes(reimbursementStatus)) {
+  if (handlingMode === "cash" && !CREATE_REIMBURSEMENT_STATUS_OPTIONS.includes(reimbursementStatus)) {
+    showCreateError("报销状态无效。", ["reimbursementStatus"]);
+    return null;
+  }
+  if (handlingMode === "school" && reimbursementStatus
+      && !CREATE_REIMBURSEMENT_STATUS_OPTIONS.includes(reimbursementStatus)) {
     showCreateError("报销状态无效。", ["reimbursementStatus"]);
     return null;
   }
@@ -741,23 +821,58 @@ function readCreateExpensePayload() {
   const exchangeRate = parsedExchangeRate && parsedExchangeRate > 0 ? parsedExchangeRate : null;
 
   return {
+    handlingMode,
+    clientRequestId: handlingMode === "cash" ? createExpenseClientRequestId : null,
     expenseDate,
     businessEntityId,
     accountId,
     expenseCategory,
     description,
-    currency: account.currency,
+    currency,
     amount,
     exchangeRate,
     paymentMethod,
     isBusinessExpense: true,
     taxCategory: dom.createExpenseTaxCategoryInput.value.trim(),
     receiptStatus,
-    reimbursementStatus,
+    reimbursementStatus: reimbursementStatus || null,
     teacherId: null,
     studentId: null,
     note: dom.createExpenseNoteInput.value.trim(),
   };
+}
+
+function createExpenseHandlingMode() {
+  return dom.createExpenseDialog.querySelector('[name="createExpenseHandlingMode"]:checked')?.value === "cash"
+    ? "cash"
+    : "school";
+}
+
+function updateCreateExpenseMode() {
+  const cashMode = createExpenseHandlingMode() === "cash";
+  const databaseDefaultOption = dom.createExpenseReimbursementStatusSelect.options[0];
+  for (const field of dom.createExpenseDialog.querySelectorAll("[data-create-expense-school-only]")) {
+    field.hidden = cashMode;
+  }
+  for (const field of dom.createExpenseDialog.querySelectorAll("[data-create-expense-cash-only]")) {
+    field.hidden = !cashMode;
+  }
+  dom.createExpenseAccountSelect.disabled = cashMode;
+  dom.createExpensePaymentMethodSelect.disabled = cashMode;
+  dom.createExpenseCurrencySelect.disabled = !cashMode;
+  if (databaseDefaultOption) {
+    databaseDefaultOption.disabled = cashMode;
+    databaseDefaultOption.textContent = cashMode
+      ? "请选择报销状态"
+      : "School 模式由数据库按账户判定";
+  }
+  dom.createExpenseModeSummary.textContent = cashMode
+    ? "提交至 Cash 审批：先保存为待支付支出，再提交至 Cash 审批；不会扣减 School 账户余额。"
+    : "从 School 账户直接支出：保存后立即记为已支付，并扣减 School 账户余额。";
+  dom.createExpenseSubmitButton.textContent = cashMode ? "保存并提交至 Cash" : "保存 School 支出";
+  clearCreateFieldInvalid(cashMode ? "account" : "currency");
+  clearCreateFieldInvalid(cashMode ? "paymentMethod" : "currency");
+  hideCreateErrorIfClean();
 }
 
 async function refreshCurrentExpenseList() {
@@ -806,7 +921,7 @@ function updateExpenseBatchControls() {
   dom.selectAllCashRequests.indeterminate = selectedRows.length > 0 && selectedRows.length < selectableRows.length;
 }
 
-async function openBatchCashExpenseDialog(rows) {
+async function openBatchCashExpenseDialog(rows, options = {}) {
   const targets = (rows || []).filter(canRequestCashExpense);
   if (!targets.length) {
     showMessage("error", "请选择可提交 Cash 支付确认的支出记录。");
@@ -814,7 +929,7 @@ async function openBatchCashExpenseDialog(rows) {
   }
 
   if (
-    !requireLoginForCashConfirmation((_type, message) => {
+    !requireActiveAdminForCashConfirmation((_type, message) => {
       showMessage("error", message);
     })
   ) {
@@ -824,10 +939,16 @@ async function openBatchCashExpenseDialog(rows) {
   try {
     await ensureCashEligibleAccountsLoaded();
   } catch (error) {
-    showMessage("error", `Cash System 账户读取失败：${error.message || error}`);
+    showMessage(
+      "error",
+      options.origin === "new-cash-expense"
+        ? `支出已保存为待支付记录，但 Cash 账户读取失败：${error.message || error}。可稍后从支出列表重新提交。`
+        : `Cash System 账户读取失败：${error.message || error}`
+    );
     return;
   }
 
+  batchCashExpenseOrigin = options.origin || "";
   batchCashExpenseRows = targets.map((expense) => ({
     expense,
     amount: expense.amount ?? "",
@@ -848,14 +969,20 @@ async function openBatchCashExpenseDialog(rows) {
   dom.batchCashExpenseDialog.setAttribute("aria-hidden", "false");
 }
 
-function closeBatchCashExpenseDialog() {
+function closeBatchCashExpenseDialog(options = {}) {
   if (isBatchCashSubmitting) {
     return;
   }
 
+  const shouldNotifyPendingSaved = options.notifyPendingSaved === true
+    && batchCashExpenseOrigin === "new-cash-expense";
   batchCashExpenseRows = [];
+  batchCashExpenseOrigin = "";
   dom.batchCashExpenseDialog.classList.add("is-hidden");
   dom.batchCashExpenseDialog.setAttribute("aria-hidden", "true");
+  if (shouldNotifyPendingSaved) {
+    showMessage("info", "支出已保存为待提交，可稍后从支出列表提交 Cash。");
+  }
 }
 
 async function ensureCashEligibleAccountsLoaded() {
@@ -1115,9 +1242,13 @@ async function submitBatchCashExpenseRequests() {
 
   const failedCount = payloads.length - successCount;
   if (failedCount > 0) {
-    showBatchCashExpenseError(`已提交 ${successCount} 条，失败 ${failedCount} 条。请稍后重试或回到支出列表确认 Cash 状态。`);
+    showBatchCashExpenseError(
+      batchCashExpenseOrigin === "new-cash-expense"
+        ? "支出已保存为待支付记录，但尚未成功提交至 Cash。请从支出列表重试。"
+        : `已提交 ${successCount} 条，失败 ${failedCount} 条。请稍后重试或回到支出列表确认 Cash 状态。`
+    );
   } else {
-    closeBatchCashExpenseDialog();
+    closeBatchCashExpenseDialog({ notifyPendingSaved: false });
     showMessage("success", `已提交 ${successCount} 条 Cash 支付确认请求，等待 Cash 侧确认。`);
   }
 }
@@ -1260,16 +1391,13 @@ function createAccountLabel(account) {
   ].filter(Boolean).join(" / ");
 }
 
-function updateCreateReimbursementDefault() {
-  const account = accounts.find((item) => item.id === dom.createExpenseAccountSelect.value);
-  dom.createExpenseReimbursementStatusSelect.value = account?.is_company_account ? "not_required" : "pending";
-}
-
 function setCreateSubmitting(isSubmitting) {
   isCreateSubmitting = isSubmitting;
   dom.createExpenseSubmitButton.disabled = isSubmitting;
   dom.createExpenseCancelButton.disabled = isSubmitting;
-  dom.createExpenseSubmitButton.textContent = isSubmitting ? "保存中..." : "保存支出";
+  dom.createExpenseSubmitButton.textContent = isSubmitting
+    ? (createExpenseHandlingMode() === "cash" ? "正在保存待支付记录..." : "正在保存 School 支出...")
+    : (createExpenseHandlingMode() === "cash" ? "保存并提交至 Cash" : "保存 School 支出");
 }
 
 function clearCreateErrors() {
@@ -1297,7 +1425,8 @@ function createFieldIdsForError(message) {
   if (text.includes("支出分类") || text.includes("老师工资支出")) fields.push("expenseCategory");
   if (text.includes("支出内容")) fields.push("description");
   if (text.includes("业务归属")) fields.push("businessEntity");
-  if (text.includes("付款账户") || text.includes("币种")) fields.push("account");
+  if (text.includes("付款账户")) fields.push("account");
+  if (text.includes("币种")) fields.push(createExpenseHandlingMode() === "cash" ? "currency" : "account");
   if (text.includes("汇率")) fields.push("exchangeRate");
   if (text.includes("支付方式")) fields.push("paymentMethod");
   if (text.includes("报销状态")) fields.push("reimbursementStatus");
@@ -1355,8 +1484,10 @@ function isTeacherWageExpense(row) {
 }
 
 function canRequestCashExpense(row) {
+  if (!isActiveAdmin()) return false;
   if (!row?.id) return false;
   if (row.app_type !== "school") return false;
+  if (!["manual_cash", "teacher_wage"].includes(row.source_type)) return false;
   if (row.status !== "pending") return false;
   if (row.reversed_at || row.reversal_account_transaction_id) return false;
   if (row.cash_transaction_id) return false;
@@ -1365,7 +1496,9 @@ function canRequestCashExpense(row) {
 
 function cashRequestNotAllowedMessage(row) {
   if (!row) return "支出记录不存在，请刷新后重试。";
+  if (!isActiveAdmin()) return "仅已启用的管理员账号可以提交 Cash。";
   if (row.app_type !== "school") return "只能提交 School 支出记录。";
+  if (!["manual_cash", "teacher_wage"].includes(row.source_type)) return "该支出来源不允许提交 Cash。";
   if (row.status !== "pending") return "只有待支付支出记录可以提交 Cash 支付确认。";
   if (row.reversed_at || row.reversal_account_transaction_id) return "已撤销支出不能提交 Cash 支付确认。";
   if (row.cash_transaction_id) return "该支出记录已经有 Cash transaction。";

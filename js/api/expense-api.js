@@ -31,6 +31,8 @@ const EXPENSE_COLUMNS = [
   "app_type",
   "source_type",
   "source_id",
+  "cash_creation_event_id",
+  "created_by_user_id",
   "payee_name_snapshot",
   "cash_request_id",
   "cash_request_status",
@@ -149,6 +151,38 @@ export async function createExpenseRecord(payload) {
   const result = Array.isArray(data) ? data[0] : data;
   if (!result) {
     throw new Error("支出新增成功，但 RPC 没有返回结果。");
+  }
+
+  return result;
+}
+
+export async function createPendingCashExpenseRecord(payload) {
+  const clientRequestId = requireUuid(payload.clientRequestId, "client_request_id");
+  const { data, error } = await supabase.rpc("school_create_pending_cash_expense_record_v1", {
+    p_client_request_id: clientRequestId,
+    p_expense_date: payload.expenseDate,
+    p_business_entity_id: payload.businessEntityId,
+    p_expense_category: payload.expenseCategory,
+    p_description: payload.description,
+    p_currency: payload.currency,
+    p_amount: payload.amount,
+    p_reimbursement_status: payload.reimbursementStatus,
+    p_exchange_rate: payload.exchangeRate || null,
+    p_is_business_expense: Boolean(payload.isBusinessExpense),
+    p_tax_category: payload.taxCategory || null,
+    p_receipt_status: payload.receiptStatus || null,
+    p_teacher_id: payload.teacherId || null,
+    p_student_id: payload.studentId || null,
+    p_note: payload.note || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.expense_id || !result?.expense_record) {
+    throw new Error("待支付支出已请求保存，但 RPC 没有返回完整权威记录。请使用同一请求重试。");
   }
 
   return result;

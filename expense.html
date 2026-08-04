@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=p0-g1-a-20260804-1">
+    <link rel="stylesheet" href="./css/app.css?v=cash-expense-create-20260804-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -249,13 +249,36 @@
         <div class="section-heading expense-create-dialog-header">
           <div>
             <h2 id="createExpenseTitle">新增支出</h2>
-            <p class="section-note">登记一笔业务支出。保存后仍可按现有流程提交 Cash。</p>
+            <p id="createExpenseModeSummary" class="section-note">从 School 账户直接支出：保存后立即记为已支付，并扣减 School 账户余额。</p>
           </div>
         </div>
 
         <div id="createExpenseError" class="dialog-error is-hidden"></div>
 
         <div class="expense-create-dialog-body">
+          <section class="expense-create-section" aria-labelledby="createExpenseHandlingTitle">
+            <div class="expense-create-section-title">
+              <h3 id="createExpenseHandlingTitle">支付处理</h3>
+              <p>选择本笔支出的权威创建路径。</p>
+            </div>
+            <div class="expense-create-handling-options" role="radiogroup" aria-label="支付处理方式">
+              <label class="expense-create-handling-option">
+                <input type="radio" name="createExpenseHandlingMode" value="school" checked>
+                <span>
+                  <strong>从 School 账户直接支出</strong>
+                  <small>保存后立即记为已支付，并扣减 School 账户余额。</small>
+                </span>
+              </label>
+              <label class="expense-create-handling-option">
+                <input type="radio" name="createExpenseHandlingMode" value="cash">
+                <span>
+                  <strong>提交至 Cash 审批</strong>
+                  <small>先保存为待支付支出，再提交至 Cash 审批；不会扣减 School 账户余额。</small>
+                </span>
+              </label>
+            </div>
+          </section>
+
           <section class="expense-create-section" aria-labelledby="createExpenseBasicTitle">
             <div class="expense-create-section-title">
               <h3 id="createExpenseBasicTitle">快速登记</h3>
@@ -284,7 +307,7 @@
                 <input id="createExpenseAmountInput" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
               </label>
 
-              <label class="field" data-create-expense-field="paymentMethod">
+              <label class="field" data-create-expense-field="paymentMethod" data-create-expense-school-only>
                 <span>支付方式 <b class="required-mark">必填</b></span>
                 <select id="createExpensePaymentMethodSelect">
                   <option value="">请选择支付方式</option>
@@ -300,9 +323,17 @@
                 <select id="createExpenseBusinessEntitySelect"></select>
               </label>
 
-              <label class="field" data-create-expense-field="account">
+              <label class="field" data-create-expense-field="account" data-create-expense-school-only>
                 <span>付款账户 <b class="required-mark">必填</b></span>
                 <select id="createExpenseAccountSelect"></select>
+              </label>
+
+              <label class="field" data-create-expense-field="currency" data-create-expense-cash-only hidden>
+                <span>支出币种 <b class="required-mark">必填</b></span>
+                <select id="createExpenseCurrencySelect">
+                  <option value="JPY">JPY</option>
+                  <option value="CNY">CNY</option>
+                </select>
               </label>
 
               <label class="field expense-create-wide-field" data-create-expense-field="note">
@@ -336,6 +367,7 @@
               <label class="field" data-create-expense-field="reimbursementStatus">
                 <span>报销状态 <b class="required-mark">必填</b></span>
                 <select id="createExpenseReimbursementStatusSelect">
+                  <option value="">School 模式由数据库按账户判定</option>
                   <option value="not_required">无需报销</option>
                   <option value="pending">待报销</option>
                 </select>
@@ -351,11 +383,11 @@
 
         <div class="dialog-actions expense-create-actions">
           <button class="button" id="createExpenseCancelButton" type="button">取消</button>
-          <button class="button button-primary" id="createExpenseSubmitButton" type="button">保存支出</button>
+          <button class="button button-primary" id="createExpenseSubmitButton" type="button">保存 School 支出</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/expense-app.js?v=cash-expense-create-20260804-1"></script>
   </body>
 </html>

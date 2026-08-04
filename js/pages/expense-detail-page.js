@@ -1,4 +1,9 @@
-import { initSchoolAuth, isLoggedIn } from "../auth.js";
+import {
+  initSchoolAuth,
+  isActiveAdmin,
+  isLoggedIn,
+  requireActiveAdminForCashConfirmation,
+} from "../auth.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createExpenseAttachmentMetadata,
@@ -7,7 +12,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js";
+} from "../api/expense-detail-api.js?v=cash-expense-create-20260804-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -69,6 +74,8 @@ const TRANSACTION_TYPE_LABELS = {
 const SOURCE_TYPE_LABELS = {
   invoice: "发票",
   manual: "手工记录",
+  manual_school: "手工登记（School 直接支付）",
+  manual_cash: "手工登记（Cash 审批）",
   manual_metadata: "手工摘要",
   other: "其他",
   receipt: "收据",
@@ -431,6 +438,8 @@ function renderSystemInfo(data) {
         ["app_type", displayValue(expense.app_type)],
         ["source_type", sourceTypeLabel(expense.source_type)],
         ["source_id", shortId(expense.source_id)],
+        ["cash_creation_event_id", shortId(expense.cash_creation_event_id)],
+        ["created_by_user_id", shortId(expense.created_by_user_id)],
         ["salary_payment_id", shortId(expense.salary_payment_id)],
         ["teacher_id", shortId(expense.teacher_id)],
         ["student_id", shortId(expense.student_id)],
@@ -537,8 +546,10 @@ function canCreateAttachmentMetadata(data) {
 
 function canRequestCashExpense(data) {
   const expense = data?.expense;
+  if (!isActiveAdmin()) return false;
   if (!expense?.id) return false;
   if (expense.app_type !== "school") return false;
+  if (!["manual_cash", "teacher_wage"].includes(expense.source_type)) return false;
   if (expense.status !== "pending") return false;
   if (expense.reversed_at || expense.reversal_account_transaction_id) return false;
   if (expense.cash_transaction_id) return false;
@@ -574,7 +585,9 @@ function voidTeacherWageExpenseNotAllowedMessage(data) {
 function cashRequestNotAllowedMessage(data) {
   const expense = data?.expense;
   if (!expense) return "支出记录不存在，请刷新后重试。";
+  if (!isActiveAdmin()) return "仅已启用的管理员账号可以提交 Cash。";
   if (expense.app_type !== "school") return "只能提交 School 支出记录。";
+  if (!["manual_cash", "teacher_wage"].includes(expense.source_type)) return "该支出来源不允许提交 Cash。";
   if (expense.status !== "pending") return "只有待支付支出记录可以提交 Cash 支付确认。";
   if (expense.reversed_at || expense.reversal_account_transaction_id) return "已撤销支出不能提交 Cash 支付确认。";
   if (expense.cash_transaction_id) return "该支出记录已经有 Cash transaction。";
@@ -1149,6 +1162,14 @@ async function openCashExpenseRequestDialog() {
 
   if (!canRequestCashExpense(detailData)) {
     showMessage("error", cashRequestNotAllowedMessage(detailData));
+    return;
+  }
+
+  if (
+    !requireActiveAdminForCashConfirmation((_type, message) => {
+      showMessage("error", message);
+    })
+  ) {
     return;
   }
 
@@ -1736,6 +1757,14 @@ function businessSourceLabel(expense) {
 
   if (expense.source_type === "manual" && !expense.source_id) {
     return "手工记录";
+  }
+
+  if (expense.source_type === "manual_school") {
+    return "School 直接支付";
+  }
+
+  if (expense.source_type === "manual_cash") {
+    return "Cash 审批支付";
   }
 
   return sourceTypeLabel(expense.source_type);

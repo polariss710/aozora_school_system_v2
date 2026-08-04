@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js";
+import { APP_VERSION } from "./config.js?v=cash-expense-create-20260804-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=v10.3.66-rejected-wage-expense-void";
+import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=cash-expense-create-20260804-1";
 
 const globalSessionPromise = requireGlobalSession();
 

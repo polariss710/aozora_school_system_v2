@@ -37,6 +37,8 @@ const EXPENSE_DETAIL_COLUMNS = [
   "reimbursement_note",
   "source_type",
   "source_id",
+  "cash_creation_event_id",
+  "created_by_user_id",
   "payee_name_snapshot",
   "cash_request_id",
   "cash_request_event_id",

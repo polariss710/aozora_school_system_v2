@@ -48,6 +48,7 @@ values (
 insert into public.school_expense_records (
   id, business_entity_id, expense_date, year_month, expense_category,
   description, currency, amount, amount_jpy, status, app_type,
+  source_type, cash_creation_event_id, created_by_user_id,
   cash_request_attempt_no, note
 )
 values
@@ -63,6 +64,9 @@ values
     500,
     'pending',
     'school',
+    'manual_cash',
+    'e4100000-0000-4000-8000-000000000601',
+    'e4100000-0000-4000-8000-000000000004',
     0,
     'codex-test p0-expense rollback-only'
   ),
@@ -78,6 +82,9 @@ values
     600,
     'pending',
     'school',
+    'manual_cash',
+    'e4100000-0000-4000-8000-000000000602',
+    'e4100000-0000-4000-8000-000000000004',
     1,
     'codex-test p0-expense rollback-only'
   );
