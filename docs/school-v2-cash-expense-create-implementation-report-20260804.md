@@ -1,5 +1,7 @@
 # School V2 Cash 端新增支出实施报告（2026-08-04）
 
+> 后续状态：业务负责人完成首次真实业务验收后，新增弹窗交互已调整为“只保存 pending，用户再从列表/详情单独提交 Cash”。当前合同见 `docs/school-v2-cash-expense-save-submit-split-implementation-report-20260804.md`；本文以下内容保留首次上线时的历史实施证据。
+
 ## 结论
 
 Cash 端新增支出已按“School 先建普通业务 pending、再复用既有 Cash 审批链”安全恢复并上线，技术结论为 **Go**。本轮没有生成虚假生产 Cash request/transaction；第一笔真实业务提交及 Cash 人工审批属于业务验收，不是技术未完成项。
