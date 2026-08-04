@@ -898,6 +898,7 @@ function readEditExpensePayload() {
 
   return {
     expenseId: expense.id,
+    expectedUpdatedAt: expense.updated_at,
     expenseDate,
     businessEntityId,
     accountId,

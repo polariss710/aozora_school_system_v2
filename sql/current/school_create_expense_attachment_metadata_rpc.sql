@@ -52,7 +52,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -65,6 +65,8 @@ declare
   v_safe_file_name text;
   v_storage_path text;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_expense_id is null then
     raise exception '请选择支出记录。';
   end if;
@@ -93,7 +95,8 @@ begin
   into v_expense
   from public.school_expense_records e
   where e.id = p_expense_id
-    and e.app_type = 'school';
+    and e.app_type = 'school'
+  for update;
 
   if not found then
     raise exception '支出记录不存在。';
@@ -101,6 +104,22 @@ begin
 
   if v_expense.expense_category = 'teacher_wage' then
     raise exception '老师工资支出不支持普通支出附件元数据。';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_expense_attachments a
+    where a.expense_id = p_expense_id
+      and a.app_type = 'school'
+      and a.file_name = v_file_name
+      and a.file_type is not distinct from v_file_type
+      and a.file_size is not distinct from p_file_size
+      and a.source_type is not distinct from v_source_type
+      and a.note is not distinct from v_note
+  ) then
+    raise exception using
+      errcode = '23505',
+      message = 'P0_EXPENSE_ATTACHMENT_METADATA_DUPLICATE';
   end if;
 
   v_safe_file_name := regexp_replace(v_file_name, '[^A-Za-z0-9._-]+', '_', 'g');
@@ -170,3 +189,8 @@ comment on function public.school_create_expense_attachment_metadata(
   text
 ) is
 'Create metadata-only attachment summaries for ordinary school expenses. Does not upload, download, preview, delete, OCR, or mutate expense/account/reimbursement/account transaction state.';
+
+revoke all on function public.school_create_expense_attachment_metadata(uuid,text,text,bigint,text,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_create_expense_attachment_metadata(uuid,text,text,bigint,text,text)
+  to authenticated;

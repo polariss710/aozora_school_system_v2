@@ -30,6 +30,7 @@
 
 create or replace function public.school_update_expense_record(
   p_expense_id uuid,
+  p_expected_updated_at timestamptz,
   p_expense_date date,
   p_business_entity_id uuid,
   p_account_id uuid,
@@ -56,7 +57,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -82,6 +83,8 @@ declare
   v_payment_request_count integer := 0;
   v_reimbursement_item_count integer := 0;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_expense_id is null then
     raise exception '请选择要编辑的支出记录。';
   end if;
@@ -155,6 +158,18 @@ begin
 
   if not found then
     raise exception '支出记录不存在。';
+  end if;
+
+  if p_expected_updated_at is null then
+    raise exception using
+      errcode = '22023',
+      message = 'P0_EXPENSE_UPDATE_EXPECTED_UPDATED_AT_REQUIRED';
+  end if;
+
+  if v_expense.updated_at is distinct from p_expected_updated_at then
+    raise exception using
+      errcode = '40001',
+      message = 'P0_EXPENSE_UPDATE_STALE_VERSION';
   end if;
 
   if p_business_entity_id is distinct from v_expense.business_entity_id then
@@ -373,6 +388,7 @@ $$;
 
 comment on function public.school_update_expense_record(
   uuid,
+  timestamptz,
   date,
   uuid,
   uuid,
@@ -387,8 +403,15 @@ comment on function public.school_update_expense_record(
   text,
   text
 ) is
-  'Guarded v2 expense edit: updates one ordinary paid expense and its original account transaction only when reimbursement/payment/account guards pass.';
+  'Active-admin v2 expense edit with DB-authoritative updated_at optimistic locking; updates one ordinary paid expense and its original account transaction only when reimbursement/payment/account guards pass.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+revoke all on function public.school_update_expense_record(
+  uuid,date,uuid,uuid,text,text,text,numeric,numeric,text,text,text,text,text
+) from public, anon, authenticated, service_role;
+
+revoke all on function public.school_update_expense_record(
+  uuid,timestamptz,date,uuid,uuid,text,text,text,numeric,numeric,text,text,text,text,text
+) from public, anon, authenticated, service_role;
+grant execute on function public.school_update_expense_record(
+  uuid,timestamptz,date,uuid,uuid,text,text,text,numeric,numeric,text,text,text,text,text
+) to authenticated;

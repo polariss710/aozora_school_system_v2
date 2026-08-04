@@ -58,7 +58,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -89,6 +89,8 @@ declare
   v_from_account_new_balance numeric;
   v_to_account_new_balance numeric;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_reimbursement_date is null then
     raise exception '请选择报销日期。';
   end if;
@@ -422,17 +424,12 @@ comment on function public.school_create_reimbursement_record(
   uuid[],
   text
 ) is
-  'DRAFT RPC for v2 reimbursement creation: creates paid reimbursement, items, two account transactions, account balance updates, and marks selected expenses reimbursed.';
+  'Active-admin v2 reimbursement creation: creates paid reimbursement, items, two account transactions, account balance updates, and marks selected expenses reimbursed.';
 
--- Permission note:
--- Keep execute permission management explicit. If permissions need to be
--- applied after review, enable intentionally:
--- grant execute on function public.school_create_reimbursement_record(
---   date, uuid, uuid, uuid, uuid[], text
--- ) to authenticated;
---
--- This draft intentionally does not include executable test insert/update/delete
--- statements.
+revoke all on function public.school_create_reimbursement_record(date,uuid,uuid,uuid,uuid[],text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_create_reimbursement_record(date,uuid,uuid,uuid,uuid[],text)
+  to authenticated;
 
 -- Reference call example with placeholder IDs only. Do not run as-is.
 --

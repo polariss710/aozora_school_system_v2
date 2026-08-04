@@ -375,13 +375,22 @@ end;
 $anon_denials$;
 
 reset role;
+
+-- Seed the callback fixture as the database owner. Phase 2 intentionally
+-- removes service_role table DML; the callback must mutate only via the
+-- SECURITY DEFINER helper under test.
+update public.school_expense_records
+set cash_request_id = 'e4100000-0000-4000-8000-000000000302',
+    cash_request_status = 'pending'
+where id = 'e4100000-0000-4000-8000-000000000202';
+
 set local role service_role;
 
 do $service_writer_matrix$
 declare
   v_first record;
   v_retry record;
-  v_status text;
+  v_confirm record;
   v_denied boolean;
 begin
   select * into v_first
@@ -449,12 +458,7 @@ begin
     now()
   );
 
-  update public.school_expense_records
-  set cash_request_id = 'e4100000-0000-4000-8000-000000000302',
-      cash_request_status = 'pending'
-  where id = 'e4100000-0000-4000-8000-000000000202';
-
-  perform *
+  select * into v_confirm
   from public.school_mark_cash_expense_confirmed(
     'e4100000-0000-4000-8000-000000000202',
     'e4100000-0000-4000-8000-000000000302',
@@ -469,10 +473,7 @@ begin
     now()
   );
 
-  select status into v_status
-  from public.school_expense_records
-  where id = 'e4100000-0000-4000-8000-000000000202';
-  if v_status <> 'paid' then
+  if v_confirm.expense_status <> 'paid' then
     raise exception 'P0_EXPENSE_CASH_CONFIRM_RESULT_INVALID';
   end if;
 

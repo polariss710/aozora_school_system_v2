@@ -75,7 +75,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_year_month text := nullif(trim(coalesce(p_year_month, '')), '');
@@ -88,6 +88,8 @@ declare
   v_unsettled_student_group_count integer;
   v_unsettled_student_examples text;
 begin
+  perform public.school_require_current_app_admin();
+
   if v_year_month is null then
     raise exception '请选择工资月份。';
   end if;
@@ -528,6 +530,7 @@ $$;
 comment on function public.school_generate_teacher_monthly_wage(text, uuid) is
   'Generates teacher monthly wage locks/details from actual completed and makeup_completed lessons after requiring locked student monthly settlements for candidate student/month/business groups. Writes only wage locks and wage details; no payment, expense, account, income, student settlement, or lesson mutation. Ignores voided wage snapshots/details when checking regeneration blockers.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+revoke all on function public.school_generate_teacher_monthly_wage(text,uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_generate_teacher_monthly_wage(text,uuid)
+  to authenticated;

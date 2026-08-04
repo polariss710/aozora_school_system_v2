@@ -48,7 +48,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -81,6 +81,8 @@ declare
   v_from_reverse_transaction_id uuid;
   v_to_reverse_transaction_id uuid;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_reimbursement_id is null then
     raise exception '请选择要撤销的报销记录。';
   end if;
@@ -411,4 +413,9 @@ end;
 $$;
 
 comment on function public.school_reverse_reimbursement_record(uuid, date, text) is
-  'DRAFT RPC for v2 reimbursement reversal: logically reverses a paid reimbursement with two reversal account transactions and returns related expenses to pending reimbursement status.';
+  'Active-admin v2 reimbursement reversal: logically reverses a paid reimbursement with two reversal account transactions and returns related expenses to pending reimbursement status.';
+
+revoke all on function public.school_reverse_reimbursement_record(uuid,date,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_reverse_reimbursement_record(uuid,date,text)
+  to authenticated;

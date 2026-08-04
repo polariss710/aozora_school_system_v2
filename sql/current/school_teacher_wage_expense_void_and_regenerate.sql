@@ -57,13 +57,15 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
   v_reason text := nullif(trim(coalesce(p_void_reason, '')), '');
   v_now timestamptz := now();
 begin
+  perform public.school_require_current_app_admin();
+
   if p_expense_record_id is null then
     raise exception '请选择要作废的老师工资支出记录。';
   end if;
@@ -136,7 +138,7 @@ comment on function public.school_void_unsubmitted_teacher_wage_expense_record(u
   'Logically cancels one pending teacher_wage school_expense_records row before any Cash submission. Rejects non-teacher_wage, paid, Cash-pending, Cash-approved, Cash-rejected, and already-cancelled records.';
 
 revoke all on function public.school_void_unsubmitted_teacher_wage_expense_record(uuid, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 grant execute on function public.school_void_unsubmitted_teacher_wage_expense_record(uuid, text)
   to authenticated;
@@ -166,7 +168,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_wage public.school_teacher_wage_locks%rowtype;
@@ -177,6 +179,8 @@ declare
   v_description text;
   v_note text;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_wage_lock_id is null then
     raise exception 'wage lock id is required';
   end if;
@@ -367,7 +371,7 @@ comment on function public.school_create_teacher_wage_expense_record(uuid, date,
   'Creates or returns one active pending teacher_wage school_expense_records row from one locked teacher wage snapshot. Cancelled historical rows do not block regeneration. Does not create Cash requests, Cash transactions, payment requests, account transactions, or account balance changes.';
 
 revoke all on function public.school_create_teacher_wage_expense_record(uuid, date, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 grant execute on function public.school_create_teacher_wage_expense_record(uuid, date, text)
   to authenticated;

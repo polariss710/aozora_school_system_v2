@@ -28,7 +28,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_wage public.school_teacher_wage_locks%rowtype;
@@ -185,4 +185,5 @@ $$;
 comment on function public.school_create_teacher_wage_payment_request(uuid, date, text) is
   'Creates one pending teacher wage payment request from one locked teacher wage snapshot. Writes only school_payment_requests and rejects wage locks that already have any teacher_wage payment request.';
 
-grant execute on function public.school_create_teacher_wage_payment_request(uuid, date, text) to authenticated;
+revoke all on function public.school_create_teacher_wage_payment_request(uuid,date,text)
+  from public, anon, authenticated, service_role;

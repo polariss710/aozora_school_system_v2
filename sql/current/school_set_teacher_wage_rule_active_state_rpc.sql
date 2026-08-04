@@ -54,13 +54,15 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
   v_rule public.school_teacher_wage_rules%rowtype;
   v_note text := nullif(trim(coalesce(p_note, '')), '');
 begin
+  perform public.school_require_current_app_admin();
+
   if p_wage_rule_id is null then
     raise exception '请选择老师工资规则。';
   end if;
@@ -132,6 +134,7 @@ comment on function public.school_set_teacher_wage_rule_active_state(
 ) is
   'Soft-disables or restores one teacher wage rule for future matching only. Does not delete rules or modify historical wage/payment/expense/account data.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+revoke all on function public.school_set_teacher_wage_rule_active_state(uuid,boolean,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_set_teacher_wage_rule_active_state(uuid,boolean,text)
+  to authenticated;

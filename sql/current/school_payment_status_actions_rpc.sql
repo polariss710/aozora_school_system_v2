@@ -36,13 +36,15 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_payment public.school_payment_requests%rowtype;
   v_old_status text;
   v_updated_at timestamptz;
 begin
+  perform public.school_require_current_app_admin();
+
   -- p_reason is reserved for future audit fields. The current schema does not persist it.
   select *
     into v_payment
@@ -86,13 +88,15 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_payment public.school_payment_requests%rowtype;
   v_old_status text;
   v_updated_at timestamptz;
 begin
+  perform public.school_require_current_app_admin();
+
   select *
     into v_payment
     from public.school_payment_requests
@@ -124,5 +128,9 @@ begin
 end;
 $$;
 
-grant execute on function public.school_cancel_payment_request(uuid, text) to authenticated;
+revoke all on function public.school_cancel_payment_request(uuid,text)
+  from public, anon, authenticated, service_role;
+revoke all on function public.school_restore_cancelled_payment_request(uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_cancel_payment_request(uuid,text) to authenticated;
 grant execute on function public.school_restore_cancelled_payment_request(uuid) to authenticated;

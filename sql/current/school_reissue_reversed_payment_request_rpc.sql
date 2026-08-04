@@ -48,7 +48,7 @@ returns table(
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_original public.school_payment_requests%rowtype;
@@ -57,6 +57,8 @@ declare
   v_existing_reissue_id uuid;
   v_note text;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_payment_request_id is null then
     raise exception 'payment request id is required';
   end if;
@@ -178,7 +180,10 @@ begin
 end;
 $$;
 
-grant execute on function public.school_reissue_reversed_payment_request(uuid, text) to authenticated;
+revoke all on function public.school_reissue_reversed_payment_request(uuid,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_reissue_reversed_payment_request(uuid,text)
+  to authenticated;
 
 -- 手动测试 SQL（请在 Supabase SQL Editor 中按需替换 UUID 后执行；本文件不自动执行测试）
 

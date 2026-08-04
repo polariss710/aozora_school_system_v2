@@ -40,7 +40,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_source_type text;
@@ -79,6 +79,17 @@ comment on function public.school_request_cash_payment_confirmation(
 ) is
   'Deprecated legacy payment-request Cash confirmation entry. Rejects teacher_wage because new payments must use school_expense_records.';
 
+revoke all on function public.school_request_cash_payment_confirmation(
+  uuid,
+  uuid,
+  uuid,
+  text,
+  text,
+  text,
+  numeric,
+  numeric,
+  text
+) from public, anon, authenticated, service_role;
 grant execute on function public.school_request_cash_payment_confirmation(
   uuid,
   uuid,
@@ -89,4 +100,4 @@ grant execute on function public.school_request_cash_payment_confirmation(
   numeric,
   numeric,
   text
-) to authenticated, service_role;
+) to service_role;

@@ -205,6 +205,7 @@ export async function voidUnsubmittedTeacherWageExpenseRecord(payload) {
 export async function updateExpenseRecord(payload) {
   const { data, error } = await supabase.rpc("school_update_expense_record", {
     p_expense_id: payload.expenseId,
+    p_expected_updated_at: payload.expectedUpdatedAt,
     p_expense_date: payload.expenseDate,
     p_business_entity_id: payload.businessEntityId,
     p_account_id: payload.accountId,

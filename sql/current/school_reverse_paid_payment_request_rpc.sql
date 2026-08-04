@@ -33,7 +33,8 @@ returns table (
   reversed_at timestamptz
 )
 language plpgsql
-set search_path = public
+security definer
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -52,6 +53,8 @@ declare
   v_note text;
   v_reason text := nullif(trim(coalesce(p_reason, '')), '');
 begin
+  perform public.school_require_current_app_admin();
+
   if p_payment_request_id is null then
     raise exception 'payment request id is required';
   end if;
@@ -288,6 +291,11 @@ comment on function public.school_reverse_paid_payment_request(
 ) is
   'Reverses one paid teacher_wage payment request, restores cash through payment_reversal, and marks the generated teacher_wage expense reversed.';
 
+revoke all on function public.school_reverse_paid_payment_request(
+  uuid,
+  text,
+  date
+) from public, anon, authenticated, service_role;
 grant execute on function public.school_reverse_paid_payment_request(
   uuid,
   text,

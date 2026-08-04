@@ -30,6 +30,8 @@ returns table (
   balance_after numeric
 )
 language plpgsql
+security definer
+set search_path = pg_catalog, public
 as $$
 declare
   v_payment public.school_payment_requests%rowtype;
@@ -49,6 +51,8 @@ declare
   v_reimbursement_status text;
   v_now timestamptz := now();
 begin
+  perform public.school_require_current_app_admin();
+
   if p_payment_request_id is null then
     raise exception 'payment request id is required';
   end if;
@@ -279,6 +283,14 @@ comment on function public.school_confirm_payment_request(
 ) is
   'Confirms one pending teacher wage payment request. Creates one teacher_wage expense and one account transaction, marks the request paid, sets expense reimbursement_status by account type, and treats exchange_rate as optional metadata.';
 
+revoke all on function public.school_confirm_payment_request(
+  uuid,
+  uuid,
+  date,
+  numeric,
+  text,
+  text
+) from public, anon, authenticated, service_role;
 grant execute on function public.school_confirm_payment_request(
   uuid,
   uuid,

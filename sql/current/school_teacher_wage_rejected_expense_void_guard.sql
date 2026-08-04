@@ -32,13 +32,15 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
   v_reason text := nullif(trim(coalesce(p_void_reason, '')), '');
   v_now timestamptz := now();
 begin
+  perform public.school_require_current_app_admin();
+
   if p_expense_record_id is null then
     raise exception '请选择要作废的老师工资支出记录。';
   end if;
@@ -117,7 +119,7 @@ comment on function public.school_void_unsubmitted_teacher_wage_expense_record(u
   'Logically cancels one pending teacher_wage school_expense_records row before Cash transaction creation. Allows rejected Cash requests with no Cash transaction, preserves rejected request metadata, and rejects non-teacher_wage, paid, active Cash-pending/approved/synced, and already-cancelled records.';
 
 revoke all on function public.school_void_unsubmitted_teacher_wage_expense_record(uuid, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 grant execute on function public.school_void_unsubmitted_teacher_wage_expense_record(uuid, text)
   to authenticated;
@@ -144,12 +146,12 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
+  v_actor uuid;
   v_lock public.school_teacher_wage_locks%rowtype;
   v_reason text := nullif(trim(coalesce(p_reason, '')), '');
-  v_operator text := nullif(trim(coalesce(p_operator, '')), '');
   v_source text := coalesce(nullif(trim(coalesce(p_source, '')), ''), 'v2_wage_detail');
   v_now timestamptz := now();
   v_detail_count integer;
@@ -167,6 +169,14 @@ declare
   v_account_tx_via_payment_count integer;
   v_direct_wage_account_tx_count integer;
 begin
+  v_actor := public.school_require_current_app_admin();
+
+  if v_source <> 'v2_wage_detail' then
+    raise exception using
+      errcode = '22023',
+      message = 'P0_TEACHER_WAGE_VOID_SOURCE_INVALID';
+  end if;
+
   if p_wage_lock_id is null then
     raise exception '请选择要撤销的工资快照。';
   end if;
@@ -301,7 +311,7 @@ begin
      set status = 'void',
          voided_at = v_now,
          void_reason = v_reason,
-         voided_by = coalesce(v_operator, nullif(current_setting('request.jwt.claim.sub', true), ''), current_user),
+         voided_by = v_actor::text,
          void_source = v_source,
          updated_at = v_now
    where w.id = v_lock.id;
@@ -328,6 +338,9 @@ $$;
 comment on function public.school_void_teacher_wage_lock(uuid, text, text, text) is
   'Voids one unpaid teacher wage snapshot with reason/operator/source audit. Rejects any active teacher_wage payment request, canonical teacher_wage expense, or account-transaction dependency and preserves wage detail rows.';
 
-grant execute on function public.school_void_teacher_wage_lock(uuid, text, text, text) to authenticated;
+revoke all on function public.school_void_teacher_wage_lock(uuid,text,text,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_void_teacher_wage_lock(uuid,text,text,text)
+  to authenticated;
 
 commit;

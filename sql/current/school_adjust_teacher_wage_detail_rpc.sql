@@ -58,7 +58,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_detail public.school_teacher_wage_lock_details%rowtype;
@@ -82,6 +82,8 @@ declare
   v_adjustment_id uuid;
   v_created_at timestamptz;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_wage_detail_id is null then
     raise exception '请选择要调整的工资明细。';
   end if;
@@ -305,6 +307,13 @@ comment on function public.school_adjust_teacher_wage_detail(
 ) is
   'Adjusts one teacher wage snapshot detail with a required reason, recalculates the parent wage snapshot totals from saved details, and writes an append-only audit row. Rejects voided/non-locked snapshots and snapshots with any teacher_wage payment request.';
 
+revoke all on function public.school_adjust_teacher_wage_detail(
+  uuid,
+  numeric,
+  numeric,
+  numeric,
+  text
+) from public, anon, authenticated, service_role;
 grant execute on function public.school_adjust_teacher_wage_detail(
   uuid,
   numeric,

@@ -65,7 +65,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_year_month text := nullif(trim(coalesce(p_year_month, '')), '');
@@ -79,6 +79,8 @@ declare
   v_unsettled_student_group_count integer;
   v_unsettled_student_examples text;
 begin
+  perform public.school_require_current_app_admin();
+
   if v_year_month is null then
     raise exception '请选择工资月份。';
   end if;
@@ -561,9 +563,11 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 begin
+  perform public.school_require_current_app_admin();
+
   return query
   select *
   from public.school_generate_teacher_monthly_wage(p_year_month, p_teacher_id, null::uuid);
@@ -573,8 +577,9 @@ $$;
 comment on function public.school_generate_teacher_monthly_wage(text, uuid) is
   'Backward-compatible wrapper for school_generate_teacher_monthly_wage(text, uuid, uuid) with no business-entity scope.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+revoke all on function public.school_generate_teacher_monthly_wage(text,uuid,uuid)
+  from public, anon, authenticated, service_role;
+revoke all on function public.school_generate_teacher_monthly_wage(text,uuid)
+  from public, anon, authenticated, service_role;
 grant execute on function public.school_generate_teacher_monthly_wage(text, uuid, uuid) to authenticated;
 grant execute on function public.school_generate_teacher_monthly_wage(text, uuid) to authenticated;

@@ -145,7 +145,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_payment public.school_payment_requests%rowtype;
@@ -451,6 +451,17 @@ comment on function public.school_request_cash_payment_confirmation(
 ) is
   'Creates or returns an all-scope teacher_wage Cash confirmation request event for a Cash-eligible JPY/CNY account. Does not mark the payment request paid, write School ledgers, create School expenses, or write Cash DB.';
 
+revoke all on function public.school_request_cash_payment_confirmation(
+  uuid,
+  uuid,
+  uuid,
+  text,
+  text,
+  text,
+  numeric,
+  numeric,
+  text
+) from public, anon, authenticated, service_role;
 grant execute on function public.school_request_cash_payment_confirmation(
   uuid,
   uuid,
@@ -461,7 +472,7 @@ grant execute on function public.school_request_cash_payment_confirmation(
   numeric,
   numeric,
   text
-) to authenticated, service_role;
+) to service_role;
 
 comment on function public.school_mark_personal_cash_payment_request_confirmed(uuid, uuid, uuid, timestamptz) is
   'Reflects Cash approval of a teacher_wage JPY/CNY payment request. Marks the School payment request paid and linkage synced, without writing School ledgers or Cash DB.';

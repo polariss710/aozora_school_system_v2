@@ -32,7 +32,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -47,6 +47,8 @@ declare
   v_new_balance numeric;
   v_reversal_transaction_id uuid;
 begin
+  perform public.school_require_current_app_admin();
+
   if p_expense_id is null then
     raise exception '请选择要撤销的支出记录。';
   end if;
@@ -248,8 +250,9 @@ comment on function public.school_reverse_expense_record(
   date,
   text
 ) is
-  'Draft RPC for v2 ordinary expense reversal: marks a paid expense as reversed, restores account balance, and inserts a positive expense_reversal transaction.';
+  'Active-admin v2 ordinary expense reversal: marks a paid expense as reversed, restores account balance, and inserts a positive expense_reversal transaction.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+revoke all on function public.school_reverse_expense_record(uuid,date,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_reverse_expense_record(uuid,date,text)
+  to authenticated;

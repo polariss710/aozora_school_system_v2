@@ -54,7 +54,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -62,6 +62,8 @@ declare
   v_settlement_type text := nullif(trim(coalesce(p_settlement_type, '')), '');
   v_note text := nullif(trim(coalesce(p_note, '')), '');
 begin
+  perform public.school_require_current_app_admin();
+
   if p_wage_rule_id is null then
     raise exception '请选择要编辑的老师工资规则。';
   end if;
@@ -296,6 +298,9 @@ comment on function public.school_update_teacher_wage_rule_config(
 ) is
   'Updates future teacher wage rule matching keys and configuration fields only; does not recalculate or modify historical wage/payment/account data.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+revoke all on function public.school_update_teacher_wage_rule_config(uuid,uuid,uuid,uuid,uuid,text,numeric,numeric,numeric,numeric,numeric,boolean,text)
+  from public, anon, authenticated, service_role;
+revoke all on function public.school_update_teacher_wage_rule_config(uuid,text,numeric,numeric,numeric,numeric,numeric,boolean,text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.school_update_teacher_wage_rule_config(uuid,uuid,uuid,uuid,uuid,text,numeric,numeric,numeric,numeric,numeric,boolean,text)
+  to authenticated;
