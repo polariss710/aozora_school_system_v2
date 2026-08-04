@@ -71,7 +71,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
@@ -215,7 +215,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
@@ -285,7 +285,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
@@ -366,7 +366,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
@@ -426,21 +426,21 @@ comment on function public.school_mark_cash_expense_rejected(uuid, uuid, text, t
   'Marks a school_expense_records Cash request rejected without creating School ledger side effects.';
 
 revoke all on function public.school_request_cash_expense_payment_confirmation(uuid, uuid, uuid, text, text, numeric, text, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 revoke all on function public.school_mark_cash_expense_request_submitted(uuid, uuid, text)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 revoke all on function public.school_mark_cash_expense_confirmed(uuid, uuid, uuid, timestamptz)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 revoke all on function public.school_mark_cash_expense_rejected(uuid, uuid, text, timestamptz)
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 grant execute on function public.school_request_cash_expense_payment_confirmation(uuid, uuid, uuid, text, text, numeric, text, text)
-  to authenticated;
+  to service_role;
 grant execute on function public.school_mark_cash_expense_request_submitted(uuid, uuid, text)
-  to authenticated;
+  to service_role;
 grant execute on function public.school_mark_cash_expense_confirmed(uuid, uuid, uuid, timestamptz)
-  to authenticated;
+  to service_role;
 grant execute on function public.school_mark_cash_expense_rejected(uuid, uuid, text, timestamptz)
-  to authenticated;
+  to service_role;
 
 commit;

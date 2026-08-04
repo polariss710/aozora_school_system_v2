@@ -55,7 +55,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_expense public.school_expense_records%rowtype;
@@ -252,7 +252,7 @@ revoke all on function public.school_request_cash_expense_payment_confirmation(
   text,
   numeric,
   text
-) from public, anon, authenticated;
+) from public, anon, authenticated, service_role;
 
 grant execute on function public.school_request_cash_expense_payment_confirmation(
   uuid,
@@ -265,4 +265,4 @@ grant execute on function public.school_request_cash_expense_payment_confirmatio
   text,
   numeric,
   text
-) to authenticated;
+) to service_role;

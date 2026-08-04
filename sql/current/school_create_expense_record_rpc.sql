@@ -1,7 +1,7 @@
 -- school_create_expense_record_rpc.sql
 -- RPC: public.school_create_expense_record
--- Status: Executed on Supabase and verified by RPC unit tests.
--- Version: v2.22.4-expense-create-rpc-verified-20260604
+-- Status: Authoritative source; P0 active-admin hardening is deployed separately.
+-- Version: p0-expense-permission-closure-20260804
 --
 -- Scope:
 -- - Create one ordinary paid school expense record.
@@ -64,10 +64,11 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
+  v_actor uuid;
   v_business_entity public.school_business_entities%rowtype;
   v_account public.school_accounts%rowtype;
   v_currency text := upper(trim(coalesce(p_currency, '')));
@@ -86,6 +87,19 @@ declare
   v_expense_id uuid;
   v_account_transaction_id uuid;
 begin
+  v_actor := public.school_require_current_app_admin();
+
+  if not pg_catalog.pg_try_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'school_create_expense_record:actor:' || v_actor::text,
+      0
+    )
+  ) then
+    raise exception using
+      errcode = '55P03',
+      message = 'SCHOOL_CREATE_EXPENSE_ALREADY_IN_PROGRESS';
+  end if;
+
   if p_expense_date is null then
     raise exception '请选择支出日期。';
   end if;
@@ -336,18 +350,17 @@ comment on function public.school_create_expense_record(
   uuid,
   text
 ) is
-  'Verified RPC for v2 ordinary expense creation: creates paid expense, deducts account balance, and inserts a negative expense_adjust transaction.';
+  'Active-admin-only RPC for ordinary paid School expense creation. Creates one paid expense, deducts one School account balance once, and inserts one negative expense_adjust transaction.';
 
--- Permission note:
--- Keep execute permission management explicit. If permissions need to be
--- re-applied in another environment, review before enabling:
--- grant execute on function public.school_create_expense_record(
---   date, uuid, uuid, text, text, text, numeric, numeric, text, boolean,
---   text, text, text, uuid, uuid, text
--- ) to authenticated;
---
--- This file intentionally does not include executable test insert/update/delete
--- statements.
+revoke all on function public.school_create_expense_record(
+  date, uuid, uuid, text, text, text, numeric, numeric, text, boolean,
+  text, text, text, uuid, uuid, text
+) from public, anon, authenticated, service_role;
+
+grant execute on function public.school_create_expense_record(
+  date, uuid, uuid, text, text, text, numeric, numeric, text, boolean,
+  text, text, text, uuid, uuid, text
+) to authenticated;
 
 -- Reference call example with placeholder IDs only. Do not run as-is.
 --

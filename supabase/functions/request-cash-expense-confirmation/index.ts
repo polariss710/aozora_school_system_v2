@@ -131,6 +131,22 @@ function createSupabaseClient(urlEnv: string, keyEnv: string) {
   });
 }
 
+function createUserScopedSchoolClient(authorization: string) {
+  return createClient(
+    getRequiredEnv("SCHOOL_SUPABASE_URL"),
+    getRequiredEnv("SUPABASE_ANON_KEY"),
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+      global: {
+        headers: { Authorization: authorization },
+      },
+    },
+  );
+}
+
 async function requireSchoolUser(
   schoolClient: ReturnType<typeof createClient>,
   authorization: string,
@@ -147,6 +163,17 @@ async function requireSchoolUser(
   }
 
   return userData.user;
+}
+
+async function requireCurrentActiveAdmin(
+  userScopedSchoolClient: ReturnType<typeof createClient>,
+  verifiedUserId: string,
+): Promise<boolean> {
+  const { data, error } = await userScopedSchoolClient.rpc(
+    "school_require_current_app_admin",
+  );
+  const actorId = typeof data === "string" ? data : "";
+  return !error && actorId.toLowerCase() === verifiedUserId.toLowerCase();
 }
 
 function requireUuid(value: unknown, fieldName: string): string {
@@ -283,14 +310,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
   try {
     const authorization = request.headers.get("authorization") ?? "";
-    const body = (await request.json()) as RequestBody;
     const schoolClient = createSupabaseClient(
       "SCHOOL_SUPABASE_URL",
       "SCHOOL_SERVICE_ROLE_KEY",
-    );
-    const cashClient = createSupabaseClient(
-      "CASH_SUPABASE_URL",
-      "CASH_SERVICE_ROLE_KEY",
     );
 
     const schoolUser = await requireSchoolUser(schoolClient, authorization);
@@ -300,6 +322,24 @@ Deno.serve(async (request: Request): Promise<Response> => {
         401,
       );
     }
+
+    const userScopedSchoolClient = createUserScopedSchoolClient(authorization);
+    if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
+      return jsonResponse(
+        {
+          ok: false,
+          code: "P0G1_ACTIVE_ADMIN_REQUIRED",
+          message: "仅已启用的管理员账号可以提交 Cash 支付确认请求。",
+        },
+        403,
+      );
+    }
+
+    const body = (await request.json()) as RequestBody;
+    const cashClient = createSupabaseClient(
+      "CASH_SUPABASE_URL",
+      "CASH_SERVICE_ROLE_KEY",
+    );
 
     const expenseRecordId = requireUuid(body.expense_record_id, "expense_record_id");
     const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
@@ -384,6 +424,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
+    if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
+      return jsonResponse(
+        { ok: false, code: "P0G1_ACTIVE_ADMIN_REQUIRED", message: "管理员权限已失效，请重新登录。" },
+        403,
+      );
+    }
+
     const { data: schoolRequestData, error: schoolRequestError } =
       await schoolClient.rpc("school_request_cash_expense_payment_confirmation", {
         p_expense_record_id: expenseRecordId,
@@ -465,6 +512,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
       school_message: schoolRequest.message,
       note,
     };
+
+    if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
+      return jsonResponse(
+        { ok: false, code: "P0G1_ACTIVE_ADMIN_REQUIRED", message: "管理员权限已失效，未创建 Cash 请求。" },
+        403,
+      );
+    }
 
     const { data: cashRequestData, error: cashRequestError } =
       await cashClient.rpc("home_create_external_transaction_request", {
