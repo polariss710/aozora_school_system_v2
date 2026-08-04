@@ -658,7 +658,7 @@
         <section class="dialog-panel lesson-create-dialog-panel lesson-cross-month-makeup-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createCrossMonthMakeupActualTitle">
           <div class="section-heading">
             <h2 id="createCrossMonthMakeupActualTitle">登记待补课完成</h2>
-            <p class="section-note">可登记本月或以前月份的待补课来源；补课不新增学生学费。</p>
+            <p class="section-note">请在补课实际发生月份登记；来源课程可以选择以前月份。补课不新增学生学费。</p>
           </div>
 
           <div id="createCrossMonthMakeupActualSummary" class="dialog-summary"></div>
@@ -705,6 +705,7 @@
             <label class="field" data-create-cross-month-makeup-field="lessonDate">
               <span>补课完成日期</span>
               <input id="createCrossMonthMakeupActualDateInput" type="date">
+              <small class="field-hint">补课完成日期必须属于当前页面月份。</small>
             </label>
 
             <label class="field">
@@ -1130,6 +1131,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/lesson-app.js?v=makeup-date-fix-20260804-1"></script>
   </body>
 </html>

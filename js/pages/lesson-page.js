@@ -2940,6 +2940,9 @@ function readCreateCrossMonthMakeupActualPayload() {
   const lessonCount = nullableIntegerFromInput(dom.createCrossMonthMakeupActualCountInput.value);
   const lessonContent = dom.createCrossMonthMakeupActualContentInput.value.trim();
   const invalidFields = [];
+  const crossMonthDateMessage = lessonDate && lessonMonth !== targetMonth
+    ? "补课完成日期必须属于当前页面月份。若补课实际发生在其他月份，请先切换到实际发生月份，再在‘来源月份’中选择原待补课程所在月份。"
+    : "";
 
   if (!source) invalidFields.push("sourceLesson");
   if (source && fixedOnsiteVenueMigrationReason(source)) invalidFields.push("sourceLesson");
@@ -2971,9 +2974,10 @@ function readCreateCrossMonthMakeupActualPayload() {
 
   if (invalidFields.length) {
     showCreateCrossMonthMakeupActualError(
-      (source && fixedOnsiteVenueMigrationReason(source))
+      crossMonthDateMessage
+        || (source && fixedOnsiteVenueMigrationReason(source))
         || validationMessage
-        || "开始时间、结束时间和内容为必填项；补课完成日期必须在当前页面月份，来源不能晚于当前月份。",
+        || "开始时间、结束时间和内容为必填项；补课完成日期必须属于当前页面月份，来源不能晚于当前月份。",
       invalidFields
     );
     return null;
