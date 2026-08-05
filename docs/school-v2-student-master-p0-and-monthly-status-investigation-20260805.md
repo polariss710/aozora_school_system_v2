@@ -19,7 +19,8 @@
 | fetch 后 `origin/main` | `5b276a826e1ea5f9deacc0e1264fb8eda073e695` |
 | ahead / behind | `0 / 0` |
 | 页面版本 | `v10.5.5` |
-| 起点 Pages run | `30889444439`，success |
+| 起点页面代码 Pages run | `30889444439`，HEAD `b788b52...`，success |
+| 起点最新 Pages run | `30889756079`，HEAD `5b276a8...`（仅文档后续提交），success |
 | Gate | preview=`enabled` / generate=`blocked` / cash_submit=`enabled` |
 | 学生 | 8：active 7，paused 1 |
 
