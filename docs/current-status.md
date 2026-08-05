@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-06 学生月份状态 Phase B2 已完成：`school_students.status` 已由表级 trigger 永久冻结，新行只能为精确active、已有行不可改变；页面新增/编辑已切换到不含status的active-admin-only `_v2` canonical writer，3个旧create和6个旧update overload均owner-only。Phase A record/correction event writer临时owner-only，函数体、resolver/history及唯一真实事件不变；B5仅可在B3/B4验收后向authenticated恢复EXECUTE。页面`v10.5.7`无可写状态字段，旧顶部筛选保持，Chrome 8名/paused 1名及Console通过。角色、rollback、真实双会话、postdeploy和静态测试全部通过，fixture residue 0；学生8、事件1、课时738、财务/Cash/Storage/Gate指纹均与实时起点一致，真实业务行写入0。实现提交`a9493ab`及Pages run `31023458610`成功；本轮未启动B3/B4/B5。详见`docs/school-v2-student-status-phase-b2-legacy-freeze-20260806.md`。
+
 - 2026-08-05 学生月份状态 Phase B1 已完成：`school_get_weekly_lesson_operations(date)`仅移除legacy `school_students.status`当前态过滤，保留`app_type='school'`、周/聚合/business entity/credit合同及12列ABI、owner、SECURITY、search path、ACL；定义MD5由`b1ba774b…`变为`e7eac5f3…`。Rollback矩阵覆盖active/paused/left/无事件legacy、跨月、completed/cancelled/makeup、状态变化、空周、重复与entity并显式ROLLBACK，fixture residue 0。真实paused学生`cff85c52-…`的2026-04-27至06-29十周均恢复唯一`2节/4小时、已登记2节、完成4小时`，直接课时ID无遗漏/重复；其他7名学生12周84行逐字段总MD5保持`ecf29519…`。School实时736课时及财务、Cash 42/73/31、Storage 57/30 orphan、状态事件和Gate `enabled / blocked / enabled`指纹均不变；真实业务行写入0，唯一生产DB持久写入是目标函数/comment。Chrome周切换、课时链接、月结/收入/工资页面及Console均通过，版本仍`v10.5.6`；实现提交`bfec0df`已推送，Pages run `31015287798`成功。Phase B1完成，可进入B2独立授权，本轮未启动B2。详见`docs/school-v2-student-status-phase-b1-weekly-reader-20260805.md`。
 
 - 2026-08-05 学生月份状态 Phase A 已完全闭环：唯一权威 `school_student_status_events`、active-membership单月/候选/区间resolver与shadow、active-admin append/correction writer、immutable correction guard和最小ACL均保持；无事件/首事件前固定fallback active且不读取legacy snapshot。唯一生产事件 `4190bddf-d995-4e6a-af6b-85997e6f999b` 保持不变，学生`cff85c52-…`在2026-06解析active、2026-07/08解析paused。补证使用 student `a0520000-…0100` 形成正式writer真实重叠：A PID `2253575` 持transaction `10123`，B PID `2253593` 的未授予ShareLock实际等待且blocker为A；A COMMIT后B以`40001 / STUDENT_STATUS_EXPECTED_CURRENT_EVENT_MISMATCH`拒绝，最终有效synthetic event严格1。事件`3838c80d-…`和学生随后按精确UUID清理，student/event/user/membership及全部业务引用residue 0，残留事务/锁会话0；无deadlock、timeout或半写入。School/Cash/Storage指纹、真实event MD5、Gate `enabled / blocked / enabled`、页面`v10.5.6`及12个API/业务writer边界均不变。状态更新为`PHASE_A_COMPLETE_CONCURRENCY_PROVEN`；可以进入Phase B的独立调查/授权流程，但本轮未启动Phase B。详见`docs/school-v2-student-monthly-status-phase-a-20260805.md`。
@@ -28,7 +30,7 @@
 
 - 2026-08-03 月结业务错误中文化与汇率日期限制已完成：新增集中 `js/api/business-error.js`，按仓库真实 P0-A至P0-F稳定码精确翻译月结错误，未知码显示通用中文并在次要位置保留稳定码；Dialog按settlement month动态设置汇率生效日`min/max`，越界立即使旧Preview失效并禁用保存，修正后必须重新调用DB Preview。DB日期guard、公式和权威未改。生产Chrome `v10.4.6 · settlement-error-i18n-20260803-1`确认彭宇晗7月范围`2026-07-01..31`，8月1日请求被HTTP400/`SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH`拒绝且主提示为动态中文，合法日期恢复`-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`；Console error/warning 0，未保存/锁定。School/Cash哈希与Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`7ad4305`已推送；详见`docs/school-v2-settlement-business-error-localization-20260803.md`。
 
-Status date: 2026-08-05
+Status date: 2026-08-06
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
