@@ -15,4 +15,15 @@ begin
 end;
 $cash_invariants$;
 
+select 'external_requests' object,count(*) row_count,
+       md5(coalesce(string_agg(to_jsonb(t)::text,'|' order by t.id),'')) row_hash
+from public.home_external_transaction_requests t
+union all
+select 'cny_transactions',count(*),md5(coalesce(string_agg(to_jsonb(t)::text,'|' order by t.id),''))
+from public.home_cny_transactions t
+union all
+select 'jpy_transactions',count(*),md5(coalesce(string_agg(to_jsonb(t)::text,'|' order by t.id),''))
+from public.home_jpy_transactions t
+order by object;
+
 select 'STUDENT_STATUS_PHASE_A_CASH_READ_ONLY_PASS' result;

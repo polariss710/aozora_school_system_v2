@@ -4,7 +4,7 @@
 
 范围：事件表、active-admin writer、correction writer、单月/候选/区间 resolver、legacy fallback、shadow、唯一生产事件
 
-结论：`PHASE_A_DEPLOYED_WITH_CONCURRENCY_EVIDENCE_GAP`
+结论：`PHASE_A_COMPLETE_CONCURRENCY_PROVEN`
 
 ## 1. 结果摘要
 
@@ -31,6 +31,8 @@ Phase A 后端已部署，唯一获批生产事件已通过正式 writer 创建�
 
 唯一 paused 学生在 2026-06 解析为 `active / fallback=true`，在 2026-07、08 解析为 `paused / source event=4190bddf-…`。selected override 在 2026-07 返回 1 条。
 
+2026-08-05 补证已使用独立 `a0520000-*` synthetic fixture 形成两个正式 writer 事务的真实重叠：Session B 实际等待 Session A 的 transaction id 锁，A COMMIT 后 B 以稳定 `40001 / STUDENT_STATUS_EXPECTED_CURRENT_EVENT_MISMATCH` 拒绝；有效事件严格为 1，随后 event/student 均按精确 UUID 清理为 0。Phase A 的并发验收缺口已关闭。
+
 本阶段没有切换 12 个 API 模块、页面顶部筛选、weekly reader 或任何 lesson/tuition/settlement/income/expense/wage writer 的状态资格规则；旧页面仍按 `school_students.status` 运行。
 
 ## 2. 实时基线
@@ -38,10 +40,10 @@ Phase A 后端已部署，唯一获批生产事件已通过正式 writer 创建�
 ### 2.1 Git 与部署
 
 - branch：`main`
-- 开始 HEAD / `origin/main`：`630bc2b6dad5e951f9df29ab36a3ca06b52ef78b`
+- 本次并发补证开始 HEAD / `origin/main`：`57928ac5f9aff5d36992ff7770d5b58769dade42`
 - ahead/behind：`0 / 0`
 - 页面版本：`v10.5.6`
-- 开始部署：Pages run `30967715122`，成功，head `630bc2b…`
+- 本次并发补证开始部署：Pages run `30974598069`，成功，head `57928ac5…`
 - 后端检查点：`150feccb8a1829518730fe6dddd6c6220a9ba483`
 - SQL 分层修正：`a30e6c347e69e7610c318080b8008050d0f26815`
 - shadow 修正：`5097428`
@@ -85,6 +87,10 @@ Phase A 后端已部署，唯一获批生产事件已通过正式 writer 创建�
 - 历史解释：只新增已批准的一条 2026-07 paused 事件，不回填其他学生。
 
 未新增双写、金额、财务快照、历史修复、fallback COALESCE、页面 writer 资格或 destructive migration。
+
+### 3.1 并发补证业务模型扩展声明
+
+本次补证的 new table/column/status/date/month/identity/source/snapshot/version/writable fact、既有字段语义/可变性、writer/reader authority、locking rule、authoritative source、legacy fallback/dual read、dual write、历史解释及 destructive schema change 均为 `none`。不修改生产 schema、writer、resolver、ACL 或 Gate。任务书逐项授权的 synthetic fixture 短暂 COMMIT、正式 writer 调用和精确 UUID 清理属于测试生命周期，不产生新的持久业务合同。
 
 ## 4. 事件表合同
 
@@ -199,16 +205,43 @@ reader 仅 active admin/operator/read_only，可返回最小身份字段；不�
 - owner 直接 UPDATE 被 trigger 拒绝；物理 DELETE/TRUNCATE 由 ACL + trigger definition 双重封口。
 - correction、fallback、转换、候选、区间和 selected override 均通过。
 
-### 7.2 并发证据缺口
+### 7.2 真实双会话重叠证据
 
-任务要求“双会话同一 expected UUID 只有一次成功”。实现具备 student row lock、event row lock、expected latest event UUID 和 partial unique 四层保护；相同 expected `NULL` 的事件后重复调用已由正式 writer 拒绝，event count 保持 1。
+fixture：
 
-但实际双会话编排没有形成两个 writer 在锁窗口内重叠：
+- synthetic student：`a0520000-0000-4000-8000-000000000100`
+- rollback-only rehearsal event：`a0520000-0000-4000-8000-000000000200`
+- Session A committed event：`3838c80d-9ce5-4ce9-a8dd-9d32638764eb`
+- synthetic auth user/membership：未创建
+- actor：既有真实 active admin user/membership `25331ae9-3412-48b9-bdc3-e516caeaeba4`
 
-1. 首次 Session A 在 writer 前因脚本直接 SELECT 受保护 event table 被 ACL 拒绝；Session B 的 writer 子事务随外层测试异常整体回滚。复核 event count=0、fixture=0。
-2. 移除多余直接 SELECT 后，Session A 创建并提交正式事件；工具轮次间隔超过 5 秒持锁窗口，Session B 随后是顺序重复调用并被拒绝。
+cleanup rehearsal 首版尝试在同事务 event DML 后切换 trigger 状态，PostgreSQL 以 `cannot ALTER TABLE ... because it has pending trigger events` 拒绝并自动回滚，fixture residue 0。修正方案在事件表 `ACCESS EXCLUSIVE` 锁内，仅用 transaction-local `session_replication_role=replica` 包围一条精确 event DELETE，立即恢复 `origin`，再以正常 FK/trigger 语义删除学生；回滚演练 event/student 各命中 1，三个生产 trigger 始终 enabled，回滚后 residue 0。
 
-因此不能声称已经完成“一个并发成功、另一个并发拒绝”的运行时证据。为补证不得新增第二条真实事件、提交 synthetic 业务行、物理删除或留下 voided 测试事件。本报告将其明确保留为 final acceptance evidence gap。
+真实并发时间线（UTC）：
+
+| 证据 | Session A | Session B |
+|---|---|---|
+| PID | `2253575` | `2253593` |
+| transaction start | `04:57:02.824281` | `04:57:23.268425` |
+| writer call/start observation | `04:57:03.231018` | `04:57:23.686848`；query start `04:57:23.787636` |
+| writer result | event `3838c80d-…`，created `04:57:03.336642` | 等待后拒绝，event 0 |
+| writer returned | `04:57:03.416930`，保持外层事务 | — |
+| lock observer | `04:57:30.556857` | `active / Lock / transactionid` |
+| transaction end | COMMIT `04:57:36.243952` | `40001` 后 ROLLBACK `04:57:36.412910` |
+
+锁证据：
+
+- A 为 `idle in transaction / ClientRead`，继续持有 student row 及 event insert 事务锁；测试未使用 `pg_sleep`。
+- A 对 transaction id `10123` 持有 granted `ExclusiveLock`。
+- B 对同一 transaction id `10123` 的 `ShareLock` 为 `granted=false`。
+- `pg_blocking_pids(2253593)={2253575}`，observer assertion=1。
+- A COMMIT 后 B 恢复并重新检查 latest active event；expected 仍为 NULL，返回 `40001 / STUDENT_STATUS_EXPECTED_CURRENT_EVENT_MISMATCH`。
+- post-writer 检查：total event=1、active event=1、exact A event=1、Session B reason event=0；partial unique `school_student_status_events_active_month_uniq` 保持有效。
+- 无 `40P01` deadlock、无 `55P03`/`57014` timeout、无第二条事件、无半写入。
+
+### 7.3 精确清理与 residue
+
+正式清理只接受 `synthetic_event_id=3838c80d-9ce5-4ce9-a8dd-9d32638764eb`，并再次匹配固定 student UUID、effective month、status、完整 reason 及 actor。事件 DELETE 命中 1 后恢复 `session_replication_role=origin`，学生 DELETE 命中 1，再 COMMIT。最终 synthetic student/event/membership/user 均为 0，lesson/settlement/income/expense/bill/wage 引用均为 0，残留 `idle in transaction`/Lock 测试会话为 0，三个事件 trigger 均为 enabled。
 
 ## 8. 正式部署与数据库写入
 
@@ -220,12 +253,19 @@ reader 仅 active admin/operator/read_only，可返回最小身份字段；不�
 - `school_student_status_phase_a_cash_readonly_20260805.sql`：Cash 只读；通过。
 - production Session A：正式调用 `school_record_student_status_event_v1(...)`，唯一真实业务写入 1 条 event。
 - production Session B：相同 expected `NULL` 调用被拒绝，业务写入 0。
+- `school_student_status_phase_a_concurrency_cleanup_rehearsal_20260805.sql`：synthetic event/student 精确删除回滚演练，通过。
+- `school_student_status_phase_a_concurrency_fixture_setup_20260805.sql`：短暂 COMMIT 1 名 synthetic student。
+- `school_student_status_phase_a_concurrency_lock_observer_20260805.sql`：第三会话 READ ONLY 锁证据，通过。
+- `school_student_status_phase_a_concurrency_postwriter_verify_20260805.sql`：READ ONLY，一成功/一拒绝及无业务引用，通过。
+- `school_student_status_phase_a_concurrency_exact_cleanup_20260805.sql`：精确 COMMIT 删除 synthetic event 1、student 1，最终 residue 0。
+- `school_student_status_phase_a_concurrency_final_readonly_20260805.sql`：最终 School 指纹/resolver/Gate/Storage/session 只读验收，通过。
 
 实际调用的 write RPC 只有：
 
 - rollback fixture 中的普通/correction writer，全部回滚；
 - 生产 `school_record_student_status_event_v1(...)` 一次成功；
 - 生产相同调用一次拒绝。
+- 本次 synthetic `school_record_student_status_event_v1(...)`：Session A 一次成功、Session B 在真实锁等待后一次拒绝；成功事件随后精确清理。
 
 没有调用页面/API/Edge 写入口，没有连接 Storage 写 API，没有写 Cash DB。
 
@@ -247,7 +287,7 @@ reader 仅 active admin/operator/read_only，可返回最小身份字段；不�
 | accounts | 3 | `443b3170f50bc23a56834d398069c565` |
 | account transactions | 187 | `21694ff060e23289566f0a6e9fe3e449` |
 
-Cash：42 external requests、73 CNY transactions、31 JPY transactions，全行指纹不变。Storage：57 objects、30 pre-existing orphan，不新增、不删除、不改写。Gate 保持 `enabled / blocked / enabled`。
+Cash：42 external requests `dfb00aaa210894f78c47285e21d2f222`、73 CNY transactions `937cbd8d10480c5c5dabaab658eb2558`、31 JPY transactions `3f3f257b14b43c12925a8eecb7a8ca02`，全行指纹不变。Storage：57 objects、30 pre-existing orphan，不新增、不删除、不改写。Gate 保持 `enabled / blocked / enabled`。
 
 允许的唯一真实业务行变化为 event table 新增 1 行；event table 最终 count=1，MD5=`eeeb492ac7577ff85eb0926aa0b57301`。
 
@@ -263,4 +303,4 @@ Cash：42 external requests、73 CNY transactions、31 JPY transactions，全行
 - 不冻结 legacy student status writer。
 - 不回填 7 名 active 学生。
 
-Phase B 只有在新的逐域授权下，才可迁移消费者、定义 writer paused/left 资格并冻结 legacy status；不得把本次 Phase A 部署视为自动授权。
+Phase A 已完全闭环，可以进入 Phase B 的独立调查/授权流程。Phase B 只有在新的逐域授权下，才可迁移消费者、定义 writer paused/left 资格并冻结 legacy status；不得把本次 Phase A 完成视为自动授权，本轮未自动开始 Phase B。
