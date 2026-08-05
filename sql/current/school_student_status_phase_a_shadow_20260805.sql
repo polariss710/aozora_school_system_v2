@@ -9,8 +9,11 @@ select set_config('request.jwt.claims','{"sub":"25331ae9-3412-48b9-bdc3-e516caea
 select target_month,resolved_status,count(*)
 from (
   select d.target_month,r.resolved_status
-  from (values ('2026-06-01'::date),('2026-07-01'::date),('2026-08-01'::date),
-               (date_trunc('month',current_timestamp at time zone 'Asia/Tokyo'))::date) d(target_month)
+  from (
+    select distinct v.target_month
+    from (values ('2026-06-01'::date),('2026-07-01'::date),('2026-08-01'::date),
+                 (date_trunc('month',current_timestamp at time zone 'Asia/Tokyo')::date)) v(target_month)
+  ) d
   cross join lateral public.school_list_student_month_candidates_v1(d.target_month,true,null) r
 ) q group by target_month,resolved_status order by target_month,resolved_status;
 
@@ -29,8 +32,11 @@ from public.school_list_student_month_candidates_v1('2026-07-01',false,'cff85c52
 where student_id='cff85c52-6acc-4b0f-8c92-3db280a5dd77' and is_selected_override;
 
 select p_target_month,count(*) filter(where is_diff) diff_count
-from (values ('2026-06-01'::date),
-             ((date_trunc('month',current_timestamp at time zone 'Asia/Tokyo'))::date)) d(p_target_month)
+from (
+  select distinct v.p_target_month
+  from (values ('2026-06-01'::date),
+               (date_trunc('month',current_timestamp at time zone 'Asia/Tokyo')::date)) v(p_target_month)
+) d
 cross join lateral public.school_list_student_status_shadow_v1(d.p_target_month)
 group by p_target_month order by p_target_month;
 
