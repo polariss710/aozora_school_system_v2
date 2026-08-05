@@ -1,58 +1,8 @@
--- school_weekly_lesson_operations_read_rpcs.sql
--- Purpose: DB-authoritative, read-only student lesson-credit and weekly
---          registration dashboard data. No business rows are written.
-
-create or replace function public.school_list_student_lesson_credit_balances(
-  p_student_id uuid default null
-)
-returns table (
-  student_id uuid,
-  business_entity_id uuid,
-  open_source_count bigint,
-  open_credit_hours numeric,
-  oldest_credit_date date
-)
-language sql
-stable
-set search_path = public
-as $$
-  with credit_sources as (
-    select
-      p.id,
-      p.student_id,
-      p.business_entity_id,
-      p.lesson_date,
-      greatest(
-        coalesce(p.duration_hours, 0) - coalesce(sum(a.duration_hours) filter (
-          where a.lesson_type = 'actual'
-            and a.status in ('completed', 'makeup_completed')
-        ), 0),
-        0
-      )::numeric as remaining_hours
-    from public.school_lesson_records p
-    left join public.school_lesson_records a
-      on a.planned_lesson_id = p.id
-     and a.app_type = 'school'
-    where p.app_type = 'school'
-      and p.lesson_type = 'planned'
-      and p.status = 'pending_makeup'
-      and p.voided_at is null
-      and (p_student_id is null or p.student_id = p_student_id)
-    group by p.id, p.student_id, p.business_entity_id, p.lesson_date, p.duration_hours
-  )
-  select
-    c.student_id,
-    c.business_entity_id,
-    count(*) filter (where c.remaining_hours > 0)::bigint as open_source_count,
-    coalesce(sum(c.remaining_hours) filter (where c.remaining_hours > 0), 0)::numeric as open_credit_hours,
-    min(c.lesson_date) filter (where c.remaining_hours > 0) as oldest_credit_date
-  from credit_sources c
-  where c.student_id is not null
-  group by c.student_id, c.business_entity_id;
-$$;
-
-comment on function public.school_list_student_lesson_credit_balances(uuid) is
-  'Returns open student lesson-credit balance from pending_makeup planned sources. Completed and makeup_completed linked actual hours consume credit; cancelled actuals do not. Historical over-fulfilled sources are clipped at zero and not repaired.';
+-- School V2 student monthly status Phase B1 weekly reader deployment.
+-- Business-model expansion declaration: none.
+-- Persistent scope: replace only school_get_weekly_lesson_operations(date)
+-- and its comment. No business rows, ACLs, schema, writers, or page ABI change.
+\set ON_ERROR_STOP on
 
 create or replace function public.school_get_weekly_lesson_operations(
   p_week_start date
@@ -148,8 +98,3 @@ $$;
 
 comment on function public.school_get_weekly_lesson_operations(date) is
   'Returns school-student weekly planned/registration operations and all open lesson-credit balances for the Monday-starting week. Student status never filters historical business facts. All counts and hours are DB-derived; this function writes no business rows.';
-
-revoke all on function public.school_list_student_lesson_credit_balances(uuid) from public;
-grant execute on function public.school_list_student_lesson_credit_balances(uuid) to anon, authenticated, service_role;
-revoke all on function public.school_get_weekly_lesson_operations(date) from public;
-grant execute on function public.school_get_weekly_lesson_operations(date) to anon, authenticated, service_role;
