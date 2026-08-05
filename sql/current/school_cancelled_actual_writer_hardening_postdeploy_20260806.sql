@@ -15,7 +15,7 @@ begin
         and p.proname='school_create_cancelled_actual_lesson_from_planned') <> 1 then
     raise exception 'CANCELLATION_WRITER_POSTDEPLOY_OVERLOAD_DRIFT';
   end if;
-  if md5(v_definition) <> '726c3f76786167bc70cb40b0ec9be613'
+  if md5(v_definition) <> 'e1d7414424dada7e1a77c0130c67d159'
      or pg_get_userbyid((select proowner from pg_proc where oid=v_writer)) <> 'postgres'
      or not (select prosecdef from pg_proc where oid=v_writer)
      or (select proconfig from pg_proc where oid=v_writer)
@@ -38,6 +38,10 @@ begin
      or position('extract(epoch from (v_end_value - v_start_value))' in v_definition)=0
      or position('actual_minutes, teacher_settlement_month' in v_definition)=0 then
     raise exception 'CANCELLATION_WRITER_POSTDEPLOY_CONTRACT_MISSING';
+  end if;
+  if position($needle$coalesce(student.status, 'active') not in ('inactive', 'graduated')$needle$
+       in lower(v_definition))>0 then
+    raise exception 'CANCELLATION_WRITER_POSTDEPLOY_LEGACY_STATUS_PREDICATE';
   end if;
   if md5(pg_get_functiondef(
        'public.school_tuition_p0a_consumed_bill_id(uuid)'::regprocedure

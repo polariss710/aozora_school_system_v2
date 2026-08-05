@@ -5,6 +5,10 @@
 --   cancellation hardening task sections II, IV, VIII, IX, X and XI.
 -- This source changes one existing function and its ACL only. It performs no
 -- historical data repair or backfill.
+-- Phase B3 additionally removes frozen school_students.status from this
+-- existing-fact fulfilment path, as explicitly approved by the 2026-08-06
+-- student monthly-status writer-authority task. The Phase 20260806 permission,
+-- DB-duration, zero-fee, lock, pending-makeup and concurrency contracts remain.
 
 create or replace function public.school_create_cancelled_actual_lesson_from_planned(
   p_planned_lesson_id uuid,
@@ -188,8 +192,7 @@ begin
   into v_student_business_entity_id
   from public.school_students student
   where student.id = v_planned.student_id
-    and student.app_type = 'school'
-    and coalesce(student.status, 'active') not in ('inactive', 'graduated');
+    and student.app_type = 'school';
 
   if not found then
     raise exception using errcode='22023', message='LESSON_CANCELLATION_STUDENT_INACTIVE';
