@@ -3691,6 +3691,11 @@ h2 {
   overflow-y: auto;
 }
 
+/* Lesson dialogs must cover the fixed authenticated-session bar on mobile. */
+.lesson-page .dialog-backdrop {
+  z-index: 1700;
+}
+
 .dialog-panel {
   width: min(520px, 100%);
   max-width: 100%;

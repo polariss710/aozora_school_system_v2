@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=cancellation-hardening-20260806-1";
+import { APP_VERSION } from "./config.js?v=cancellation-hardening-20260806-2";
 import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initLessonPage } from "./pages/lesson-page.js?v=cancellation-hardening-20260806-1";
+import { initLessonPage } from "./pages/lesson-page.js?v=cancellation-hardening-20260806-2";
 
 const globalSessionPromise = requireGlobalSession();
 

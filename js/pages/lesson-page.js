@@ -22,7 +22,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=cancellation-hardening-20260806-1";
+} from "../api/lesson-api.js?v=cancellation-hardening-20260806-2";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";

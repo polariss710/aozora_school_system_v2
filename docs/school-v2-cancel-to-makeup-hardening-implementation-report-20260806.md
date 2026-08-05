@@ -81,7 +81,8 @@
 
 ## 6. 前端与静态回归
 
-- 页面版本：`v10.5.8`；cache buster：`cancellation-hardening-20260806-1`。
+- 页面版本：`v10.5.9`；cache buster：`cancellation-hardening-20260806-2`。
+- 生产移动端验收发现登录状态条以`z-index:1600`遮挡课时弹窗底部按钮；最小修复仅为`lesson.html`增加`lesson-page`作用域，并令`.lesson-page .dialog-backdrop`使用`z-index:1700`。未改变其他页面、DB/RPC或业务逻辑。
 - 新增取消流程静态测试通过。
 - lesson generation closure、lesson operations closure、authoritative month refresh、P0-B1 authority回归均通过。
 - `node --check`、page直接RPC扫描、错误环境变量/search_path扫描、`git diff --check`均通过。
@@ -92,4 +93,4 @@
 
 ## 8. 发布与浏览器验收
 
-代码checkpoint：`27410ed776e181738712e374967f636d40495ecb`。Pages run、生产桌面/移动端只读弹窗验收和最终交付提交记录见本任务最终报告。
+核心代码checkpoint：`27410ed776e181738712e374967f636d40495ecb`。首轮Pages run `31028068005`成功；生产桌面只读弹窗验收通过且HTTP写请求为0。移动端首轮验收定位并修复了登录状态条覆盖问题，最终Pages run、390×844复验和交付提交记录见本任务最终报告。
