@@ -70,10 +70,10 @@
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>学生管理</h1>
-          <p class="page-subtitle">管理学生基础信息、课程归属、收费规则和启用状态。</p>
+          <p class="page-subtitle">管理学生基础信息、课程归属和收费默认值；状态按月份模型切换中。</p>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">基础信息可编辑</span>
+          <span class="readonly-pill">基础信息可编辑 · 状态暂不可改</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -143,7 +143,8 @@
       <section class="dialog-panel student-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
         <div class="section-heading">
           <h2 id="createStudentProfileTitle">新增学生</h2>
-          <p class="section-note">仅维护学生基础资料和默认值；不会创建或修改结算、收入、课时、工资或账户流水。</p>
+          <p class="section-note">仅维护学生基础资料和默认值；新学生由数据库固定为在籍，不创建状态事件。</p>
+          <p class="section-note" data-student-status-freeze-notice>学生状态管理正在切换为按月份生效，当前暂不可修改。</p>
         </div>
 
         <div id="createStudentProfileError" class="dialog-error is-hidden"></div>
@@ -151,11 +152,6 @@
         <label class="field" data-create-student-field="name">
           <span>姓名</span>
           <input id="createStudentNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-create-student-field="status">
-          <span>状态</span>
-          <select id="createStudentStatusSelect"></select>
         </label>
 
         <label class="field" data-create-student-field="defaultBusinessEntity">
@@ -210,6 +206,7 @@
         <div class="section-heading">
           <h2 id="editStudentProfileTitle">编辑学生</h2>
           <p class="section-note">仅维护学生基础资料和默认值；不会修改余额、结算、收入、支付请求、课时、工资或账户流水。</p>
+          <p class="section-note" data-student-status-freeze-notice>学生状态管理正在切换为按月份生效，当前暂不可修改。</p>
         </div>
 
         <div id="editStudentProfileError" class="dialog-error is-hidden"></div>
@@ -217,11 +214,6 @@
         <label class="field" data-edit-student-field="name">
           <span>姓名</span>
           <input id="editStudentNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-edit-student-field="status">
-          <span>状态</span>
-          <select id="editStudentStatusSelect"></select>
         </label>
 
         <label class="field" data-edit-student-field="defaultBusinessEntity">
@@ -271,6 +263,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/student-app.js?v=student-status-b2-20260806-1"></script>
   </body>
 </html>

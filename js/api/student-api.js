@@ -64,10 +64,9 @@ export async function fetchBusinessEntitiesForStudents() {
 }
 
 export async function updateStudentProfile(payload) {
-  const { data, error } = await supabase.rpc("school_update_student_profile", {
+  const { data, error } = await supabase.rpc("school_update_student_profile_v2", {
     p_student_id: payload.studentId,
     p_name: payload.name,
-    p_status: payload.status || "active",
     p_default_business_entity_id: payload.defaultBusinessEntityId || null,
     p_course_track: payload.courseTrack || null,
     p_preset_exchange_rate: payload.presetExchangeRate,
@@ -92,9 +91,8 @@ export async function updateStudentProfile(payload) {
 }
 
 export async function createStudentProfile(payload) {
-  const { data, error } = await supabase.rpc("school_create_student_profile", {
+  const { data, error } = await supabase.rpc("school_create_student_profile_v2", {
     p_name: payload.name || null,
-    p_status: payload.status || "active",
     p_default_business_entity_id: payload.defaultBusinessEntityId || null,
     p_course_track: payload.courseTrack || null,
     p_preset_exchange_rate: payload.presetExchangeRate,
