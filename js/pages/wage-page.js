@@ -7,13 +7,15 @@ import {
   fetchWageCandidateLessons,
   fetchWageDetailFeeSummaries,
   fetchWageExpenseRecords,
+  fetchWageLockStudentMemberships,
   fetchWageLocks,
   fetchWagePaymentRequests,
+  fetchWageStudentMonthCandidates,
   fetchWageStudents,
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js?v=r2-f-f2-b-year-month-closure";
+} from "../api/wage-api.js?v=phase-b4-wage-student-filter-20260806";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,
@@ -29,7 +31,8 @@ import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.
 
 const DEFAULT_FILTERS = {
   teacherId: "",
-  businessEntityId: "",
+  studentId: "",
+  includeInactive: false,
   settlementType: "",
   status: "",
   keyword: "",
@@ -70,13 +73,16 @@ const SETTLEMENT_TYPE_LABELS = {
 const dom = {};
 let teachers = [];
 let students = [];
+let studentMonthCandidates = [];
 let subjects = [];
 let businessEntities = [];
 let wageLocks = [];
 let wagePaymentRequests = [];
 let wageExpenseRecords = [];
 let wageCandidateLessons = [];
+let wageLockStudentIdsByLockId = new Map();
 let loadedMonth = "";
+let loadedStudentCandidateKey = "";
 let activeFilters = null;
 let startupFilters = null;
 let renderedWageLockRows = [];
@@ -111,7 +117,8 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#wageYearFilter");
   dom.monthFilter = document.querySelector("#wageMonthFilter");
   dom.teacherSelect = document.querySelector("#wageTeacherSelect");
-  dom.businessEntitySelect = document.querySelector("#wageBusinessEntitySelect");
+  dom.studentSelect = document.querySelector("#wageStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#wageIncludeInactiveCheckbox");
   dom.settlementTypeSelect = document.querySelector("#wageSettlementTypeSelect");
   dom.statusSelect = document.querySelector("#wageStatusSelect");
   dom.keywordInput = document.querySelector("#wageKeywordInput");
@@ -145,6 +152,7 @@ function bindEvents() {
   });
   dom.yearFilter.addEventListener("change", updateWageMonthNavigationFromCurrentSelection);
   dom.monthFilter.addEventListener("change", updateWageMonthNavigationFromCurrentSelection);
+  dom.includeInactiveCheckbox?.addEventListener("change", applyQuery);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
@@ -200,7 +208,7 @@ async function loadInitialData() {
       month: startupFilters?.month || currentYearMonth(),
     };
     restoreFilterSelections(filters);
-    await loadWageMonth(filters.month);
+    await loadWageMonth(filters.month, filters);
     restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "老师工资结算数据已加载。");
@@ -209,9 +217,12 @@ async function loadInitialData() {
     students = [];
     subjects = [];
     businessEntities = [];
+    studentMonthCandidates = [];
     wageLocks = [];
     wageCandidateLessons = [];
+    wageLockStudentIdsByLockId = new Map();
     loadedMonth = "";
+    loadedStudentCandidateKey = "";
     renderMasterOptions();
     renderDataOptions([]);
     renderWageLocks([]);
@@ -232,19 +243,25 @@ async function applyQuery() {
     return;
   }
 
-  if (filters.month !== loadedMonth) {
+  if (
+    filters.month !== loadedMonth
+    || studentCandidateKey(filters) !== loadedStudentCandidateKey
+  ) {
     setLoading(true);
     showMessage("info", "正在加载老师工资快照记录...");
 
     try {
-      await loadWageMonth(filters.month);
+      await loadWageMonth(filters.month, filters);
       restoreFilterSelections(filters);
       applyCurrentFilters();
       showMessage("success", "老师工资快照记录已加载。");
     } catch (error) {
       wageLocks = [];
       wageCandidateLessons = [];
+      studentMonthCandidates = [];
+      wageLockStudentIdsByLockId = new Map();
       loadedMonth = "";
+      loadedStudentCandidateKey = "";
       renderDataOptions([]);
       renderWageLocks([]);
       renderWageCandidates([]);
@@ -318,10 +335,9 @@ async function handleGenerateSubmit() {
     const generatedRows = await generateTeacherMonthlyWage({
       yearMonth: filters.month,
       teacherId: filters.teacherId || null,
-      businessEntityId: filters.businessEntityId || null,
     });
 
-    await loadWageMonth(filters.month);
+    await loadWageMonth(filters.month, filters);
     restoreFilterSelections(filters);
     applyCurrentFilters();
     closeGenerateDialog(true);
@@ -333,19 +349,30 @@ async function handleGenerateSubmit() {
   }
 }
 
-async function loadWageMonth(month) {
-  const [locks, paymentRequests, expenseRecords, candidateLessons] = await Promise.all([
+async function loadWageMonth(month, filters = DEFAULT_FILTERS) {
+  const [locks, paymentRequests, expenseRecords, candidateLessons, monthCandidates] = await Promise.all([
     fetchWageLocks(month),
     fetchWagePaymentRequests(month),
     fetchWageExpenseRecords(month),
     fetchWageCandidateLessons(month),
+    fetchWageStudentMonthCandidates({
+      month,
+      includeInactive: filters.includeInactive,
+      selectedStudentId: filters.studentId || null,
+    }),
   ]);
 
   wageLocks = sortWageLocks(locks);
+  wageLockStudentIdsByLockId = await fetchWageLockStudentMemberships(
+    wageLocks.map((row) => row.id)
+  );
   wagePaymentRequests = paymentRequests;
   wageExpenseRecords = expenseRecords;
   wageCandidateLessons = candidateLessons;
+  studentMonthCandidates = monthCandidates;
   loadedMonth = month;
+  loadedStudentCandidateKey = studentCandidateKey(filters);
+  renderStudentMonthOptions();
   renderDataOptions(wageLocks);
 }
 
@@ -373,7 +400,8 @@ function readFilters() {
   return {
     month,
     teacherId: dom.teacherSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
+    studentId: dom.studentSelect.value,
+    includeInactive: Boolean(dom.includeInactiveCheckbox?.checked),
     settlementType: dom.settlementTypeSelect.value,
     status: dom.statusSelect.value,
     keyword: dom.keywordInput.value.trim(),
@@ -384,7 +412,8 @@ function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   updateMonthScopedNavigation(filters.month);
   dom.teacherSelect.value = filters.teacherId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
+  dom.studentSelect.value = filters.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.settlementTypeSelect.value = filters.settlementType;
   dom.statusSelect.value = filters.status;
   dom.keywordInput.value = filters.keyword;
@@ -402,7 +431,16 @@ function updateWageMonthNavigationFromCurrentSelection() {
 
 function renderMasterOptions() {
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
+}
+
+function renderStudentMonthOptions() {
+  const options = ['<option value="">全部学生</option>'];
+  for (const student of studentMonthCandidates) {
+    options.push(
+      `<option value="${escapeAttribute(student.student_id)}">${escapeHtml(studentMonthCandidateLabel(student))}</option>`
+    );
+  }
+  dom.studentSelect.innerHTML = options.join("");
 }
 
 function renderDataOptions(rows) {
@@ -694,7 +732,7 @@ async function refreshCurrentWageList() {
     return;
   }
 
-  await loadWageMonth(filters.month);
+  await loadWageMonth(filters.month, filters);
   restoreFilterSelections(filters);
   applyCurrentFilters();
 }
@@ -1014,16 +1052,12 @@ function formatCandidateGroupSummary(groups) {
 function generationScopeCandidateLessons() {
   return wageCandidateLessons.filter((row) => (
     !activeFilters?.teacherId || row.teacher_id === activeFilters.teacherId
-  )).filter((row) => (
-    !activeFilters?.businessEntityId || row.business_entity_id === activeFilters.businessEntityId
   ));
 }
 
 function generationScopeCandidateLessonsForFilters(filters) {
   return wageCandidateLessons.filter((row) => (
     !filters?.teacherId || row.teacher_id === filters.teacherId
-  )).filter((row) => (
-    !filters?.businessEntityId || row.business_entity_id === filters.businessEntityId
   ));
 }
 
@@ -1474,23 +1508,21 @@ function styleMonthlySummarySheet(sheet, report) {
 
 function renderGenerateSummary(filters) {
   const teacherLabel = filters.teacherId ? teacherNameById(filters.teacherId) : "全部老师";
-  const businessLabel = filters.businessEntityId ? businessNameById(filters.businessEntityId) : "全部业务归属";
+  const studentLabel = filters.studentId ? studentNameById(filters.studentId) : "全部学生";
   const visibleGroups = candidateGenerationGroups(filterWageCandidateLessons(wageCandidateLessons, filters));
   const generationGroups = candidateGenerationGroups(generationScopeCandidateLessonsForFilters(filters));
   const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessonsForFilters(filters));
-  const businessScopeNote = filters.businessEntityId
-    ? "已限定业务归属，本次只生成该业务归属的工资快照。"
-    : "未限定业务归属时，同一老师可能按多个业务归属生成多条快照。";
 
   return [
     renderDialogSummaryRow("工资月份", formatMonth(filters.month)),
     renderDialogSummaryRow("生成范围", teacherLabel),
-    renderDialogSummaryRow("业务归属范围", businessLabel),
+    renderDialogSummaryRow("当前查看学生", studentLabel),
+    renderDialogSummaryRow("业务归属范围", "全部业务归属"),
     renderDialogSummaryRow("生成粒度", "teacher + business_entity + month"),
     renderDialogSummaryRow("当前显示分组", formatCandidateGroupSummary(visibleGroups)),
     renderDialogSummaryRow("预计生成分组", formatCandidateGroupSummary(generationGroups)),
     renderDialogSummaryRow("学生结算未完成", unsettledGroups.length ? formatUnsettledStudentSettlementGroups(unsettledGroups) : "无"),
-    renderDialogSummaryRow("业务归属说明", businessScopeNote),
+    renderDialogSummaryRow("学生筛选说明", "学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行。"),
     renderDialogSummaryRow("生成内容", "工资快照主表 + 工资明细"),
     renderDialogSummaryRow("支付/账户", "不生成支付请求、支出或账户流水"),
   ].join("");
@@ -1502,7 +1534,10 @@ function filterWageLocks(rows, filters) {
       return false;
     }
 
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
+    if (
+      filters.studentId
+      && !wageLockStudentIdsByLockId.get(row.id)?.has(filters.studentId)
+    ) {
       return false;
     }
 
@@ -1528,7 +1563,7 @@ function filterWageCandidateLessons(rows, filters) {
       return false;
     }
 
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
+    if (filters.studentId && row.student_id !== filters.studentId) {
       return false;
     }
 
@@ -1545,7 +1580,8 @@ function readFiltersFromUrl() {
   const filters = {
     month: /^\d{4}-(0[1-9]|1[0-2])$/.test(parsedMonth) ? parsedMonth : "",
     teacherId: safeText(params.get("teacherId")).trim(),
-    businessEntityId: safeText(params.get("businessEntityId")).trim(),
+    studentId: safeText(params.get("student_id")).trim(),
+    includeInactive: params.get("include_inactive") === "1",
     settlementType: safeText(params.get("settlementType")).trim(),
     status: safeText(params.get("status")).trim(),
     keyword: safeText(params.get("keyword")).trim(),
@@ -1599,7 +1635,10 @@ function buildWageFilterParams(filters) {
   }
 
   appendFilterParam(params, "teacherId", filters?.teacherId);
-  appendFilterParam(params, "businessEntityId", filters?.businessEntityId);
+  appendFilterParam(params, "student_id", filters?.studentId);
+  if (filters?.includeInactive) {
+    params.set("include_inactive", "1");
+  }
   appendFilterParam(params, "settlementType", filters?.settlementType);
   appendFilterParam(params, "status", filters?.status);
   appendFilterParam(params, "keyword", filters?.keyword);
@@ -1654,6 +1693,7 @@ function matchesKeyword(row, keyword) {
     teacherNameById(row.teacher_id),
     displayBusinessName(row),
     businessNameById(row.business_entity_id),
+    ...studentNamesForWageLock(row.id),
     settlementTypeLabel(row.settlement_type),
     row.settlement_type,
     wageStatusLabel(row.status),
@@ -1740,6 +1780,31 @@ function studentNameById(id) {
   const code = safeText(student.student_code);
   const name = safeText(student.display_name || student.name) || "未设置";
   return code ? `${name}（${code}）` : name;
+}
+
+function studentMonthCandidateLabel(student) {
+  const code = safeText(student.student_code);
+  const name = safeText(student.display_name || student.name) || "未设置";
+  const baseLabel = code ? `${name}（${code}）` : name;
+  if (student.resolved_status === "paused") {
+    return `${baseLabel}｜本月暂停`;
+  }
+  if (student.resolved_status === "left") {
+    return `${baseLabel}｜本月已离校`;
+  }
+  return baseLabel;
+}
+
+function studentNamesForWageLock(lockId) {
+  return Array.from(wageLockStudentIdsByLockId.get(lockId) || []).map(studentNameById);
+}
+
+function studentCandidateKey(filters) {
+  return [
+    safeText(filters?.month),
+    filters?.includeInactive ? "1" : "0",
+    safeText(filters?.studentId),
+  ].join("::");
 }
 
 function subjectNameById(id) {

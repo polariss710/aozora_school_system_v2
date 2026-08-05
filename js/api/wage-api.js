@@ -318,7 +318,7 @@ export async function fetchWageTeachers() {
 export async function fetchWageStudents() {
   const { data, error } = await supabase
     .from("school_students")
-    .select("id,student_code,name,display_name,status")
+    .select("id,student_code,name,display_name")
     .eq("app_type", "school")
     .order("display_name", { ascending: true })
     .order("name", { ascending: true });
@@ -328,6 +328,53 @@ export async function fetchWageStudents() {
   }
 
   return data || [];
+}
+
+export async function fetchWageStudentMonthCandidates({
+  month,
+  includeInactive = false,
+  selectedStudentId = null,
+}) {
+  const { data, error } = await supabase.rpc("school_list_student_month_candidates_v1", {
+    p_target_month: `${month}-01`,
+    p_include_inactive: Boolean(includeInactive),
+    p_selected_student_id: selectedStudentId || null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function fetchWageLockStudentMemberships(wageLockIds) {
+  const lockIds = Array.from(new Set((wageLockIds || []).filter(Boolean)));
+  const studentIdsByLockId = new Map();
+  if (!lockIds.length) {
+    return studentIdsByLockId;
+  }
+
+  const { data, error } = await supabase
+    .from("school_teacher_wage_lock_details")
+    .select("lock_id,student_id")
+    .in("lock_id", lockIds);
+
+  if (error) {
+    throw error;
+  }
+
+  for (const row of data || []) {
+    if (!row.lock_id || !row.student_id) {
+      continue;
+    }
+    if (!studentIdsByLockId.has(row.lock_id)) {
+      studentIdsByLockId.set(row.lock_id, new Set());
+    }
+    studentIdsByLockId.get(row.lock_id).add(row.student_id);
+  }
+
+  return studentIdsByLockId;
 }
 
 export async function fetchWageSubjects() {

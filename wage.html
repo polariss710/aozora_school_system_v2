@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资结算</title>
-    <link rel="stylesheet" href="./css/app.css?v=p0-g1-a-20260804-1">
+    <link rel="stylesheet" href="./css/app.css?v=phase-b4-wage-student-filter-20260806">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -120,12 +120,16 @@
               </select>
             </label>
 
-            <label class="field">
-              <span>业务归属</span>
-              <select id="wageBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
+            <div class="field wage-student-filter-field">
+              <span>学生</span>
+              <select id="wageStudentSelect" name="student_id">
+                <option value="">全部学生</option>
               </select>
-            </label>
+              <label class="wage-include-inactive-control">
+                <input id="wageIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
+                <span>包含暂停/离校学生</span>
+              </label>
+            </div>
 
             <label class="field">
               <span>结算类型</span>
@@ -143,7 +147,7 @@
 
             <label class="field">
               <span>关键字</span>
-              <input id="wageKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 业务归属 / 类型 / 状态">
+              <input id="wageKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 学生 / 类型 / 状态">
             </label>
 
             <div class="filter-actions wage-filter-actions">
@@ -157,7 +161,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="wageListTitle">老师工资快照记录</h2>
-              <p class="section-note">本页默认显示未作废的已生成工资快照；下方候选课时用于生成前核对，不代表已保存工资金额。</p>
+              <p class="section-note">本页默认显示未作废的已生成工资快照；学生仅用于筛选查看，生成工资和支付仍按完整工资快照范围执行。下方候选课时用于生成前核对，不代表已保存工资金额。</p>
             </div>
             <div class="table-actions">
               <button class="button" id="wageMonthlySummaryExportButton" type="button">月度汇总导出</button>
@@ -250,7 +254,7 @@
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。生成 RPC 会按 teacher + business_entity + month 生成快照；若已筛选业务归属，仅生成该业务归属；未限定业务归属时，同一老师可能一次生成多条业务归属快照。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。学生仅用于筛选查看，不会传给生成 RPC；生成 RPC 始终按 teacher + business_entity + month 的完整范围生成快照，同一老师可能一次生成多条业务归属快照。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -268,6 +272,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/wage-app.js?v=phase-b4-wage-student-filter-20260806"></script>
   </body>
 </html>
