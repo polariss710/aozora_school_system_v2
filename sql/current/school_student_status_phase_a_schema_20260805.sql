@@ -65,69 +65,10 @@ create index school_student_status_events_resolver_idx
 create index school_student_status_events_created_actor_idx
   on public.school_student_status_events (created_by_user_id,created_at desc);
 
-create function public.school_guard_student_status_event_mutation_v1()
-returns trigger
-language plpgsql
-security definer
-set search_path = pg_catalog, public
-as $function$
-declare
-  v_context text;
-begin
-  if tg_op in ('DELETE','TRUNCATE') then
-    raise exception using errcode='42501',message='STUDENT_STATUS_EVENT_PHYSICAL_DELETE_FORBIDDEN';
-  end if;
-
-  if tg_op<>'UPDATE' then
-    return new;
-  end if;
-
-  v_context:=current_setting('school.student_status_correction_context_v1',true);
-  if v_context is distinct from old.id::text||':'||coalesce(new.replacement_event_id::text,'') then
-    raise exception using errcode='42501',message='STUDENT_STATUS_EVENT_DIRECT_UPDATE_FORBIDDEN';
-  end if;
-
-  if old.voided_at is not null
-     or new.id is distinct from old.id
-     or new.student_id is distinct from old.student_id
-     or new.effective_month is distinct from old.effective_month
-     or new.status is distinct from old.status
-     or new.reason is distinct from old.reason
-     or new.created_by_user_id is distinct from old.created_by_user_id
-     or new.created_by_membership_id is distinct from old.created_by_membership_id
-     or new.created_at is distinct from old.created_at
-     or new.voided_at is null
-     or new.voided_by_user_id is null
-     or new.voided_by_membership_id is null
-     or new.void_reason is null
-     or new.replacement_event_id is null
-     or new.row_version is not distinct from old.row_version then
-    raise exception using errcode='42501',message='STUDENT_STATUS_EVENT_CORRECTION_MUTATION_INVALID';
-  end if;
-
-  return new;
-end;
-$function$;
-
-create trigger school_student_status_events_update_guard
-before update on public.school_student_status_events
-for each row execute function public.school_guard_student_status_event_mutation_v1();
-
-create trigger school_student_status_events_delete_guard
-before delete on public.school_student_status_events
-for each row execute function public.school_guard_student_status_event_mutation_v1();
-
-create trigger school_student_status_events_truncate_guard
-before truncate on public.school_student_status_events
-for each statement execute function public.school_guard_student_status_event_mutation_v1();
-
 alter table public.school_student_status_events enable row level security;
 
 revoke all on table public.school_student_status_events
   from public,anon,authenticated,service_role;
-revoke all on function public.school_guard_student_status_event_mutation_v1()
-  from public,anon,authenticated,service_role;
-
 comment on table public.school_student_status_events is
   'Phase A sole authority for month-effective student status used by new resolvers. Legacy school_students.status remains an unmigrated compatibility snapshot until Phase B.';
 comment on column public.school_student_status_events.effective_month is
@@ -138,5 +79,3 @@ comment on column public.school_student_status_events.created_by_membership_id i
   'Membership stable identity. In the current membership model this is the canonical auth user UUID and equals created_by_user_id.';
 comment on column public.school_student_status_events.replacement_event_id is
   'Replacement created atomically by the dedicated correction writer; never a general edit link.';
-comment on function public.school_guard_student_status_event_mutation_v1() is
-  'Owner-only trigger guard: physical delete/truncate always fail and update is limited to one-way correction voiding.';

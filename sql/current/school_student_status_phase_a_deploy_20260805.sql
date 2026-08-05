@@ -4,6 +4,7 @@
 
 begin;
 \ir school_student_status_phase_a_schema_20260805.sql
+\ir school_student_status_phase_a_guards_20260805.sql
 \ir school_student_status_phase_a_rpcs_20260805.sql
 commit;
 
