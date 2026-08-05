@@ -76,6 +76,7 @@ export async function updateStudentProfile(payload) {
     p_entrance_date: payload.entranceDate || null,
     p_target_schools: payload.targetSchools || null,
     p_note: payload.note || null,
+    p_expected_updated_at: payload.expectedUpdatedAt || null,
   });
 
   if (error) {

@@ -504,6 +504,7 @@ function readEditPayload() {
     entranceDate: dom.editEntranceDateInput.value,
     targetSchools: normalizeTargetSchools(dom.editTargetSchoolsInput.value),
     note: dom.editNoteInput.value.trim(),
+    expectedUpdatedAt: editingStudent.updated_at,
   };
 }
 
