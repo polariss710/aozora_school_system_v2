@@ -1,4 +1,5 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
+import { getCurrentAuthContext } from "../api/auth-api.js?v=p0-g1-a-20260804-1";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createActualLessonFromPlanned,
@@ -21,7 +22,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
+} from "../api/lesson-api.js?v=cancellation-hardening-20260806-1";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
@@ -71,6 +72,30 @@ const DEFAULT_FILTERS = {
 };
 
 const TUITION_HISTORY_STATE_WARNING = "课时历史状态暂时无法读取，相关修改操作已隐藏。";
+
+const CANCELLED_ACTUAL_LESSON_ERROR_MESSAGES = new Map([
+  ["LESSON_CANCELLATION_AUTH_REQUIRED", "当前登录状态无效，请重新登录。"],
+  ["LESSON_CANCELLATION_MEMBERSHIP_REQUIRED", "当前账号没有课时操作权限。"],
+  ["LESSON_CANCELLATION_ACTIVE_MEMBERSHIP_REQUIRED", "当前账号权限已停用，不能标记取消。"],
+  ["LESSON_CANCELLATION_ROLE_REQUIRED", "仅管理员或操作员可以标记取消并转待补课。"],
+  ["LESSON_CANCELLATION_SOURCE_REQUIRED", "请选择要标记取消的预定课时。"],
+  ["LESSON_CANCELLATION_SOURCE_NOT_FOUND", "该预定课时不存在，请刷新后重试。"],
+  ["LESSON_CANCELLATION_SOURCE_TYPE_INVALID", "只能标记取消预定课时。"],
+  ["LESSON_CANCELLATION_SOURCE_VOIDED", "该预定课时已作废，不能标记取消。"],
+  ["LESSON_CANCELLATION_LINKED_ACTUAL_EXISTS", "该预定课时已有关联实际课时，不能重复标记取消。"],
+  ["LESSON_CANCELLATION_SOURCE_STATUS_INVALID", "仅待上课状态可以标记取消并转待补课。"],
+  ["LESSON_CANCELLATION_TIME_REQUIRED", "请填写完整的开始时间和结束时间。"],
+  ["LESSON_CANCELLATION_START_TIME_INVALID", "开始时间格式无效，请使用 HH:MM。"],
+  ["LESSON_CANCELLATION_END_TIME_INVALID", "结束时间格式无效，请使用 HH:MM。"],
+  ["LESSON_CANCELLATION_TIME_GRID_INVALID", "开始和结束时间必须使用 15 分钟刻度。"],
+  ["LESSON_CANCELLATION_TIME_RANGE_INVALID", "结束时间必须晚于开始时间，暂不支持跨日。"],
+  ["LESSON_CANCELLATION_DURATION_MISMATCH", "时长预览与数据库计算不一致，请重新选择开始和结束时间。"],
+  ["LESSON_CANCELLATION_STUDENT_SETTLEMENT_LOCKED", "该课时所属学生月度结算已锁定，不能标记取消。"],
+  ["LESSON_CANCELLATION_TEACHER_WAGE_LOCKED", "该取消日期所属老师工资月份已锁定，不能标记取消。"],
+  ["LESSON_FINANCIAL_FACT_IMMUTABLE", "该课时所属结算已被历史学费账单消费，不能再标记取消。"],
+  ["SETTLEMENT_UNUSED_CREDIT_SOURCE_ALREADY_CLAIMED", "该课时已被月度结算作为待补权益处理，不能重复标记取消。"],
+  ["SETTLEMENT_LESSON_VARIANCE_SOURCE_IMMUTABLE", "该课时已被月度结算固化，不能再标记取消。"],
+]);
 
 const DEFAULT_LESSON_VIEW = "pair";
 
@@ -2124,31 +2149,99 @@ function updateCreateActualLessonFeePreview() {
   dom.createActualLessonFeeInput.value = "";
 }
 
+function currentUserCanMarkLessonCancelled() {
+  const membership = getCurrentAuthContext()?.membership;
+  return Boolean(
+    membership?.is_active === true
+    && ["admin", "operator"].includes(membership.role)
+  );
+}
+
+function linkedActualForPlannedLesson(plannedLessonId) {
+  return lessonRecords.find((record) => (
+    record.lesson_type === "actual"
+    && record.planned_lesson_id === plannedLessonId
+  ));
+}
+
+function cancelledActualLessonUserErrorMessage(error, fallback = "标记取消失败，请稍后重试。") {
+  const errorText = [error?.message, error?.details, error?.hint, error?.code, error]
+    .filter((value) => typeof value === "string")
+    .join(" ");
+  for (const [code, message] of CANCELLED_ACTUAL_LESSON_ERROR_MESSAGES) {
+    if (errorText.includes(code)) {
+      return message;
+    }
+  }
+  return lessonUserErrorMessage(error, fallback);
+}
+
+function cancelledActualActionButton(plannedLessonId) {
+  return Array.from(dom.pairRows?.querySelectorAll("[data-generate-cancelled-actual-id]") || [])
+    .find((button) => button.dataset.generateCancelledActualId === plannedLessonId) || null;
+}
+
+function clearCreateCancelledActualLessonActionError(plannedLessonId) {
+  cancelledActualActionButton(plannedLessonId)
+    ?.closest(".lesson-pair-placeholder")
+    ?.querySelector("[data-cancelled-actual-action-error]")
+    ?.remove();
+}
+
+function showCreateCancelledActualLessonActionError(plannedLessonId, message) {
+  const placeholder = cancelledActualActionButton(plannedLessonId)?.closest(".lesson-pair-placeholder");
+  if (!placeholder) {
+    showMessage("error", message);
+    return;
+  }
+  let errorElement = placeholder.querySelector("[data-cancelled-actual-action-error]");
+  if (!errorElement) {
+    errorElement = document.createElement("div");
+    errorElement.className = "message message-error";
+    errorElement.dataset.cancelledActualActionError = "true";
+    errorElement.setAttribute("role", "alert");
+    placeholder.append(errorElement);
+  }
+  errorElement.textContent = message;
+  errorElement.scrollIntoView({ block: "nearest" });
+}
+
 function openCreateCancelledActualLessonDialog(plannedLessonId) {
+  clearCreateCancelledActualLessonActionError(plannedLessonId);
   if (!hasSupabaseConfig()) {
-    showMessage("error", "当前 Supabase 配置不可用，不能生成取消课时。");
+    showCreateCancelledActualLessonActionError(plannedLessonId, "当前服务配置不可用，不能标记取消。");
     return;
   }
 
   const plannedLesson = lessonRecords.find((record) => record.id === plannedLessonId);
   if (!plannedLesson || plannedLesson.lesson_type !== "planned") {
-    showMessage("error", "未找到可生成取消 actual 的 planned 课时。");
+    showCreateCancelledActualLessonActionError(plannedLessonId, "未找到可标记取消的预定课时，请刷新后重试。");
     return;
   }
 
-  if (plannedLesson.status !== "pending_makeup") {
-    showMessage("error", "当前 planned 状态不能生成 cancelled actual。");
+  if (!currentUserCanMarkLessonCancelled()) {
+    showCreateCancelledActualLessonActionError(plannedLessonId, "仅管理员或操作员可以标记取消并转待补课。");
+    return;
+  }
+
+  if (linkedActualForPlannedLesson(plannedLesson.id)) {
+    showCreateCancelledActualLessonActionError(plannedLessonId, "该预定课时已有关联实际课时，不能重复标记取消。");
+    return;
+  }
+
+  if (plannedLesson.status !== "planned") {
+    showCreateCancelledActualLessonActionError(plannedLessonId, "仅待上课状态可以标记取消并转待补课。");
     return;
   }
 
   if (isVoidedPlanned(plannedLesson)) {
-    showMessage("error", "该预定课时已作废，不能生成 cancelled actual。");
+    showCreateCancelledActualLessonActionError(plannedLessonId, "该预定课时已作废，不能标记取消。");
     return;
   }
 
   const venueMigrationReason = fixedOnsiteVenueMigrationReason(plannedLesson);
   if (venueMigrationReason) {
-    showMessage("error", venueMigrationReason);
+    showCreateCancelledActualLessonActionError(plannedLessonId, venueMigrationReason);
     return;
   }
 
@@ -2253,7 +2346,7 @@ async function handleCreateCancelledActualLessonSubmit() {
     createdLesson = await createCancelledActualLessonFromPlanned(payload);
   } catch (error) {
     console.error("Cancelled actual lesson generation failed", error);
-    const message = lessonUserErrorMessage(error, "取消课时生成失败，请稍后重试。");
+    const message = cancelledActualLessonUserErrorMessage(error);
     showCreateCancelledActualLessonError(message, createCancelledActualLessonFieldIdsForError(message));
     setCreateCancelledActualLessonSubmitting(false);
     return;
@@ -2331,7 +2424,9 @@ function setCreateCancelledActualLessonSubmitting(isSubmitting) {
   dom.createCancelledActualLessonSubmitButton.disabled = isSubmitting;
   dom.createCancelledActualLessonCancelButton.disabled = isSubmitting;
   dom.openCreatePlannedLessonButton.disabled = isSubmitting;
-  dom.createCancelledActualLessonSubmitButton.textContent = isSubmitting ? "生成中..." : "生成取消课";
+  dom.createCancelledActualLessonSubmitButton.textContent = isSubmitting
+    ? "处理中..."
+    : "确认标记取消并转待补课";
 }
 
 function clearCreateCancelledActualLessonErrors() {
@@ -2343,7 +2438,7 @@ function clearCreateCancelledActualLessonErrors() {
 }
 
 function showCreateCancelledActualLessonError(message, fieldIds = []) {
-  dom.createCancelledActualLessonError.textContent = lessonUserErrorMessage(message);
+  dom.createCancelledActualLessonError.textContent = cancelledActualLessonUserErrorMessage(message);
   dom.createCancelledActualLessonError.classList.remove("is-hidden");
   for (const fieldId of fieldIds) {
     setCreateCancelledActualLessonFieldInvalid(fieldId, true);
@@ -6628,14 +6723,20 @@ function renderOtherLessonRow(record) {
 
 function renderMissingActualCard(planned) {
   const statusText = planned.status === "pending_makeup" ? "待补课，尚无实际课时" : "尚无实际课时";
-  const actionHtml = planned.status === "planned" && canGenerateActualFromPlanned(planned)
-    ? [
-        `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成实际</button>`,
-        `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">标记取消</button>`,
-      ].join("")
-    : planned.status === "pending_makeup" && canGenerateActualFromPlanned(planned)
-      ? `<button class="button button-primary table-action-button" type="button" data-generate-makeup-actual-id="${escapeAttribute(planned.id)}">登记补课完成</button>`
-    : "";
+  let actionHtml = "";
+  if (planned.status === "planned" && canGenerateActualFromPlanned(planned)) {
+    const actions = [
+      `<button class="button button-primary table-action-button" type="button" data-generate-actual-id="${escapeAttribute(planned.id)}">生成实际</button>`,
+    ];
+    if (canMarkCancelledActualFromPlanned(planned)) {
+      actions.push(
+        `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">标记取消并转待补课</button>`
+      );
+    }
+    actionHtml = actions.join("");
+  } else if (planned.status === "pending_makeup" && canGenerateActualFromPlanned(planned)) {
+    actionHtml = `<button class="button button-primary table-action-button" type="button" data-generate-makeup-actual-id="${escapeAttribute(planned.id)}">登记补课完成</button>`;
+  }
   return `
     <div class="lesson-pair-placeholder">
       <span>${escapeHtml(statusText)}</span>
@@ -6643,6 +6744,14 @@ function renderMissingActualCard(planned) {
       ${actionHtml ? `<div class="lesson-pair-placeholder-actions">${actionHtml}</div>` : ""}
     </div>
   `;
+}
+
+function canMarkCancelledActualFromPlanned(planned) {
+  return currentUserCanMarkLessonCancelled()
+    && planned?.lesson_type === "planned"
+    && planned.status === "planned"
+    && !isVoidedPlanned(planned)
+    && !linkedActualForPlannedLesson(planned.id);
 }
 
 function canGenerateActualFromPlanned(planned) {

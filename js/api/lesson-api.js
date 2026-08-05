@@ -686,16 +686,27 @@ export async function createActualLessonFromPlanned(payload) {
 }
 
 export async function createCancelledActualLessonFromPlanned(payload) {
+  const normalizedPayload = {
+    plannedLessonId: String(payload?.plannedLessonId || "").trim(),
+    lessonDate: String(payload?.lessonDate || "").trim() || null,
+    startTime: String(payload?.startTime || "").trim() || null,
+    endTime: String(payload?.endTime || "").trim() || null,
+    durationHours: Number.isFinite(payload?.durationHours) ? payload.durationHours : null,
+    unitPrice: Number.isFinite(payload?.unitPrice) ? payload.unitPrice : null,
+    lessonCount: Number.isInteger(payload?.lessonCount) ? payload.lessonCount : null,
+    lessonContent: String(payload?.lessonContent || "").trim() || null,
+    note: String(payload?.note || "").trim() || null,
+  };
   const { data, error } = await supabase.rpc("school_create_cancelled_actual_lesson_from_planned", {
-    p_planned_lesson_id: payload.plannedLessonId,
-    p_lesson_date: payload.lessonDate,
-    p_start_time: payload.startTime || null,
-    p_end_time: payload.endTime || null,
-    p_duration_hours: payload.durationHours,
-    p_unit_price: payload.unitPrice,
-    p_lesson_count: payload.lessonCount,
-    p_lesson_content: payload.lessonContent || null,
-    p_note: payload.note || null,
+    p_planned_lesson_id: normalizedPayload.plannedLessonId,
+    p_lesson_date: normalizedPayload.lessonDate,
+    p_start_time: normalizedPayload.startTime,
+    p_end_time: normalizedPayload.endTime,
+    p_duration_hours: normalizedPayload.durationHours,
+    p_unit_price: normalizedPayload.unitPrice,
+    p_lesson_count: normalizedPayload.lessonCount,
+    p_lesson_content: normalizedPayload.lessonContent,
+    p_note: normalizedPayload.note,
   });
 
   if (error) {

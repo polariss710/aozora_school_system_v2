@@ -1,44 +1,10 @@
--- school_create_cancelled_actual_lesson_from_planned_rpc.sql
--- RPC: public.school_create_cancelled_actual_lesson_from_planned
--- Purpose: Create one cancelled actual lesson linked to one planned lesson.
--- Status: EXECUTED ON SUPABASE. Rollback-tested, guard-tested, and commit-tested.
--- Version: v2.63.0-lesson-planned-void-schema-rpc-20260609
---
--- Scope:
--- - Insert one actual row into public.school_lesson_records.
--- - Source must be one existing school planned lesson.
--- - Source planned lesson must not be soft-voided.
--- - The inserted actual row must set planned_lesson_id to the source planned id.
--- - actual status is fixed to cancelled.
--- - Cancelled actual rows are fixed to non-billable with lesson_fee = 0
---   and actual_minutes = 0.
--- - Student settlement month is inherited from planned.year_month.
--- - Teacher settlement month is derived from cancelled actual lesson date as YYYY-MM.
---
--- Not supported:
--- - Free actual creation without planned_lesson_id.
--- - completed or makeup_completed actual creation.
--- - Editing, deleting, copying, importing, or batch generation.
--- - Other source modifications beyond marking the cancelled source as
---   pending_makeup, so its unfulfilled hours remain available as credit.
--- - Modifying student monthly settlement snapshots, teacher wage locks,
---   wage lock details, payment requests, income, expense, accounts, or
---   account transactions.
---
--- Verification:
--- - Function exists with expected signature and return columns.
--- - Rollback test inserted a codex-test cancelled actual from a codex-test
---   planned lesson and left no residue.
--- - Duplicate actual guard, locked student settlement guard, and locked teacher
---   wage guard were tested inside rollback transactions and left no residue.
--- - Commit test inserted only whitelisted codex-test / v2-test / sandbox
---   planned lesson 557214bb-0826-42e1-b3cb-52953045f4b5 and cancelled actual
---   lesson 8ac46deb-259b-4967-b33d-411d3b40fd8c.
--- - Source planned lesson 557214bb-0826-42e1-b3cb-52953045f4b5 is marked
---   pending_makeup. Cancelled actual lesson 8ac46deb-259b-4967-b33d-411d3b40fd8c
---   has is_billable = false, lesson_fee = 0, and actual_minutes = 0.
--- - No wage lock detail, payment request, income, expense, account, or account
---   transaction was generated.
+-- School V2 canonical "cancel and move to pending makeup" writer.
+-- Business-model expansion declaration:
+--   new tables/columns/statuses/facts: none;
+--   changed writer/mutability/time authority: exactly the 2026-08-06
+--   cancellation hardening task sections II, IV, VIII, IX, X and XI.
+-- This source changes one existing function and its ACL only. It performs no
+-- historical data repair or backfill.
 
 create or replace function public.school_create_cancelled_actual_lesson_from_planned(
   p_planned_lesson_id uuid,
@@ -78,279 +44,266 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
-as $$
+set search_path = pg_catalog, public
+as $function$
 declare
+  v_actor uuid := auth.uid();
+  v_membership_role text;
+  v_membership_active boolean;
   v_planned public.school_lesson_records%rowtype;
   v_lesson_date date;
   v_start_time text;
   v_end_time text;
+  v_start_value time;
+  v_end_value time;
   v_duration_hours numeric;
   v_unit_price numeric;
   v_lesson_count integer;
   v_lesson_content text;
   v_note text;
+  v_student_settlement_month text;
   v_teacher_settlement_month text;
   v_actual_id uuid;
   v_student_business_entity_id uuid;
 begin
-  if p_planned_lesson_id is null then
-    raise exception '请选择预定课时。';
+  if v_actor is null then
+    raise exception using errcode='42501', message='LESSON_CANCELLATION_AUTH_REQUIRED';
   end if;
 
-  select p.*
+  select membership.role, membership.is_active
+  into v_membership_role, v_membership_active
+  from public.school_app_memberships membership
+  where membership.user_id = v_actor;
+
+  if not found then
+    raise exception using errcode='42501', message='LESSON_CANCELLATION_MEMBERSHIP_REQUIRED';
+  end if;
+  if v_membership_active is distinct from true then
+    raise exception using errcode='42501', message='LESSON_CANCELLATION_ACTIVE_MEMBERSHIP_REQUIRED';
+  end if;
+  if v_membership_role not in ('admin','operator') then
+    raise exception using errcode='42501', message='LESSON_CANCELLATION_ROLE_REQUIRED';
+  end if;
+
+  if p_planned_lesson_id is null then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_SOURCE_REQUIRED';
+  end if;
+
+  perform public.school_tuition_p0b1_lock_existing_lesson_scope(p_planned_lesson_id);
+
+  select planned.*
   into v_planned
-  from public.school_lesson_records p
-  where p.id = p_planned_lesson_id
-    and p.app_type = 'school'
+  from public.school_lesson_records planned
+  where planned.id = p_planned_lesson_id
+    and planned.app_type = 'school'
   for update;
 
   if not found then
-    raise exception '预定课时不存在。';
+    raise exception using errcode='P0002', message='LESSON_CANCELLATION_SOURCE_NOT_FOUND';
   end if;
-
   if v_planned.lesson_type <> 'planned' then
-    raise exception '只能从 planned 课时生成取消 actual。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_SOURCE_TYPE_INVALID';
   end if;
-
   if v_planned.voided_at is not null then
-    raise exception '该预定课时已作废，不能生成 cancelled actual。';
-  end if;
-
-  if v_planned.status not in ('planned', 'pending_makeup') then
-    raise exception '当前 planned 状态不能生成 cancelled actual：%。', coalesce(v_planned.status, '');
-  end if;
-
-  if v_planned.student_id is null then
-    raise exception '预定课时缺少学生，不能生成取消 actual。';
-  end if;
-
-  if v_planned.teacher_id is null then
-    raise exception '预定课时缺少老师，不能生成取消 actual。';
-  end if;
-
-  if v_planned.subject_id is null then
-    raise exception '预定课时缺少科目，不能生成取消 actual。';
-  end if;
-
-  if v_planned.business_entity_id is null then
-    raise exception '预定课时缺少业务归属，不能生成取消 actual。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_SOURCE_VOIDED';
   end if;
 
   if exists (
     select 1
-    from public.school_lesson_records a
-    where a.app_type = 'school'
-      and a.lesson_type = 'actual'
-      and a.planned_lesson_id = v_planned.id
+    from public.school_lesson_records actual
+    where actual.app_type = 'school'
+      and actual.lesson_type = 'actual'
+      and actual.planned_lesson_id = v_planned.id
   ) then
-    raise exception '该预定课时已有关联 actual，不能重复生成。';
+    raise exception using errcode='P0001', message='LESSON_CANCELLATION_LINKED_ACTUAL_EXISTS';
+  end if;
+
+  if v_planned.status <> 'planned' then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_SOURCE_STATUS_INVALID';
+  end if;
+  if v_planned.student_id is null
+     or v_planned.teacher_id is null
+     or v_planned.subject_id is null
+     or v_planned.business_entity_id is null then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_SOURCE_MASTER_REQUIRED';
   end if;
 
   v_lesson_date := coalesce(p_lesson_date, v_planned.lesson_date);
   if v_lesson_date is null then
-    raise exception '请选择取消课日期。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_DATE_REQUIRED';
   end if;
 
-  v_start_time := coalesce(nullif(trim(coalesce(p_start_time, '')), ''), nullif(trim(coalesce(v_planned.start_time, '')), ''));
-  v_end_time := coalesce(nullif(trim(coalesce(p_end_time, '')), ''), nullif(trim(coalesce(v_planned.end_time, '')), ''));
-  v_duration_hours := coalesce(p_duration_hours, v_planned.duration_hours, 0);
+  v_start_time := coalesce(
+    nullif(trim(coalesce(p_start_time, '')), ''),
+    nullif(trim(coalesce(v_planned.start_time, '')), '')
+  );
+  v_end_time := coalesce(
+    nullif(trim(coalesce(p_end_time, '')), ''),
+    nullif(trim(coalesce(v_planned.end_time, '')), '')
+  );
+  if v_start_time is null or v_end_time is null then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_TIME_REQUIRED';
+  end if;
+  if v_start_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_START_TIME_INVALID';
+  end if;
+  if v_end_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_END_TIME_INVALID';
+  end if;
+
+  v_start_value := v_start_time::time;
+  v_end_value := v_end_time::time;
+  if extract(minute from v_start_value)::integer % 15 <> 0
+     or extract(minute from v_end_value)::integer % 15 <> 0 then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_TIME_GRID_INVALID';
+  end if;
+  if v_end_value <= v_start_value then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_TIME_RANGE_INVALID';
+  end if;
+
+  v_start_time := to_char(v_start_value, 'HH24:MI');
+  v_end_time := to_char(v_end_value, 'HH24:MI');
+  v_duration_hours := extract(epoch from (v_end_value - v_start_value))::numeric / 3600;
+  if p_duration_hours is not null
+     and p_duration_hours is distinct from v_duration_hours then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_DURATION_MISMATCH';
+  end if;
+
   v_unit_price := coalesce(p_unit_price, v_planned.unit_price, 0);
   v_lesson_count := coalesce(p_lesson_count, v_planned.lesson_count);
-  v_lesson_content := coalesce(nullif(trim(coalesce(p_lesson_content, '')), ''), v_planned.lesson_content);
+  v_lesson_content := coalesce(
+    nullif(trim(coalesce(p_lesson_content, '')), ''),
+    v_planned.lesson_content
+  );
   v_note := coalesce(nullif(trim(coalesce(p_note, '')), ''), v_planned.note);
 
-  if v_duration_hours <= 0 then
-    raise exception '取消课时长必须大于 0。';
-  end if;
-
   if v_unit_price < 0 then
-    raise exception '课程单价不能小于 0。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_UNIT_PRICE_INVALID';
   end if;
-
   if v_lesson_count is not null and v_lesson_count <= 0 then
-    raise exception '课次数必须大于 0。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_COUNT_INVALID';
   end if;
 
-  if v_start_time is not null and v_start_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
-    raise exception '开始时间格式无效，请使用 HH:MM。';
-  end if;
-
-  if v_end_time is not null and v_end_time !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$' then
-    raise exception '结束时间格式无效，请使用 HH:MM。';
-  end if;
-
-  select s.business_entity_id
+  select student.business_entity_id
   into v_student_business_entity_id
-  from public.school_students s
-  where s.id = v_planned.student_id
-    and s.app_type = 'school'
-    and coalesce(s.status, 'active') not in ('inactive', 'graduated');
+  from public.school_students student
+  where student.id = v_planned.student_id
+    and student.app_type = 'school'
+    and coalesce(student.status, 'active') not in ('inactive', 'graduated');
 
   if not found then
-    raise exception '学生无效或不可用。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_STUDENT_INACTIVE';
   end if;
-
   if v_student_business_entity_id is not null
-    and v_student_business_entity_id is distinct from v_planned.business_entity_id then
-    raise exception '学生默认业务归属与课时业务归属不一致。';
+     and v_student_business_entity_id is distinct from v_planned.business_entity_id then
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_STUDENT_ENTITY_MISMATCH';
   end if;
-
   if not exists (
     select 1
-    from public.school_teachers t
-    where t.id = v_planned.teacher_id
-      and t.app_type = 'school'
-      and coalesce(t.status, 'employed') not in ('inactive', 'retired')
+    from public.school_teachers teacher
+    where teacher.id = v_planned.teacher_id
+      and teacher.app_type = 'school'
+      and coalesce(teacher.status, 'employed') not in ('inactive', 'retired')
   ) then
-    raise exception '老师无效或不可用。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_TEACHER_INACTIVE';
   end if;
-
   if not exists (
     select 1
-    from public.school_subjects s
-    where s.id = v_planned.subject_id
-      and coalesce(s.is_active, true) = true
+    from public.school_subjects subject
+    where subject.id = v_planned.subject_id
+      and coalesce(subject.is_active, true)
   ) then
-    raise exception '科目无效或已停用。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_SUBJECT_INACTIVE';
   end if;
-
   if not exists (
     select 1
-    from public.school_business_entities b
-    where b.id = v_planned.business_entity_id
-      and coalesce(b.is_active, true) = true
+    from public.school_business_entities entity
+    where entity.id = v_planned.business_entity_id
+      and coalesce(entity.is_active, true)
   ) then
-    raise exception '业务归属无效或已停用。';
+    raise exception using errcode='22023', message='LESSON_CANCELLATION_ENTITY_INACTIVE';
+  end if;
+
+  v_student_settlement_month :=
+    public.school_resolve_r1d_e_c_lesson_student_month(v_planned.id);
+  if v_student_settlement_month is null then
+    raise exception using errcode='22023', message='LESSON_OPERATION_SCOPE_UNCLASSIFIED';
   end if;
 
   if exists (
     select 1
-    from public.school_student_monthly_settlements s
-    where s.student_id = v_planned.student_id
-      and s.year_month = public.school_resolve_r1d_e_c_lesson_student_month(
-        v_planned.id
-      )
-      and s.business_entity_id is not distinct from v_planned.business_entity_id
-      and s.settlement_status = 'locked'
+    from public.school_student_monthly_settlements settlement
+    where settlement.student_id = v_planned.student_id
+      and settlement.year_month = v_student_settlement_month
+      and settlement.business_entity_id is not distinct from v_planned.business_entity_id
+      and public.school_tuition_p0a_consumed_bill_id(settlement.id) is not null
   ) then
-    raise exception '目标学生月度结算已锁定，不能生成取消 actual。';
+    raise exception using errcode='P0001', message='LESSON_FINANCIAL_FACT_IMMUTABLE';
+  end if;
+
+  if exists (
+    select 1
+    from public.school_student_monthly_settlements settlement
+    where settlement.student_id = v_planned.student_id
+      and settlement.year_month = v_student_settlement_month
+      and settlement.business_entity_id is not distinct from v_planned.business_entity_id
+      and settlement.settlement_status = 'locked'
+  ) then
+    raise exception using errcode='P0001', message='LESSON_CANCELLATION_STUDENT_SETTLEMENT_LOCKED';
   end if;
 
   v_teacher_settlement_month := to_char(v_lesson_date, 'YYYY-MM');
-
   if exists (
     select 1
-    from public.school_teacher_wage_locks w
-    where w.teacher_id = v_planned.teacher_id
-      and w.business_entity_id is not distinct from v_planned.business_entity_id
-      and w.settlement_month = v_teacher_settlement_month
-      and w.status = 'locked'
+    from public.school_teacher_wage_locks wage_lock
+    where wage_lock.teacher_id = v_planned.teacher_id
+      and wage_lock.business_entity_id is not distinct from v_planned.business_entity_id
+      and wage_lock.settlement_month = v_teacher_settlement_month
+      and wage_lock.status = 'locked'
   ) then
-    raise exception '目标老师工资月份已锁定，不能生成取消 actual。';
+    raise exception using errcode='P0001', message='LESSON_CANCELLATION_TEACHER_WAGE_LOCKED';
   end if;
 
   insert into public.school_lesson_records (
-    lesson_type,
-    lesson_date,
-    year_month,
-    student_id,
-    teacher_id,
-    subject_id,
-    business_entity_id,
-    start_time,
-    end_time,
-    duration_hours,
-    lesson_content,
-    status,
-    is_billable,
-    note,
-    app_type,
-    planned_lesson_id,
-    unit_price,
-    lesson_fee,
-    import_batch_id,
-    import_source,
-    imported_at,
-    lesson_count,
-    actual_minutes,
-    teacher_settlement_month
-  )
-  values (
-    'actual',
-    v_lesson_date,
-    v_planned.year_month,
-    v_planned.student_id,
-    v_planned.teacher_id,
-    v_planned.subject_id,
-    v_planned.business_entity_id,
-    v_start_time,
-    v_end_time,
-    v_duration_hours,
-    v_lesson_content,
-    'cancelled',
-    false,
-    v_note,
-    'school',
-    v_planned.id,
-    v_unit_price,
-    0,
-    null,
-    null,
-    null,
-    v_lesson_count,
-    0,
-    v_teacher_settlement_month
-  )
-  returning id into v_actual_id;
+    lesson_type, lesson_date, year_month, student_id, teacher_id, subject_id,
+    business_entity_id, start_time, end_time, duration_hours, lesson_content,
+    status, is_billable, note, app_type, planned_lesson_id, unit_price,
+    lesson_fee, import_batch_id, import_source, imported_at, lesson_count,
+    actual_minutes, teacher_settlement_month
+  ) values (
+    'actual', v_lesson_date, v_planned.year_month, v_planned.student_id,
+    v_planned.teacher_id, v_planned.subject_id, v_planned.business_entity_id,
+    v_start_time, v_end_time, v_duration_hours, v_lesson_content, 'cancelled',
+    false, v_note, 'school', v_planned.id, v_unit_price, 0, null, null, null,
+    v_lesson_count, 0, v_teacher_settlement_month
+  ) returning id into v_actual_id;
 
   update public.school_lesson_records
-     set status = 'pending_makeup'
-   where id = v_planned.id;
+  set status = 'pending_makeup'
+  where id = v_planned.id;
 
   return query
   select
-    a.id,
-    a.lesson_type,
-    a.lesson_date,
-    a.year_month,
-    a.student_id,
-    a.teacher_id,
-    a.subject_id,
-    a.business_entity_id,
-    a.start_time,
-    a.end_time,
-    a.duration_hours,
-    a.unit_price,
-    a.lesson_fee,
-    a.status,
-    a.is_billable,
-    a.lesson_count,
-    a.actual_minutes,
-    a.planned_lesson_id,
-    a.teacher_settlement_month,
-    a.lesson_content,
-    a.note,
-    a.created_at,
-    a.updated_at
-  from public.school_lesson_records a
-  where a.id = v_actual_id;
+    actual.id, actual.lesson_type, actual.lesson_date, actual.year_month,
+    actual.student_id, actual.teacher_id, actual.subject_id,
+    actual.business_entity_id, actual.start_time, actual.end_time,
+    actual.duration_hours, actual.unit_price, actual.lesson_fee, actual.status,
+    actual.is_billable, actual.lesson_count, actual.actual_minutes,
+    actual.planned_lesson_id, actual.teacher_settlement_month,
+    actual.lesson_content, actual.note, actual.created_at, actual.updated_at
+  from public.school_lesson_records actual
+  where actual.id = v_actual_id;
 end;
-$$;
+$function$;
+
+revoke all on function public.school_create_cancelled_actual_lesson_from_planned(
+  uuid,date,text,text,numeric,numeric,integer,text,text
+) from public, anon, authenticated, service_role;
+grant execute on function public.school_create_cancelled_actual_lesson_from_planned(
+  uuid,date,text,text,numeric,numeric,integer,text,text
+) to authenticated;
 
 comment on function public.school_create_cancelled_actual_lesson_from_planned(
-  uuid,
-  date,
-  text,
-  text,
-  numeric,
-  numeric,
-  integer,
-  text,
-  text
+  uuid,date,text,text,numeric,numeric,integer,text,text
 ) is
-  'Creates one non-billable cancelled actual school lesson linked to one planned lesson and marks the source pending_makeup so its full unfulfilled hours remain usable as student lesson credit. Rejects soft-voided planned sources, duplicate linked actuals, locked student settlement months, and locked teacher wage months; does not generate settlement, wage, payment, income, expense, account, or account transaction rows.';
-
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+  'Canonical interactive cancellation writer. Active admin/operator only. Creates one non-billable cancelled actual and atomically moves the planned source to pending_makeup. DB validates the time range and saves DB-derived duration; permanently consumed tuition settlements, locked settlement/wage scopes, active P0F claims and linked actuals remain immutable.';
