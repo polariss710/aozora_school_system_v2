@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-05 学生主数据P0权限旁路已完成生产封口：`school_students`仅active admin/operator/read_only经DB membership RLS读取，authenticated/service_role只保留所需SELECT且全部直接DML拒绝；canonical create/update仅authenticated入口并在DB首段要求active admin，service_role和全部旧overload拒绝，update已有行锁与expected `updated_at`。rollback角色矩阵、双会话、postdeploy和生产Chrome无写验收通过；页面`v10.5.6`、Pages run `30966070323`成功，提交`daa7618`已推送。8名学生及lesson/settlement/income/bill/wage历史指纹不变，真实学生/Cash/Storage业务写入0，Gate仍`enabled / blocked / enabled`，30个Storage orphan及六份保护文件不变。月份状态调查已完成但未实施；因唯一paused学生生效月不可从`updated_at`推断、legacy status退役和各业务writer资格语义尚需逐项批准，当前月份模型实施No-Go。详见`docs/school-v2-student-master-p0-and-monthly-status-investigation-20260805.md`。
+
 - 2026-08-04 Cash普通支出“保存/提交Cash”已拆分上线：新增弹窗Cash模式只调用既有pending writer，保存后关闭弹窗、刷新列表并明确提示“尚未提交Cash”，不再自动打开确认弹窗、调用Cash Edge或生成attempt/event/request；用户随后从列表单条、批量或详情入口主动提交，既有Cash状态机/金额/权限/老师工资合同均未修改。页面`v10.5.5`，UI Pages run `30889444439`成功；四套静态/语法及active-admin生产Chrome无写验收通过。业务负责人已产生的合法生产基线前后严格不变：School 47支出/3账户/187流水，Cash 18 request（pending 1）/12 CNY/3 JPY及全量hash一致；DB migration、write RPC、Edge修改/部署、School/Cash/Storage生产写入均为0，Gate仍`enabled / blocked / enabled`，30个Storage orphan未处理。UI提交`b788b52`已推送；详见`docs/school-v2-cash-expense-save-submit-split-implementation-report-20260804.md`。
 
 - 2026-08-04 Cash端新增支出已安全恢复并上线：新增DB权威 `manual_cash` pending writer、稳定客户端identity/creator audit及immutable guard；School直付仍paid并只扣一次余额/写一条流水，Cash路径先建School pending再复用既有expense Cash审批链，所有Cash阶段School余额/流水变化均为0。权限矩阵、事务rollback、双会话advisory lock、同/异payload幂等、paid回归、同/跨币种、reject/approve/retry/duplicate callback、静态、双库postdeploy及active-admin Chrome无写验收通过；页面`v10.5.4`、Pages run `30885216682`成功，Edge未修改。历史46支出、3账户、186流水、17 Cash request、12 CNY/3 JPY流水及哈希不变，`e410/e420`残留0，Storage零操作且30个孤儿保持未处理，Gate仍`enabled / blocked / enabled`。未制造虚假双库Cash E2E，第一笔真实业务支出留给业务负责人。提交`4973ae9/8959d89`已推送；详见`docs/school-v2-cash-expense-create-implementation-report-20260804.md`。
@@ -22,7 +24,7 @@
 
 - 2026-08-03 月结业务错误中文化与汇率日期限制已完成：新增集中 `js/api/business-error.js`，按仓库真实 P0-A至P0-F稳定码精确翻译月结错误，未知码显示通用中文并在次要位置保留稳定码；Dialog按settlement month动态设置汇率生效日`min/max`，越界立即使旧Preview失效并禁用保存，修正后必须重新调用DB Preview。DB日期guard、公式和权威未改。生产Chrome `v10.4.6 · settlement-error-i18n-20260803-1`确认彭宇晗7月范围`2026-07-01..31`，8月1日请求被HTTP400/`SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH`拒绝且主提示为动态中文，合法日期恢复`-JPY17,000 + JPY2,125 = -JPY14,875 / -CNY624.75`；Console error/warning 0，未保存/锁定。School/Cash哈希与Gate `enabled / blocked / blocked`不变，真实业务写入0。实现提交`7ad4305`已推送；详见`docs/school-v2-settlement-business-error-localization-20260803.md`。
 
-Status date: 2026-08-04
+Status date: 2026-08-05
 
 This is the lightweight daily entry document. It intentionally keeps only the current system state, hard stops, safety rules, active backlog, and the latest 5 key updates. Older status history is archived in `docs/archive/current-status-history.md`.
 
