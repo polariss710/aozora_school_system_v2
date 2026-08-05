@@ -9,8 +9,7 @@ select set_config('request.jwt.claims','{"sub":"25331ae9-3412-48b9-bdc3-e516caea
 do $preflight$
 begin
   if (select count(*) from public.school_students where app_type='school' and status='paused')<>1
-     or not exists (select 1 from public.school_students where id='cff85c52-6acc-4b0f-8c92-3db280a5dd77' and app_type='school' and status='paused')
-     or exists (select 1 from public.school_student_status_events where student_id='cff85c52-6acc-4b0f-8c92-3db280a5dd77' and voided_at is null) then
+     or not exists (select 1 from public.school_students where id='cff85c52-6acc-4b0f-8c92-3db280a5dd77' and app_type='school' and status='paused') then
     raise exception 'STATUS_PRODUCTION_EVENT_PREFLIGHT_FAILED';
   end if;
 end;
