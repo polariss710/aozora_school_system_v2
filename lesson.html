@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=cancellation-hardening-20260806-2">
+    <link rel="stylesheet" href="./css/app.css?v=phase-b4-lesson-candidates-20260806">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -102,12 +102,16 @@
               </select>
             </label>
 
-            <label class="field">
+            <div class="field lesson-student-filter-field">
               <span>学生</span>
               <select id="lessonStudentSelect" name="studentId">
-                <option value="">全部</option>
+                <option value="">全部学生</option>
               </select>
-            </label>
+              <label class="lesson-include-inactive-control">
+                <input id="lessonIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
+                <span>包含暂停/离校学生</span>
+              </label>
+            </div>
 
             <label class="field">
               <span>老师</span>
@@ -283,6 +287,11 @@
           <label class="field" data-lesson-pdf-export-field="student">
             <span>学生</span>
             <select id="lessonPdfExportStudentSelect"></select>
+          </label>
+
+          <label class="lesson-include-inactive-control lesson-pdf-include-inactive-control">
+            <input id="lessonPdfExportIncludeInactiveCheckbox" type="checkbox" value="1">
+            <span>包含暂停/离校学生</span>
           </label>
 
           <label class="field" data-lesson-pdf-export-field="mode">
@@ -1131,6 +1140,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=cancellation-hardening-20260806-2"></script>
+    <script type="module" src="./js/lesson-app.js?v=phase-b4-lesson-candidates-20260806"></script>
   </body>
 </html>

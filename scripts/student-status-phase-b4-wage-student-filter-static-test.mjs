@@ -7,6 +7,7 @@ const app = readFileSync("js/wage-app.js", "utf8");
 const html = readFileSync("wage.html", "utf8");
 const css = readFileSync("css/app.css", "utf8");
 const config = readFileSync("js/config.js", "utf8");
+const statusApi = readFileSync("js/api/student-status-api.js", "utf8");
 
 assert.match(html, /<span>学生<\/span>[\s\S]*id="wageStudentSelect"[\s\S]*>全部学生<\/option>/);
 assert.match(html, /id="wageIncludeInactiveCheckbox"[\s\S]*包含暂停\/离校学生/);
@@ -15,10 +16,11 @@ assert.match(html, /学生仅用于筛选查看，生成工资和支付仍按完
 assert.doesNotMatch(html, /wageBusinessEntitySelect|name="businessEntityId"/);
 assert.match(css, /wage-include-inactive-control/);
 
-assert.match(api, /school_list_student_month_candidates_v1/);
-assert.match(api, /p_target_month:\s*`\$\{month\}-01`/);
-assert.match(api, /p_include_inactive:\s*Boolean\(includeInactive\)/);
-assert.match(api, /p_selected_student_id:\s*selectedStudentId \|\| null/);
+assert.match(api, /fetchStudentMonthCandidates/);
+assert.match(statusApi, /school_list_student_month_candidates_v1/);
+assert.match(statusApi, /p_target_month:\s*`\$\{normalizedMonth\}-01`/);
+assert.match(statusApi, /p_include_inactive:\s*Boolean\(includeInactive\)/);
+assert.match(statusApi, /p_selected_student_id:\s*selectedStudentId \|\| null/);
 assert.match(api, /school_teacher_wage_lock_details"\)[\s\S]*\.select\("lock_id,student_id"\)/);
 assert.doesNotMatch(api, /select\("id,student_code,name,display_name,status"\)/);
 
@@ -45,8 +47,8 @@ assert.doesNotMatch(
 );
 assert.match(page, /学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行/);
 
-assert.match(app, /phase-b4-wage-student-filter-20260806/);
-assert.match(config, /APP_VERSION = "v10\.5\.10"/);
+assert.match(app, /phase-b4-lesson-candidates-20260806/);
+assert.match(config, /APP_VERSION = "v10\.5\.11"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

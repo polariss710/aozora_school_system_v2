@@ -83,12 +83,14 @@ export function createLessonEditDialogController(options) {
     getRefreshContext,
     setExternalBusy,
     getLinkedActualExists,
+    fetchPlannedStudentCandidates,
   } = options;
   let currentLesson = null;
   let isSubmitting = false;
   let initialFormSnapshot = null;
   let closeConfirmPending = false;
   let isInitialized = false;
+  let studentCandidateRequestId = 0;
 
   function init() {
     if (isInitialized) {
@@ -152,9 +154,12 @@ export function createLessonEditDialogController(options) {
     dom.unitPriceInput?.addEventListener("input", updateFeePreview);
     dom.billableSelect?.addEventListener("change", handleBillableChange);
     dom.deliveryModeSelect?.addEventListener("change", syncVenueFieldModes);
+    dom.dateInput?.addEventListener("change", () => {
+      if (currentLesson?.lesson_type === "planned") refreshPlannedStudentOptionsForDate();
+    });
   }
 
-  function open(lessonId) {
+  async function open(lessonId) {
     if (!hasSupabaseConfig()) {
       showMessage("error", "当前 Supabase 配置不可用，不能编辑课时。");
       return;
@@ -180,6 +185,10 @@ export function createLessonEditDialogController(options) {
     setSubmitting(false);
     dom.dialog.classList.remove("is-hidden");
     dom.dialog.setAttribute("aria-hidden", "false");
+    if (lesson.lesson_type === "planned") {
+      await refreshPlannedStudentOptionsForDate({ initial: true });
+      initialFormSnapshot = readFormSnapshot();
+    }
     dom.dateInput.focus();
   }
 
@@ -259,12 +268,8 @@ export function createLessonEditDialogController(options) {
     const { students = [], teachers = [], subjects = [], businessEntities = [] } = getMasterData() || {};
     const currentBusinessEntityId = safeText(currentLesson?.business_entity_id);
     const currentBusinessEntity = businessEntities.find((entity) => entity.id === currentBusinessEntityId);
-    renderEntityOptionsWithPlaceholder(
-      dom.studentSelect,
-      students.filter(isActiveStudent),
-      studentName,
-      "请选择学生"
-    );
+    const currentStudent = students.find((student) => student.id === currentLesson?.student_id);
+    renderEntityOptionsWithPlaceholder(dom.studentSelect, currentStudent ? [currentStudent] : [], studentName, "请选择学生");
     renderEntityOptionsWithPlaceholder(
       dom.teacherSelect,
       teachers.filter((teacher) => !["inactive", "retired"].includes(safeText(teacher.status))),
@@ -283,6 +288,44 @@ export function createLessonEditDialogController(options) {
       businessEntityName,
       currentBusinessEntity ? "当前业务归属" : "请选择业务归属"
     );
+  }
+
+  async function refreshPlannedStudentOptionsForDate({ initial = false } = {}) {
+    if (!currentLesson || currentLesson.lesson_type !== "planned" || typeof fetchPlannedStudentCandidates !== "function") {
+      return;
+    }
+    const lessonDate = safeText(dom.dateInput.value);
+    const selectedStudentId = safeText(dom.studentSelect.value || currentLesson.student_id);
+    const requestId = ++studentCandidateRequestId;
+    dom.studentSelect.disabled = true;
+    try {
+      const rows = await fetchPlannedStudentCandidates({
+        lessonDate,
+        businessEntityId: currentLesson.business_entity_id,
+        selectedStudentId: selectedStudentId || null,
+      });
+      if (requestId !== studentCandidateRequestId || !currentLesson) return;
+      const targetMonth = safeText(rows[0]?.billing_month);
+      const preservesOriginalAuthority = targetMonth === safeText(currentLesson.authoritative_student_month);
+      const selected = rows.find((row) => row.student_id === selectedStudentId);
+      const allowedRows = rows
+        .filter((row) => row.is_eligible || (row.student_id === currentLesson.student_id && (initial || preservesOriginalAuthority)))
+        .map((row) => ({ ...row, id: row.student_id }));
+      renderEntityOptionsWithPlaceholder(dom.studentSelect, allowedRows, studentMonthCandidateLabel, "请选择学生");
+      if (selectedStudentId && allowedRows.some((row) => row.id === selectedStudentId)) {
+        dom.studentSelect.value = selectedStudentId;
+      } else if (selectedStudentId && !initial) {
+        dom.studentSelect.value = "";
+        showError(`修改日期后的收费归属月 ${targetMonth || "未知"} 中，原已选学生不是在读状态，已清除选择。`, ["student"]);
+      }
+    } catch (error) {
+      if (requestId !== studentCandidateRequestId) return;
+      showError(error?.message || "读取目标收费归属月学生候选失败。", ["student"]);
+    } finally {
+      if (requestId === studentCandidateRequestId && currentLesson) {
+        dom.studentSelect.disabled = false;
+      }
+    }
   }
 
   function resetForm(lesson) {
@@ -337,7 +380,9 @@ export function createLessonEditDialogController(options) {
         : option.value !== lesson.status;
     });
 
-    [dom.studentSelect, dom.teacherSelect, dom.subjectSelect].forEach((element) => {
+    dom.studentSelect.disabled = isActual;
+    dom.studentSelect.title = isActual ? "既有 actual 的学生事实不可在此修改。" : "";
+    [dom.teacherSelect, dom.subjectSelect].forEach((element) => {
       element.disabled = isLinkedActual;
       element.title = isLinkedActual ? "已关联来源课时，对象信息不可在此修改。" : "";
     });
@@ -752,8 +797,11 @@ function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
 }
 
-function isActiveStudent(student) {
-  return safeText(student?.status) === "active";
+function studentMonthCandidateLabel(student) {
+  const base = studentName(student);
+  if (student.resolved_status === "paused") return `${base}｜本月暂停`;
+  if (student.resolved_status === "left") return `${base}｜本月已离校`;
+  return base;
 }
 
 function teacherName(teacher) {

@@ -128,7 +128,7 @@ export async function fetchLessonDetailPage(lessonId) {
   const lesson = await fetchLesson(lessonId);
 
   const [lookups, sourceChain, settlements, wageReferences] = await Promise.all([
-    fetchLessonDetailLookups(),
+    fetchLessonDetailLookups(lesson.student_id),
     fetchLessonSourceChain(lesson),
     fetchSettlementReferences(lesson),
     fetchWageReferences(lesson.id),
@@ -319,11 +319,12 @@ async function fetchWageLocks(lockIds) {
   return data || [];
 }
 
-async function fetchLessonDetailLookups() {
+async function fetchLessonDetailLookups(studentId) {
   const [studentsResult, teachersResult, subjectsResult, businessEntitiesResult] = await Promise.all([
     supabase
       .from("school_students")
-      .select("id,student_code,name,display_name,status")
+      .select("id,student_code,name,display_name")
+      .eq("id", studentId)
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),

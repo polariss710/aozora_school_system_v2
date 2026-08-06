@@ -15,7 +15,7 @@ import {
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js?v=phase-b4-wage-student-filter-20260806";
+} from "../api/wage-api.js?v=phase-b4-lesson-candidates-20260806";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,

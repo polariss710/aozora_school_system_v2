@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=phase-b4-wage-student-filter-20260806";
+import { APP_VERSION } from "./config.js?v=phase-b4-lesson-candidates-20260806";
 import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initWagePage } from "./pages/wage-page.js?v=phase-b4-wage-student-filter-20260806";
+import { initWagePage } from "./pages/wage-page.js?v=phase-b4-lesson-candidates-20260806";
 
 const globalSessionPromise = requireGlobalSession();
 

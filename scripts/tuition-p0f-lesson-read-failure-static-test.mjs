@@ -35,8 +35,8 @@ assert(page.includes('console.error("Lesson management initial load failed", err
 assert(!page.includes(".rpc("), "page module must not call RPC directly");
 assert(!/\.(insert|update|delete|upsert)\s*\(/.test(page), "page module must not perform direct row writes");
 
-const cacheKey = "p0f-readfix-20260803-1";
-assert(html.includes("lesson-app.js?v=p0-g1-a-20260804-1"), "lesson HTML must load the global auth cache key");
+const cacheKey = "phase-b4-lesson-candidates-20260806";
+assert(html.includes(`lesson-app.js?v=${cacheKey}`), "lesson HTML must load the current app cache key");
 assert(app.includes(`config.js?v=${cacheKey}`) && app.includes(`lesson-page.js?v=${cacheKey}`), "app/config/page cache keys must match");
 assert(page.includes(`lesson-api.js?v=${cacheKey}`), "page/API cache keys must match");
 

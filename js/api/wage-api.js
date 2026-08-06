@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { fetchStudentMonthCandidates } from "./student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 
 const WAGE_LOCK_COLUMNS = [
   "id",
@@ -335,17 +336,7 @@ export async function fetchWageStudentMonthCandidates({
   includeInactive = false,
   selectedStudentId = null,
 }) {
-  const { data, error } = await supabase.rpc("school_list_student_month_candidates_v1", {
-    p_target_month: `${month}-01`,
-    p_include_inactive: Boolean(includeInactive),
-    p_selected_student_id: selectedStudentId || null,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
+  return fetchStudentMonthCandidates({ month, includeInactive, selectedStudentId });
 }
 
 export async function fetchWageLockStudentMemberships(wageLockIds) {

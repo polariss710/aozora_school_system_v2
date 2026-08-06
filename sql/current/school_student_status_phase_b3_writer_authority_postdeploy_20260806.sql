@@ -23,7 +23,7 @@ begin
       ('public.school_create_partial_completed_actual_from_planned(uuid,date,text,text,numeric,text,text)'::regprocedure,'5727fa8abbb3037dfbcbff1ae06ddacd'),
       ('public.school_create_planned_lesson_record_r1d_f1_legacy_core(date,uuid,uuid,uuid,uuid,text,text,numeric,numeric,numeric,text,integer,text,text)'::regprocedure,'1b603474f0a0372652c4000ef0fec13d'),
       ('public.school_create_teacher_wage_rule_config(uuid,uuid,uuid,uuid,text,numeric,numeric,numeric,numeric,numeric,boolean,text)'::regprocedure,'5f8dec3835568ec0310a66ff6d41f0aa'),
-      ('public.school_generate_planned_lessons_batch_r1d_f1_legacy_core(uuid,uuid,uuid,date,date,jsonb,jsonb,text)'::regprocedure,'bb9c71e08ad87e428297e64bcf0751d7'),
+      ('public.school_generate_planned_lessons_batch_r1d_f1_legacy_core(uuid,uuid,uuid,date,date,jsonb,jsonb,text)'::regprocedure,'8f8343a3adef2278e0392f003cfb62fe'),
       ('public.school_import_lesson_records_batch_r1d_f1_legacy_core(uuid,text,text,jsonb,text)'::regprocedure,'524b4703b08c6f91d366ac8ad4e969a0'),
       ('public.school_preview_student_tuition_bill(uuid,text,numeric)'::regprocedure,'87d3b1d7bed93a7c43d39748a1d69762'),
       ('public.school_update_lesson_record_guarded(uuid,timestamp with time zone,date,uuid,uuid,uuid,uuid,text,text,numeric,numeric,numeric,text,boolean,integer,text,text)'::regprocedure,'c684da67b5b35e6de1aeb0a14230e2f0'),

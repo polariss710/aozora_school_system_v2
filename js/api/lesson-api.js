@@ -458,7 +458,7 @@ function nullSafeEqual(left, right) {
 export async function fetchLessonStudents() {
   const { data, error } = await supabase
     .from("school_students")
-    .select("id,name,display_name,status,business_entity_id")
+    .select("id,student_code,name,display_name,business_entity_id")
     .eq("app_type", "school")
     .order("display_name", { ascending: true })
     .order("name", { ascending: true });
@@ -467,6 +467,46 @@ export async function fetchLessonStudents() {
     throw error;
   }
 
+  return data || [];
+}
+
+export async function fetchPlannedLessonStudentCandidates({
+  lessonDate,
+  businessEntityId,
+  selectedStudentId = null,
+}) {
+  const { data, error } = await supabase.rpc(
+    "school_list_planned_lesson_student_candidates_v1",
+    {
+      p_lesson_date: lessonDate,
+      p_business_entity_id: businessEntityId,
+      p_selected_student_id: selectedStudentId || null,
+    }
+  );
+  if (error) throw error;
+  return data || [];
+}
+
+export async function preflightPlannedLessonBatchStudentCandidates({
+  startDate,
+  endDate,
+  patterns,
+  excludedOccurrences = [],
+  businessEntityId,
+  selectedStudentId = null,
+}) {
+  const { data, error } = await supabase.rpc(
+    "school_preflight_planned_lesson_batch_student_candidates_v1",
+    {
+      p_start_date: startDate,
+      p_end_date: endDate,
+      p_patterns: patterns,
+      p_excluded_occurrences: excludedOccurrences,
+      p_business_entity_id: businessEntityId,
+      p_selected_student_id: selectedStudentId || null,
+    }
+  );
+  if (error) throw error;
   return data || [];
 }
 

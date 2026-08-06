@@ -17,14 +17,17 @@ import {
   fetchLessonManagementStats,
   fetchLessonRecords,
   fetchLessonStudents,
+  fetchPlannedLessonStudentCandidates,
+  preflightPlannedLessonBatchStudentCandidates,
   fetchStudentLessonPdfExport,
   fetchLessonSubjects,
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=cancellation-hardening-20260806-2";
+} from "../api/lesson-api.js?v=phase-b4-lesson-candidates-20260806";
+import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=p0f-readfix-20260803-1";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
 import {
   currentYearMonth,
@@ -62,6 +65,7 @@ import {
 const DEFAULT_FILTERS = {
   weekStart: "",
   studentId: "",
+  includeInactive: false,
   teacherId: "",
   subjectId: "",
   businessEntityId: "",
@@ -302,6 +306,7 @@ const CREATE_CROSS_MONTH_MAKEUP_ACTUAL_FIELD_IDS = [
 
 const dom = {};
 let students = [];
+let studentMonthCandidates = [];
 let teachers = [];
 let subjects = [];
 let businessEntities = [];
@@ -311,6 +316,8 @@ const lessonRecordsRequestGate = createLatestRequestGate();
 let crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
 let loadedMonth = "";
 let loadedLessonRecordMode = "";
+let loadedStudentCandidateKey = "";
+let topStudentCandidateRequestId = 0;
 let activeView = DEFAULT_LESSON_VIEW;
 let isCreatePlannedLessonSubmitting = false;
 let createPlannedLessonInitialSnapshot = null;
@@ -340,6 +347,9 @@ let isLessonPageInitialized = false;
 let initialLessonQueryFilters = null;
 let lessonStatsRequestId = 0;
 let isLessonPdfExportSubmitting = false;
+let lessonPdfExportCandidates = [];
+let createPlannedStudentCandidates = [];
+let createPlannedStudentCandidateRequestId = 0;
 let importPreviewRows = [];
 let importPreviewFileMeta = null;
 let isLessonImportSubmitting = false;
@@ -352,6 +362,9 @@ let isLessonBatchGenerateSubmitting = false;
 let lessonBatchGenerateInitialSnapshot = null;
 let isLessonBatchGenerateCloseConfirmPending = false;
 let lastLessonBatchGenerateResult = null;
+let lessonBatchStudentCandidates = [];
+let lessonBatchTargetOccurrences = [];
+let lessonBatchCandidateRequestId = 0;
 
 export function initLessonPage() {
   if (isLessonPageInitialized) {
@@ -428,6 +441,7 @@ function setupLessonEditController() {
     dom: cacheLessonEditDialogDom(),
     getLessonRecords: () => lessonRecords,
     getMasterData: () => ({ students, teachers, subjects, businessEntities }),
+    fetchPlannedStudentCandidates: fetchPlannedLessonStudentCandidates,
     hasSupabaseConfig,
     showMessage,
     onSaved: refreshAfterEditLesson,
@@ -448,6 +462,7 @@ function cacheDom() {
   dom.monthFilter = document.querySelector("#lessonMonthFilter");
   dom.weekFilter = document.querySelector("#lessonWeekFilter");
   dom.studentSelect = document.querySelector("#lessonStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#lessonIncludeInactiveCheckbox");
   dom.teacherSelect = document.querySelector("#lessonTeacherSelect");
   dom.subjectSelect = document.querySelector("#lessonSubjectSelect");
   dom.businessEntitySelect = document.querySelector("#lessonBusinessEntitySelect");
@@ -482,6 +497,7 @@ function cacheDom() {
   dom.lessonPdfExportDialog = document.querySelector("#lessonPdfExportDialog");
   dom.lessonPdfExportError = document.querySelector("#lessonPdfExportError");
   dom.lessonPdfExportStudentSelect = document.querySelector("#lessonPdfExportStudentSelect");
+  dom.lessonPdfExportIncludeInactiveCheckbox = document.querySelector("#lessonPdfExportIncludeInactiveCheckbox");
   dom.lessonPdfExportModeSelect = document.querySelector("#lessonPdfExportModeSelect");
   dom.lessonPdfExportSummary = document.querySelector("#lessonPdfExportSummary");
   dom.lessonPdfExportSubmitButton = document.querySelector("#lessonPdfExportSubmitButton");
@@ -648,6 +664,7 @@ function bindEvents() {
       view: activeView,
     });
     invalidateLessonResultsForFilterChange("已重置筛选条件；点击“查询”后刷新结果。");
+    refreshTopStudentCandidatesFromControls();
   });
 
   [dom.yearFilter, dom.monthFilter].forEach((select) => {
@@ -655,7 +672,12 @@ function bindEvents() {
       const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
       renderWeekFilterOptions(month, dom.weekFilter?.value);
       invalidateLessonResultsForFilterChange();
+      refreshTopStudentCandidatesFromControls();
     });
+  });
+  dom.includeInactiveCheckbox?.addEventListener("change", () => {
+    invalidateLessonResultsForFilterChange();
+    refreshTopStudentCandidatesFromControls();
   });
   [
     dom.weekFilter,
@@ -669,6 +691,10 @@ function bindEvents() {
   ].forEach((select) => {
     select?.addEventListener("change", () => invalidateLessonResultsForFilterChange());
   });
+  dom.studentSelect?.addEventListener("change", () => {
+    const filters = readFilters();
+    if (filters) syncLessonQueryUrl(filters);
+  });
   dom.keywordInput?.addEventListener("input", () => invalidateLessonResultsForFilterChange());
   dom.openWeeklyScheduleForStudentButton?.addEventListener("click", openWeeklyScheduleForSelectedStudent);
 
@@ -676,6 +702,8 @@ function bindEvents() {
     button?.addEventListener("click", () => {
       setActiveView(button.dataset.lessonView || "list");
       applyCurrentFilters();
+      const filters = readFilters();
+      if (filters) syncLessonQueryUrl(filters);
     });
   });
 
@@ -683,7 +711,8 @@ function bindEvents() {
   dom.openLessonPdfExportButton?.addEventListener("click", openLessonPdfExportDialog);
   dom.lessonPdfExportCancelButton?.addEventListener("click", () => closeLessonPdfExportDialog());
   dom.lessonPdfExportSubmitButton?.addEventListener("click", handleLessonPdfExportSubmit);
-  dom.lessonPdfExportModeSelect?.addEventListener("change", renderLessonPdfExportSummary);
+  dom.lessonPdfExportModeSelect?.addEventListener("change", refreshLessonPdfExportCandidates);
+  dom.lessonPdfExportIncludeInactiveCheckbox?.addEventListener("change", refreshLessonPdfExportCandidates);
   dom.lessonPdfExportStudentSelect?.addEventListener("change", () => {
     clearLessonPdfExportFieldInvalid("student");
     hideLessonPdfExportErrorIfClean();
@@ -733,6 +762,7 @@ function bindEvents() {
         clearLessonBatchGenerateSubmitResult();
       } else {
         clearLessonBatchGeneratePreviewState();
+        if (fieldId !== "student") markLessonBatchStudentCandidatesStale();
         renderLessonBatchGeneratePreview();
       }
     });
@@ -744,6 +774,7 @@ function bindEvents() {
         clearLessonBatchGenerateSubmitResult();
       } else {
         clearLessonBatchGeneratePreviewState();
+        if (fieldId !== "student") markLessonBatchStudentCandidatesStale();
         renderLessonBatchGeneratePreview();
       }
     });
@@ -827,6 +858,8 @@ function bindEvents() {
   dom.createPlannedLessonDurationInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonUnitPriceInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonDeliveryModeSelect?.addEventListener("change", syncCreatePlannedLessonVenueFields);
+  dom.createPlannedLessonDateInput?.addEventListener("change", refreshCreatePlannedStudentCandidates);
+  dom.createPlannedLessonBusinessEntitySelect?.addEventListener("change", refreshCreatePlannedStudentCandidates);
 
   dom.pairRows?.addEventListener("click", (event) => {
     const textToggleButton = event.target.closest("[data-lesson-pair-text-toggle]");
@@ -1059,6 +1092,7 @@ function readInitialLessonQuery() {
   );
   filters.view = normalizeLessonView(params.get("view"));
   filters.studentId = readLessonQueryValue(params, "student_id", "studentId");
+  filters.includeInactive = params.get("include_inactive") === "1";
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
   filters.subjectId = readLessonQueryValue(params, "subject_id", "subjectId");
   filters.businessEntityId = readLessonQueryValue(params, "business_entity_id", "businessEntityId");
@@ -1123,6 +1157,7 @@ function buildLessonListQueryParams(filters) {
   params.set("view", normalizeLessonView(filters.view));
   if (filters.teacherId) params.set("teacher_id", filters.teacherId);
   if (filters.studentId) params.set("student_id", filters.studentId);
+  if (filters.includeInactive) params.set("include_inactive", "1");
   if (filters.subjectId) params.set("subject_id", filters.subjectId);
   if (filters.businessEntityId) params.set("business_entity_id", filters.businessEntityId);
   if (filters.lessonType) params.set("lesson_type", filters.lessonType);
@@ -1157,12 +1192,14 @@ async function loadInitialData() {
   } catch (error) {
     if (!lessonRecordsRequestGate.isCurrent(requestToken)) return;
     students = [];
+    studentMonthCandidates = [];
     teachers = [];
     subjects = [];
     businessEntities = [];
     lessonRecords = [];
     crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
     loadedMonth = "";
+    loadedStudentCandidateKey = "";
     renderMasterOptions();
     renderDataOptions([]);
     renderLessonRecords([]);
@@ -1188,7 +1225,9 @@ async function applyQuery(options = {}) {
     syncLessonQueryUrl(filters);
   }
 
-  if (filters.month !== loadedMonth || lessonRecordQueryMode(filters) !== loadedLessonRecordMode) {
+  if (filters.month !== loadedMonth
+      || lessonRecordQueryMode(filters) !== loadedLessonRecordMode
+      || studentCandidateKey(filters) !== loadedStudentCandidateKey) {
     const requestToken = beginLessonRecordsRequest();
     setLoading(true);
     showMessage("info", "正在加载课时记录...");
@@ -1234,6 +1273,7 @@ function beginLessonRecordsRequest() {
   crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
   loadedMonth = "";
   loadedLessonRecordMode = "";
+  loadedStudentCandidateKey = "";
   renderLessonRecords([]);
   renderLessonStats(null);
   return requestToken;
@@ -1250,11 +1290,19 @@ function invalidateLessonResultsForFilterChange(
 async function loadLessonMonth(month, filters = {}, requestToken) {
   const queryMode = lessonRecordQueryMode(filters);
   try {
-    const validation = partitionAuthoritativeLessonRecords(
-      await fetchLessonRecords(month, {
+    const [rawRecords, monthCandidates] = await Promise.all([
+      fetchLessonRecords(month, {
         status: filters.status,
         weekStart: filters.weekStart || "",
       }),
+      fetchStudentMonthCandidates({
+        month,
+        includeInactive: filters.includeInactive,
+        selectedStudentId: filters.studentId || null,
+      }),
+    ]);
+    const validation = partitionAuthoritativeLessonRecords(
+      rawRecords,
       { yearMonth: month, weekStart: filters.weekStart || "" }
     );
     const records = sortLessonRecords(validation.accepted);
@@ -1271,6 +1319,7 @@ async function loadLessonMonth(month, filters = {}, requestToken) {
     });
     if (!lessonRecordsRequestGate.isCurrent(requestToken)) return false;
     lessonRecords = records;
+    studentMonthCandidates = monthCandidates;
     rejectedLessonRecords = validation.rejected;
     crossMonthMakeupReferences = references;
   } catch (error) {
@@ -1279,6 +1328,8 @@ async function loadLessonMonth(month, filters = {}, requestToken) {
   }
   loadedMonth = month;
   loadedLessonRecordMode = queryMode;
+  loadedStudentCandidateKey = studentCandidateKey(filters);
+  renderMasterOptions();
   renderDataOptions(lessonRecords);
   return true;
 }
@@ -1429,6 +1480,7 @@ function readFilters() {
     weekStart,
     view: activeView,
     studentId: dom.studentSelect.value,
+    includeInactive: Boolean(dom.includeInactiveCheckbox?.checked),
     teacherId: dom.teacherSelect.value,
     subjectId: dom.subjectSelect.value,
     businessEntityId: dom.businessEntitySelect.value,
@@ -1444,6 +1496,7 @@ function restoreFilterSelections(filters) {
   const weekStart = normalizeStudentSettlementWeekStart(filters.month, filters.weekStart);
   renderWeekFilterOptions(filters.month, weekStart);
   dom.studentSelect.value = filters.studentId || "";
+  dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.teacherSelect.value = filters.teacherId || "";
   dom.subjectSelect.value = filters.subjectId || "";
   dom.businessEntitySelect.value = filters.businessEntityId || "";
@@ -1457,10 +1510,40 @@ function restoreFilterSelections(filters) {
 }
 
 function renderMasterOptions() {
-  renderEntityOptions(dom.studentSelect, students, studentName);
+  renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, "全部学生");
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
   renderEntityOptions(dom.subjectSelect, subjects, subjectName);
   renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
+}
+
+function studentCandidateKey(filters = {}) {
+  return [
+    safeText(filters.month),
+    filters.includeInactive ? "1" : "0",
+    safeText(filters.studentId),
+  ].join("::");
+}
+
+async function refreshTopStudentCandidatesFromControls() {
+  const filters = readFilters();
+  if (!filters) return;
+  const requestId = ++topStudentCandidateRequestId;
+  const selectedStudentId = filters.studentId;
+  try {
+    const rows = await fetchStudentMonthCandidates({
+      month: filters.month,
+      includeInactive: filters.includeInactive,
+      selectedStudentId: selectedStudentId || null,
+    });
+    if (requestId !== topStudentCandidateRequestId) return;
+    studentMonthCandidates = rows;
+    renderStudentMonthCandidateOptions(dom.studentSelect, rows, "全部学生");
+    dom.studentSelect.value = selectedStudentId;
+    syncLessonQueryUrl(filters);
+  } catch (error) {
+    if (requestId !== topStudentCandidateRequestId) return;
+    showMessage("error", lessonUserErrorMessage(error, "读取所选月份学生候选失败。"));
+  }
 }
 
 function renderDataOptions(records) {
@@ -1481,6 +1564,15 @@ function renderEntityOptionsWithPlaceholder(selectEl, rows, labelGetter, placeho
     );
   }
 
+  selectEl.innerHTML = options.join("");
+}
+
+function renderStudentMonthCandidateOptions(selectEl, rows, placeholder = "请选择学生") {
+  const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
+  for (const student of rows || []) {
+    const value = student.student_id || student.id;
+    options.push(`<option value="${escapeAttribute(value)}">${escapeHtml(studentMonthCandidateLabel(student))}</option>`);
+  }
   selectEl.innerHTML = options.join("");
 }
 
@@ -1552,7 +1644,7 @@ function blockLessonBatchGenerateDirectDismiss() {
   showLessonBatchGenerateError("请使用关闭按钮关闭窗口；表单已有修改时需要二次确认。");
 }
 
-function openCreatePlannedLessonDialog() {
+async function openCreatePlannedLessonDialog() {
   if (!hasSupabaseConfig()) {
     showMessage("error", "当前 Supabase 配置不可用，不能新增预定课时。");
     return;
@@ -1564,6 +1656,8 @@ function openCreatePlannedLessonDialog() {
   setCreatePlannedLessonSubmitting(false);
   dom.createPlannedLessonDialog.classList.remove("is-hidden");
   dom.createPlannedLessonDialog.setAttribute("aria-hidden", "false");
+  await refreshCreatePlannedStudentCandidates();
+  createPlannedLessonInitialSnapshot = readCreatePlannedLessonFormSnapshot();
   dom.createPlannedLessonDateInput.focus();
 }
 
@@ -1587,12 +1681,7 @@ function closeCreatePlannedLessonDialog(force = false) {
 }
 
 function renderCreatePlannedLessonOptions() {
-  renderEntityOptionsWithPlaceholder(
-    dom.createPlannedLessonStudentSelect,
-    students.filter(isNewBusinessStudent),
-    studentName,
-    "请选择学生"
-  );
+  renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, createPlannedStudentCandidates, "请选择学生");
   renderEntityOptionsWithPlaceholder(
     dom.createPlannedLessonTeacherSelect,
     teachers.filter((teacher) => !["inactive", "retired"].includes(safeText(teacher.status))),
@@ -1624,9 +1713,6 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonBusinessEntitySelect.value = isNewBusinessEntityId(businessEntities, dom.businessEntitySelect.value)
     ? dom.businessEntitySelect.value
     : defaultBusinessEntityId;
-  if (!students.some((student) => student.id === dom.createPlannedLessonStudentSelect.value && isNewBusinessStudent(student))) {
-    dom.createPlannedLessonStudentSelect.value = "";
-  }
   dom.createPlannedLessonStartTimeInput.value = "";
   dom.createPlannedLessonEndTimeInput.value = "";
   dom.createPlannedLessonDeliveryModeSelect.value = "";
@@ -1642,6 +1728,47 @@ function resetCreatePlannedLessonForm() {
   syncCreatePlannedLessonVenueFields();
   isCreatePlannedLessonCloseConfirmPending = false;
   createPlannedLessonInitialSnapshot = readCreatePlannedLessonFormSnapshot();
+}
+
+async function refreshCreatePlannedStudentCandidates() {
+  const lessonDate = dom.createPlannedLessonDateInput?.value || "";
+  const businessEntityId = dom.createPlannedLessonBusinessEntitySelect?.value || "";
+  const selectedStudentId = dom.createPlannedLessonStudentSelect?.value || "";
+  const requestId = ++createPlannedStudentCandidateRequestId;
+  createPlannedStudentCandidates = [];
+  renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, [], "正在按收费归属月加载...");
+  dom.createPlannedLessonStudentSelect.disabled = true;
+
+  if (!isDateInputValue(lessonDate) || !businessEntityId) {
+    renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, [], "请先选择日期和业务归属");
+    return;
+  }
+
+  try {
+    const rows = await fetchPlannedLessonStudentCandidates({
+      lessonDate,
+      businessEntityId,
+      selectedStudentId: selectedStudentId || null,
+    });
+    if (requestId !== createPlannedStudentCandidateRequestId) return;
+    const selected = rows.find((row) => row.student_id === selectedStudentId);
+    createPlannedStudentCandidates = rows.filter((row) => row.is_eligible);
+    renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, createPlannedStudentCandidates, "请选择学生");
+    if (selectedStudentId && selected?.is_eligible) {
+      dom.createPlannedLessonStudentSelect.value = selectedStudentId;
+    } else if (selectedStudentId) {
+      const month = selected?.billing_month || rows[0]?.billing_month || "目标";
+      showCreatePlannedLessonError(`原已选学生在收费归属月 ${month} 不是在读状态，已清除选择。`, ["student"]);
+    }
+  } catch (error) {
+    if (requestId !== createPlannedStudentCandidateRequestId) return;
+    renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, [], "学生候选加载失败");
+    showCreatePlannedLessonError(lessonUserErrorMessage(error, "按收费归属月读取学生候选失败。"), ["student"]);
+  } finally {
+    if (requestId === createPlannedStudentCandidateRequestId) {
+      dom.createPlannedLessonStudentSelect.disabled = false;
+    }
+  }
 }
 
 function readCreatePlannedLessonFormSnapshot() {
@@ -1724,6 +1851,7 @@ function readCreatePlannedLessonPayload() {
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
   if (!["planned", "pending_makeup"].includes(status)) invalidFields.push("status");
   if (!studentId) invalidFields.push("student");
+  if (studentId && !createPlannedStudentCandidates.some((student) => student.student_id === studentId && student.is_eligible)) invalidFields.push("student");
   if (!teacherId) invalidFields.push("teacher");
   if (!subjectId) invalidFields.push("subject");
   if (!businessEntityId) invalidFields.push("businessEntity");
@@ -3339,26 +3467,48 @@ function renderLessonStatusFilterOptions(selectEl) {
     .join("");
 }
 
-function openLessonPdfExportDialog() {
+async function openLessonPdfExportDialog() {
   if (!hasSupabaseConfig()) {
     showMessage("error", "当前 Supabase 配置不可用，不能导出学生课时 PDF。");
     return;
   }
 
-  renderEntityOptionsWithPlaceholder(
-    dom.lessonPdfExportStudentSelect,
-    students.filter(isActiveStudent),
-    studentName,
-    "请选择学生"
-  );
-  dom.lessonPdfExportStudentSelect.value = dom.studentSelect.value || "";
   dom.lessonPdfExportModeSelect.value = "actual_current";
+  dom.lessonPdfExportIncludeInactiveCheckbox.checked = Boolean(dom.includeInactiveCheckbox?.checked);
+  renderStudentMonthCandidateOptions(dom.lessonPdfExportStudentSelect, [], "正在加载...");
+  dom.lessonPdfExportStudentSelect.dataset.pendingStudentId = dom.studentSelect.value || "";
   clearLessonPdfExportErrors();
   renderLessonPdfExportSummary();
   setLessonPdfExportSubmitting(false);
   dom.lessonPdfExportDialog.classList.remove("is-hidden");
   dom.lessonPdfExportDialog.setAttribute("aria-hidden", "false");
+  await refreshLessonPdfExportCandidates();
   dom.lessonPdfExportStudentSelect.focus();
+}
+
+async function refreshLessonPdfExportCandidates() {
+  const target = lessonPdfExportTarget();
+  const selectedStudentId = dom.lessonPdfExportStudentSelect.value
+    || dom.lessonPdfExportStudentSelect.dataset.pendingStudentId
+    || "";
+  dom.lessonPdfExportStudentSelect.disabled = true;
+  try {
+    lessonPdfExportCandidates = await fetchStudentMonthCandidates({
+      month: target.yearMonth,
+      includeInactive: Boolean(dom.lessonPdfExportIncludeInactiveCheckbox?.checked),
+      selectedStudentId: selectedStudentId || null,
+    });
+    renderStudentMonthCandidateOptions(dom.lessonPdfExportStudentSelect, lessonPdfExportCandidates, "请选择学生");
+    dom.lessonPdfExportStudentSelect.value = selectedStudentId;
+    dom.lessonPdfExportStudentSelect.dataset.pendingStudentId = "";
+    renderLessonPdfExportSummary();
+  } catch (error) {
+    lessonPdfExportCandidates = [];
+    renderStudentMonthCandidateOptions(dom.lessonPdfExportStudentSelect, [], "学生候选加载失败");
+    showLessonPdfExportError(lessonUserErrorMessage(error, "读取导出月份学生候选失败。"));
+  } finally {
+    dom.lessonPdfExportStudentSelect.disabled = false;
+  }
 }
 
 function closeLessonPdfExportDialog(force = false) {
@@ -3909,6 +4059,7 @@ async function handleLessonImportPreviewFileChange(event) {
       hash: await calculateLessonImportFileHash(file),
     };
     await addLessonImportPlannedIdPrecheck(importPreviewRows);
+    await addLessonImportStudentStatusPrecheck(importPreviewRows);
     if (!importPreviewRows.length) {
       showLessonImportPreviewError("没有读取到可预览的课时行。请确认文件包含表头和课时数据。");
     }
@@ -3919,6 +4070,46 @@ async function handleLessonImportPreviewFileChange(event) {
   }
 
   renderLessonImportPreview();
+}
+
+async function addLessonImportStudentStatusPrecheck(rows) {
+  const targets = new Map();
+  for (const row of rows || []) {
+    const lessonDate = row.values?.lessonDate;
+    const studentId = row.values?.studentId;
+    const businessEntityId = row.values?.businessEntityId;
+    if (!lessonDate || !studentId || !businessEntityId) continue;
+    const key = `${lessonDate}::${businessEntityId}::${studentId}`;
+    if (!targets.has(key)) {
+      targets.set(key, { lessonDate, businessEntityId, studentId });
+    }
+  }
+
+  const results = new Map(await Promise.all([...targets.entries()].map(async ([key, target]) => [
+    key,
+    await fetchPlannedLessonStudentCandidates({
+      lessonDate: target.lessonDate,
+      businessEntityId: target.businessEntityId,
+      selectedStudentId: target.studentId,
+    }),
+  ])));
+
+  for (const row of rows || []) {
+    const lessonDate = row.values?.lessonDate;
+    const studentId = row.values?.studentId;
+    const businessEntityId = row.values?.businessEntityId;
+    if (!lessonDate || !studentId || !businessEntityId) continue;
+    const candidates = results.get(`${lessonDate}::${businessEntityId}::${studentId}`) || [];
+    const selected = candidates.find((candidate) => candidate.student_id === studentId);
+    if (selected && !selected.is_eligible) {
+      addLessonImportPreviewIssue(
+        row,
+        "error",
+        "student",
+        `第 ${row.rowNo} 行学生 ${studentName(selected)} 在日期 ${lessonDate} 的权威收费归属月 ${selected.billing_month} 为 ${studentStatusLabel(selected.resolved_status)}，不能导入新预定课时。`
+      );
+    }
+  }
 }
 
 async function handleLessonImportPlannedSubmit() {
@@ -4068,12 +4259,7 @@ function closeLessonBatchGenerateDialog(force = false) {
 }
 
 function renderLessonBatchGenerateMasterOptions() {
-  renderEntityOptionsWithPlaceholder(
-    dom.lessonBatchGenerateStudentSelect,
-    students.filter(isNewBusinessStudent),
-    studentName,
-    "请选择学生"
-  );
+  renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, lessonBatchStudentCandidates, "请先完善生成条件");
   renderEntityOptionsWithPlaceholder(
     dom.lessonBatchGenerateBusinessEntitySelect,
     newBusinessEntities(businessEntities),
@@ -4085,12 +4271,14 @@ function renderLessonBatchGenerateMasterOptions() {
 function resetLessonBatchGenerateForm() {
   const selectedMonth = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
   dom.lessonBatchGenerateStudentSelect.value = dom.studentSelect.value || "";
+  dom.lessonBatchGenerateStudentSelect.dataset.pendingStudentId = dom.studentSelect.value || "";
   dom.lessonBatchGenerateBusinessEntitySelect.value = isNewBusinessEntityId(businessEntities, dom.businessEntitySelect.value)
     ? dom.businessEntitySelect.value
     : defaultNewBusinessEntityId(businessEntities);
-  if (!students.some((student) => student.id === dom.lessonBatchGenerateStudentSelect.value && isNewBusinessStudent(student))) {
-    dom.lessonBatchGenerateStudentSelect.value = "";
-  }
+  lessonBatchStudentCandidates = [];
+  lessonBatchTargetOccurrences = [];
+  renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, [], "请先完善生成条件");
+  dom.lessonBatchGenerateStudentSelect.disabled = true;
   dom.lessonBatchGenerateStartDateInput.value = firstDateOfMonth(selectedMonth);
   dom.lessonBatchGenerateEndDateInput.value = lastDateOfMonth(selectedMonth);
   dom.lessonBatchGenerateAirconRateInput.value = "0";
@@ -4129,6 +4317,7 @@ function addLessonBatchGeneratePattern() {
   const nextIndex = (Math.max(0, ...batchGeneratePatterns.map((pattern) => Number(pattern.patternIndex) || 0)) + 1);
   batchGeneratePatterns.push(defaultLessonBatchGeneratePattern(nextIndex));
   clearLessonBatchGeneratePreviewState();
+  markLessonBatchStudentCandidatesStale();
   renderLessonBatchGeneratePatterns();
   renderLessonBatchGeneratePreview();
 }
@@ -4260,6 +4449,7 @@ function handleLessonBatchGeneratePatternInput(event) {
     renderLessonBatchGeneratePatterns();
   }
   clearLessonBatchGeneratePreviewState();
+  markLessonBatchStudentCandidatesStale();
   hideLessonBatchGenerateErrorIfClean();
   renderLessonBatchGeneratePreview();
 }
@@ -4276,23 +4466,111 @@ function handleLessonBatchGeneratePatternAction(event) {
     batchGeneratePatterns = batchGeneratePatterns.filter((pattern) => Number(pattern.patternIndex) !== patternIndex);
     isLessonBatchGenerateCloseConfirmPending = false;
     clearLessonBatchGeneratePreviewState();
+    markLessonBatchStudentCandidatesStale();
     renderLessonBatchGeneratePatterns();
     renderLessonBatchGeneratePreview();
   }
 }
 
-function handleLessonBatchGeneratePreview() {
+function markLessonBatchStudentCandidatesStale() {
+  const selectedStudentId = dom.lessonBatchGenerateStudentSelect?.value
+    || dom.lessonBatchGenerateStudentSelect?.dataset.pendingStudentId
+    || "";
+  lessonBatchStudentCandidates = [];
+  lessonBatchTargetOccurrences = [];
+  lessonBatchCandidateRequestId += 1;
+  if (dom.lessonBatchGenerateStudentSelect) {
+    dom.lessonBatchGenerateStudentSelect.dataset.pendingStudentId = selectedStudentId;
+    renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, [], "更新预览后选择学生");
+    dom.lessonBatchGenerateStudentSelect.disabled = true;
+  }
+}
+
+async function refreshLessonBatchStudentCandidates() {
+  const draft = readLessonBatchGenerateDraft({ silent: true, requireStudent: false });
+  if (!draft) {
+    markLessonBatchStudentCandidatesStale();
+    showLessonBatchGenerateError("请先完整填写日期范围、业务归属和课程规则，再按 DB 权威月份更新候选。");
+    return false;
+  }
+
+  const selectedStudentId = dom.lessonBatchGenerateStudentSelect.value
+    || dom.lessonBatchGenerateStudentSelect.dataset.pendingStudentId
+    || "";
+  const requestId = ++lessonBatchCandidateRequestId;
+  renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, [], "正在执行 DB preflight...");
+  dom.lessonBatchGenerateStudentSelect.disabled = true;
+
+  try {
+    const rows = await preflightPlannedLessonBatchStudentCandidates({
+      startDate: draft.startDate,
+      endDate: draft.endDate,
+      patterns: draft.patterns.map((pattern) => ({
+        pattern_index: pattern.patternIndex,
+        weekday: pattern.weekday,
+        occurrence_count: pattern.occurrenceCount,
+      })),
+      excludedOccurrences: [...batchGenerateRemovedKeys].map((key) => {
+        const [patternIndex, lessonDate, occurrenceIndex] = key.split(":");
+        return {
+          pattern_index: Number(patternIndex),
+          lesson_date: lessonDate,
+          occurrence_index: Number(occurrenceIndex),
+        };
+      }),
+      businessEntityId: draft.businessEntityId,
+      selectedStudentId: selectedStudentId || null,
+    });
+    if (requestId !== lessonBatchCandidateRequestId) return false;
+    const selected = rows.find((row) => row.student_id === selectedStudentId);
+    lessonBatchStudentCandidates = rows.filter((row) => row.is_eligible);
+    lessonBatchTargetOccurrences = Array.isArray(rows[0]?.target_occurrences)
+      ? rows[0].target_occurrences
+      : [];
+    renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, lessonBatchStudentCandidates, "请选择学生");
+    dom.lessonBatchGenerateStudentSelect.dataset.pendingStudentId = "";
+    if (selectedStudentId && selected?.is_eligible) {
+      dom.lessonBatchGenerateStudentSelect.value = selectedStudentId;
+    } else if (selectedStudentId && selected) {
+      const evidence = (selected.invalid_occurrences || []).map((item) => (
+        `${item.lesson_date}（${item.billing_month}，${studentStatusLabel(item.resolved_status)}）`
+      ));
+      dom.lessonBatchGenerateStudentSelect.value = "";
+      showLessonBatchGenerateError(`原已选学生不满足全部 occurrence 的在读条件，已清除选择：${evidence.join("、") || "业务归属不匹配"}。`);
+    }
+    return lessonBatchTargetOccurrences.length > 0;
+  } catch (error) {
+    if (requestId !== lessonBatchCandidateRequestId) return false;
+    lessonBatchStudentCandidates = [];
+    lessonBatchTargetOccurrences = [];
+    renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, [], "DB preflight 失败");
+    showLessonBatchGenerateError(lessonUserErrorMessage(error, "批量课时学生候选 preflight 失败。"));
+    return false;
+  } finally {
+    if (requestId === lessonBatchCandidateRequestId) {
+      dom.lessonBatchGenerateStudentSelect.disabled = false;
+    }
+  }
+}
+
+async function handleLessonBatchGeneratePreview() {
   hideLessonBatchGenerateError();
   clearLessonBatchGenerateErrors();
   clearLessonBatchGenerateSubmitResult();
+  batchGenerateRemovedKeys = new Set();
+  const candidatesReady = await refreshLessonBatchStudentCandidates();
+  if (!candidatesReady) {
+    renderLessonBatchGeneratePreview();
+    return;
+  }
   const draft = readLessonBatchGenerateDraft();
   if (!draft) {
+    showLessonBatchGenerateError("学生候选已按全部目标收费归属月更新，请选择学生后再次更新预览。");
     renderLessonBatchGeneratePreview();
     return;
   }
 
-  batchGeneratePreviewRows = buildLessonBatchGeneratePreviewRows(draft);
-  batchGenerateRemovedKeys = new Set();
+  batchGeneratePreviewRows = buildLessonBatchGeneratePreviewRows(draft, lessonBatchTargetOccurrences);
   const duplicateRow = findDuplicateLessonBatchGeneratePreviewRow(batchGeneratePreviewRows);
   if (duplicateRow) {
     batchGeneratePreviewRows = [];
@@ -4312,6 +4590,7 @@ function handleLessonBatchGenerateRegeneratePreview() {
 
 function readLessonBatchGenerateDraft(options = {}) {
   const silent = Boolean(options.silent);
+  const requireStudent = options.requireStudent !== false;
   const studentId = dom.lessonBatchGenerateStudentSelect.value;
   const businessEntityId = dom.lessonBatchGenerateBusinessEntitySelect.value;
   const startDate = dom.lessonBatchGenerateStartDateInput.value;
@@ -4319,7 +4598,7 @@ function readLessonBatchGenerateDraft(options = {}) {
   const airconRateJpyPerHour = numberFromInput(dom.lessonBatchGenerateAirconRateInput.value);
   const errors = [];
 
-  if (!studentId) {
+  if (requireStudent && !studentId) {
     errors.push(["student", "请选择学生。"]);
   }
   if (!businessEntityId) {
@@ -4477,26 +4756,24 @@ function buildLessonBatchGeneratePatternDuplicateKey(pattern) {
   ].join("|");
 }
 
-function buildLessonBatchGeneratePreviewRows(draft) {
+function buildLessonBatchGeneratePreviewRows(draft, targetOccurrences = lessonBatchTargetOccurrences) {
   const rows = [];
-  const dates = listDateInputValues(draft.startDate, draft.endDate);
-  for (const lessonDate of dates) {
+  for (const occurrence of targetOccurrences || []) {
+    const lessonDate = safeText(occurrence.lesson_date);
+    const pattern = draft.patterns.find((item) => Number(item.patternIndex) === Number(occurrence.pattern_index));
+    if (!pattern || !lessonDate) continue;
     const weekday = dateInputWeekday(lessonDate);
-    for (const pattern of draft.patterns) {
-      if (pattern.weekday !== weekday) {
-        continue;
-      }
       const timeCheck = validateLessonTimeRange(pattern.startTime, pattern.endTime);
       const hasValidTime = timeCheck.status === "valid";
-      const weekLessonDate = mondayOfDateInputValue(lessonDate);
-      for (let occurrenceIndex = 1; occurrenceIndex <= pattern.occurrenceCount; occurrenceIndex += 1) {
+      const occurrenceIndex = Number(occurrence.occurrence_index);
         rows.push({
-          rowKey: `${pattern.patternIndex}:${weekLessonDate}:${occurrenceIndex}`,
+          rowKey: `${pattern.patternIndex}:${lessonDate}:${occurrenceIndex}`,
           patternIndex: pattern.patternIndex,
           occurrenceIndex,
           sourceDate: lessonDate,
           lessonDate,
-          billingWeekDate: weekLessonDate,
+          billingWeekDate: lessonDate,
+          billingMonth: safeText(occurrence.billing_month),
           weekday,
           studentId: draft.studentId,
           businessEntityId: draft.businessEntityId,
@@ -4512,8 +4789,6 @@ function buildLessonBatchGeneratePreviewRows(draft) {
           lessonCount: pattern.lessonCount === null ? occurrenceIndex : pattern.lessonCount + occurrenceIndex - 1,
           lessonContent: pattern.lessonContent,
         });
-      }
-    }
   }
   return rows.sort(compareLessonBatchGeneratePreviewRows);
 }
@@ -4618,7 +4893,7 @@ function visibleLessonBatchGeneratePreviewRows() {
   return batchGeneratePreviewRows.filter((row) => !batchGenerateRemovedKeys.has(row.rowKey));
 }
 
-function handleLessonBatchGeneratePreviewAction(event) {
+async function handleLessonBatchGeneratePreviewAction(event) {
   const button = event.target.closest("[data-batch-preview-remove-key]");
   if (!button) {
     return;
@@ -4626,6 +4901,7 @@ function handleLessonBatchGeneratePreviewAction(event) {
 
   batchGenerateRemovedKeys.add(button.dataset.batchPreviewRemoveKey || "");
   clearLessonBatchGenerateSubmitResult();
+  await refreshLessonBatchStudentCandidates();
   renderLessonBatchGeneratePreview();
 }
 
@@ -7177,12 +7453,27 @@ function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
 }
 
-function isActiveStudent(student) {
-  return safeText(student?.status) === "active";
+function studentMonthCandidateLabel(student) {
+  const code = safeText(student.student_code);
+  const name = studentName(student);
+  const baseLabel = code ? `${name}（${code}）` : name;
+  if (student.resolved_status === "paused") {
+    return `${baseLabel}｜本月暂停`;
+  }
+  if (student.resolved_status === "left") {
+    return `${baseLabel}｜本月已离校`;
+  }
+  return baseLabel;
+}
+
+function studentStatusLabel(status) {
+  if (status === "paused") return "暂停";
+  if (status === "left") return "离校";
+  return "在读";
 }
 
 function isNewBusinessStudent(student) {
-  return isActiveStudent(student) && isNewBusinessEntityId(businessEntities, student?.business_entity_id || "");
+  return isNewBusinessEntityId(businessEntities, student?.business_entity_id || "");
 }
 
 function teacherName(teacher) {
