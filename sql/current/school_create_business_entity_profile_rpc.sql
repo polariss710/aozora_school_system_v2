@@ -1,8 +1,8 @@
 -- school_create_business_entity_profile_rpc.sql
 -- RPC: public.school_create_business_entity_profile
 -- Purpose: Create future-use business entity master data only.
--- Status: EXECUTED ON SUPABASE. Rollback-tested and commit-tested.
--- Version: v2.47.0-business-entity-create-full-autopilot-20260607
+-- Status: BE-P0 permission closure executed on Supabase 2026-08-06.
+-- Security: all overloads require current active admin and use a fixed safe search_path.
 --
 -- Scope:
 -- - Insert one row into public.school_business_entities.
@@ -51,7 +51,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_code text := nullif(trim(coalesce(p_code, '')), '');
@@ -61,6 +61,8 @@ declare
   v_note text := nullif(trim(coalesce(p_note, '')), '');
   v_business_entity_id uuid;
 begin
+  perform public.school_require_current_app_admin();
+
   if v_code is null then
     raise exception '业务归属编码不能为空。';
   end if;
@@ -145,9 +147,8 @@ comment on function public.school_create_business_entity_profile(
 ) is
   'Creates one future-use business entity master row. Does not create accounts or modify historical financial, settlement, wage, payment, balance, or account transaction records.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+-- Permission contract is finalized by
+-- school_business_entity_p0_permission_closure_core_20260806.sql.
 
 -- v2.102.0 business entity dialog field-scope overload.
 -- Purpose: Create business entity master data from the narrowed v2 dialog.
@@ -180,7 +181,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_profile jsonb := coalesce(p_profile, '{}'::jsonb);
@@ -191,6 +192,8 @@ declare
   v_code text;
   v_business_entity_id uuid;
 begin
+  perform public.school_require_current_app_admin();
+
   if v_name is null then
     raise exception '业务归属名称不能为空。';
   end if;
@@ -203,14 +206,14 @@ begin
     raise exception '业务归属类型无效：%。', v_entity_type;
   end if;
 
-  v_code := 'be-' || replace(gen_random_uuid()::text, '-', '');
+  v_code := 'be-' || replace(pg_catalog.gen_random_uuid()::text, '-', '');
 
   while exists (
     select 1
     from public.school_business_entities b
     where b.code = v_code
   ) loop
-    v_code := 'be-' || replace(gen_random_uuid()::text, '-', '');
+    v_code := 'be-' || replace(pg_catalog.gen_random_uuid()::text, '-', '');
   end loop;
 
   insert into public.school_business_entities (

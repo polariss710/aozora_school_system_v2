@@ -1,8 +1,8 @@
 -- school_update_business_entity_profile_rpc.sql
 -- RPC: public.school_update_business_entity_profile
 -- Purpose: Update non-sensitive business entity profile fields only.
--- Status: EXECUTED ON SUPABASE. Rollback-tested and commit-tested.
--- Version: v2.39.0-business-entity-profile-update-full-autopilot-20260607
+-- Status: BE-P0 permission closure executed on Supabase 2026-08-06.
+-- Security: all overloads require current active admin and use a fixed safe search_path.
 -- Verification:
 -- - Function exists in public schema with expected signature and return columns.
 -- - Rollback test updates only name/entity_type/default_currency/is_active/note and leaves no residue.
@@ -46,7 +46,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -56,6 +56,8 @@ declare
   v_default_currency text := upper(nullif(trim(coalesce(p_default_currency, '')), ''));
   v_note text := nullif(trim(coalesce(p_note, '')), '');
 begin
+  perform public.school_require_current_app_admin();
+
   if p_business_entity_id is null then
     raise exception '请选择要编辑的业务归属。';
   end if;
@@ -129,9 +131,8 @@ comment on function public.school_update_business_entity_profile(
 ) is
   'Updates only non-sensitive business entity profile fields: name, entity_type, default_currency, is_active, and note.';
 
--- Permission note:
--- Keep execute permission management explicit. Review permissions separately
--- before enabling this function for authenticated users.
+-- Permission contract is finalized by
+-- school_business_entity_p0_permission_closure_core_20260806.sql.
 --
 -- This draft intentionally does not include executable test insert/update/delete
 -- statements outside the function definition.
@@ -165,7 +166,7 @@ returns table (
 )
 language plpgsql
 security definer
-set search_path = public
+set search_path = pg_catalog, public
 as $$
 declare
   v_now timestamptz := now();
@@ -176,6 +177,8 @@ declare
   v_is_active boolean := (v_profile ->> 'is_active')::boolean;
   v_note text := nullif(trim(coalesce(v_profile ->> 'note', '')), '');
 begin
+  perform public.school_require_current_app_admin();
+
   if p_business_entity_id is null then
     raise exception '请选择要编辑的业务归属。';
   end if;
