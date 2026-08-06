@@ -5,22 +5,17 @@ import {
   fetchStudentFilterOptions,
   fetchStudents,
   updateStudentProfile,
-} from "../api/student-api.js";
+} from "../api/student-api.js?v=be-ui-20260806-1";
 import { formatDate, safeText } from "../utils/format.js";
 import {
-  defaultNewBusinessEntityId,
-  historicalEditBusinessEntities,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   keyword: "",
   status: "",
   courseTrack: "",
-  businessEntityId: "",
 };
-
-const UNSET_VALUE = "__unset__";
 
 const STUDENT_STATUS_LABELS = {
   active: "在籍",
@@ -39,7 +34,6 @@ const EDITABLE_COURSE_TRACK_OPTIONS = ["science", "humanities"];
 const LEGACY_STUDENT_STATUS_FILTER_OPTIONS = ["active", "paused", "graduated", "withdrawn"];
 const STUDENT_FIELD_IDS = [
   "name",
-  "defaultBusinessEntity",
   "courseTrack",
   "presetExchangeRate",
   "targetSchools",
@@ -75,7 +69,6 @@ function cacheDom() {
   dom.keywordInput = document.querySelector("#studentKeywordInput");
   dom.statusSelect = document.querySelector("#studentStatusSelect");
   dom.courseTrackSelect = document.querySelector("#studentCourseTrackSelect");
-  dom.businessEntitySelect = document.querySelector("#studentBusinessEntitySelect");
   dom.resetButton = document.querySelector("#studentResetButton");
   dom.studentGrid = document.querySelector("#studentGrid");
   dom.studentLoadingState = document.querySelector("#studentLoadingState");
@@ -86,7 +79,6 @@ function cacheDom() {
   dom.createDialog = document.querySelector("#createStudentProfileDialog");
   dom.createError = document.querySelector("#createStudentProfileError");
   dom.createNameInput = document.querySelector("#createStudentNameInput");
-  dom.createBusinessEntitySelect = document.querySelector("#createStudentBusinessEntitySelect");
   dom.createCourseTrackSelect = document.querySelector("#createStudentCourseTrackSelect");
   dom.createPresetExchangeRateInput = document.querySelector("#createStudentPresetExchangeRateInput");
   dom.createWechatInput = document.querySelector("#createStudentWechatInput");
@@ -100,7 +92,6 @@ function cacheDom() {
   dom.editDialog = document.querySelector("#editStudentProfileDialog");
   dom.editError = document.querySelector("#editStudentProfileError");
   dom.editNameInput = document.querySelector("#editStudentNameInput");
-  dom.editBusinessEntitySelect = document.querySelector("#editStudentBusinessEntitySelect");
   dom.editCourseTrackSelect = document.querySelector("#editStudentCourseTrackSelect");
   dom.editPresetExchangeRateInput = document.querySelector("#editStudentPresetExchangeRateInput");
   dom.editWechatInput = document.querySelector("#editStudentWechatInput");
@@ -146,14 +137,12 @@ function bindDialogFieldEvents(scope) {
   const fields = scope === "create"
     ? [
         ["name", dom.createNameInput, "input"],
-        ["defaultBusinessEntity", dom.createBusinessEntitySelect, "change"],
         ["courseTrack", dom.createCourseTrackSelect, "change"],
         ["presetExchangeRate", dom.createPresetExchangeRateInput, "input"],
         ["targetSchools", dom.createTargetSchoolsInput, "input"],
       ]
     : [
         ["name", dom.editNameInput, "input"],
-        ["defaultBusinessEntity", dom.editBusinessEntitySelect, "change"],
         ["courseTrack", dom.editCourseTrackSelect, "change"],
         ["presetExchangeRate", dom.editPresetExchangeRateInput, "input"],
         ["targetSchools", dom.editTargetSchoolsInput, "input"],
@@ -176,7 +165,6 @@ function setDefaultFilters() {
   dom.keywordInput.value = DEFAULT_FILTERS.keyword;
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.courseTrackSelect.value = DEFAULT_FILTERS.courseTrack;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
 }
 
 async function loadStudentData() {
@@ -196,9 +184,9 @@ async function loadStudentData() {
     ]);
 
     businessEntities = businessEntityRows;
+    requirePrimarySchoolBusinessEntityId(businessEntities);
     renderStatusOptions(filterRows);
     renderCourseTrackOptions(filterRows);
-    renderBusinessEntityOptions(businessEntities, filterRows);
     restoreFilterSelections(filters);
     students = studentRows;
     renderStudents(filterStudentsByKeyword(studentRows, filters.keyword));
@@ -208,7 +196,6 @@ async function loadStudentData() {
     students = [];
     renderStatusOptions([]);
     renderCourseTrackOptions([]);
-    renderBusinessEntityOptions([], []);
     renderStudents([]);
     showMessage("error", `读取学生管理数据失败：${error.message || error}`);
   } finally {
@@ -221,7 +208,6 @@ function readFilters() {
     keyword: dom.keywordInput.value.trim(),
     status: dom.statusSelect.value,
     courseTrack: dom.courseTrackSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
   };
 }
 
@@ -229,7 +215,6 @@ function restoreFilterSelections(filters) {
   dom.keywordInput.value = filters.keyword;
   dom.statusSelect.value = filters.status;
   dom.courseTrackSelect.value = filters.courseTrack;
-  dom.businessEntitySelect.value = filters.businessEntityId;
 }
 
 function renderStatusOptions(rows) {
@@ -263,22 +248,6 @@ function renderCourseTrackOptions(rows) {
   }
 
   dom.courseTrackSelect.innerHTML = options.join("");
-}
-
-function renderBusinessEntityOptions(items, studentRows) {
-  const options = ['<option value="">全部</option>'];
-
-  if (studentRows.some((student) => !student.business_entity_id)) {
-    options.push(`<option value="${UNSET_VALUE}">未设置</option>`);
-  }
-
-  for (const entity of items.filter((item) => item.is_active !== false)) {
-    options.push(
-      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-    );
-  }
-
-  dom.businessEntitySelect.innerHTML = options.join("");
 }
 
 function renderStudents(items) {
@@ -316,10 +285,6 @@ function renderStudents(items) {
           <dd>${escapeHtml(targetSchoolsDisplay(student.target_schools))}</dd>
         </div>
         <div>
-          <dt>业务归属</dt>
-          <dd>${escapeHtml(businessEntityName(student.business_entity_id))}</dd>
-        </div>
-        <div>
           <dt>预设汇率</dt>
           <dd>${escapeHtml(displayValue(student.preset_exchange_rate))}</dd>
         </div>
@@ -352,7 +317,7 @@ function openCreateDialog() {
   clearCreateErrors();
   setCreateSubmitting(false);
   dom.createNameInput.value = "";
-  renderCreateBusinessEntityOptions(defaultNewBusinessEntityId(businessEntities));
+  requirePrimarySchoolBusinessEntityId(businessEntities);
   renderCreateCourseTrackOptions("science");
   dom.createPresetExchangeRateInput.value = "0";
   dom.createWechatInput.value = "";
@@ -405,7 +370,7 @@ async function submitCreateDialog() {
 function readCreatePayload() {
   return {
     name: dom.createNameInput.value.trim(),
-    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
+    defaultBusinessEntityId: requirePrimarySchoolBusinessEntityId(businessEntities),
     courseTrack: dom.createCourseTrackSelect.value,
     presetExchangeRate: readNonNegativeNumber(dom.createPresetExchangeRateInput.value),
     wechat: dom.createWechatInput.value.trim(),
@@ -425,7 +390,6 @@ function openEditDialog(studentId) {
 
   editingStudent = student;
   dom.editNameInput.value = student.name || student.display_name || "";
-  renderEditBusinessEntityOptions(student.business_entity_id);
   renderEditCourseTrackOptions(student.course_track);
   dom.editPresetExchangeRateInput.value = displayNumberInput(student.preset_exchange_rate);
   dom.editWechatInput.value = student.wechat || "";
@@ -487,7 +451,7 @@ function readEditPayload() {
   return {
     studentId: editingStudent.id,
     name: dom.editNameInput.value.trim(),
-    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    defaultBusinessEntityId: editingStudent.business_entity_id,
     courseTrack: dom.editCourseTrackSelect.value,
     presetExchangeRate: readNonNegativeNumber(dom.editPresetExchangeRateInput.value),
     wechat: dom.editWechatInput.value.trim(),
@@ -535,32 +499,6 @@ function courseTrackEditOptions() {
     ...EDITABLE_COURSE_TRACK_OPTIONS.map((courseTrack) =>
       `<option value="${escapeAttribute(courseTrack)}">${escapeHtml(courseTrackLabel(courseTrack))}</option>`
     ),
-  ].join("");
-}
-
-function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions(
-    historicalEditBusinessEntities(businessEntities, selectedBusinessEntityId),
-    true
-  );
-  dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
-}
-
-function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions(newBusinessEntities(businessEntities), false);
-  dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
-}
-
-function businessEntityEditOptions(rows, allowUnset) {
-  const options = rows
-    .filter((entity) => entity?.id)
-    .map((entity) =>
-      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-    );
-
-  return [
-    ...(allowUnset ? ['<option value="">未设置</option>'] : []),
-    ...options,
   ].join("");
 }
 
@@ -644,7 +582,6 @@ function studentFieldIdsForError(error) {
   const message = error?.message || String(error || "");
   if (message.includes("姓名")) return ["name"];
   if (message.includes("文理")) return ["courseTrack"];
-  if (message.includes("业务归属")) return ["defaultBusinessEntity"];
   if (message.includes("预设汇率")) return ["presetExchangeRate"];
   if (message.includes("目标学校")) return ["targetSchools"];
   return [];
@@ -686,15 +623,6 @@ function distinctValues(rows, key) {
         .filter(Boolean)
     )
   ).sort((left, right) => left.localeCompare(right, "zh-CN"));
-}
-
-function businessEntityName(entityId) {
-  if (!entityId) {
-    return "未设置";
-  }
-
-  const entity = businessEntities.find((item) => item.id === entityId);
-  return entity?.name || entityId;
 }
 
 function studentName(student) {

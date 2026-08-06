@@ -1,6 +1,6 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=p0f-readfix-20260803-1";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=p0f-readfix-20260803-1";
+import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=be-ui-20260806-1";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -133,7 +133,6 @@ function setupLessonEditController() {
       students: [],
       teachers: [],
       subjects: [],
-      businessEntities: [],
     },
     hasSupabaseConfig,
     showMessage,
@@ -226,7 +225,6 @@ function readWageReturnQuery(params) {
 
   [
     "teacherId",
-    "businessEntityId",
     "settlementType",
     "status",
     "keyword",
@@ -242,7 +240,7 @@ function readWageReturnQuery(params) {
 
 function readSafeWageReturnValue(name, value) {
   const text = safeText(value).trim();
-  if (["teacherId", "businessEntityId"].includes(name)) {
+  if (name === "teacherId") {
     return /^[0-9a-fA-F-]{36}$/.test(text) ? text : "";
   }
 
@@ -281,7 +279,6 @@ function readLessonReturnQuery(params) {
     "teacher_id",
     "student_id",
     "subject_id",
-    "business_entity_id",
     "lesson_type",
     "is_billable",
     "keyword",
@@ -412,8 +409,6 @@ function renderLessonDetail(data) {
     ["老师编号", teacherCodeById(lookups, lesson.teacher_id)],
     ["科目", subjectNameById(lookups, lesson.subject_id)],
     ["科目分类", subjectCategoryById(lookups, lesson.subject_id)],
-    ["业务归属", businessNameById(lookups, lesson.business_entity_id)],
-    ["业务编码", businessCodeById(lookups, lesson.business_entity_id)],
   ]);
 
   dom.billingInfo.innerHTML = renderDefinitionList([
@@ -668,14 +663,6 @@ function subjectNameById(lookups, id) {
 function subjectCategoryById(lookups, id) {
   const subject = findById(lookups.subjects, id);
   return displayValue(subject?.primary_category || subject?.category);
-}
-
-function businessNameById(lookups, id) {
-  return displayValue(findById(lookups.businessEntities, id)?.name || id);
-}
-
-function businessCodeById(lookups, id) {
-  return displayValue(findById(lookups.businessEntities, id)?.code);
 }
 
 function findById(rows, id) {

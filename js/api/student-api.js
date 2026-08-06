@@ -40,7 +40,7 @@ export async function fetchStudents(filters) {
 export async function fetchStudentFilterOptions() {
   const { data, error } = await supabase
     .from("school_students")
-    .select("status,course_track,business_entity_id")
+    .select("status,course_track")
     .eq("app_type", "school");
 
   if (error) {
@@ -122,12 +122,6 @@ function applyStudentFilters(query, filters) {
 
   if (filters.courseTrack) {
     query = query.eq("course_track", filters.courseTrack);
-  }
-
-  if (filters.businessEntityId === "__unset__") {
-    query = query.is("business_entity_id", null);
-  } else if (filters.businessEntityId) {
-    query = query.eq("business_entity_id", filters.businessEntityId);
   }
 
   return query;

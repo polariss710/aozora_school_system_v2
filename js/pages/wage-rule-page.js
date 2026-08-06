@@ -5,20 +5,18 @@ import {
   fetchWageRules,
   setWageRuleActiveState,
   updateWageRuleConfig,
-} from "../api/wage-rule-api.js";
+} from "../api/wage-rule-api.js?v=be-ui-20260806-1";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 import {
-  defaultNewBusinessEntityId,
   isNewBusinessEntityId,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   keyword: "",
   teacherId: "",
   studentId: "",
   subjectId: "",
-  businessEntityId: "",
   settlementType: "",
   activeState: "",
   teacherDepartment: "",
@@ -34,7 +32,6 @@ const CREATE_FIELD_IDS = [
   "teacher",
   "student",
   "subject",
-  "businessEntity",
   "settlementType",
   "hourlyRateJpy",
   "hourlyRateCny",
@@ -90,7 +87,6 @@ function cacheDom() {
   dom.teacherSelect = document.querySelector("#wageRuleTeacherSelect");
   dom.studentSelect = document.querySelector("#wageRuleStudentSelect");
   dom.subjectSelect = document.querySelector("#wageRuleSubjectSelect");
-  dom.businessEntitySelect = document.querySelector("#wageRuleBusinessEntitySelect");
   dom.settlementTypeSelect = document.querySelector("#wageRuleSettlementTypeSelect");
   dom.activeSelect = document.querySelector("#wageRuleActiveSelect");
   dom.teacherDepartmentSelect = document.querySelector("#wageRuleTeacherDepartmentSelect");
@@ -105,7 +101,6 @@ function cacheDom() {
   dom.createTeacherSelect = document.querySelector("#createWageRuleTeacherSelect");
   dom.createStudentSelect = document.querySelector("#createWageRuleStudentSelect");
   dom.createSubjectSelect = document.querySelector("#createWageRuleSubjectSelect");
-  dom.createBusinessEntitySelect = document.querySelector("#createWageRuleBusinessEntitySelect");
   dom.createSettlementTypeSelect = document.querySelector("#createWageRuleSettlementTypeSelect");
   dom.createHourlyRateJpyInput = document.querySelector("#createWageRuleHourlyRateJpyInput");
   dom.createHourlyRateCnyInput = document.querySelector("#createWageRuleHourlyRateCnyInput");
@@ -117,7 +112,6 @@ function cacheDom() {
   dom.editTeacherSelect = document.querySelector("#editWageRuleTeacherSelect");
   dom.editStudentSelect = document.querySelector("#editWageRuleStudentSelect");
   dom.editSubjectSelect = document.querySelector("#editWageRuleSubjectSelect");
-  dom.editBusinessEntitySelect = document.querySelector("#editWageRuleBusinessEntitySelect");
   dom.editSettlementTypeSelect = document.querySelector("#editWageRuleSettlementTypeSelect");
   dom.editHourlyRateJpyInput = document.querySelector("#editWageRuleHourlyRateJpyInput");
   dom.editHourlyRateCnyInput = document.querySelector("#editWageRuleHourlyRateCnyInput");
@@ -154,7 +148,6 @@ function bindEvents() {
     dom.createTeacherSelect,
     dom.createStudentSelect,
     dom.createSubjectSelect,
-    dom.createBusinessEntitySelect,
     dom.createSettlementTypeSelect,
     dom.createHourlyRateJpyInput,
     dom.createHourlyRateCnyInput,
@@ -187,7 +180,6 @@ function bindEvents() {
     dom.editTeacherSelect,
     dom.editStudentSelect,
     dom.editSubjectSelect,
-    dom.editBusinessEntitySelect,
     dom.editSettlementTypeSelect,
     dom.editHourlyRateJpyInput,
     dom.editHourlyRateCnyInput,
@@ -202,7 +194,6 @@ function setDefaultFilters() {
   dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.subjectSelect.value = DEFAULT_FILTERS.subjectId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.settlementTypeSelect.value = DEFAULT_FILTERS.settlementType;
   dom.activeSelect.value = DEFAULT_FILTERS.activeState;
   dom.teacherDepartmentSelect.value = DEFAULT_FILTERS.teacherDepartment;
@@ -223,6 +214,7 @@ async function loadWageRuleData() {
     students = lookupRows.students;
     subjects = lookupRows.subjects;
     businessEntities = lookupRows.businessEntities;
+    requirePrimarySchoolBusinessEntityId(businessEntities);
     wageRules = sortWageRules(ruleRows);
 
     renderFilterOptions(wageRules);
@@ -255,7 +247,6 @@ function readFilters() {
     teacherId: dom.teacherSelect.value,
     studentId: dom.studentSelect.value,
     subjectId: dom.subjectSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     settlementType: dom.settlementTypeSelect.value,
     activeState: dom.activeSelect.value,
     teacherDepartment: dom.teacherDepartmentSelect.value,
@@ -267,7 +258,6 @@ function restoreFilterSelections(filters) {
   dom.teacherSelect.value = filters.teacherId;
   dom.studentSelect.value = filters.studentId;
   dom.subjectSelect.value = filters.subjectId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
   dom.settlementTypeSelect.value = filters.settlementType;
   dom.activeSelect.value = filters.activeState;
   dom.teacherDepartmentSelect.value = filters.teacherDepartment;
@@ -277,7 +267,6 @@ function renderFilterOptions(rows) {
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
   renderEntityOptions(dom.studentSelect, students, studentName);
   renderEntityOptions(dom.subjectSelect, subjects, subjectName);
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderValueOptions(dom.settlementTypeSelect, distinctValues(rows, "settlement_type"), settlementTypeLabel);
   renderValueOptions(dom.teacherDepartmentSelect, distinctTeacherDepartments(), displayValue);
 }
@@ -328,7 +317,6 @@ function renderWageRules(rows) {
         <td><span class="status-badge status-neutral">${escapeHtml(teacherStatusLabel(teacher?.status))}</span></td>
         <td>${escapeHtml(studentNameById(rule.student_id))}</td>
         <td>${escapeHtml(subjectNameById(rule.subject_id))}</td>
-        <td>${escapeHtml(businessNameById(rule.business_entity_id))}</td>
         <td><span class="status-badge status-neutral">${escapeHtml(settlementTypeLabel(rule.settlement_type))}</span></td>
         <td class="number-cell wage-rule-nowrap">${escapeHtml(formatCurrency(rule.hourly_rate_jpy, "JPY"))}</td>
         <td class="number-cell wage-rule-nowrap">${escapeHtml(formatCurrency(rule.hourly_rate_cny, "CNY"))}</td>
@@ -348,7 +336,6 @@ function openCreateDialog() {
   clearCreateErrors();
   setCreateSubmitting(false);
   renderCreateLookupOptions();
-  dom.createBusinessEntitySelect.value = defaultNewBusinessEntityId(businessEntities);
   dom.createSettlementTypeSelect.value = "jpy_hourly";
   dom.createHourlyRateJpyInput.value = "0";
   dom.createHourlyRateCnyInput.value = "0";
@@ -379,7 +366,7 @@ async function submitCreateDialog() {
     teacherId: dom.createTeacherSelect.value,
     studentId: dom.createStudentSelect.value,
     subjectId: dom.createSubjectSelect.value,
-    businessEntityId: dom.createBusinessEntitySelect.value,
+    businessEntityId: requirePrimarySchoolBusinessEntityId(businessEntities),
     settlementType: dom.createSettlementTypeSelect.value,
     hourlyRateJpy: readNonNegativeNumber(dom.createHourlyRateJpyInput.value),
     hourlyRateCny: readNonNegativeNumber(dom.createHourlyRateCnyInput.value),
@@ -390,7 +377,7 @@ async function submitCreateDialog() {
 
   const invalidFields = validateCreatePayload(payload);
   if (invalidFields.length > 0) {
-    showCreateError("请检查老师、学生、科目、业务归属、结算类型和时薪。", invalidFields);
+    showCreateError("请检查老师、学生、科目、结算类型和时薪。", invalidFields);
     return;
   }
 
@@ -431,10 +418,6 @@ function validateCreatePayload(payload) {
     invalidFields.push("subject");
   }
 
-  if (!usableBusinessEntityById(payload.businessEntityId)) {
-    invalidFields.push("businessEntity");
-  }
-
   return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload)]);
 }
 
@@ -442,7 +425,6 @@ function renderCreateLookupOptions() {
   renderCreateEntityOptions(dom.createTeacherSelect, teachers.filter(isUsableTeacher), teacherName, "请选择老师");
   renderCreateEntityOptions(dom.createStudentSelect, students.filter(isNewBusinessStudent), studentName, "请选择学生");
   renderCreateEntityOptions(dom.createSubjectSelect, subjects.filter(isUsableSubject), subjectName, "请选择科目");
-  renderCreateEntityOptions(dom.createBusinessEntitySelect, newBusinessEntities(businessEntities), businessEntityName, "请选择业务归属");
 }
 
 function renderEditLookupOptions(rule) {
@@ -469,14 +451,6 @@ function renderEditLookupOptions(rule) {
     isUsableSubject,
     subjectName,
     "请选择科目"
-  );
-  renderEditEntityOptions(
-    dom.editBusinessEntitySelect,
-    businessEntities,
-    rule.business_entity_id,
-    isUsableBusinessEntity,
-    businessEntityName,
-    "请选择业务归属"
   );
 }
 
@@ -625,7 +599,7 @@ async function submitEditDialog() {
     teacherId: dom.editTeacherSelect.value,
     studentId: dom.editStudentSelect.value,
     subjectId: dom.editSubjectSelect.value,
-    businessEntityId: dom.editBusinessEntitySelect.value,
+    businessEntityId: editingWageRule.business_entity_id,
     settlementType: dom.editSettlementTypeSelect.value,
     hourlyRateJpy: readNonNegativeNumber(dom.editHourlyRateJpyInput.value),
     hourlyRateCny: readNonNegativeNumber(dom.editHourlyRateCnyInput.value),
@@ -638,7 +612,7 @@ async function submitEditDialog() {
 
   const invalidFields = validateEditPayload(payload);
   if (invalidFields.length > 0) {
-    showEditError("请检查老师、学生、科目、业务归属、结算类型和时薪。", invalidFields);
+    showEditError("请检查老师、学生、科目、结算类型和时薪。", invalidFields);
     return;
   }
 
@@ -679,10 +653,6 @@ function validateEditPayload(payload) {
     invalidFields.push("subject");
   }
 
-  if (!editableBusinessEntityById(payload.businessEntityId, editingWageRule?.business_entity_id)) {
-    invalidFields.push("businessEntity");
-  }
-
   return uniqueFieldIds([...invalidFields, ...validateConfigPayload(payload)]);
 }
 
@@ -721,7 +691,6 @@ function renderActiveStateSummary(rule) {
     ["老师", teacherNameById(rule.teacher_id)],
     ["学生", studentNameById(rule.student_id)],
     ["科目", subjectNameById(rule.subject_id)],
-    ["业务归属", businessNameById(rule.business_entity_id)],
     ["当前状态", activeLabel(rule.is_active)],
     ["结算类型", settlementTypeLabel(rule.settlement_type)],
     ["当前备注", displayValue(rule.note)],
@@ -892,7 +861,6 @@ function createFieldIdForElement(field) {
   if (field === dom.createTeacherSelect) return "teacher";
   if (field === dom.createStudentSelect) return "student";
   if (field === dom.createSubjectSelect) return "subject";
-  if (field === dom.createBusinessEntitySelect) return "businessEntity";
   if (field === dom.createSettlementTypeSelect) return "settlementType";
   if (field === dom.createHourlyRateJpyInput) return "hourlyRateJpy";
   if (field === dom.createHourlyRateCnyInput) return "hourlyRateCny";
@@ -903,7 +871,6 @@ function editFieldIdForElement(field) {
   if (field === dom.editTeacherSelect) return "teacher";
   if (field === dom.editStudentSelect) return "student";
   if (field === dom.editSubjectSelect) return "subject";
-  if (field === dom.editBusinessEntitySelect) return "businessEntity";
   if (field === dom.editSettlementTypeSelect) return "settlementType";
   if (field === dom.editHourlyRateJpyInput) return "hourlyRateJpy";
   if (field === dom.editHourlyRateCnyInput) return "hourlyRateCny";
@@ -915,7 +882,6 @@ function createFieldIdsForError(error) {
   if (message.includes("老师")) return ["teacher"];
   if (message.includes("学生")) return ["student"];
   if (message.includes("科目")) return ["subject"];
-  if (message.includes("业务归属")) return ["businessEntity"];
   if (message.includes("结算类型")) return ["settlementType"];
   if (message.includes("负数") || message.includes("费率") || message.includes("汇率") || message.includes("费用")) {
     return ["hourlyRateJpy", "hourlyRateCny"];
@@ -937,7 +903,6 @@ function clearEditErrors() {
     "teacher",
     "student",
     "subject",
-    "businessEntity",
     "settlementType",
     "hourlyRateJpy",
     "hourlyRateCny",
@@ -974,7 +939,6 @@ function editFieldIdsForError(error) {
   if (message.includes("老师")) return ["teacher"];
   if (message.includes("学生")) return ["student"];
   if (message.includes("科目")) return ["subject"];
-  if (message.includes("业务归属")) return ["businessEntity"];
   if (message.includes("结算类型")) return ["settlementType"];
   if (message.includes("负数")) {
     return ["hourlyRateJpy", "hourlyRateCny"];
@@ -1005,10 +969,6 @@ function filterWageRules(rows, filters) {
     }
 
     if (filters.subjectId && rule.subject_id !== filters.subjectId) {
-      return false;
-    }
-
-    if (filters.businessEntityId && rule.business_entity_id !== filters.businessEntityId) {
       return false;
     }
 
@@ -1045,7 +1005,6 @@ function matchesKeyword(rule, keyword) {
     teacherStatusLabel(teacher?.status),
     studentNameById(rule.student_id),
     subjectNameById(rule.subject_id),
-    businessNameById(rule.business_entity_id),
     settlementTypeLabel(rule.settlement_type),
     rule.settlement_type,
     rule.note,
@@ -1124,14 +1083,6 @@ function editableSubjectById(id, currentId) {
   return id && (id === currentId ? subjects.find((subject) => subject.id === id) : usableSubjectById(id));
 }
 
-function usableBusinessEntityById(id) {
-  return businessEntities.find((entity) => entity.id === id && isUsableBusinessEntity(entity)) || null;
-}
-
-function editableBusinessEntityById(id, currentId) {
-  return id && (id === currentId ? businessEntities.find((entity) => entity.id === id) : usableBusinessEntityById(id));
-}
-
 function teacherNameById(id) {
   const teacher = teacherById(id);
   if (!teacher) {
@@ -1159,15 +1110,6 @@ function subjectNameById(id) {
   return subjectName(subject);
 }
 
-function businessNameById(id) {
-  const entity = businessEntities.find((item) => item.id === id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  return businessEntityName(entity);
-}
-
 function teacherName(teacher) {
   return safeText(teacher.display_name || teacher.name) || "未设置";
 }
@@ -1180,10 +1122,6 @@ function studentName(student) {
 
 function subjectName(subject) {
   return safeText(subject.name) || "未设置";
-}
-
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
 }
 
 function settlementTypeLabel(value) {
@@ -1232,10 +1170,6 @@ function isNewBusinessStudent(student) {
 
 function isUsableSubject(subject) {
   return Boolean(subject && subject.is_active !== false);
-}
-
-function isUsableBusinessEntity(entity) {
-  return Boolean(entity && isNewBusinessEntityId(businessEntities, entity.id));
 }
 
 function uniqueFieldIds(fieldIds) {

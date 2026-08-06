@@ -24,10 +24,10 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=phase-b4-lesson-candidates-20260806";
+} from "../api/lesson-api.js?v=be-ui-20260806-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=phase-b4-lesson-candidates-20260806";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
 import {
   currentYearMonth,
@@ -57,10 +57,9 @@ import {
   validateUniqueLessonRecordIds,
 } from "../utils/lesson-settlement-filter.js?v=p0f-readfix-20260803-1";
 import {
-  defaultNewBusinessEntityId,
   isNewBusinessEntityId,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   weekStart: "",
@@ -68,7 +67,6 @@ const DEFAULT_FILTERS = {
   includeInactive: false,
   teacherId: "",
   subjectId: "",
-  businessEntityId: "",
   lessonType: "",
   status: "",
   isBillable: "",
@@ -144,7 +142,6 @@ const LESSON_IMPORT_PREVIEW_FIELD_LABELS = {
   student: "学生",
   teacher: "老师",
   subject: "科目",
-  businessEntity: "业务归属",
   lessonDate: "日期",
   lessonType: "课时类型",
   status: "状态",
@@ -157,7 +154,6 @@ const LESSON_IMPORT_REQUIRED_FIELDS = [
   "student",
   "teacher",
   "subject",
-  "businessEntity",
   "lessonDate",
   "lessonType",
   "status",
@@ -165,7 +161,6 @@ const LESSON_IMPORT_REQUIRED_FIELDS = [
 ];
 
 const LESSON_IMPORT_FIELD_ALIAS_TEXT = {
-  businessEntity: "业务归属 / business_entity",
   lessonType: "课时类型 / lesson_type / 类型",
   status: "status / 状态 / 预定状态 / 实际状态",
   durationHours: "课时 / 时长 / hours / 時間数 / 授業時間",
@@ -175,7 +170,6 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
   "学生",
   "老师",
   "科目",
-  "业务归属",
   "日期",
   "开始时间",
   "结束时间",
@@ -192,17 +186,16 @@ const LESSON_IMPORT_TEMPLATE_HEADERS = [
 ];
 
 const LESSON_IMPORT_TEMPLATE_ROWS = [
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-10", "10:00", "11:00", "线下", "Regus公共区", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
-  ["示例学生", "示例老师", "数学", "青空进学塾", "2026-06-11", "10:00", "11:00", "线上", "Zoom", "预定", "待补课", 1, 2, 5000, "是", "待补课预定内容", "预定-待补课 示例"],
+  ["示例学生", "示例老师", "数学", "2026-06-10", "10:00", "11:00", "线下", "Regus公共区", "预定", "待上课", 1, 1, 5000, "是", "预定课内容", "预定-待上课 示例"],
+  ["示例学生", "示例老师", "数学", "2026-06-11", "10:00", "11:00", "线上", "Zoom", "预定", "待补课", 1, 2, 5000, "是", "待补课预定内容", "预定-待补课 示例"],
 ];
 
 const LESSON_IMPORT_TEMPLATE_GUIDE_ROWS = [
   ["字段", "必填", "说明 / 合法值"],
-  ["示例值", "说明", "主表只放预定课时示例；模板中的示例学生、示例老师、数学、青空进学塾需要替换为当前系统已有主数据。"],
+  ["示例值", "说明", "主表只放预定课时示例；模板中的示例学生、示例老师、数学需要替换为当前系统已有主数据。"],
   ["学生", "是", "填写学生名称；preview 仅按 trim/normalize 后完全一致匹配，不做模糊猜测。"],
   ["老师", "是", "填写老师名称；可兼容 担当老师 / teacher 等表头；lookup 仅允许完全一致。"],
   ["科目", "是", "填写科目名称；可兼容 subject / 講座 等表头；lookup 仅允许完全一致。"],
-  ["业务归属", "是", "填写业务归属名称；可兼容 business_entity / entity 等表头；lookup 仅允许完全一致。"],
   ["日期", "是", "YYYY-MM-DD；也可用 Excel 日期。"],
   ["开始时间 / 结束时间", "建议", "HH:mm；课时为空时 preview 可按时间估算。"],
   ["授课方式 / 上课场地", "建议", "授课方式可填 线下 / 线上；线下时只能填写 Regus公共区 或 Regus办公室，线上可自由填写平台。"],
@@ -234,7 +227,6 @@ const LESSON_BATCH_WEEKDAY_OPTIONS = [
 
 const LESSON_BATCH_FIELD_IDS = [
   "student",
-  "businessEntity",
   "startDate",
   "endDate",
   "airconRate",
@@ -246,7 +238,6 @@ const CREATE_PLANNED_LESSON_FIELD_IDS = [
   "student",
   "teacher",
   "subject",
-  "businessEntity",
   "startTime",
   "endTime",
   "lessonDeliveryMode",
@@ -465,7 +456,6 @@ function cacheDom() {
   dom.includeInactiveCheckbox = document.querySelector("#lessonIncludeInactiveCheckbox");
   dom.teacherSelect = document.querySelector("#lessonTeacherSelect");
   dom.subjectSelect = document.querySelector("#lessonSubjectSelect");
-  dom.businessEntitySelect = document.querySelector("#lessonBusinessEntitySelect");
   dom.lessonTypeSelect = document.querySelector("#lessonTypeSelect");
   dom.statusSelect = document.querySelector("#lessonStatusSelect");
   dom.billableSelect = document.querySelector("#lessonBillableSelect");
@@ -517,7 +507,6 @@ function cacheDom() {
   dom.lessonBatchGenerateDialog = document.querySelector("#lessonBatchGenerateDialog");
   dom.lessonBatchGenerateError = document.querySelector("#lessonBatchGenerateError");
   dom.lessonBatchGenerateStudentSelect = document.querySelector("#lessonBatchGenerateStudentSelect");
-  dom.lessonBatchGenerateBusinessEntitySelect = document.querySelector("#lessonBatchGenerateBusinessEntitySelect");
   dom.lessonBatchGenerateStartDateInput = document.querySelector("#lessonBatchGenerateStartDateInput");
   dom.lessonBatchGenerateEndDateInput = document.querySelector("#lessonBatchGenerateEndDateInput");
   dom.lessonBatchGenerateAirconRateInput = document.querySelector("#lessonBatchGenerateAirconRateInput");
@@ -540,7 +529,6 @@ function cacheDom() {
   dom.createPlannedLessonStudentSelect = document.querySelector("#createPlannedLessonStudentSelect");
   dom.createPlannedLessonTeacherSelect = document.querySelector("#createPlannedLessonTeacherSelect");
   dom.createPlannedLessonSubjectSelect = document.querySelector("#createPlannedLessonSubjectSelect");
-  dom.createPlannedLessonBusinessEntitySelect = document.querySelector("#createPlannedLessonBusinessEntitySelect");
   dom.createPlannedLessonStartTimeInput = document.querySelector("#createPlannedLessonStartTimeInput");
   dom.createPlannedLessonEndTimeInput = document.querySelector("#createPlannedLessonEndTimeInput");
   dom.createPlannedLessonDeliveryModeSelect = document.querySelector("#createPlannedLessonDeliveryModeSelect");
@@ -684,7 +672,6 @@ function bindEvents() {
     dom.studentSelect,
     dom.teacherSelect,
     dom.subjectSelect,
-    dom.businessEntitySelect,
     dom.lessonTypeSelect,
     dom.statusSelect,
     dom.billableSelect,
@@ -748,7 +735,6 @@ function bindEvents() {
   dom.lessonBatchGeneratePreviewRows?.addEventListener("click", handleLessonBatchGeneratePreviewAction);
   [
     ["student", dom.lessonBatchGenerateStudentSelect],
-    ["businessEntity", dom.lessonBatchGenerateBusinessEntitySelect],
     ["startDate", dom.lessonBatchGenerateStartDateInput],
     ["endDate", dom.lessonBatchGenerateEndDateInput],
     ["airconRate", dom.lessonBatchGenerateAirconRateInput],
@@ -827,7 +813,6 @@ function bindEvents() {
     ["student", dom.createPlannedLessonStudentSelect],
     ["teacher", dom.createPlannedLessonTeacherSelect],
     ["subject", dom.createPlannedLessonSubjectSelect],
-    ["businessEntity", dom.createPlannedLessonBusinessEntitySelect],
     ["startTime", dom.createPlannedLessonStartTimeInput],
     ["endTime", dom.createPlannedLessonEndTimeInput],
     ["lessonDeliveryMode", dom.createPlannedLessonDeliveryModeSelect],
@@ -859,7 +844,6 @@ function bindEvents() {
   dom.createPlannedLessonUnitPriceInput?.addEventListener("input", updateCreatePlannedLessonFeePreview);
   dom.createPlannedLessonDeliveryModeSelect?.addEventListener("change", syncCreatePlannedLessonVenueFields);
   dom.createPlannedLessonDateInput?.addEventListener("change", refreshCreatePlannedStudentCandidates);
-  dom.createPlannedLessonBusinessEntitySelect?.addEventListener("change", refreshCreatePlannedStudentCandidates);
 
   dom.pairRows?.addEventListener("click", (event) => {
     const textToggleButton = event.target.closest("[data-lesson-pair-text-toggle]");
@@ -1095,7 +1079,6 @@ function readInitialLessonQuery() {
   filters.includeInactive = params.get("include_inactive") === "1";
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
   filters.subjectId = readLessonQueryValue(params, "subject_id", "subjectId");
-  filters.businessEntityId = readLessonQueryValue(params, "business_entity_id", "businessEntityId");
   filters.lessonType = readLessonQueryLessonType(params);
   filters.status = normalizeLessonStatusFilter(params.get("status"));
   filters.isBillable = readLessonQueryBillable(params);
@@ -1159,7 +1142,6 @@ function buildLessonListQueryParams(filters) {
   if (filters.studentId) params.set("student_id", filters.studentId);
   if (filters.includeInactive) params.set("include_inactive", "1");
   if (filters.subjectId) params.set("subject_id", filters.subjectId);
-  if (filters.businessEntityId) params.set("business_entity_id", filters.businessEntityId);
   if (filters.lessonType) params.set("lesson_type", filters.lessonType);
   if (filters.status) params.set("status", filters.status);
   if (filters.isBillable) params.set("is_billable", filters.isBillable);
@@ -1181,6 +1163,7 @@ async function loadInitialData() {
       fetchLessonSubjects(),
       fetchLessonBusinessEntities(),
     ]);
+    requirePrimarySchoolBusinessEntityId(businessEntities);
 
     renderMasterOptions();
     const filters = initialLessonQueryFilters || readFilters();
@@ -1483,7 +1466,6 @@ function readFilters() {
     includeInactive: Boolean(dom.includeInactiveCheckbox?.checked),
     teacherId: dom.teacherSelect.value,
     subjectId: dom.subjectSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     lessonType: dom.lessonTypeSelect.value,
     status: dom.statusSelect.value,
     isBillable: dom.billableSelect.value,
@@ -1499,7 +1481,6 @@ function restoreFilterSelections(filters) {
   dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.teacherSelect.value = filters.teacherId || "";
   dom.subjectSelect.value = filters.subjectId || "";
-  dom.businessEntitySelect.value = filters.businessEntityId || "";
   dom.lessonTypeSelect.value = filters.lessonType || "";
   dom.statusSelect.value = filters.status || "";
   dom.billableSelect.value = filters.isBillable || "";
@@ -1513,7 +1494,6 @@ function renderMasterOptions() {
   renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, "全部学生");
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
   renderEntityOptions(dom.subjectSelect, subjects, subjectName);
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
 }
 
 function studentCandidateKey(filters = {}) {
@@ -1694,12 +1674,6 @@ function renderCreatePlannedLessonOptions() {
     subjectName,
     "请选择科目"
   );
-  renderEntityOptionsWithPlaceholder(
-    dom.createPlannedLessonBusinessEntitySelect,
-    newBusinessEntities(businessEntities),
-    businessEntityName,
-    "请选择业务归属"
-  );
 }
 
 function resetCreatePlannedLessonForm() {
@@ -1709,10 +1683,6 @@ function resetCreatePlannedLessonForm() {
   dom.createPlannedLessonStudentSelect.value = dom.studentSelect.value || "";
   dom.createPlannedLessonTeacherSelect.value = dom.teacherSelect.value || "";
   dom.createPlannedLessonSubjectSelect.value = dom.subjectSelect.value || "";
-  const defaultBusinessEntityId = defaultNewBusinessEntityId(businessEntities);
-  dom.createPlannedLessonBusinessEntitySelect.value = isNewBusinessEntityId(businessEntities, dom.businessEntitySelect.value)
-    ? dom.businessEntitySelect.value
-    : defaultBusinessEntityId;
   dom.createPlannedLessonStartTimeInput.value = "";
   dom.createPlannedLessonEndTimeInput.value = "";
   dom.createPlannedLessonDeliveryModeSelect.value = "";
@@ -1732,15 +1702,15 @@ function resetCreatePlannedLessonForm() {
 
 async function refreshCreatePlannedStudentCandidates() {
   const lessonDate = dom.createPlannedLessonDateInput?.value || "";
-  const businessEntityId = dom.createPlannedLessonBusinessEntitySelect?.value || "";
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   const selectedStudentId = dom.createPlannedLessonStudentSelect?.value || "";
   const requestId = ++createPlannedStudentCandidateRequestId;
   createPlannedStudentCandidates = [];
   renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, [], "正在按收费归属月加载...");
   dom.createPlannedLessonStudentSelect.disabled = true;
 
-  if (!isDateInputValue(lessonDate) || !businessEntityId) {
-    renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, [], "请先选择日期和业务归属");
+  if (!isDateInputValue(lessonDate)) {
+    renderStudentMonthCandidateOptions(dom.createPlannedLessonStudentSelect, [], "请先选择日期");
     return;
   }
 
@@ -1778,7 +1748,6 @@ function readCreatePlannedLessonFormSnapshot() {
     student: dom.createPlannedLessonStudentSelect.value,
     teacher: dom.createPlannedLessonTeacherSelect.value,
     subject: dom.createPlannedLessonSubjectSelect.value,
-    businessEntity: dom.createPlannedLessonBusinessEntitySelect.value,
     startTime: dom.createPlannedLessonStartTimeInput.value,
     endTime: dom.createPlannedLessonEndTimeInput.value,
     lessonDeliveryMode: dom.createPlannedLessonDeliveryModeSelect.value,
@@ -1832,7 +1801,7 @@ function readCreatePlannedLessonPayload() {
   const studentId = dom.createPlannedLessonStudentSelect.value;
   const teacherId = dom.createPlannedLessonTeacherSelect.value;
   const subjectId = dom.createPlannedLessonSubjectSelect.value;
-  const businessEntityId = dom.createPlannedLessonBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   const startTime = dom.createPlannedLessonStartTimeInput.value;
   const endTime = dom.createPlannedLessonEndTimeInput.value;
   const lessonDeliveryMode = dom.createPlannedLessonDeliveryModeSelect.value;
@@ -1854,7 +1823,6 @@ function readCreatePlannedLessonPayload() {
   if (studentId && !createPlannedStudentCandidates.some((student) => student.student_id === studentId && student.is_eligible)) invalidFields.push("student");
   if (!teacherId) invalidFields.push("teacher");
   if (!subjectId) invalidFields.push("subject");
-  if (!businessEntityId) invalidFields.push("businessEntity");
   if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
   if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
   if (lessonVenue && !lessonDeliveryMode) invalidFields.push("lessonDeliveryMode", "lessonVenue");
@@ -1940,7 +1908,6 @@ function createPlannedLessonFieldIdsForError(message) {
   if (text.includes("学生")) fields.push("student");
   if (text.includes("老师")) fields.push("teacher");
   if (text.includes("科目")) fields.push("subject");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("开始时间")) fields.push("startTime");
   if (text.includes("结束时间")) fields.push("endTime");
   if (text.includes("授课方式")) fields.push("lessonDeliveryMode");
@@ -2082,7 +2049,6 @@ function renderCreateActualLessonSummary(plannedLesson) {
     ["学生", nameById(students, plannedLesson.student_id, studentName)],
     ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
-    ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["预计上课日期", formatDateOnly(plannedLesson.lesson_date)],
     ["收费归属月", formatMonth(authoritativeStudentMonth(plannedLesson))],
@@ -2443,7 +2409,6 @@ function renderCreateCancelledActualLessonSummary(plannedLesson) {
     ["学生", nameById(students, plannedLesson.student_id, studentName)],
     ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
-    ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["收费归属月", formatMonth(authoritativeStudentMonth(plannedLesson))],
     ["收费自然周", formatBillingWeekRange(plannedLesson.billing_week_start_date)],
@@ -2711,7 +2676,6 @@ function renderCreateMakeupActualLessonSummary(plannedLesson) {
     ["学生", nameById(students, plannedLesson.student_id, studentName)],
     ["老师", nameById(teachers, plannedLesson.teacher_id, teacherName)],
     ["科目", nameById(subjects, plannedLesson.subject_id, subjectName)],
-    ["业务归属", nameById(businessEntities, plannedLesson.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(plannedLesson.lesson_delivery_mode, plannedLesson.lesson_venue)],
     ["收费归属月", formatMonth(authoritativeStudentMonth(plannedLesson))],
     ["收费自然周", formatBillingWeekRange(plannedLesson.billing_week_start_date)],
@@ -3102,7 +3066,6 @@ function renderCreateCrossMonthMakeupActualSummary() {
     ["学生", nameById(students, source.student_id, studentName)],
     ["老师", nameById(teachers, source.teacher_id, teacherName)],
     ["科目", nameById(subjects, source.subject_id, subjectName)],
-    ["业务归属", nameById(businessEntities, source.business_entity_id, businessEntityName)],
     ["授课方式 / 场地", formatLessonVenue(source.lesson_delivery_mode, source.lesson_venue)],
     ["planned id", shortId(source.id)],
   ].map(([label, value]) => `
@@ -4260,21 +4223,12 @@ function closeLessonBatchGenerateDialog(force = false) {
 
 function renderLessonBatchGenerateMasterOptions() {
   renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, lessonBatchStudentCandidates, "请先完善生成条件");
-  renderEntityOptionsWithPlaceholder(
-    dom.lessonBatchGenerateBusinessEntitySelect,
-    newBusinessEntities(businessEntities),
-    businessEntityName,
-    "请选择业务归属"
-  );
 }
 
 function resetLessonBatchGenerateForm() {
   const selectedMonth = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
   dom.lessonBatchGenerateStudentSelect.value = dom.studentSelect.value || "";
   dom.lessonBatchGenerateStudentSelect.dataset.pendingStudentId = dom.studentSelect.value || "";
-  dom.lessonBatchGenerateBusinessEntitySelect.value = isNewBusinessEntityId(businessEntities, dom.businessEntitySelect.value)
-    ? dom.businessEntitySelect.value
-    : defaultNewBusinessEntityId(businessEntities);
   lessonBatchStudentCandidates = [];
   lessonBatchTargetOccurrences = [];
   renderStudentMonthCandidateOptions(dom.lessonBatchGenerateStudentSelect, [], "请先完善生成条件");
@@ -4490,7 +4444,7 @@ async function refreshLessonBatchStudentCandidates() {
   const draft = readLessonBatchGenerateDraft({ silent: true, requireStudent: false });
   if (!draft) {
     markLessonBatchStudentCandidatesStale();
-    showLessonBatchGenerateError("请先完整填写日期范围、业务归属和课程规则，再按 DB 权威月份更新候选。");
+    showLessonBatchGenerateError("请先完整填写日期范围和课程规则，再按 DB 权威月份更新候选。");
     return false;
   }
 
@@ -4536,7 +4490,7 @@ async function refreshLessonBatchStudentCandidates() {
         `${item.lesson_date}（${item.billing_month}，${studentStatusLabel(item.resolved_status)}）`
       ));
       dom.lessonBatchGenerateStudentSelect.value = "";
-      showLessonBatchGenerateError(`原已选学生不满足全部 occurrence 的在读条件，已清除选择：${evidence.join("、") || "业务归属不匹配"}。`);
+      showLessonBatchGenerateError(`原已选学生不满足全部 occurrence 的在读条件，已清除选择：${evidence.join("、") || "内部范围不匹配"}。`);
     }
     return lessonBatchTargetOccurrences.length > 0;
   } catch (error) {
@@ -4592,7 +4546,7 @@ function readLessonBatchGenerateDraft(options = {}) {
   const silent = Boolean(options.silent);
   const requireStudent = options.requireStudent !== false;
   const studentId = dom.lessonBatchGenerateStudentSelect.value;
-  const businessEntityId = dom.lessonBatchGenerateBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   const startDate = dom.lessonBatchGenerateStartDateInput.value;
   const endDate = dom.lessonBatchGenerateEndDateInput.value;
   const airconRateJpyPerHour = numberFromInput(dom.lessonBatchGenerateAirconRateInput.value);
@@ -4600,9 +4554,6 @@ function readLessonBatchGenerateDraft(options = {}) {
 
   if (requireStudent && !studentId) {
     errors.push(["student", "请选择学生。"]);
-  }
-  if (!businessEntityId) {
-    errors.push(["businessEntity", "请选择业务归属。"]);
   }
   if (!isDateInputValue(startDate)) {
     errors.push(["startDate", "请选择有效开始日期。"]);
@@ -4845,7 +4796,6 @@ function renderLessonBatchGeneratePreview() {
     const subject = subjects.find((item) => item.id === row.subjectId);
     const teacher = teachers.find((item) => item.id === row.teacherId);
     const student = students.find((item) => item.id === row.studentId);
-    const entity = businessEntities.find((item) => item.id === row.businessEntityId);
     return `
       <tr>
         <td>${escapeHtml(formatDateOnly(row.lessonDate))}</td>
@@ -4853,7 +4803,6 @@ function renderLessonBatchGeneratePreview() {
         <td>${escapeHtml(student ? studentName(student) : "-")}</td>
         <td>${escapeHtml(teacher ? teacherName(teacher) : "-")}</td>
         <td>${escapeHtml(subject ? subjectName(subject) : "-")}</td>
-        <td>${escapeHtml(entity ? businessEntityName(entity) : "-")}</td>
         <td>${escapeHtml(formatTimeRange(row.startTime, row.endTime))}</td>
         <td>${escapeHtml(formatLessonVenue(row.lessonDeliveryMode, row.lessonVenue))}</td>
         <td>${escapeHtml(row.durationHours ? `${row.durationHours} h` : "-")}</td>
@@ -5123,7 +5072,6 @@ function clearLessonBatchGenerateFieldInvalid(fieldId) {
 function readLessonBatchGenerateFormSnapshot() {
   return JSON.stringify({
     student: dom.lessonBatchGenerateStudentSelect.value,
-    businessEntity: dom.lessonBatchGenerateBusinessEntitySelect.value,
     startDate: dom.lessonBatchGenerateStartDateInput.value,
     endDate: dom.lessonBatchGenerateEndDateInput.value,
     airconRate: dom.lessonBatchGenerateAirconRateInput.value,
@@ -5452,7 +5400,6 @@ function buildLessonImportPreviewDuplicateKey(row) {
     normalizeLessonImportDuplicateText(row.raw.student || values.student),
     normalizeLessonImportDuplicateText(row.raw.teacher || values.teacher),
     normalizeLessonImportDuplicateText(row.raw.subject || values.subject),
-    normalizeLessonImportDuplicateText(row.raw.businessEntity || values.businessEntity),
     normalizeLessonImportDuplicateText(values.lessonDate),
     normalizeLessonImportDuplicateText(values.startTime),
     normalizeLessonImportDuplicateText(values.endTime),
@@ -5640,7 +5587,7 @@ function lessonImportPlannedIdMismatchedFields(row, plannedLesson) {
     ["studentId", "student_id", "学生"],
     ["teacherId", "teacher_id", "老师"],
     ["subjectId", "subject_id", "科目"],
-    ["businessEntityId", "business_entity_id", "业务归属"],
+    ["businessEntityId", "business_entity_id", "内部范围"],
   ];
 
   return checks
@@ -5709,7 +5656,6 @@ function buildLessonImportPreviewColumnMap(header) {
     if (/^(学生|学生姓名|生徒|生徒名|姓名|student|studentname|student_name)$/.test(key)) set("student");
     if (/^(老师|教師|教师|先生|担当|担当老师|担当教師|担当先生|teacher|teachername|teacher_name)$/.test(key)) set("teacher");
     if (/^(科目|课程|講座|授業科目|subject|subjectname|subject_name)$/.test(key)) set("subject");
-    if (/^(业务归属|业务归属id|归属|业务|业务主体|businessentity|business_entity|businessentityid|business_entity_id|entity|entityid)$/.test(key)) set("businessEntity");
     if (/^(lesson_type|lessontype|课时类型|课程类型|类型|recordtype|record_type)$/.test(key)) set("lessonType");
     if (/^(status|状态|ステータス|课时状态|授業状態)$/.test(key)) set("status");
     if (/^(日期|课时日期|上课日期|授業日|lessondate|lesson_date|date)$/.test(key)) set("lessonDate");
@@ -5860,7 +5806,6 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
     student: columnMap.student,
     teacher: columnMap.teacher,
     subject: columnMap.subject,
-    businessEntity: columnMap.businessEntity,
     lessonType: paired ? -1 : columnMap.lessonType,
     status: paired
       ? (mode === "planned" ? columnMap.plannedStatus : columnMap.actualStatus)
@@ -5906,7 +5851,6 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
     student: readLessonImportPreviewCell(rawRow, fieldIndexes.student),
     teacher: readLessonImportPreviewCell(rawRow, fieldIndexes.teacher),
     subject: readLessonImportPreviewCell(rawRow, fieldIndexes.subject),
-    businessEntity: readLessonImportPreviewCell(rawRow, fieldIndexes.businessEntity),
     lessonType: paired ? mode : readLessonImportPreviewCell(rawRow, fieldIndexes.lessonType),
     status: readLessonImportPreviewCell(rawRow, fieldIndexes.status),
     lessonDate: readLessonImportPreviewCell(rawRow, fieldIndexes.lessonDate),
@@ -5934,7 +5878,7 @@ function buildLessonImportPreviewRow(rawRow, rowNo, columnMap, mode, baseYear) {
       student: importPreviewCellText(raw.student),
       teacher: importPreviewCellText(raw.teacher),
       subject: importPreviewCellText(raw.subject),
-      businessEntity: importPreviewCellText(raw.businessEntity),
+      businessEntityId: requirePrimarySchoolBusinessEntityId(businessEntities),
       lessonType: normalizeLessonImportPreviewType(raw.lessonType),
       status: normalizeLessonImportPreviewStatus(raw.status),
       lessonDate: parseLessonImportPreviewDate(raw.lessonDate, baseYear),
@@ -5984,10 +5928,6 @@ function validateLessonImportPreviewRow(row, mode) {
   }
   validateLessonImportPreviewLookup(row, "teacher", teachers, teacherName);
   validateLessonImportPreviewLookup(row, "subject", subjects, subjectName);
-  validateLessonImportPreviewLookup(row, "businessEntity", businessEntities, businessEntityName);
-  if (values.businessEntityId && !isNewBusinessEntityId(businessEntities, values.businessEntityId)) {
-    addLessonImportPreviewIssue(row, "error", "businessEntity", "新导入预定课时只能归属青空进学塾。个人名义仅保留历史处理。");
-  }
 
   if (mode === "planned" && values.lessonType !== "planned") {
     addLessonImportPreviewIssue(row, "error", "lessonType", "预定分栏只能预览为 planned。");
@@ -6203,7 +6143,6 @@ function renderLessonImportPreviewRow(row) {
       ${renderLessonImportPreviewCell(row, "student", values.student)}
       ${renderLessonImportPreviewCell(row, "teacher", values.teacher)}
       ${renderLessonImportPreviewCell(row, "subject", values.subject)}
-      ${renderLessonImportPreviewCell(row, "businessEntity", values.businessEntity)}
       ${renderLessonImportPreviewCell(row, "lessonDate", values.lessonDate)}
       <td class="lesson-nowrap">${escapeHtml(formatLessonImportPreviewTime(values.startTime, values.endTime))}</td>
       ${renderLessonImportPreviewCell(row, "lessonVenue", formatLessonVenue(values.lessonDeliveryMode, values.lessonVenue))}
@@ -6782,7 +6721,6 @@ function renderLessonRecords(records, options = {}) {
       <td>${escapeHtml(nameById(students, record.student_id, studentName))}</td>
       <td>${escapeHtml(nameById(teachers, record.teacher_id, teacherName))}</td>
       <td>${escapeHtml(nameById(subjects, record.subject_id, subjectName))}</td>
-      <td>${escapeHtml(nameById(businessEntities, record.business_entity_id, businessEntityName))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(lessonTypeLabel(record.lesson_type))}</span></td>
       <td><span class="status-badge ${escapeAttribute(statusClass(record.status))}">${escapeHtml(lessonStatusLabel(record.status))}</span></td>
       <td class="lesson-nowrap">${escapeHtml(billableLabel(record.is_billable))}</td>
@@ -6975,7 +6913,6 @@ function renderCrossMonthMakeupSourceReferenceCard(sourcePlanned) {
         <div><dt>学生</dt><dd>${escapeHtml(nameById(students, sourcePlanned.student_id, studentName))}</dd></div>
         <div><dt>老师</dt><dd>${escapeHtml(nameById(teachers, sourcePlanned.teacher_id, teacherName))}</dd></div>
         <div><dt>科目</dt><dd>${escapeHtml(nameById(subjects, sourcePlanned.subject_id, subjectName))}</dd></div>
-        <div><dt>业务归属</dt><dd>${escapeHtml(nameById(businessEntities, sourcePlanned.business_entity_id, businessEntityName))}</dd></div>
       </dl>
       <div class="lesson-pair-reference-note">来源：跨月补课；当前月份只保存已补课记录。</div>
     </article>
@@ -7127,7 +7064,6 @@ function renderLessonPairCard(record, side) {
         <div><dt>学生</dt><dd>${escapeHtml(nameById(students, record.student_id, studentName))}</dd></div>
         <div><dt>老师</dt><dd>${escapeHtml(nameById(teachers, record.teacher_id, teacherName))}</dd></div>
         <div><dt>科目</dt><dd>${escapeHtml(nameById(subjects, record.subject_id, subjectName))}</dd></div>
-        <div><dt>业务归属</dt><dd>${escapeHtml(nameById(businessEntities, record.business_entity_id, businessEntityName))}</dd></div>
         <div><dt>计费</dt><dd>${escapeHtml(billableText)}</dd></div>
         <div><dt>时长</dt><dd>${escapeHtml(displayValue(record.duration_hours))}</dd></div>
         <div><dt>金额</dt><dd>${escapeHtml(formatCurrency(record.lesson_fee, "JPY"))}</dd></div>
@@ -7307,9 +7243,6 @@ function filterLessonRecords(records, filters) {
       return false;
     }
 
-    if (filters.businessEntityId && record.business_entity_id !== filters.businessEntityId) {
-      return false;
-    }
 
     if (filters.lessonType && record.lesson_type !== filters.lessonType) {
       return false;
@@ -7349,7 +7282,6 @@ function matchesKeyword(record, keyword) {
     nameById(students, record.student_id, studentName),
     nameById(teachers, record.teacher_id, teacherName),
     nameById(subjects, record.subject_id, subjectName),
-    nameById(businessEntities, record.business_entity_id, businessEntityName),
     record.lesson_content,
     record.note,
     record.import_source,
@@ -7482,10 +7414,6 @@ function teacherName(teacher) {
 
 function subjectName(subject) {
   return safeText(subject.name) || "未设置";
-}
-
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
 }
 
 function lessonTypeLabel(value) {

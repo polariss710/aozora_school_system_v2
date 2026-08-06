@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=v2.112.0-cash-retry-attempts-20260614";
-import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initPaymentPage } from "./pages/payment-page.js?v=v10.3.38-payment-legacy-cash-cleanup";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
+import { initPaymentPage } from "./pages/payment-page.js?v=be-ui-20260806-1";
 
 const globalSessionPromise = requireGlobalSession();
 

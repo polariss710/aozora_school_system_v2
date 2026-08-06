@@ -8,7 +8,7 @@ import {
   fetchAccounts,
   fetchBusinessEntitiesForAccounts,
   updateAccountProfile,
-} from "../api/account-api.js";
+} from "../api/account-api.js?v=be-ui-20260806-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -18,16 +18,12 @@ import {
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 import {
-  defaultNewBusinessEntityId,
-  historicalEditBusinessEntities,
-  isNewBusinessEntityId,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   appType: "school",
   accountId: "",
-  businessEntityId: "",
   currency: "",
 };
 
@@ -78,7 +74,6 @@ const ACCOUNT_CREATE_FIELD_IDS = [
   "name",
   "currency",
   "accountType",
-  "businessEntity",
   "initialBalance",
   "companyAccount",
   "active",
@@ -88,7 +83,6 @@ const ACCOUNT_PROFILE_FIELD_IDS = [
   "name",
   "currency",
   "accountType",
-  "businessEntity",
   "companyAccount",
   "active",
 ];
@@ -130,7 +124,6 @@ function cacheDom() {
   dom.monthFilter = document.querySelector("#accountMonthFilter");
   dom.appTypeSelect = document.querySelector("#accountAppTypeSelect");
   dom.accountSelect = document.querySelector("#accountSelect");
-  dom.businessEntitySelect = document.querySelector("#accountBusinessEntitySelect");
   dom.currencySelect = document.querySelector("#accountCurrencySelect");
   dom.resetButton = document.querySelector("#accountResetButton");
   dom.accountGrid = document.querySelector("#accountGrid");
@@ -148,7 +141,6 @@ function cacheDom() {
   dom.accountCreateNameInput = document.querySelector("#accountCreateNameInput");
   dom.accountCreateTypeSelect = document.querySelector("#accountCreateTypeSelect");
   dom.accountCreateCurrencySelect = document.querySelector("#accountCreateCurrencySelect");
-  dom.accountCreateBusinessEntitySelect = document.querySelector("#accountCreateBusinessEntitySelect");
   dom.accountCreateInitialBalanceInput = document.querySelector("#accountCreateInitialBalanceInput");
   dom.accountCreateCompanySelect = document.querySelector("#accountCreateCompanySelect");
   dom.accountCreateActiveSelect = document.querySelector("#accountCreateActiveSelect");
@@ -161,7 +153,6 @@ function cacheDom() {
   dom.accountProfileNameInput = document.querySelector("#accountProfileNameInput");
   dom.accountProfileCurrencySelect = document.querySelector("#accountProfileCurrencySelect");
   dom.accountProfileTypeSelect = document.querySelector("#accountProfileTypeSelect");
-  dom.accountProfileBusinessEntitySelect = document.querySelector("#accountProfileBusinessEntitySelect");
   dom.accountProfileCompanySelect = document.querySelector("#accountProfileCompanySelect");
   dom.accountProfileActiveSelect = document.querySelector("#accountProfileActiveSelect");
   dom.accountProfileNoteInput = document.querySelector("#accountProfileNoteInput");
@@ -171,7 +162,6 @@ function cacheDom() {
   dom.accountTransferDialog = document.querySelector("#accountTransferDialog");
   dom.accountTransferError = document.querySelector("#accountTransferError");
   dom.accountTransferDateInput = document.querySelector("#accountTransferDateInput");
-  dom.accountTransferBusinessEntitySelect = document.querySelector("#accountTransferBusinessEntitySelect");
   dom.accountTransferFromAccountSelect = document.querySelector("#accountTransferFromAccountSelect");
   dom.accountTransferToAccountSelect = document.querySelector("#accountTransferToAccountSelect");
   dom.accountTransferAmountInput = document.querySelector("#accountTransferAmountInput");
@@ -184,7 +174,6 @@ function cacheDom() {
   dom.accountAdjustmentDialog = document.querySelector("#accountAdjustmentDialog");
   dom.accountAdjustmentError = document.querySelector("#accountAdjustmentError");
   dom.accountAdjustmentDateInput = document.querySelector("#accountAdjustmentDateInput");
-  dom.accountAdjustmentBusinessEntitySelect = document.querySelector("#accountAdjustmentBusinessEntitySelect");
   dom.accountAdjustmentAccountSelect = document.querySelector("#accountAdjustmentAccountSelect");
   dom.accountAdjustmentAmountInput = document.querySelector("#accountAdjustmentAmountInput");
   dom.accountAdjustmentPreview = document.querySelector("#accountAdjustmentPreview");
@@ -206,9 +195,6 @@ function bindEvents() {
   });
   dom.appTypeSelect.addEventListener("change", () => {
     dom.accountSelect.value = "";
-    if (dom.appTypeSelect.value === "family") {
-      dom.businessEntitySelect.value = "";
-    }
     loadAccountData();
   });
 
@@ -235,10 +221,6 @@ function bindEvents() {
   });
   dom.accountCreateInitialBalanceInput.addEventListener("input", () => {
     clearAccountCreateFieldInvalid("initialBalance");
-    hideAccountCreateErrorIfClean();
-  });
-  dom.accountCreateBusinessEntitySelect.addEventListener("change", () => {
-    clearAccountCreateFieldInvalid("businessEntity");
     hideAccountCreateErrorIfClean();
   });
   dom.accountCreateCompanySelect.addEventListener("change", () => {
@@ -278,10 +260,6 @@ function bindEvents() {
     clearAccountProfileFieldInvalid("accountType");
     hideAccountProfileErrorIfClean();
   });
-  dom.accountProfileBusinessEntitySelect.addEventListener("change", () => {
-    clearAccountProfileFieldInvalid("businessEntity");
-    hideAccountProfileErrorIfClean();
-  });
   dom.accountProfileCompanySelect.addEventListener("change", () => {
     clearAccountProfileFieldInvalid("companyAccount");
     hideAccountProfileErrorIfClean();
@@ -294,12 +272,6 @@ function bindEvents() {
   dom.openAccountTransferButton.addEventListener("click", openAccountTransferDialog);
   dom.accountTransferCancelButton.addEventListener("click", closeAccountTransferDialog);
   dom.accountTransferSubmitButton.addEventListener("click", submitAccountTransfer);
-  dom.accountTransferBusinessEntitySelect.addEventListener("change", () => {
-    clearTransferFieldInvalid("businessEntity");
-    renderTransferAccountOptions();
-    updateTransferPreview();
-    hideTransferErrorIfClean();
-  });
   dom.accountTransferFromAccountSelect.addEventListener("change", () => {
     clearTransferFieldInvalid("fromAccount");
     renderTransferToAccountOptions();
@@ -328,12 +300,6 @@ function bindEvents() {
   dom.openAccountAdjustmentButton.addEventListener("click", openAccountAdjustmentDialog);
   dom.accountAdjustmentCancelButton.addEventListener("click", closeAccountAdjustmentDialog);
   dom.accountAdjustmentSubmitButton.addEventListener("click", submitAccountAdjustment);
-  dom.accountAdjustmentBusinessEntitySelect.addEventListener("change", () => {
-    clearAdjustmentFieldInvalid("businessEntity");
-    renderAdjustmentAccountOptions();
-    updateAdjustmentPreview();
-    hideAdjustmentErrorIfClean();
-  });
   dom.accountAdjustmentAccountSelect.addEventListener("change", () => {
     clearAdjustmentFieldInvalid("account");
     updateAdjustmentPreview();
@@ -358,7 +324,6 @@ function setDefaultFilters() {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
   dom.appTypeSelect.value = DEFAULT_FILTERS.appType;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
 }
 
@@ -384,10 +349,10 @@ async function loadAccountData() {
 
     accounts = accountRows;
     businessEntities = businessEntityRows;
+    requirePrimarySchoolBusinessEntityId(businessEntities);
     transactions = transactionRows;
 
     renderAccountOptions(filterAccountsForOptionSelect(accounts, filters));
-    renderBusinessEntityOptions(businessEntities);
     restoreFilterSelections(filters);
     renderAccounts(filterAccountsForDisplay(accounts, filters));
     renderTransactions(transactions);
@@ -397,7 +362,6 @@ async function loadAccountData() {
     businessEntities = [];
     transactions = [];
     renderAccountOptions([]);
-    renderBusinessEntityOptions([]);
     renderAccounts([]);
     renderTransactions([]);
     showMessage("error", `读取账户管理数据失败：${error.message || error}`);
@@ -417,7 +381,6 @@ function readFilters() {
     month: selectedMonth,
     appType: dom.appTypeSelect.value || "",
     accountId: dom.accountSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     currency: dom.currencySelect.value,
   };
 }
@@ -425,7 +388,6 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   dom.appTypeSelect.value = filters.appType;
   dom.accountSelect.value = filters.accountId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
   dom.currencySelect.value = filters.currency;
 }
 
@@ -457,19 +419,6 @@ function filterAccountsForOptionSelect(items, filters) {
   });
 }
 
-function renderBusinessEntityOptions(items) {
-  const options = ['<option value="">全部</option>'];
-
-  for (const entity of items) {
-    const name = entity.name || entity.id;
-    options.push(
-      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(name)}</option>`
-    );
-  }
-
-  dom.businessEntitySelect.innerHTML = options.join("");
-}
-
 function filterAccountsForDisplay(items, filters) {
   return items.filter((account) => {
     if (filters.appType && account.app_type !== filters.appType) {
@@ -477,10 +426,6 @@ function filterAccountsForDisplay(items, filters) {
     }
 
     if (filters.accountId && account.id !== filters.accountId) {
-      return false;
-    }
-
-    if (filters.businessEntityId && account.business_entity_id !== filters.businessEntityId) {
       return false;
     }
 
@@ -563,8 +508,6 @@ function openAccountCreateDialog() {
   dom.accountCreateNameInput.value = "";
   renderAccountCreateCurrencyOptions("CNY");
   renderAccountCreateTypeOptions("CNY");
-  renderAccountCreateBusinessEntityOptions(newBusinessEntities(businessEntities));
-  dom.accountCreateBusinessEntitySelect.value = defaultNewBusinessEntityId(businessEntities);
   dom.accountCreateInitialBalanceInput.value = "0";
   dom.accountCreateCompanySelect.value = "false";
   dom.accountCreateActiveSelect.value = "true";
@@ -599,7 +542,7 @@ async function submitAccountCreate() {
     name: dom.accountCreateNameInput.value.trim(),
     accountType: dom.accountCreateTypeSelect.value,
     currency: dom.accountCreateCurrencySelect.value,
-    businessEntityId: appType === "family" ? null : dom.accountCreateBusinessEntitySelect.value,
+    businessEntityId: appType === "family" ? null : requirePrimarySchoolBusinessEntityId(businessEntities),
     initialBalance,
     isCompanyAccount: appType === "family" ? false : dom.accountCreateCompanySelect.value === "true",
     isActive: dom.accountCreateActiveSelect.value === "true",
@@ -623,19 +566,6 @@ async function submitAccountCreate() {
 
   if (!isEditableAccountTypeForCurrency(payload.accountType, payload.currency)) {
     showAccountCreateError("请选择与币种匹配的账户类型。", ["accountType"]);
-    return;
-  }
-
-  if (payload.appType === "school" && !payload.businessEntityId) {
-    showAccountCreateError("请选择业务归属。", ["businessEntity"]);
-    return;
-  }
-
-  if (
-    payload.appType === "school"
-    && !isNewBusinessEntityId(businessEntities, payload.businessEntityId)
-  ) {
-    showAccountCreateError("新建 School 账户只能归属青空进学塾。", ["businessEntity"]);
     return;
   }
 
@@ -672,9 +602,6 @@ async function refreshAfterAccountCreate(result) {
   if (result?.app_type) {
     dom.appTypeSelect.value = result.app_type;
     dom.accountSelect.value = "";
-    if (result.app_type === "family") {
-      dom.businessEntitySelect.value = "";
-    }
   }
   await reloadAccountDataPreservingViewport();
 }
@@ -706,22 +633,11 @@ function renderAccountCreateCurrencyOptions(selectedCurrency) {
     : "CNY";
 }
 
-function renderAccountCreateBusinessEntityOptions(items) {
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of items) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
-  }
-  dom.accountCreateBusinessEntitySelect.innerHTML = options.join("");
-}
-
 function updateAccountCreateScopeControls() {
   const isFamily = dom.accountCreateAppTypeSelect.value === "family";
-  dom.accountCreateBusinessEntitySelect.disabled = isFamily;
   dom.accountCreateCompanySelect.disabled = isFamily;
   if (isFamily) {
-    dom.accountCreateBusinessEntitySelect.value = "";
     dom.accountCreateCompanySelect.value = "false";
-    clearAccountCreateFieldInvalid("businessEntity");
     clearAccountCreateFieldInvalid("companyAccount");
   }
 }
@@ -757,7 +673,6 @@ function accountCreateFieldIdsForError(message) {
   if (text.includes("用途")) fields.push("appType");
   if (text.includes("类型")) fields.push("accountType");
   if (text.includes("币种")) fields.push("currency");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("初始余额") || text.includes("余额")) fields.push("initialBalance");
   if (text.includes("公司账户")) fields.push("companyAccount");
   if (text.includes("启用状态")) fields.push("active");
@@ -795,10 +710,6 @@ function openAccountProfileDialog(accountId) {
   dom.accountProfileNameInput.value = account.name || "";
   renderAccountProfileCurrencyOptions(account.currency);
   renderAccountProfileTypeOptions(account.currency, account.account_type, account);
-  renderAccountProfileBusinessEntityOptions(
-    historicalEditBusinessEntities(businessEntities, account.business_entity_id),
-    account.business_entity_id
-  );
   dom.accountProfileCompanySelect.value = account.is_company_account ? "true" : "false";
   dom.accountProfileActiveSelect.value = account.is_active ? "true" : "false";
   dom.accountProfileNoteInput.value = account.note || "";
@@ -838,7 +749,7 @@ async function submitAccountProfile() {
     name: dom.accountProfileNameInput.value.trim(),
     currency: dom.accountProfileCurrencySelect.value,
     accountType: dom.accountProfileTypeSelect.value,
-    businessEntityId: editingAccount.app_type === "family" ? null : dom.accountProfileBusinessEntitySelect.value,
+    businessEntityId: editingAccount.app_type === "family" ? null : editingAccount.business_entity_id,
     isCompanyAccount: editingAccount.app_type === "family" ? false : dom.accountProfileCompanySelect.value === "true",
     isActive: dom.accountProfileActiveSelect.value === "true",
     note: dom.accountProfileNoteInput.value.trim(),
@@ -856,16 +767,6 @@ async function submitAccountProfile() {
 
   if (!isAllowedAccountTypeForProfile(payload.accountType, payload.currency, editingAccount)) {
     showAccountProfileError("请选择与币种匹配的账户类型。", ["accountType"]);
-    return;
-  }
-
-  if (payload.appType === "school" && !payload.businessEntityId) {
-    showAccountProfileError("请选择业务归属。", ["businessEntity"]);
-    return;
-  }
-
-  if (payload.appType === "school" && !isAllowedBusinessEntityForProfile(payload.businessEntityId, editingAccount)) {
-    showAccountProfileError("请选择有效启用业务归属。", ["businessEntity"]);
     return;
   }
 
@@ -924,27 +825,10 @@ function renderAccountProfileTypeOptions(currency, selectedType = "", account = 
   dom.accountProfileTypeSelect.value = nextType || "";
 }
 
-function renderAccountProfileBusinessEntityOptions(items, selectedId) {
-  const selectedEntity = selectedId ? items.find((entity) => entity.id === selectedId) : null;
-  const usableItems = items.filter((entity) => entity.is_active !== false || entity.id === selectedId);
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of usableItems) {
-    const inactiveSuffix = entity.is_active === false ? "（停用，保留当前）" : "";
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml((entity.name || entity.id) + inactiveSuffix)}</option>`);
-  }
-  if (selectedId && !selectedEntity) {
-    options.push(`<option value="${escapeAttribute(selectedId)}">${escapeHtml(selectedId)}</option>`);
-  }
-  dom.accountProfileBusinessEntitySelect.innerHTML = options.join("");
-  dom.accountProfileBusinessEntitySelect.value = selectedId || "";
-}
-
 function updateAccountProfileScopeControls(account) {
   const isFamily = account?.app_type === "family";
-  dom.accountProfileBusinessEntitySelect.disabled = isFamily;
   dom.accountProfileCompanySelect.disabled = isFamily;
   if (isFamily) {
-    dom.accountProfileBusinessEntitySelect.value = "";
     dom.accountProfileCompanySelect.value = "false";
   }
 }
@@ -980,7 +864,6 @@ function accountProfileFieldIdsForError(message) {
   if (text.includes("用途")) fields.push("appType");
   if (text.includes("类型")) fields.push("accountType");
   if (text.includes("币种")) fields.push("currency");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("公司账户")) fields.push("companyAccount");
   if (text.includes("启用状态")) fields.push("active");
   return fields;
@@ -1023,7 +906,6 @@ function renderTransactions(items) {
 
   dom.transactionTableBody.innerHTML = items.map((item) => {
     const account = findAccount(item.account_id);
-    const businessEntity = findBusinessEntity(item.business_entity_id);
     const amountClass = Number(item.amount) >= 0 ? "amount-positive" : "amount-negative";
     const relatedText = [item.related_table, item.related_id].filter(Boolean).join(" / ") || "-";
     const description = item.description || item.note || "-";
@@ -1033,7 +915,6 @@ function renderTransactions(items) {
         <td><a class="table-action-button" href="./account-transaction-detail.html?id=${encodeURIComponent(item.id)}">详情</a></td>
         <td>${escapeHtml(formatDate(item.transaction_date))}</td>
         <td>${escapeHtml(account?.name || item.account_id || "-")}</td>
-        <td>${escapeHtml(businessEntity?.name || item.business_entity_id || "-")}</td>
         <td>${escapeHtml(transactionTypeLabel(item.transaction_type))}</td>
         <td>${escapeHtml(item.currency || "-")}</td>
         <td class="number-cell ${amountClass}">${escapeHtml(formatCurrency(item.amount, item.currency))}</td>
@@ -1056,21 +937,12 @@ function openAccountTransferDialog() {
   setTransferSubmitting(false);
 
   const filters = readFilters();
-  const activeBusinessEntities = newBusinessEntities(businessEntities);
-  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
-    ? filters.businessEntityId
-    : defaultNewBusinessEntityId(businessEntities);
   const defaultFromAccountId = filters?.accountId || "";
 
   dom.accountTransferDateInput.value = currentDate();
   dom.accountTransferAmountInput.value = "";
   dom.accountTransferReasonInput.value = "";
   dom.accountTransferNoteInput.value = "";
-
-  renderTransferBusinessEntityOptions(activeBusinessEntities);
-  dom.accountTransferBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
-    ? defaultBusinessEntityId
-    : "";
 
   renderTransferAccountOptions();
   dom.accountTransferFromAccountSelect.value = filteredTransferFromAccounts().some((account) => account.id === defaultFromAccountId)
@@ -1128,11 +1000,7 @@ function readAccountTransferPayload() {
     return null;
   }
 
-  const businessEntityId = dom.accountTransferBusinessEntitySelect.value;
-  if (!businessEntityId) {
-    showTransferError("请选择业务归属。", ["businessEntity"]);
-    return null;
-  }
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
 
   const fromAccountId = dom.accountTransferFromAccountSelect.value;
   if (!fromAccountId) {
@@ -1164,7 +1032,7 @@ function readAccountTransferPayload() {
   }
 
   if (fromAccount.business_entity_id !== businessEntityId || toAccount.business_entity_id !== businessEntityId) {
-    showTransferError("转账账户必须属于同一业务归属。", ["fromAccount", "toAccount"]);
+    showTransferError("转账账户必须属于同一内部范围。", ["fromAccount", "toAccount"]);
     return null;
   }
 
@@ -1201,10 +1069,6 @@ async function refreshAfterAccountTransfer(result) {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, result.year_month);
   }
 
-  if (result?.business_entity_id) {
-    dom.businessEntitySelect.value = result.business_entity_id;
-  }
-
   dom.accountSelect.value = "";
 
   await loadAccountData();
@@ -1225,14 +1089,6 @@ function showAccountTransferSuccess(result) {
 
   dom.messageArea.className = "message message-success";
   dom.messageArea.innerHTML = `账户转账已保存：${escapeHtml(amountText)}，转出后 ${escapeHtml(fromBalanceText)}，转入后 ${escapeHtml(toBalanceText)}。${links}`;
-}
-
-function renderTransferBusinessEntityOptions(items) {
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of items) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
-  }
-  dom.accountTransferBusinessEntitySelect.innerHTML = options.join("");
 }
 
 function renderTransferAccountOptions() {
@@ -1261,7 +1117,7 @@ function renderTransferToAccountOptions() {
 }
 
 function filteredTransferFromAccounts() {
-  const businessEntityId = dom.accountTransferBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   return accounts.filter((account) => {
     if (!isUsableTransferAccount(account)) {
       return false;
@@ -1276,7 +1132,7 @@ function filteredTransferFromAccounts() {
 }
 
 function filteredTransferToAccounts() {
-  const businessEntityId = dom.accountTransferBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   const fromAccount = accounts.find((item) => item.id === dom.accountTransferFromAccountSelect.value);
   return accounts.filter((account) => {
     if (!isUsableTransferAccount(account)) {
@@ -1354,7 +1210,7 @@ function setTransferSubmitting(isSubmitting) {
 function clearTransferErrors() {
   dom.accountTransferError.textContent = "";
   dom.accountTransferError.classList.add("is-hidden");
-  for (const fieldId of ["transferDate", "businessEntity", "fromAccount", "toAccount", "amount", "reason"]) {
+  for (const fieldId of ["transferDate", "fromAccount", "toAccount", "amount", "reason"]) {
     clearTransferFieldInvalid(fieldId);
   }
 }
@@ -1372,7 +1228,6 @@ function transferFieldIdsForError(message) {
   const text = safeText(message);
   const fields = [];
   if (text.includes("日期")) fields.push("transferDate");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("转出")) fields.push("fromAccount");
   if (text.includes("转入")) fields.push("toAccount");
   if (text.includes("账户") || text.includes("币种")) fields.push("fromAccount", "toAccount");
@@ -1410,21 +1265,12 @@ function openAccountAdjustmentDialog() {
   setAdjustmentSubmitting(false);
 
   const filters = readFilters();
-  const activeBusinessEntities = newBusinessEntities(businessEntities);
-  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
-    ? filters.businessEntityId
-    : defaultNewBusinessEntityId(businessEntities);
   const defaultAccountId = filters?.accountId || "";
 
   dom.accountAdjustmentDateInput.value = currentDate();
   dom.accountAdjustmentAmountInput.value = "";
   dom.accountAdjustmentReasonInput.value = "";
   dom.accountAdjustmentNoteInput.value = "";
-
-  renderAdjustmentBusinessEntityOptions(activeBusinessEntities);
-  dom.accountAdjustmentBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
-    ? defaultBusinessEntityId
-    : "";
 
   renderAdjustmentAccountOptions();
   dom.accountAdjustmentAccountSelect.value = filteredAdjustmentAccounts().some((account) => account.id === defaultAccountId)
@@ -1480,11 +1326,7 @@ function readAccountAdjustmentPayload() {
     return null;
   }
 
-  const businessEntityId = dom.accountAdjustmentBusinessEntitySelect.value;
-  if (!businessEntityId) {
-    showAdjustmentError("请选择业务归属。", ["businessEntity"]);
-    return null;
-  }
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
 
   const accountId = dom.accountAdjustmentAccountSelect.value;
   if (!accountId) {
@@ -1499,7 +1341,7 @@ function readAccountAdjustmentPayload() {
   }
 
   if (account.business_entity_id !== businessEntityId) {
-    showAdjustmentError("调整账户与业务归属不一致。", ["account"]);
+    showAdjustmentError("调整账户与内部范围不一致。", ["account"]);
     return null;
   }
 
@@ -1530,10 +1372,6 @@ async function refreshAfterAccountAdjustment(result) {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, result.year_month);
   }
 
-  if (result?.business_entity_id) {
-    dom.businessEntitySelect.value = result.business_entity_id;
-  }
-
   if (result?.account_id) {
     dom.accountSelect.value = result.account_id;
   }
@@ -1552,14 +1390,6 @@ function showAccountAdjustmentSuccess(result) {
   }
 }
 
-function renderAdjustmentBusinessEntityOptions(items) {
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of items) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`);
-  }
-  dom.accountAdjustmentBusinessEntitySelect.innerHTML = options.join("");
-}
-
 function renderAdjustmentAccountOptions() {
   const selectedValue = dom.accountAdjustmentAccountSelect.value;
   const options = ['<option value="">请选择账户</option>'];
@@ -1573,7 +1403,7 @@ function renderAdjustmentAccountOptions() {
 }
 
 function filteredAdjustmentAccounts() {
-  const businessEntityId = dom.accountAdjustmentBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   return accounts.filter((account) => {
     if (account.is_active !== true || account.app_type !== "school") {
       return false;
@@ -1634,7 +1464,7 @@ function setAdjustmentSubmitting(isSubmitting) {
 function clearAdjustmentErrors() {
   dom.accountAdjustmentError.textContent = "";
   dom.accountAdjustmentError.classList.add("is-hidden");
-  for (const fieldId of ["adjustmentDate", "businessEntity", "account", "amount", "reason"]) {
+  for (const fieldId of ["adjustmentDate", "account", "amount", "reason"]) {
     clearAdjustmentFieldInvalid(fieldId);
   }
 }
@@ -1652,7 +1482,6 @@ function adjustmentFieldIdsForError(message) {
   const text = safeText(message);
   const fields = [];
   if (text.includes("日期")) fields.push("adjustmentDate");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("账户") || text.includes("币种")) fields.push("account");
   if (text.includes("金额")) fields.push("amount");
   if (text.includes("原因")) fields.push("reason");
@@ -1690,10 +1519,6 @@ function findAccount(accountId) {
   return accounts.find((account) => account.id === accountId);
 }
 
-function findBusinessEntity(entityId) {
-  return businessEntities.find((entity) => entity.id === entityId);
-}
-
 function transactionTypeLabel(type) {
   return TRANSACTION_TYPE_LABELS[type] || safeText(type) || "-";
 }
@@ -1716,15 +1541,6 @@ function isAllowedAccountTypeForProfile(accountType, currency, account) {
       && account.currency === currency
       && account.account_type === accountType
   );
-}
-
-function isAllowedBusinessEntityForProfile(businessEntityId, account) {
-  const entity = businessEntities.find((item) => item.id === businessEntityId);
-  if (!entity) {
-    return false;
-  }
-
-  return businessEntityId === account?.business_entity_id || isNewBusinessEntityId(businessEntities, businessEntityId);
 }
 
 function accountTypeLabel(type) {

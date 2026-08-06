@@ -90,11 +90,11 @@ assert.match(writerSql, /extract\(epoch from \(v_end_value - v_start_value\)\)::
 assert.match(writerSql, /p_duration_hours is distinct from v_duration_hours/);
 assert.match(writerSql, /actual_minutes, teacher_settlement_month/);
 
-assert.match(config, /APP_VERSION = "v10\.5\.11"/);
+assert.match(config, /APP_VERSION = "v10\.5\.12"/);
 assert.match(lessonHtml, /<body class="lesson-page">/);
 assert.match(lessonHtml, /app\.css\?v=phase-b4-lesson-candidates-20260806/);
-assert.match(lessonHtml, /lesson-app\.js\?v=phase-b4-lesson-candidates-20260806/);
-assert.match(lessonApp, /lesson-page\.js\?v=phase-b4-lesson-candidates-20260806/);
+assert.match(lessonHtml, /lesson-app\.js\?v=be-ui-20260806-1/);
+assert.match(lessonApp, /lesson-page\.js\?v=be-ui-20260806-1/);
 assert.match(appCss, /\.lesson-page \.dialog-backdrop\s*\{\s*z-index:\s*1700;/);
 
 console.log("School V2 cancellation hardening UI/API/static contract: PASS");

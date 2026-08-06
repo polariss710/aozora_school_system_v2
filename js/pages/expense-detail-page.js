@@ -100,7 +100,6 @@ const EDIT_RECEIPT_STATUS_OPTIONS = ["有", "无需收据", "待确认"];
 const EDIT_REIMBURSEMENT_STATUS_OPTIONS = ["not_required", "pending"];
 const EDIT_EXPENSE_FIELD_IDS = [
   "expenseDate",
-  "businessEntity",
   "account",
   "expenseCategory",
   "amount",
@@ -163,7 +162,6 @@ function cacheDom() {
   dom.editDialog = document.querySelector("#editExpenseDialog");
   dom.editError = document.querySelector("#editExpenseError");
   dom.editDateInput = document.querySelector("#editExpenseDateInput");
-  dom.editBusinessEntitySelect = document.querySelector("#editExpenseBusinessEntitySelect");
   dom.editAccountSelect = document.querySelector("#editExpenseAccountSelect");
   dom.editCategorySelect = document.querySelector("#editExpenseCategorySelect");
   dom.editAmountInput = document.querySelector("#editExpenseAmountInput");
@@ -215,12 +213,6 @@ function bindEvents() {
   dom.openAttachmentDialogButton.addEventListener("click", openAttachmentDialog);
   dom.editCancelButton.addEventListener("click", closeEditDialog);
   dom.editSubmitButton.addEventListener("click", submitEditExpense);
-  dom.editBusinessEntitySelect.addEventListener("change", () => {
-    renderEditAccountOptions();
-    updateEditReimbursementDefault();
-    setEditFieldInvalid("businessEntity", false);
-    hideEditErrorIfClean();
-  });
   dom.editAccountSelect.addEventListener("change", () => {
     updateEditReimbursementDefault();
     setEditFieldInvalid("account", false);
@@ -228,7 +220,6 @@ function bindEvents() {
   });
   for (const [input, fieldId] of [
     [dom.editDateInput, "expenseDate"],
-    [dom.editBusinessEntitySelect, "businessEntity"],
     [dom.editAccountSelect, "account"],
     [dom.editCategorySelect, "expenseCategory"],
     [dom.editAmountInput, "amount"],
@@ -355,11 +346,10 @@ function renderExpenseDetail(data) {
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["支出对象 / 来源", expenseObjectName(expense)],
     ["分类", expenseCategoryLabel(expense.expense_category)],
-    ["业务归属月", formatMonth(expense.year_month)],
+    ["记账月份", formatMonth(expense.year_month)],
     ["实际支付日", actualPaymentDateLabel(expense)],
     ["支出内容", displayValue(expense.description)],
     ["状态", expenseStatusLabel(expense.status)],
-    ["业务归属", businessNameById(expense.business_entity_id)],
   ]);
 
   dom.relatedInfo.innerHTML = renderNonEmptyDefinitionList([
@@ -784,8 +774,6 @@ function populateEditDialog(expense) {
     ? expense.expense_category
     : "";
 
-  renderEditBusinessEntityOptions();
-  dom.editBusinessEntitySelect.value = expense.business_entity_id || "";
   renderEditAccountOptions();
   dom.editAccountSelect.value = filteredEditAccounts().some((account) => account.id === expense.account_id)
     ? expense.account_id
@@ -837,11 +825,7 @@ function readEditExpensePayload() {
     return null;
   }
 
-  const businessEntityId = dom.editBusinessEntitySelect.value;
-  if (!businessEntityId) {
-    showEditError("请选择业务归属。", ["businessEntity"]);
-    return null;
-  }
+  const businessEntityId = expense.business_entity_id;
 
   const accountId = dom.editAccountSelect.value;
   if (!accountId) {
@@ -856,7 +840,7 @@ function readEditExpensePayload() {
   }
 
   if (account.business_entity_id !== businessEntityId) {
-    showEditError("付款账户与业务归属不一致。", ["account"]);
+    showEditError("付款账户与内部范围不一致。", ["account"]);
     return null;
   }
 
@@ -936,14 +920,6 @@ function renderEditCategoryOptions() {
   dom.editCategorySelect.innerHTML = options.join("");
 }
 
-function renderEditBusinessEntityOptions() {
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of detailData.lookups.businessEntities.filter((item) => item.is_active !== false)) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessNameById(entity.id))}</option>`);
-  }
-  dom.editBusinessEntitySelect.innerHTML = options.join("");
-}
-
 function renderEditAccountOptions() {
   const selectedValue = dom.editAccountSelect.value;
   const options = ['<option value="">请选择付款账户</option>'];
@@ -957,7 +933,7 @@ function renderEditAccountOptions() {
 }
 
 function filteredEditAccounts() {
-  const businessEntityId = dom.editBusinessEntitySelect.value;
+  const businessEntityId = detailData.expense.business_entity_id;
   return detailData.lookups.accounts.filter((account) => {
     if (account.is_active !== true || account.app_type !== "school") {
       return false;
@@ -1610,7 +1586,6 @@ function editFieldIdsForError(message) {
   if (text.includes("支出日期")) fields.push("expenseDate");
   if (text.includes("支出分类") || text.includes("老师工资支出")) fields.push("expenseCategory");
   if (text.includes("支出内容")) fields.push("description");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("付款账户") || text.includes("币种") || text.includes("更换付款账户")) fields.push("account");
   if (text.includes("汇率")) fields.push("exchangeRate");
   if (text.includes("支付方式")) fields.push("paymentMethod");
@@ -1803,11 +1778,6 @@ function notePreview(text) {
 function isSystemMigrationNote(value) {
   const text = safeText(value);
   return /migrated_to_|canonical_flow|payment_request_id=|migration/i.test(text);
-}
-
-function businessNameById(id) {
-  const entity = detailData?.lookups.businessEntities.find((item) => item.id === id);
-  return entity ? safeText(entity.name) || "未设置" : id ? "未知" : "未设置";
 }
 
 function accountNameById(id) {

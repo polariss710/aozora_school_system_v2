@@ -184,11 +184,7 @@ async function fetchReimbursementTransactions(reimbursementId) {
 }
 
 async function fetchReimbursementDetailLookups() {
-  const [businessEntitiesResult, accountsResult] = await Promise.all([
-    supabase
-      .from("school_business_entities")
-      .select("id,code,name,entity_type,default_currency,is_company_report,is_active")
-      .order("name", { ascending: true }),
+  const [accountsResult] = await Promise.all([
     supabase
       .from("school_accounts")
       .select("id,account_code,name,account_type,currency,business_entity_id,current_balance,is_company_account,is_active,app_type")
@@ -197,16 +193,11 @@ async function fetchReimbursementDetailLookups() {
       .order("name", { ascending: true }),
   ]);
 
-  if (businessEntitiesResult.error) {
-    throw businessEntitiesResult.error;
-  }
-
   if (accountsResult.error) {
     throw accountsResult.error;
   }
 
   return {
-    businessEntities: businessEntitiesResult.data || [],
     accounts: accountsResult.data || [],
   };
 }

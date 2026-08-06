@@ -28,15 +28,12 @@ import {
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
-  defaultNewBusinessEntityId,
-  isNewBusinessEntityId,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",
   teacherId: "",
-  businessEntityId: "",
   accountId: "",
   currency: "",
 };
@@ -96,7 +93,6 @@ const CREATE_REIMBURSEMENT_STATUS_OPTIONS = ["not_required", "pending"];
 const CREATE_PAYMENT_METHOD_OPTIONS = ["cash", "bank_transfer", "card", "alipay"];
 const CREATE_EXPENSE_FIELD_IDS = [
   "expenseDate",
-  "businessEntity",
   "account",
   "currency",
   "expenseCategory",
@@ -174,7 +170,6 @@ function cacheDom() {
   dom.monthFilter = document.querySelector("#expenseMonthFilter");
   dom.studentSelect = document.querySelector("#expenseStudentSelect");
   dom.teacherSelect = document.querySelector("#expenseTeacherSelect");
-  dom.businessEntitySelect = document.querySelector("#expenseBusinessEntitySelect");
   dom.accountSelect = document.querySelector("#expenseAccountSelect");
   dom.currencySelect = document.querySelector("#expenseCurrencySelect");
   dom.resetButton = document.querySelector("#expenseResetButton");
@@ -195,7 +190,6 @@ function cacheDom() {
   dom.createExpenseDialog = document.querySelector("#createExpenseDialog");
   dom.createExpenseError = document.querySelector("#createExpenseError");
   dom.createExpenseDateInput = document.querySelector("#createExpenseDateInput");
-  dom.createExpenseBusinessEntitySelect = document.querySelector("#createExpenseBusinessEntitySelect");
   dom.createExpenseAccountSelect = document.querySelector("#createExpenseAccountSelect");
   dom.createExpenseCurrencySelect = document.querySelector("#createExpenseCurrencySelect");
   dom.createExpenseModeSummary = document.querySelector("#createExpenseModeSummary");
@@ -245,11 +239,6 @@ function bindEvents() {
   for (const input of dom.createExpenseDialog.querySelectorAll('[name="createExpenseHandlingMode"]')) {
     input.addEventListener("change", updateCreateExpenseMode);
   }
-  dom.createExpenseBusinessEntitySelect.addEventListener("change", () => {
-    renderCreateAccountOptions();
-    clearCreateFieldInvalid("businessEntity");
-    hideCreateErrorIfClean();
-  });
   dom.createExpenseAccountSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("account");
     hideCreateErrorIfClean();
@@ -289,7 +278,6 @@ function setDefaultFilters(overrides = null) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
   dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
   updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
@@ -302,6 +290,7 @@ async function loadInitialData() {
   try {
     const lookups = await fetchExpenseLookups();
     businessEntities = lookups.businessEntities;
+    requirePrimarySchoolBusinessEntityId(businessEntities);
     accounts = lookups.accounts;
     teachers = lookups.teachers;
     students = lookups.students;
@@ -402,7 +391,6 @@ function readFilters() {
     month,
     studentId: dom.studentSelect.value,
     teacherId: dom.teacherSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     accountId: dom.accountSelect.value,
     currency: dom.currencySelect.value,
   };
@@ -412,7 +400,6 @@ function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
   dom.teacherSelect.value = filters.teacherId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
   dom.currencySelect.value = filters.currency;
   updateMonthNavigationFromCurrentSelection();
@@ -430,7 +417,6 @@ function updateMonthNavigationFromCurrentSelection() {
 function renderMasterOptions() {
   renderEntityOptions(dom.studentSelect, students, studentName);
   renderEntityOptions(dom.teacherSelect, teachers, teacherName, "全部老师");
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderEntityOptions(dom.accountSelect, accounts, accountName);
 }
 
@@ -509,10 +495,7 @@ function renderExpenseSourceCell(row) {
 
 function renderExpenseRelatedCell(row) {
   const primary = relatedObjectLabel(row);
-  const secondary = [
-    businessNameById(row.business_entity_id),
-    accountNameById(row.account_id),
-  ].filter((value) => value && value !== "-").join(" / ");
+  const secondary = accountNameById(row.account_id);
   return `
     <div class="expense-list-primary" title="${escapeAttribute(primary)}">${escapeHtml(primary)}</div>
     <div class="expense-list-secondary" title="${escapeAttribute(secondary)}">${escapeHtml(secondary || "-")}</div>
@@ -621,10 +604,6 @@ function openCreateExpenseDialog() {
   createExpenseClientRequestId = globalThis.crypto.randomUUID();
 
   const filters = readFilters();
-  const activeBusinessEntities = newBusinessEntities(businessEntities);
-  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
-    ? filters.businessEntityId
-    : defaultNewBusinessEntityId(businessEntities);
   const defaultAccountId = filters?.accountId || "";
 
   dom.createExpenseDateInput.value = currentDate();
@@ -640,11 +619,6 @@ function openCreateExpenseDialog() {
   const schoolModeInput = dom.createExpenseDialog.querySelector('[name="createExpenseHandlingMode"][value="school"]');
   if (schoolModeInput) schoolModeInput.checked = true;
   renderCreateCategoryOptions();
-
-  renderCreateBusinessEntityOptions(activeBusinessEntities);
-  dom.createExpenseBusinessEntitySelect.value = activeBusinessEntities.some((entity) => entity.id === defaultBusinessEntityId)
-    ? defaultBusinessEntityId
-    : "";
 
   renderCreateAccountOptions();
   dom.createExpenseAccountSelect.value = filteredCreateAccounts().some((account) => account.id === defaultAccountId)
@@ -718,11 +692,7 @@ function readCreateExpensePayload() {
     return null;
   }
 
-  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
-  if (!businessEntityId) {
-    showCreateError("请选择业务归属。", ["businessEntity"]);
-    return null;
-  }
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
 
   let accountId = null;
   let account = null;
@@ -741,7 +711,7 @@ function readCreateExpensePayload() {
     }
 
     if (account.business_entity_id !== businessEntityId) {
-      showCreateError("付款账户与业务归属不一致。", ["account"]);
+      showCreateError("付款账户与内部范围不一致。", ["account"]);
       return null;
     }
 
@@ -1338,14 +1308,6 @@ function readBatchCashExpensePayloads() {
   return payloads;
 }
 
-function renderCreateBusinessEntityOptions(rows) {
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of rows) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessEntityName(entity))}</option>`);
-  }
-  dom.createExpenseBusinessEntitySelect.innerHTML = options.join("");
-}
-
 function renderCreateCategoryOptions() {
   const options = ['<option value="">请选择支出分类</option>'];
   for (const category of CREATE_EXPENSE_CATEGORY_OPTIONS) {
@@ -1367,7 +1329,7 @@ function renderCreateAccountOptions() {
 }
 
 function filteredCreateAccounts() {
-  const businessEntityId = dom.createExpenseBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   return accounts.filter((account) => {
     if (account.is_active !== true || account.app_type !== "school") {
       return false;
@@ -1424,7 +1386,6 @@ function createFieldIdsForError(message) {
   if (text.includes("支出日期")) fields.push("expenseDate");
   if (text.includes("支出分类") || text.includes("老师工资支出")) fields.push("expenseCategory");
   if (text.includes("支出内容")) fields.push("description");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("付款账户")) fields.push("account");
   if (text.includes("币种")) fields.push(createExpenseHandlingMode() === "cash" ? "currency" : "account");
   if (text.includes("汇率")) fields.push("exchangeRate");
@@ -1455,9 +1416,6 @@ function hideCreateErrorIfClean() {
 
 function filterExpenseRecords(rows, filters) {
   return rows.filter((row) => {
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
-      return false;
-    }
 
     if (filters.accountId && row.account_id !== filters.accountId) {
       return false;
@@ -1630,15 +1588,6 @@ function distinctValues(rows, key) {
   ).sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
-function businessNameById(id) {
-  const entity = businessEntities.find((item) => item.id === id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  return businessEntityName(entity);
-}
-
 function accountNameById(id) {
   const account = accounts.find((item) => item.id === id);
   if (!account) {
@@ -1683,7 +1632,7 @@ function relatedObjectLabel(row) {
     return studentNameById(row.student_id);
   }
 
-  return businessNameById(row?.business_entity_id);
+  return "-";
 }
 
 function formatExpenseListAmount(row) {
@@ -1714,10 +1663,6 @@ function studentNameById(id) {
   }
 
   return studentName(student);
-}
-
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
 }
 
 function accountName(account) {

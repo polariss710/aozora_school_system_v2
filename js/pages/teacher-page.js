@@ -6,22 +6,17 @@ import {
   fetchTeacherFilterOptions,
   fetchTeachers,
   updateTeacherProfile,
-} from "../api/teacher-api.js";
+} from "../api/teacher-api.js?v=be-ui-20260806-1";
 import { formatDate, safeText } from "../utils/format.js";
 import {
-  defaultNewBusinessEntityId,
-  historicalEditBusinessEntities,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   keyword: "",
   status: "",
   department: "",
-  businessEntityId: "",
 };
-
-const UNSET_VALUE = "__unset__";
 
 const TEACHER_STATUS_LABELS = {
   active: "在职",
@@ -41,7 +36,6 @@ const TEACHER_FIELD_IDS = [
   "name",
   "department",
   "defaultSubject",
-  "businessEntity",
   "status",
 ];
 
@@ -76,7 +70,6 @@ function cacheDom() {
   dom.keywordInput = document.querySelector("#teacherKeywordInput");
   dom.statusSelect = document.querySelector("#teacherStatusSelect");
   dom.departmentSelect = document.querySelector("#teacherDepartmentSelect");
-  dom.businessEntitySelect = document.querySelector("#teacherBusinessEntitySelect");
   dom.resetButton = document.querySelector("#teacherResetButton");
   dom.teacherGrid = document.querySelector("#teacherGrid");
   dom.teacherLoadingState = document.querySelector("#teacherLoadingState");
@@ -89,7 +82,6 @@ function cacheDom() {
   dom.createNameInput = document.querySelector("#createTeacherNameInput");
   dom.createDepartmentSelect = document.querySelector("#createTeacherDepartmentSelect");
   dom.createSubjectSelect = document.querySelector("#createTeacherSubjectSelect");
-  dom.createBusinessEntitySelect = document.querySelector("#createTeacherBusinessEntitySelect");
   dom.createStatusSelect = document.querySelector("#createTeacherStatusSelect");
   dom.createNoteInput = document.querySelector("#createTeacherNoteInput");
   dom.createAlipayAccountInput = document.querySelector("#createTeacherAlipayAccountInput");
@@ -106,7 +98,6 @@ function cacheDom() {
   dom.editNameInput = document.querySelector("#editTeacherNameInput");
   dom.editDepartmentSelect = document.querySelector("#editTeacherDepartmentSelect");
   dom.editSubjectSelect = document.querySelector("#editTeacherSubjectSelect");
-  dom.editBusinessEntitySelect = document.querySelector("#editTeacherBusinessEntitySelect");
   dom.editStatusSelect = document.querySelector("#editTeacherStatusSelect");
   dom.editNoteInput = document.querySelector("#editTeacherNoteInput");
   dom.editAlipayAccountInput = document.querySelector("#editTeacherAlipayAccountInput");
@@ -155,14 +146,12 @@ function bindDialogFieldEvents(scope) {
         ["name", dom.createNameInput, "input"],
         ["department", dom.createDepartmentSelect, "change"],
         ["defaultSubject", dom.createSubjectSelect, "change"],
-        ["businessEntity", dom.createBusinessEntitySelect, "change"],
         ["status", dom.createStatusSelect, "change"],
       ]
     : [
         ["name", dom.editNameInput, "input"],
         ["department", dom.editDepartmentSelect, "change"],
         ["defaultSubject", dom.editSubjectSelect, "change"],
-        ["businessEntity", dom.editBusinessEntitySelect, "change"],
         ["status", dom.editStatusSelect, "change"],
       ];
 
@@ -183,7 +172,6 @@ function setDefaultFilters() {
   dom.keywordInput.value = DEFAULT_FILTERS.keyword;
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.departmentSelect.value = DEFAULT_FILTERS.department;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
 }
 
 async function loadTeacherData() {
@@ -204,10 +192,10 @@ async function loadTeacherData() {
     ]);
 
     businessEntities = businessEntityRows;
+    requirePrimarySchoolBusinessEntityId(businessEntities);
     subjects = subjectRows;
     renderStatusOptions(filterRows);
     renderDepartmentOptions(filterRows);
-    renderBusinessEntityOptions(businessEntities, filterRows);
     restoreFilterSelections(filters);
     teachers = teacherRows;
     renderTeachers(filterTeachersByKeyword(teacherRows, filters.keyword));
@@ -218,7 +206,6 @@ async function loadTeacherData() {
     teachers = [];
     renderStatusOptions([]);
     renderDepartmentOptions([]);
-    renderBusinessEntityOptions([], []);
     renderTeachers([]);
     showMessage("error", `读取老师管理数据失败：${error.message || error}`);
   } finally {
@@ -231,7 +218,6 @@ function readFilters() {
     keyword: dom.keywordInput.value.trim(),
     status: dom.statusSelect.value,
     department: dom.departmentSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
   };
 }
 
@@ -239,7 +225,6 @@ function restoreFilterSelections(filters) {
   dom.keywordInput.value = filters.keyword;
   dom.statusSelect.value = filters.status;
   dom.departmentSelect.value = filters.department;
-  dom.businessEntitySelect.value = filters.businessEntityId;
 }
 
 function renderStatusOptions(rows) {
@@ -264,22 +249,6 @@ function renderDepartmentOptions(rows) {
   }
 
   dom.departmentSelect.innerHTML = options.join("");
-}
-
-function renderBusinessEntityOptions(items, teacherRows) {
-  const options = ['<option value="">全部</option>'];
-
-  if (teacherRows.some((teacher) => !teacher.default_business_entity_id)) {
-    options.push(`<option value="${UNSET_VALUE}">未设置</option>`);
-  }
-
-  for (const entity of items.filter((item) => item.is_active !== false)) {
-    options.push(
-      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-    );
-  }
-
-  dom.businessEntitySelect.innerHTML = options.join("");
 }
 
 function renderTeachers(items) {
@@ -317,10 +286,6 @@ function renderTeachers(items) {
           <dd>${escapeHtml(subjectName(teacher.default_subject_id))}</dd>
         </div>
         <div>
-          <dt>默认业务归属</dt>
-          <dd>${escapeHtml(businessEntityName(teacher.default_business_entity_id))}</dd>
-        </div>
-        <div>
           <dt>人民币支付</dt>
           <dd>${escapeHtml(chinaPaymentSummary(teacher))}</dd>
         </div>
@@ -347,7 +312,6 @@ function openCreateDialog() {
   dom.createNameInput.value = "";
   renderCreateDepartmentOptions("常勤老师");
   renderCreateSubjectOptions("");
-  renderCreateBusinessEntityOptions(defaultNewBusinessEntityId(businessEntities));
   renderCreateStatusOptions("employed");
   dom.createNoteInput.value = "";
   dom.createAlipayAccountInput.value = "";
@@ -403,7 +367,7 @@ function readCreatePayload() {
     name: dom.createNameInput.value.trim(),
     department: dom.createDepartmentSelect.value,
     defaultSubjectId: dom.createSubjectSelect.value,
-    defaultBusinessEntityId: dom.createBusinessEntitySelect.value,
+    defaultBusinessEntityId: requirePrimarySchoolBusinessEntityId(businessEntities),
     status: dom.createStatusSelect.value,
     note: dom.createNoteInput.value.trim(),
     alipayAccount: dom.createAlipayAccountInput.value.trim(),
@@ -426,7 +390,6 @@ function openEditDialog(teacherId) {
   dom.editNameInput.value = teacher.name || teacher.display_name || "";
   renderEditDepartmentOptions(normalizeDepartmentForEdit(teacher.department));
   renderEditSubjectOptions(teacher.default_subject_id);
-  renderEditBusinessEntityOptions(teacher.default_business_entity_id);
   renderEditStatusOptions(normalizeStatusForEdit(teacher.status));
   dom.editNoteInput.value = teacher.note || "";
   dom.editAlipayAccountInput.value = teacher.alipay_account || "";
@@ -491,7 +454,7 @@ function readEditPayload() {
     name: dom.editNameInput.value.trim(),
     department: dom.editDepartmentSelect.value,
     defaultSubjectId: dom.editSubjectSelect.value,
-    defaultBusinessEntityId: dom.editBusinessEntitySelect.value,
+    defaultBusinessEntityId: editingTeacher.default_business_entity_id,
     status: dom.editStatusSelect.value,
     note: dom.editNoteInput.value.trim(),
     alipayAccount: dom.editAlipayAccountInput.value.trim(),
@@ -577,32 +540,6 @@ function subjectEditOptions() {
   ].join("");
 }
 
-function renderEditBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.editBusinessEntitySelect.innerHTML = businessEntityEditOptions(
-    historicalEditBusinessEntities(businessEntities, selectedBusinessEntityId),
-    true
-  );
-  dom.editBusinessEntitySelect.value = selectedBusinessEntityId || "";
-}
-
-function renderCreateBusinessEntityOptions(selectedBusinessEntityId) {
-  dom.createBusinessEntitySelect.innerHTML = businessEntityEditOptions(newBusinessEntities(businessEntities), false);
-  dom.createBusinessEntitySelect.value = selectedBusinessEntityId || "";
-}
-
-function businessEntityEditOptions(rows, allowUnset) {
-  const options = rows
-    .filter((entity) => entity?.id)
-    .map((entity) =>
-      `<option value="${escapeAttribute(entity.id)}">${escapeHtml(entity.name || entity.id)}</option>`
-    );
-
-  return [
-    ...(allowUnset ? ['<option value="">未设置</option>'] : []),
-    ...options,
-  ].join("");
-}
-
 function showCreateError(message, fieldIds = []) {
   dom.createError.textContent = message;
   dom.createError.classList.remove("is-hidden");
@@ -684,7 +621,6 @@ function teacherFieldIdsForError(error) {
   if (message.includes("姓名")) return ["name"];
   if (message.includes("分类")) return ["department"];
   if (message.includes("默认科目")) return ["defaultSubject"];
-  if (message.includes("业务归属")) return ["businessEntity"];
   if (message.includes("状态")) return ["status"];
   return [];
 }
@@ -709,7 +645,6 @@ function filterTeachersByKeyword(items, keyword) {
       teacher.display_name,
       teacher.department,
       subjectName(teacher.default_subject_id),
-      businessEntityName(teacher.default_business_entity_id),
       teacher.alipay_account,
       teacher.wechat_account,
       teacher.bank_name,
@@ -731,15 +666,6 @@ function distinctValues(rows, key) {
         .filter(Boolean)
     )
   ).sort((left, right) => left.localeCompare(right, "zh-CN"));
-}
-
-function businessEntityName(entityId) {
-  if (!entityId) {
-    return "未设置";
-  }
-
-  const entity = businessEntities.find((item) => item.id === entityId);
-  return entity?.name || entityId;
 }
 
 function subjectName(subjectId) {

@@ -30,6 +30,8 @@ async function initializeGlobalSessionGuard() {
     return redirectToLogin("login_required");
   }
 
+  clearLegacyBusinessEntityQueryParams();
+
   subscribeToAuthChanges((event) => {
     if (event === "SIGNED_OUT") {
       redirectToLogin("signed_out");
@@ -55,6 +57,20 @@ async function initializeGlobalSessionGuard() {
   document.documentElement.classList.add("global-session-guard", "auth-authorized");
   document.documentElement.classList.remove("auth-pending");
   return context;
+}
+
+export function clearLegacyBusinessEntityQueryParams() {
+  const url = new URL(window.location.href);
+  let changed = false;
+  for (const key of ["business_entity_id", "businessEntityId", "business_entity", "businessEntity"]) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) {
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }
 }
 
 function installSessionBar(context) {

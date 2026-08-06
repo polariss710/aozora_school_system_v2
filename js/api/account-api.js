@@ -188,10 +188,6 @@ function applyAccountTransactionFilters(query, filters) {
     query = query.eq("account_id", filters.accountId);
   }
 
-  if (filters.businessEntityId) {
-    query = query.eq("business_entity_id", filters.businessEntityId);
-  }
-
   if (filters.currency) {
     query = query.eq("currency", filters.currency);
   }

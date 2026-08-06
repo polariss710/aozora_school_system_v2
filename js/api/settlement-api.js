@@ -403,7 +403,7 @@ function mapPreviewSummaryToSettlementRow(summary, businessEntityId) {
     locked_at: null,
     unlocked_at: null,
     unlock_reason: "",
-    note: "实时预览，未锁定；按学生/月汇总，业务归属显示学生档案默认值。",
+    note: "实时预览，未锁定；按学生/月汇总。",
     is_preview: true,
   };
 }
@@ -418,19 +418,6 @@ export async function fetchSettlementStudents() {
     .select("id,name,display_name,status,business_entity_id")
     .eq("app_type", "school")
     .order("display_name", { ascending: true })
-    .order("name", { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  return data || [];
-}
-
-export async function fetchSettlementBusinessEntities() {
-  const { data, error } = await supabase
-    .from("school_business_entities")
-    .select("id,name,is_active")
     .order("name", { ascending: true });
 
   if (error) {

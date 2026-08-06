@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -89,7 +89,7 @@
           <form id="teacherFilterForm" class="filter-grid">
             <label class="field">
               <span>关键字</span>
-              <input id="teacherKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 科目 / 业务归属 / 支付信息 / 备注">
+              <input id="teacherKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="姓名 / 科目 / 支付信息 / 备注">
             </label>
 
             <label class="field">
@@ -106,13 +106,6 @@
               </select>
             </label>
 
-            <label class="field">
-              <span>业务归属</span>
-              <select id="teacherBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
             <div class="filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="teacherResetButton" type="button">重置</button>
@@ -124,7 +117,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="teacherListTitle">老师列表</h2>
-              <p class="section-note">维护老师资料、默认科目、默认业务归属和支付信息；工资规则与结算数据不在此处变更。</p>
+              <p class="section-note">维护老师资料、默认科目和支付信息；工资规则与结算数据不在此处变更。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="createTeacherButton" type="button">新增老师</button>
@@ -161,11 +154,6 @@
         <label class="field" data-create-teacher-field="defaultSubject">
           <span>默认科目</span>
           <select id="createTeacherSubjectSelect"></select>
-        </label>
-
-        <label class="field" data-create-teacher-field="businessEntity">
-          <span>默认业务归属</span>
-          <select id="createTeacherBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-create-teacher-field="status">
@@ -247,11 +235,6 @@
           <select id="editTeacherSubjectSelect"></select>
         </label>
 
-        <label class="field" data-edit-teacher-field="businessEntity">
-          <span>默认业务归属</span>
-          <select id="editTeacherBusinessEntitySelect"></select>
-        </label>
-
         <label class="field" data-edit-teacher-field="status">
           <span>老师状态</span>
           <select id="editTeacherStatusSelect"></select>
@@ -307,6 +290,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/teacher-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/teacher-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

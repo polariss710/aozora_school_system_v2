@@ -59,7 +59,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -123,13 +123,6 @@
             <label class="field">
               <span>科目</span>
               <select id="lessonSubjectSelect" name="subjectId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>业务归属</span>
-              <select id="lessonBusinessEntitySelect" name="businessEntityId">
                 <option value="">全部</option>
               </select>
             </label>
@@ -245,7 +238,6 @@
                   <th>学生</th>
                   <th>老师</th>
                   <th>科目</th>
-                  <th>业务归属</th>
                   <th>类型</th>
                   <th>状态</th>
                   <th>计费</th>
@@ -347,11 +339,6 @@
             <label class="field" data-create-planned-lesson-field="subject">
               <span>科目</span>
               <select id="createPlannedLessonSubjectSelect"></select>
-            </label>
-
-            <label class="field" data-create-planned-lesson-field="businessEntity">
-              <span>业务归属</span>
-              <select id="createPlannedLessonBusinessEntitySelect"></select>
             </label>
 
             <label class="field" data-create-planned-lesson-field="startTime">
@@ -791,11 +778,6 @@
                 <select id="lessonBatchGenerateStudentSelect"></select>
               </label>
 
-              <label class="field" data-batch-generate-field="businessEntity">
-                <span>业务归属</span>
-                <select id="lessonBatchGenerateBusinessEntitySelect"></select>
-              </label>
-
               <label class="field" data-batch-generate-field="startDate">
                 <span>开始日期</span>
                 <input id="lessonBatchGenerateStartDateInput" type="date">
@@ -835,7 +817,6 @@
                     <th>学生</th>
                     <th>老师</th>
                     <th>科目</th>
-                    <th>业务归属</th>
                     <th>时间</th>
                     <th>授课方式 / 场地</th>
                     <th>课时</th>
@@ -875,12 +856,12 @@
             <div class="lesson-import-preview-guide">
               <div>
                 <h3>预定课时模板字段</h3>
-                <p>推荐列：学生、老师、科目、业务归属、日期、开始时间、结束时间、授课方式、上课场地、课时类型、状态、课时、回数、课时费总额 JPY、是否计费、内容、备注。</p>
+                <p>推荐列：学生、老师、科目、日期、开始时间、结束时间、授课方式、上课场地、课时类型、状态、课时、回数、课时费总额 JPY、是否计费、内容、备注。</p>
               </div>
               <div class="lesson-import-preview-guide-grid">
                 <div><strong>课时类型</strong><span>主模板填写预定；actual 仅用于 preview / future backlog。</span></div>
                 <div><strong>预定状态</strong><span>待上课 / 待补课</span></div>
-                <div><strong>lookup</strong><span>学生、老师、科目、业务归属只按完全一致匹配，不做模糊猜测。</span></div>
+                <div><strong>lookup</strong><span>学生、老师、科目只按完全一致匹配，不做模糊猜测。</span></div>
                 <div><strong>金额</strong><span>文件金额仅供预览，提交时忽略；基础课时费、空调费与课程总价由数据库保存并返回。</span></div>
                 <div><strong>导入范围</strong><span>P0-B1 已关闭历史文件写入口；本窗口仅解析和预览，不提交课时。</span></div>
                 <div><strong>旧模板</strong><span>可识别预定/实际分栏；planned 行中的关联预定ID会被忽略。</span></div>
@@ -908,7 +889,6 @@
                     <th>学生</th>
                     <th>老师</th>
                     <th>科目</th>
-                    <th>业务归属</th>
                     <th>日期</th>
                     <th>时间</th>
                     <th>授课方式 / 场地</th>
@@ -992,11 +972,6 @@
             <label class="field" data-edit-lesson-field="subject">
               <span>科目</span>
               <select id="editLessonSubjectSelect"></select>
-            </label>
-
-            <label class="field" data-edit-lesson-field="businessEntity">
-              <span>业务归属</span>
-              <select id="editLessonBusinessEntitySelect"></select>
             </label>
 
             <label class="field" data-edit-lesson-field="startTime">
@@ -1140,6 +1115,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=phase-b4-lesson-candidates-20260806"></script>
+    <script type="module" src="./js/lesson-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

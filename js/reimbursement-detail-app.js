@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js";
-import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initReimbursementDetailPage } from "./pages/reimbursement-detail-page.js?v=v2.96.0-lesson-edit-wage-clearing-display-20260612";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
+import { initReimbursementDetailPage } from "./pages/reimbursement-detail-page.js?v=be-ui-20260806-1";
 
 const globalSessionPromise = requireGlobalSession();
 

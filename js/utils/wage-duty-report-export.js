@@ -242,17 +242,8 @@ function buildTeacherDutyReportGroups(reports) {
 function buildTeacherDutyReportData(reports) {
   const firstReport = reports[0];
   const wageLock = firstReport.wageLock;
-  const businessKeys = new Set(
-    reports.map((report) => safeText(report.wageLock.business_entity_id) || safeText(report.wageLock.business_name)).filter(Boolean)
-  );
-  const shouldShowBusinessInDetail = businessKeys.size > 1;
   const details = reports
-    .flatMap((report) => (report.details || []).map((detail) => ({
-      ...detail,
-      duty_business_name: shouldShowBusinessInDetail
-        ? safeText(detail.business_name).trim() || safeText(report.wageLock.business_name).trim()
-        : "",
-    })))
+    .flatMap((report) => report.details || [])
     .sort(sortDutyDetails);
 
   return {
@@ -265,9 +256,9 @@ function buildTeacherDutyReportData(reports) {
 }
 
 function buildTeacherSnapshotSummaryText(reports) {
-  const summaries = reports.map((report) => {
+  const summaries = reports.map((report, index) => {
     const wageLock = report.wageLock;
-    return `${displayValue(wageLock.business_name)}：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`;
+    return `内部范围${index + 1}：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`;
   });
   return `系统快照合计：${summaries.join("；")}`;
 }
@@ -276,7 +267,6 @@ function sortDutyDetails(a, b) {
   return [
     safeText(a.lesson_date).localeCompare(safeText(b.lesson_date)),
     safeText(a.start_time).localeCompare(safeText(b.start_time)),
-    safeText(a.duty_business_name).localeCompare(safeText(b.duty_business_name)),
     safeText(a.student_name).localeCompare(safeText(b.student_name), "zh-CN"),
   ].find((result) => result !== 0) || 0;
 }
@@ -590,14 +580,9 @@ function dutyDateText(value) {
 }
 
 function dutyWorkContent(detail) {
-  const business = safeText(detail.duty_business_name).trim();
   const subject = safeText(detail.subject_name).trim();
   const content = safeText(detail.lesson_content).trim();
-  const lessonText = subject && content ? `${subject} / ${content}` : subject || content || "";
-  if (business && lessonText) {
-    return `${business} / ${lessonText}`;
-  }
-  return business || lessonText;
+  return subject && content ? `${subject} / ${content}` : subject || content || "";
 }
 
 function timeOnly(value) {

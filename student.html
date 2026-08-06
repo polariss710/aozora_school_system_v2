@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -106,13 +106,6 @@
               </select>
             </label>
 
-            <label class="field">
-              <span>业务归属</span>
-              <select id="studentBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
             <div class="filter-actions student-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="studentResetButton" type="button">重置</button>
@@ -124,7 +117,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="studentListTitle">学生列表</h2>
-              <p class="section-note">维护学生资料、课程方向、业务归属和默认收费信息；课时、结算和收入数据不在此处变更。</p>
+              <p class="section-note">维护学生资料、课程方向和默认收费信息；课时、结算和收入数据不在此处变更。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="createStudentButton" type="button">新增学生</button>
@@ -152,11 +145,6 @@
         <label class="field" data-create-student-field="name">
           <span>姓名</span>
           <input id="createStudentNameInput" type="text" autocomplete="off">
-        </label>
-
-        <label class="field" data-create-student-field="defaultBusinessEntity">
-          <span>默认业务归属</span>
-          <select id="createStudentBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-create-student-field="courseTrack">
@@ -216,11 +204,6 @@
           <input id="editStudentNameInput" type="text" autocomplete="off">
         </label>
 
-        <label class="field" data-edit-student-field="defaultBusinessEntity">
-          <span>默认业务归属</span>
-          <select id="editStudentBusinessEntitySelect"></select>
-        </label>
-
         <label class="field" data-edit-student-field="courseTrack">
           <span>文理区分</span>
           <select id="editStudentCourseTrackSelect"></select>
@@ -263,6 +246,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=student-status-b2-20260806-1"></script>
+    <script type="module" src="./js/student-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

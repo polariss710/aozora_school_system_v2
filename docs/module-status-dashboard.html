@@ -549,17 +549,17 @@
 
       <article class="module-card">
         <header class="module-head">
-          <h2>学生/老师/科目/业务归属管理</h2>
+          <h2>学生/老师/科目管理</h2>
           <span class="tag v1">V1 可用</span>
         </header>
         <div class="module-body">
           <div class="progress-row"><div class="progress-meta"><span>完成度</span><span>12/16</span></div><div class="progress-track"><div class="progress-fill" style="width: 75%;"></div></div></div>
-          <div class="field"><div class="label">当前状态</div><div class="value">主数据列表、未来使用资料新增、窄范围资料编辑 V1 可用。</div></div>
-          <div class="field"><div class="label">已完成</div><div class="value">学生、老师、科目、业务归属列表；资料新增；窄范围资料编辑。</div></div>
-          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增/更新学生、老师、科目和业务归属资料。</div></div>
+          <div class="field"><div class="label">当前状态</div><div class="value">学生、老师和科目主数据列表、未来使用资料新增、窄范围资料编辑 V1 可用；旧内部主体管理页已退役。</div></div>
+          <div class="field"><div class="label">已完成</div><div class="value">学生、老师、科目列表；资料新增；窄范围资料编辑；单一业务主体 UI 收口。</div></div>
+          <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增/更新学生、老师和科目资料。</div></div>
           <div class="field"><div class="label">保护规则</div><div class="value">主数据写入是面向未来使用的窄范围变更，不重写历史课时、结算、工资、支付、收入、支出、账户、余额或流水。</div></div>
           <div class="field"><div class="label">编辑范围</div><div class="value">已有文档记录各模块窄范围字段；跨模块汇总仍需要进一步验证。</div></div>
-          <div class="field"><div class="label">未完成</div><div class="value">删除/合并、广义联系方式/家长/学费规则编辑、业务归属自动建账户、公司报表纳入编辑。</div></div>
+          <div class="field"><div class="label">未完成</div><div class="value">删除/合并、广义联系方式/家长/学费规则编辑、公司报表纳入编辑。</div></div>
         </div>
       </article>
 
@@ -573,7 +573,7 @@
           <div class="field"><div class="label">当前状态</div><div class="value">面向未来锁定的工资规则配置 V1 可用。</div></div>
           <div class="field"><div class="label">已完成</div><div class="value">工资规则列表、只读详情、配置新增、配置编辑、软停用/恢复替代删除。</div></div>
           <div class="field"><div class="label">写入入口</div><div class="value">通过 API 层 RPC wrapper 新增/更新工资规则配置并切换启用状态。</div></div>
-          <div class="field"><div class="label">保护规则</div><div class="value">不重算历史工资；不改工资锁定、工资明细、支付请求、支出、账户余额或流水；编辑不改老师/学生/科目/业务归属关联；恢复会拒绝冲突的启用规则。</div></div>
+          <div class="field"><div class="label">保护规则</div><div class="value">不重算历史工资；不改工资锁定、工资明细、支付请求、支出、账户余额或流水；编辑不改老师/学生/科目及内部范围关联；恢复会拒绝冲突的启用规则。</div></div>
           <div class="field"><div class="label">编辑范围</div><div class="value">配置编辑字段在文档中已列明；是否需要新增更细字段说明仍需要进一步验证。</div></div>
           <div class="field"><div class="label">未完成</div><div class="value">物理删除、通用空学生规则、历史工资重算。</div></div>
         </div>

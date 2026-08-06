@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js";
-import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initWageRulePage } from "./pages/wage-rule-page.js?v=v10.3.73-single-business-entity";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
+import { initWageRulePage } from "./pages/wage-rule-page.js?v=be-ui-20260806-1";
 
 const globalSessionPromise = requireGlobalSession();
 

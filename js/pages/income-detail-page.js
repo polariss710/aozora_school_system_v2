@@ -76,7 +76,6 @@ const CANCEL_INCOME_FIELD_IDS = ["reason", "confirmCheck"];
 const EDIT_INCOME_FIELD_IDS = [
   "incomeDate",
   "settlementMonth",
-  "businessEntity",
   "student",
   "account",
   "incomeCategory",
@@ -166,7 +165,6 @@ function cacheDom() {
   dom.editError = document.querySelector("#editIncomeError");
   dom.editIncomeDateInput = document.querySelector("#editIncomeDateInput");
   dom.editSettlementMonthInput = document.querySelector("#editSettlementMonthInput");
-  dom.editBusinessEntitySelect = document.querySelector("#editIncomeBusinessEntitySelect");
   dom.editStudentSelect = document.querySelector("#editIncomeStudentSelect");
   dom.editAccountSelect = document.querySelector("#editIncomeAccountSelect");
   dom.editCategorySelect = document.querySelector("#editIncomeCategorySelect");
@@ -207,12 +205,6 @@ function bindEvents() {
   }
   dom.editCancelButton.addEventListener("click", closeEditDialog);
   dom.editSubmitButton.addEventListener("click", submitEditIncome);
-  dom.editBusinessEntitySelect.addEventListener("change", () => {
-    renderEditStudentOptions();
-    renderEditAccountOptions();
-    setEditFieldInvalid("businessEntity", false);
-    hideEditErrorIfClean();
-  });
   dom.editStudentSelect.addEventListener("change", () => {
     setEditFieldInvalid("student", false);
     hideEditErrorIfClean();
@@ -311,11 +303,10 @@ function renderIncomeDetail(data) {
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["收入对象 / 来源", incomeObjectName(income)],
     ["收入分类", incomeCategoryLabel(income.income_category)],
-    ["业务归属月", formatMonth(income.year_month)],
+    ["记账月份", formatMonth(income.year_month)],
     ["实际收款日", formatDateOnly(income.income_date)],
     ["结算月份", formatMonth(income.settlement_month)],
     ["收款方式", paymentMethodLabel(income.payment_method)],
-    ["业务归属", businessNameById(income.business_entity_id)],
     ["描述", displayValue(income.description || income.source_label)],
   ]);
 
@@ -368,7 +359,6 @@ function renderSystemInfo(data, cashLinkageEvent) {
         ["student_payment_id", shortId(income.student_payment_id)],
         ["student_id", shortId(income.student_id)],
         ["account_id", shortId(income.account_id)],
-        ["business_entity_id", shortId(income.business_entity_id)],
         ["payment_currency", displayValue(income.payment_currency)],
         ["is_taxable_income", booleanLabel(income.is_taxable_income)],
         ["税务分类", displayValue(income.tax_category)],
@@ -1052,8 +1042,6 @@ function populateEditDialog(income) {
   dom.editReceiptStatusInput.value = income.receipt_status || "";
   dom.editNoteInput.value = income.note || "";
 
-  renderEditBusinessEntityOptions();
-  dom.editBusinessEntitySelect.value = income.business_entity_id || "";
   renderEditStudentOptions();
   dom.editStudentSelect.value = filteredEditStudents().some((student) => student.id === income.student_id)
     ? income.student_id
@@ -1115,11 +1103,7 @@ function readEditIncomePayload() {
     return null;
   }
 
-  const businessEntityId = dom.editBusinessEntitySelect.value;
-  if (!businessEntityId) {
-    showEditError("请选择业务归属。", ["businessEntity"]);
-    return null;
-  }
+  const businessEntityId = income.business_entity_id;
 
   const studentId = dom.editStudentSelect.value;
   if (!studentId) {
@@ -1140,7 +1124,7 @@ function readEditIncomePayload() {
   }
 
   if (account.business_entity_id !== businessEntityId) {
-    showEditError("入账账户与业务归属不一致。", ["account"]);
+    showEditError("入账账户与内部范围不一致。", ["account"]);
     return null;
   }
 
@@ -1195,14 +1179,6 @@ function readEditIncomePayload() {
   };
 }
 
-function renderEditBusinessEntityOptions() {
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of detailData.lookups.businessEntities.filter((item) => item.is_active !== false)) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessName(entity))}</option>`);
-  }
-  dom.editBusinessEntitySelect.innerHTML = options.join("");
-}
-
 function renderEditStudentOptions() {
   const selectedValue = dom.editStudentSelect.value;
   const options = ['<option value="">请选择学生</option>'];
@@ -1228,7 +1204,7 @@ function renderEditAccountOptions() {
 }
 
 function filteredEditStudents() {
-  const businessEntityId = dom.editBusinessEntitySelect.value;
+  const businessEntityId = detailData.income.business_entity_id;
   return detailData.lookups.students.filter((student) => {
     if (businessEntityId && student.business_entity_id !== businessEntityId) {
       return false;
@@ -1242,7 +1218,7 @@ function isActiveStudent(student) {
 }
 
 function filteredEditAccounts() {
-  const businessEntityId = dom.editBusinessEntitySelect.value;
+  const businessEntityId = detailData.income.business_entity_id;
   return detailData.lookups.accounts.filter((account) => {
     if (account.is_active !== true || account.app_type !== "school") {
       return false;
@@ -1728,7 +1704,6 @@ function editFieldIdsForError(message) {
   if (text.includes("金额")) fields.push("amount");
   if (text.includes("收款日期")) fields.push("incomeDate");
   if (text.includes("结算月份") || text.includes("已锁定")) fields.push("settlementMonth");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("学生")) fields.push("student");
   if (text.includes("账户") || text.includes("币种")) fields.push("account");
   if (text.includes("分类")) fields.push("incomeCategory");
@@ -1860,10 +1835,6 @@ function studentById(id) {
   return detailData?.lookups.students.find((item) => item.id === id) || null;
 }
 
-function businessById(id) {
-  return detailData?.lookups.businessEntities.find((item) => item.id === id) || null;
-}
-
 function accountById(id) {
   return detailData?.lookups.accounts.find((item) => item.id === id) || null;
 }
@@ -1880,17 +1851,6 @@ function studentNameById(id) {
 function studentFieldById(id, key) {
   const student = studentById(id);
   return student ? displayValue(student[key]) : id ? "未知" : "未设置";
-}
-
-function businessNameById(id) {
-  const entity = businessById(id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  const name = safeText(entity.name) || "未设置";
-  const code = safeText(entity.code);
-  return code ? `${name} / ${code}` : name;
 }
 
 function accountNameById(id) {
@@ -1922,12 +1882,6 @@ function cashAccountLabel(account) {
 
 function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
-}
-
-function businessName(entity) {
-  const name = safeText(entity.name) || "未设置";
-  const code = safeText(entity.code);
-  return code ? `${name} / ${code}` : name;
 }
 
 function accountFieldById(id, key) {

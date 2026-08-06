@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -92,13 +92,6 @@
                 <select id="reimbursementYearFilter" name="year" aria-label="年份"></select>
                 <select id="reimbursementMonthFilter" name="month" aria-label="月份"></select>
               </div>
-            </label>
-
-            <label class="field">
-              <span>业务归属</span>
-              <select id="reimbursementBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
-              </select>
             </label>
 
             <label class="field">
@@ -149,7 +142,7 @@
 
             <label class="field">
               <span>关键字</span>
-              <input id="reimbursementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="业务归属 / 账户 / 状态 / 备注">
+              <input id="reimbursementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="账户 / 状态 / 备注">
             </label>
 
             <div class="filter-actions reimbursement-filter-actions">
@@ -183,7 +176,6 @@
                   <th>摘要 / 内容</th>
                   <th>金额</th>
                   <th>支付账户</th>
-                  <th>业务归属</th>
                   <th>报销状态</th>
                   <th>备注</th>
                 </tr>
@@ -213,7 +205,6 @@
                   <th>详情</th>
                   <th>报销日期</th>
                   <th>月份</th>
-                  <th>业务归属</th>
                   <th>转出账户</th>
                   <th>转入账户</th>
                   <th>币种</th>
@@ -273,10 +264,6 @@
               <span id="createReimbursementTotalAmount">-</span>
             </div>
             <div class="dialog-summary-row">
-              <span class="dialog-summary-label">业务归属</span>
-              <span id="createReimbursementBusinessEntity">-</span>
-            </div>
-            <div class="dialog-summary-row">
               <span class="dialog-summary-label">币种</span>
               <span id="createReimbursementCurrency">-</span>
             </div>
@@ -324,6 +311,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/reimbursement-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/reimbursement-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

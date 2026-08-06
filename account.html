@@ -58,7 +58,7 @@
                   <details class="page-nav-group is-active-group" open>
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a class="is-active" href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -108,13 +108,6 @@
             <label class="field">
               <span>账户</span>
               <select id="accountSelect" name="accountId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>业务归属</span>
-              <select id="accountBusinessEntitySelect" name="businessEntityId">
                 <option value="">全部</option>
               </select>
             </label>
@@ -174,7 +167,6 @@
                     <th>详情</th>
                     <th>日期</th>
                     <th>账户</th>
-                    <th>业务归属</th>
                     <th>类型</th>
                     <th>币种</th>
                     <th class="number-cell">金额</th>
@@ -219,11 +211,6 @@
         <label class="field" data-account-create-field="accountType">
           <span>账户类型</span>
           <select id="accountCreateTypeSelect"></select>
-        </label>
-
-        <label class="field" data-account-create-field="businessEntity">
-          <span>业务归属</span>
-          <select id="accountCreateBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-account-create-field="initialBalance">
@@ -288,11 +275,6 @@
           <select id="accountProfileTypeSelect"></select>
         </label>
 
-        <label class="field" data-account-profile-field="businessEntity">
-          <span>业务归属</span>
-          <select id="accountProfileBusinessEntitySelect"></select>
-        </label>
-
         <label class="field" data-account-profile-field="companyAccount">
           <span>公司账户</span>
           <select id="accountProfileCompanySelect">
@@ -325,7 +307,7 @@
       <section class="dialog-panel app-dialog--md account-transfer-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="accountTransferTitle">
         <div class="section-heading">
           <h2 id="accountTransferTitle">账户转账/调拨</h2>
-          <p class="section-note">用于同一业务归属、同一币种的账户间资金调拨，会自动写入双边账户流水。</p>
+          <p class="section-note">用于同一内部范围、同一币种的账户间资金调拨，会自动写入双边账户流水。</p>
         </div>
 
         <div id="accountTransferError" class="dialog-error is-hidden"></div>
@@ -333,11 +315,6 @@
         <label class="field" data-account-transfer-field="transferDate">
           <span>转账日期</span>
           <input id="accountTransferDateInput" type="date">
-        </label>
-
-        <label class="field" data-account-transfer-field="businessEntity">
-          <span>业务归属</span>
-          <select id="accountTransferBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-account-transfer-field="fromAccount">
@@ -388,11 +365,6 @@
           <input id="accountAdjustmentDateInput" type="date">
         </label>
 
-        <label class="field" data-account-adjustment-field="businessEntity">
-          <span>业务归属</span>
-          <select id="accountAdjustmentBusinessEntitySelect"></select>
-        </label>
-
         <label class="field" data-account-adjustment-field="account">
           <span>账户</span>
           <select id="accountAdjustmentAccountSelect"></select>
@@ -422,6 +394,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/account-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/account-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=cash-expense-save-split-20260804-1";
-import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initExpensePage } from "./pages/expense-page.js?v=cash-expense-save-split-20260804-1";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
+import { initExpensePage } from "./pages/expense-page.js?v=be-ui-20260806-1";
 
 const globalSessionPromise = requireGlobalSession();
 

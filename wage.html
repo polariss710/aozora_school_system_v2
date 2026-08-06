@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -184,7 +184,6 @@
                   <th>操作</th>
                   <th>结算月</th>
                   <th>老师</th>
-                  <th>业务归属</th>
                   <th>结算类型</th>
                   <th>快照状态</th>
                   <th>处理状态</th>
@@ -227,7 +226,6 @@
                   <th>老师</th>
                   <th>学生</th>
                   <th>科目</th>
-                  <th>业务归属</th>
                   <th>状态</th>
                   <th>时长</th>
                   <th>实际分钟</th>
@@ -254,7 +252,7 @@
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。学生仅用于筛选查看，不会传给生成 RPC；生成 RPC 始终按 teacher + business_entity + month 的完整范围生成快照，同一老师可能一次生成多条业务归属快照。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。学生仅用于筛选查看，不会传给生成 RPC；系统会保持既有内部工资分组，不会因页面简化合并历史范围。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -272,6 +270,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=phase-b4-lesson-candidates-20260806"></script>
+    <script type="module" src="./js/wage-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

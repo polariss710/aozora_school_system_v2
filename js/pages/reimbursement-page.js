@@ -18,7 +18,6 @@ import {
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const DEFAULT_FILTERS = {
-  businessEntityId: "",
   fromAccountId: "",
   toAccountId: "",
   currency: "",
@@ -88,7 +87,6 @@ function cacheDom() {
   dom.filterForm = document.querySelector("#reimbursementFilterForm");
   dom.yearFilter = document.querySelector("#reimbursementYearFilter");
   dom.monthFilter = document.querySelector("#reimbursementMonthFilter");
-  dom.businessEntitySelect = document.querySelector("#reimbursementBusinessEntitySelect");
   dom.fromAccountSelect = document.querySelector("#reimbursementFromAccountSelect");
   dom.toAccountSelect = document.querySelector("#reimbursementToAccountSelect");
   dom.currencySelect = document.querySelector("#reimbursementCurrencySelect");
@@ -114,7 +112,6 @@ function cacheDom() {
   dom.createReimbursementToAccountSelect = document.querySelector("#createReimbursementToAccountSelect");
   dom.createReimbursementSelectedCount = document.querySelector("#createReimbursementSelectedCount");
   dom.createReimbursementTotalAmount = document.querySelector("#createReimbursementTotalAmount");
-  dom.createReimbursementBusinessEntity = document.querySelector("#createReimbursementBusinessEntity");
   dom.createReimbursementCurrency = document.querySelector("#createReimbursementCurrency");
   dom.createReimbursementCandidateCount = document.querySelector("#createReimbursementCandidateCount");
   dom.createReimbursementCandidateLoading = document.querySelector("#createReimbursementCandidateLoading");
@@ -159,7 +156,6 @@ function bindEvents() {
 
 function setDefaultFilters() {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.fromAccountSelect.value = DEFAULT_FILTERS.fromAccountId;
   dom.toAccountSelect.value = DEFAULT_FILTERS.toAccountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
@@ -276,7 +272,6 @@ function readFilters() {
 
   return {
     month,
-    businessEntityId: dom.businessEntitySelect.value,
     fromAccountId: dom.fromAccountSelect.value,
     toAccountId: dom.toAccountSelect.value,
     currency: dom.currencySelect.value,
@@ -289,7 +284,6 @@ function readFilters() {
 
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
-  dom.businessEntitySelect.value = filters.businessEntityId;
   dom.fromAccountSelect.value = filters.fromAccountId;
   dom.toAccountSelect.value = filters.toAccountId;
   dom.currencySelect.value = filters.currency;
@@ -300,7 +294,6 @@ function restoreFilterSelections(filters) {
 }
 
 function renderMasterOptions() {
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderEntityOptions(dom.fromAccountSelect, accounts, accountName);
   renderEntityOptions(dom.toAccountSelect, accounts, accountName);
 }
@@ -359,7 +352,6 @@ function renderReimbursements(rows) {
       <td class="reimbursement-nowrap"><a class="button table-action-button" href="./reimbursement-detail.html?id=${encodeURIComponent(row.id)}">详情</a></td>
       <td class="reimbursement-nowrap">${escapeHtml(formatDateOnly(row.reimbursement_date))}</td>
       <td class="reimbursement-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
-      <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
       <td>${escapeHtml(accountNameById(row.from_account_id))}</td>
       <td>${escapeHtml(accountNameById(row.to_account_id))}</td>
       <td class="reimbursement-nowrap">${escapeHtml(displayValue(row.currency))}</td>
@@ -391,7 +383,6 @@ function renderCandidateExpenses(rows) {
       <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.description))}</span></td>
       <td class="number-cell reimbursement-nowrap">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
       <td>${escapeHtml(accountNameById(row.account_id))}</td>
-      <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.reimbursement_status))}">${escapeHtml(reimbursementStatusLabel(row.reimbursement_status))}</span></td>
       <td class="reimbursement-note-cell"><span class="table-cell-summary">${escapeHtml(displayValue(row.note))}</span></td>
     </tr>
@@ -447,7 +438,6 @@ async function loadCreateReimbursementCandidates() {
   try {
     candidateExpenses = await fetchReimbursementCandidateExpenses({
       month,
-      businessEntityId: dom.businessEntitySelect.value,
       currency: dom.currencySelect.value,
     });
     selectedExpenseIds = new Set();
@@ -555,7 +545,7 @@ function readCreateReimbursementPayload() {
 
   const summary = createSelectionSummary(selectedExpenses);
   if (summary.hasMixedBusinessEntity) {
-    showCreateError("已选支出业务归属不一致。", ["expenses"]);
+    showCreateError("已选支出内部范围不一致。", ["expenses"]);
     return null;
   }
 
@@ -565,7 +555,7 @@ function readCreateReimbursementPayload() {
   }
 
   if (!summary.businessEntityId || !summary.currency) {
-    showCreateError("已选支出缺少业务归属或币种。", ["expenses"]);
+    showCreateError("已选支出缺少内部范围或币种。", ["expenses"]);
     return null;
   }
 
@@ -631,9 +621,6 @@ function updateCreateSummary() {
   dom.createReimbursementTotalAmount.textContent = selectedExpenses.length
     ? formatCurrency(summary.totalAmount, summary.currency)
     : "-";
-  dom.createReimbursementBusinessEntity.textContent = summary.hasMixedBusinessEntity
-    ? "业务归属不一致"
-    : businessNameById(summary.businessEntityId);
   dom.createReimbursementCurrency.textContent = summary.hasMixedCurrency
     ? "币种不一致"
     : displayValue(summary.currency);
@@ -771,9 +758,6 @@ function reimbursementDetailUrl(id) {
 
 function filterReimbursements(rows, filters) {
   return rows.filter((row) => {
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
-      return false;
-    }
 
     if (filters.fromAccountId && row.from_account_id !== filters.fromAccountId) {
       return false;
@@ -805,9 +789,6 @@ function filterReimbursements(rows, filters) {
 
 function filterCandidateExpenses(rows, filters) {
   return rows.filter((row) => {
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
-      return false;
-    }
 
     const accountFilters = [filters.fromAccountId, filters.toAccountId].filter(Boolean);
     if (accountFilters.length && !accountFilters.includes(row.account_id)) {
@@ -833,7 +814,6 @@ function matchesKeyword(row, keyword) {
 
   const normalizedKeyword = keyword.toLowerCase();
   return [
-    businessNameById(row.business_entity_id),
     accountNameById(row.from_account_id),
     accountNameById(row.to_account_id),
     row.currency,
@@ -852,7 +832,6 @@ function matchesCandidateKeyword(row, keyword) {
 
   const normalizedKeyword = keyword.toLowerCase();
   return [
-    businessNameById(row.business_entity_id),
     accountNameById(row.account_id),
     expenseCategoryLabel(row.expense_category),
     reimbursementStatusLabel(row.reimbursement_status),
@@ -918,15 +897,6 @@ function uniqueValues(values) {
   return Array.from(new Set(values.filter(Boolean))).sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
-function businessNameById(id) {
-  const entity = businessEntities.find((item) => item.id === id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  return businessEntityName(entity);
-}
-
 function accountNameById(id) {
   const account = accounts.find((item) => item.id === id);
   if (!account) {
@@ -934,10 +904,6 @@ function accountNameById(id) {
   }
 
   return accountName(account);
-}
-
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
 }
 
 function accountName(account) {

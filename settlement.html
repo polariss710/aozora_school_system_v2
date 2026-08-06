@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -103,13 +103,6 @@
             </label>
 
             <label class="field">
-              <span>业务归属</span>
-              <select id="settlementBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>结算状态</span>
               <select id="settlementStatusSelect" name="status">
                 <option value="">全部</option>
@@ -118,7 +111,7 @@
 
             <label class="field">
               <span>关键字</span>
-              <input id="settlementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 业务归属 / 状态">
+              <input id="settlementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 状态">
             </label>
 
             <div class="filter-actions settlement-filter-actions">
@@ -145,7 +138,6 @@
                 <col class="settlement-col-action">
                 <col class="settlement-col-month">
                 <col class="settlement-col-student">
-                <col class="settlement-col-entity">
                 <col class="settlement-col-status">
                 <col class="settlement-col-lock-state">
                 <col class="settlement-col-amount">
@@ -164,7 +156,6 @@
                   <th>操作</th>
                   <th>学生结算月</th>
                   <th>学生</th>
-                  <th>业务归属</th>
                   <th>结算状态</th>
                   <th>后续锁定</th>
                   <th>上月结余 CNY</th>
@@ -352,6 +343,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/settlement-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

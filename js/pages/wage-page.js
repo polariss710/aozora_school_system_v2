@@ -504,7 +504,6 @@ function renderWageLocks(rows) {
       <td class="wage-nowrap">${renderWageRowActions(row)}</td>
       <td class="wage-nowrap">${escapeHtml(formatMonth(row.settlement_month))}</td>
       <td>${escapeHtml(displayTeacherName(row))}</td>
-      <td>${escapeHtml(displayBusinessName(row))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(settlementTypeLabel(row.settlement_type))}</span></td>
       <td><span class="status-badge ${escapeAttribute(statusClass(row.status))}">${escapeHtml(wageStatusLabel(row.status))}</span></td>
       <td>${renderWageProcessState(row)}</td>
@@ -531,7 +530,7 @@ function renderPaymentRequestCheckbox(row) {
     <input
       type="checkbox"
       data-wage-select-id="${escapeAttribute(row.id)}"
-      aria-label="选择工资快照 ${escapeAttribute(displayTeacherName(row))} ${escapeAttribute(displayBusinessName(row))}"
+      aria-label="选择工资快照 ${escapeAttribute(displayTeacherName(row))} ${escapeAttribute(formatMonth(row.settlement_month))}"
       ${disabledReason ? `title="${escapeAttribute(disabledReason)}"` : ""}
       ${selectable ? "" : "disabled"}
       ${selectedWageLockIds.has(row.id) ? "checked" : ""}
@@ -654,7 +653,7 @@ async function createPaymentRequestForWageLock(wageLock) {
     return;
   }
 
-  if (!window.confirm(`确认为 ${displayTeacherName(wageLock)} / ${displayBusinessName(wageLock)} / ${formatMonth(wageLock.settlement_month)} 生成支付请求？`)) {
+  if (!window.confirm(`确认为 ${displayTeacherName(wageLock)} / ${formatMonth(wageLock.settlement_month)} 生成支付请求？`)) {
     return;
   }
 
@@ -712,7 +711,7 @@ async function handleBatchCreatePaymentRequests() {
       selectedWageLockIds.delete(wageLock.id);
       successCount += 1;
     } catch (error) {
-      failures.push(`${displayTeacherName(wageLock)} / ${displayBusinessName(wageLock)}：${formatCreatePaymentRequestError(error)}`);
+      failures.push(`${displayTeacherName(wageLock)}：${formatCreatePaymentRequestError(error)}`);
     }
   }
 
@@ -788,7 +787,6 @@ function renderWageCandidates(rows) {
       <td>${escapeHtml(teacherNameById(row.teacher_id))}</td>
       <td>${escapeHtml(studentNameById(row.student_id))}</td>
       <td>${escapeHtml(subjectNameById(row.subject_id))}</td>
-      <td>${escapeHtml(businessNameById(row.business_entity_id))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(actualStatusLabel(row.status))}</span></td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.duration_hours))}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.actual_minutes))}</td>
@@ -804,7 +802,6 @@ function renderCandidateSummaryCards(rows) {
   const totalMinutes = rows.reduce((sum, row) => sum + Number(row.actual_minutes || 0), 0);
   const totalHours = totalMinutes / 60;
   const teacherCount = new Set(rows.map((row) => row.teacher_id).filter(Boolean)).size;
-  const businessCount = new Set(rows.map((row) => row.business_entity_id).filter(Boolean)).size;
   const statusCounts = candidateStatusCounts(rows);
   const studentSettlementCounts = candidateStudentSettlementCounts(rows);
 
@@ -815,7 +812,7 @@ function renderCandidateSummaryCards(rows) {
     renderSummaryCard("学生结算完成 / 未完成", `${studentSettlementCounts.locked} / ${studentSettlementCounts.notLocked}`),
     renderSummaryCard("已作废关联", `${statusCounts.voided} 条`),
     renderSummaryCard("折算小时", `${formatNumber(totalHours)} 小时`),
-    renderSummaryCard("老师 / 业务归属", `${teacherCount} / ${businessCount}`),
+    renderSummaryCard("老师", `${teacherCount} 名`),
   ].join("");
 }
 
@@ -853,15 +850,15 @@ function candidateStudentSettlementState(row) {
     return {
       label: "已完成",
       className: "status-paid",
-      title: `学生月度结算已完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
+      title: `学生月度结算已完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)}`,
     };
   }
 
   if (row.studentSettlementStatus && !row.studentSettlementMatchedBusiness) {
     return {
-      label: "业务不一致",
+      label: "内部范围不一致",
       className: "status-cancelled",
-      title: `存在同学生同月份结算，但业务归属不是当前课时业务归属。请先完成 ${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)} 的学生月度结算。`,
+      title: `存在同学生同月份结算，但内部范围与当前课时不一致。请先完成 ${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} 的正确学生月度结算。`,
     };
   }
 
@@ -869,14 +866,14 @@ function candidateStudentSettlementState(row) {
     return {
       label: "未完成",
       className: "status-pending",
-      title: `学生月度结算已解锁/未完成。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
+      title: `学生月度结算已解锁/未完成。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)}`,
     };
   }
 
   return {
     label: "未生成",
     className: "status-cancelled",
-    title: `未找到已完成学生月度结算。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} / ${businessNameById(row.business_entity_id)}`,
+    title: `未找到已完成学生月度结算。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)}`,
   };
 }
 
@@ -885,7 +882,7 @@ function candidateWageState(row) {
   const activeLock = detailLocks.find((lock) => lock.status === "locked" && !lock.voided_at);
   if (activeLock) {
     return {
-      label: `已生成 / ${displayBusinessName(activeLock)}`,
+      label: "已生成",
       className: "status-paid",
       title: "该课时已进入有效工资快照，不能重复生成；如需调整，请进入工资详情处理。",
     };
@@ -902,9 +899,9 @@ function candidateWageState(row) {
 
   if (row.wageMonthBlocked) {
     return {
-      label: "同业务已锁定",
+      label: "同范围已锁定",
       className: "status-cancelled",
-      title: "同老师、同业务归属、同月份已有有效工资快照；当前课时不能直接生成到新快照。",
+      title: "同老师、同内部范围、同月份已有有效工资快照；当前课时不能直接生成到新快照。",
     };
   }
 
@@ -929,7 +926,7 @@ function candidateStatusCounts(rows) {
       counts.locked += 1;
     } else if (state.label.startsWith("已作废")) {
       counts.voided += 1;
-    } else if (state.label.startsWith("同业务")) {
+    } else if (state.label.startsWith("同范围")) {
       counts.blocked += 1;
     } else {
       counts.pending += 1;
@@ -1027,8 +1024,8 @@ function formatUnsettledStudentSettlementGroups(groups, limit = 6) {
     return "无";
   }
 
-  const visible = groups.slice(0, limit).map((group) => (
-    `${formatMonth(group.yearMonth)} / ${group.studentName} / ${group.businessName}（${group.stateLabel}，${group.lessonCount}课时）`
+  const visible = groups.slice(0, limit).map((group, index) => (
+    `${formatMonth(group.yearMonth)} / ${group.studentName} / 内部范围${index + 1}（${group.stateLabel}，${group.lessonCount}课时）`
   ));
   const suffix = groups.length > limit ? ` 等 ${groups.length} 组` : "";
   return `${visible.join("；")}${suffix}`;
@@ -1039,13 +1036,13 @@ function formatCandidateGroupSummary(groups) {
     return "无候选课时";
   }
 
-  return groups.map((group) => {
+  return groups.map((group, index) => {
     const stateText = [
       group.pendingCount ? `未生成${group.pendingCount}` : "",
       group.lockedCount ? `已生成${group.lockedCount}` : "",
       group.voidedCount ? `已作废${group.voidedCount}` : "",
     ].filter(Boolean).join(" / ");
-    return `${group.teacherName} / ${group.businessName}: ${group.lessonCount}课时, ${group.minutes}分钟${stateText ? `（${stateText}）` : ""}`;
+    return `${group.teacherName} / 内部范围${index + 1}: ${group.lessonCount}课时, ${group.minutes}分钟${stateText ? `（${stateText}）` : ""}`;
   }).join("；");
 }
 
@@ -1137,7 +1134,7 @@ function wagePaymentRequestCreateBlocker(row) {
   if (row.status !== "locked") return "只有已生成且未作废的工资快照可以生成支付请求。";
   if (Number(row.total_jpy || 0) <= 0) return "工资结算金额为 0，不能生成支付请求。";
   if (!row.teacher_id) return "工资快照缺少老师，不能生成支付请求。";
-  if (!row.business_entity_id) return "工资快照缺少业务归属，不能生成支付请求。";
+  if (!row.business_entity_id) return "工资快照缺少内部范围键，不能生成支付请求。";
   if (activeExpenseRecordsForWageLock(row.id).length > 0) return "该工资快照已生成有效支出记录，不能重复生成支付请求。";
   if (activePaymentRequestsForWageLock(row.id).length > 0) return "该工资快照已生成有效旧支付请求，不能重复生成支付请求。";
   return "";
@@ -1298,7 +1295,6 @@ function exportMonthlySummaryWorkbook({ month, rows, feeSummaries }) {
     { wch: 10 },
     { wch: 14 },
     { wch: 16 },
-    { wch: 22 },
     { wch: 10 },
     { wch: 14 },
     { wch: 14 },
@@ -1326,7 +1322,6 @@ function buildMonthlySummaryReport({ month, rows, feeSummaries }) {
     "序号",
     "月份",
     "老师",
-    "业务归属",
     "结算课时合计",
     "课时工资 JPY",
     "交通费 JPY",
@@ -1342,22 +1337,21 @@ function buildMonthlySummaryReport({ month, rows, feeSummaries }) {
   const firstDataRowNumber = 5;
   const totalRowNumber = firstDataRowNumber + exportRows.length;
   const rowsWithSummary = [
-    [`老师工资月度汇总 / ${formatMonth(month)}`, "", "", "", "", "", "", "", "", "", "", "", "", ""],
-    ["用途", "发工资前内部核对", "", "导出范围", "当前月份未作废工资快照", "", "", "生成时间", formatDate(new Date().toISOString()), "", "", "", "", ""],
-    ["说明", "本表来自已保存工资快照和同月 teacher_wage 支付请求；不包含系统 UUID，不代表重新计算结果。", "", "", "", "", "", "", "", "", "", "", "", ""],
+    [`老师工资月度汇总 / ${formatMonth(month)}`, "", "", "", "", "", "", "", "", "", "", "", ""],
+    ["用途", "发工资前内部核对", "", "导出范围", "当前月份未作废工资快照", "", "生成时间", formatDate(new Date().toISOString()), "", "", "", "", ""],
+    ["说明", "本表来自已保存工资快照和同月 teacher_wage 支付请求；不包含系统 UUID，不代表重新计算结果。", "", "", "", "", "", "", "", "", "", "", ""],
     header,
     ...exportRows,
     [
       "合计",
       "",
       "",
-      "",
+      { f: `SUM(D${firstDataRowNumber}:D${totalRowNumber - 1})` },
       { f: `SUM(E${firstDataRowNumber}:E${totalRowNumber - 1})` },
       { f: `SUM(F${firstDataRowNumber}:F${totalRowNumber - 1})` },
       { f: `SUM(G${firstDataRowNumber}:G${totalRowNumber - 1})` },
       { f: `SUM(H${firstDataRowNumber}:H${totalRowNumber - 1})` },
       { f: `SUM(I${firstDataRowNumber}:I${totalRowNumber - 1})` },
-      { f: `SUM(J${firstDataRowNumber}:J${totalRowNumber - 1})` },
       "",
       "",
       "",
@@ -1370,11 +1364,11 @@ function buildMonthlySummaryReport({ month, rows, feeSummaries }) {
     firstDataRowIndex: firstDataRowNumber - 1,
     totalRowIndex: totalRowNumber - 1,
     merges: [
-      "A1:N1",
+      "A1:M1",
       "B2:C2",
-      "E2:G2",
-      "I2:N2",
-      "B3:N3",
+      "D2:F2",
+      "H2:M2",
+      "B3:M3",
     ],
   };
 }
@@ -1399,7 +1393,6 @@ function buildMonthlySummaryRow(row, index, feeSummaries) {
     index,
     formatMonth(row.settlement_month),
     displayTeacherName(row),
-    displayBusinessName(row),
     numberOrZero(row.pay_hours),
     roundNumber(row.lesson_wage_jpy),
     transportFeeJpy,
@@ -1444,7 +1437,7 @@ function monthlySummaryNote(row, paymentStatus) {
 }
 
 function styleMonthlySummarySheet(sheet, report) {
-  const allRange = `A1:N${report.rows.length}`;
+  const allRange = `A1:M${report.rows.length}`;
   const baseStyle = {
     font: { name: "Arial", sz: 10 },
     alignment: { vertical: "center", wrapText: true },
@@ -1468,25 +1461,25 @@ function styleMonthlySummarySheet(sheet, report) {
   };
 
   applyCellStyle(sheet, allRange, baseStyle);
-  applyCellStyle(sheet, "A1:N1", {
+  applyCellStyle(sheet, "A1:M1", {
     ...baseStyle,
     font: { name: "Arial", sz: 16, bold: true },
     fill: { fgColor: { rgb: "D9EAF7" } },
     alignment: { horizontal: "center", vertical: "center" },
   });
-  applyCellStyle(sheet, "A2:N3", {
+  applyCellStyle(sheet, "A2:M3", {
     ...baseStyle,
     fill: { fgColor: { rgb: "F7F9FC" } },
   });
-  applyCellStyle(sheet, "A4:N4", headerStyle);
-  applyCellStyle(sheet, `A${report.totalRowIndex + 1}:N${report.totalRowIndex + 1}`, totalStyle);
+  applyCellStyle(sheet, "A4:M4", headerStyle);
+  applyCellStyle(sheet, `A${report.totalRowIndex + 1}:M${report.totalRowIndex + 1}`, totalStyle);
 
-  applyNumberFormat(sheet, `E${report.firstDataRowIndex + 1}:E${report.totalRowIndex + 1}`, "0.##");
-  applyNumberFormat(sheet, `F${report.firstDataRowIndex + 1}:J${report.totalRowIndex + 1}`, "#,##0");
+  applyNumberFormat(sheet, `D${report.firstDataRowIndex + 1}:D${report.totalRowIndex + 1}`, "0.##");
+  applyNumberFormat(sheet, `E${report.firstDataRowIndex + 1}:I${report.totalRowIndex + 1}`, "#,##0");
 
   for (let row = report.firstDataRowIndex + 1; row <= report.totalRowIndex; row += 1) {
-    const processCell = sheet[`K${row}`];
-    const paymentCell = sheet[`L${row}`];
+    const processCell = sheet[`J${row}`];
+    const paymentCell = sheet[`K${row}`];
     if (safeText(processCell?.v).includes("只读")) {
       processCell.s = { ...(processCell.s || {}), fill: { fgColor: { rgb: "FFF2CC" } } };
     }
@@ -1501,7 +1494,7 @@ function styleMonthlySummarySheet(sheet, report) {
   }
 
   sheet["!autofilter"] = {
-    ref: `A4:N${report.totalRowIndex + 1}`,
+    ref: `A4:M${report.totalRowIndex + 1}`,
   };
   sheet["!freeze"] = { xSplit: 0, ySplit: 4 };
 }
@@ -1517,8 +1510,7 @@ function renderGenerateSummary(filters) {
     renderDialogSummaryRow("工资月份", formatMonth(filters.month)),
     renderDialogSummaryRow("生成范围", teacherLabel),
     renderDialogSummaryRow("当前查看学生", studentLabel),
-    renderDialogSummaryRow("业务归属范围", "全部业务归属"),
-    renderDialogSummaryRow("生成粒度", "teacher + business_entity + month"),
+    renderDialogSummaryRow("内部生成范围", "保持既有完整分组"),
     renderDialogSummaryRow("当前显示分组", formatCandidateGroupSummary(visibleGroups)),
     renderDialogSummaryRow("预计生成分组", formatCandidateGroupSummary(generationGroups)),
     renderDialogSummaryRow("学生结算未完成", unsettledGroups.length ? formatUnsettledStudentSettlementGroups(unsettledGroups) : "无"),
@@ -1691,8 +1683,6 @@ function matchesKeyword(row, keyword) {
   return [
     displayTeacherName(row),
     teacherNameById(row.teacher_id),
-    displayBusinessName(row),
-    businessNameById(row.business_entity_id),
     ...studentNamesForWageLock(row.id),
     settlementTypeLabel(row.settlement_type),
     row.settlement_type,
@@ -1713,7 +1703,6 @@ function matchesCandidateKeyword(row, keyword) {
     teacherNameById(row.teacher_id),
     studentNameById(row.student_id),
     subjectNameById(row.subject_id),
-    businessNameById(row.business_entity_id),
     actualStatusLabel(row.status),
     row.status,
     row.lesson_content,
@@ -2002,8 +1991,8 @@ function formatGenerateError(error) {
     return `生成失败：该月份已有工资记录或课时已进入工资明细，不能重复生成。${message}`;
   }
 
-  if (message.includes("缺少老师/学生/科目/业务归属/实际分钟")) {
-    return `生成失败：存在缺少老师/学生/科目/业务归属/实际分钟的 actual 课时。请先在课时管理补齐本月 completed / makeup_completed actual 课时的实际分钟，再重新生成工资快照。${message}`;
+  if (message.includes("缺少老师/学生/科目/") && message.includes("/实际分钟")) {
+    return "生成失败：存在内部范围或实际分钟不完整的 actual 课时。请先在课时管理补齐本月 completed / makeup_completed actual 课时，再重新生成工资快照。";
   }
 
   if (message.includes("学生月度结算未完成")) {

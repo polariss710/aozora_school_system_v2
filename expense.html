@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -70,7 +70,7 @@
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>支出记录</h1>
-          <p class="page-subtitle">按业务归属月管理支出，Cash 流水按实际支付日同步</p>
+          <p class="page-subtitle">按记账月份管理支出，Cash 流水按实际支付日同步</p>
         </div>
         <div class="header-meta">
           <span class="readonly-pill">只读版</span>
@@ -107,7 +107,7 @@
 
           <form id="expenseFilterForm" class="filter-grid">
             <label class="field month-select-field">
-              <span>业务归属月</span>
+              <span>记账月份</span>
               <div class="month-select-group">
                 <select id="expenseYearFilter" name="year" aria-label="年份"></select>
                 <select id="expenseMonthFilter" name="month" aria-label="月份"></select>
@@ -125,13 +125,6 @@
               <span>老师</span>
               <select id="expenseTeacherSelect" name="teacherId">
                 <option value="">全部老师</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>业务归属</span>
-              <select id="expenseBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
               </select>
             </label>
 
@@ -160,7 +153,7 @@
           <div class="section-heading section-heading-row">
             <div>
               <h2 id="expenseListTitle">支出记录</h2>
-              <p class="section-note">按业务归属月管理支出，Cash 流水按实际支付日同步。</p>
+              <p class="section-note">按记账月份管理支出，Cash 流水按实际支付日同步。</p>
             </div>
             <div class="table-actions">
               <button class="button button-primary" id="openCreateExpenseButton" type="button">新增支出</button>
@@ -189,7 +182,7 @@
                   <th><input id="expenseSelectAllCashRequests" type="checkbox" aria-label="全选可提交 Cash 支付确认支出"></th>
                   <th>支出对象 / 来源</th>
                   <th>分类</th>
-                  <th>业务归属月</th>
+                  <th>记账月份</th>
                   <th>实际支付日</th>
                   <th>金额</th>
                   <th>状态 / Cash</th>
@@ -220,7 +213,7 @@
             <thead>
               <tr>
                 <th>支付对象 / 来源</th>
-                <th>业务归属月</th>
+                <th>记账月份</th>
                 <th>实际支付日（Cash流水日）</th>
                 <th>原始金额</th>
                 <th>实际支付金额</th>
@@ -300,7 +293,7 @@
                 <input id="createExpenseDateInput" type="date">
               </label>
 
-              <p class="expense-create-field-note">业务归属月按支出日期所属月份生成。</p>
+              <p class="expense-create-field-note">记账月份按支出日期所属月份生成。</p>
 
               <label class="field" data-create-expense-field="amount">
                 <span>金额 <b class="required-mark">必填</b></span>
@@ -316,11 +309,6 @@
                   <option value="card">信用卡</option>
                   <option value="alipay">支付宝</option>
                 </select>
-              </label>
-
-              <label class="field" data-create-expense-field="businessEntity">
-                <span>业务归属 <b class="required-mark">必填</b></span>
-                <select id="createExpenseBusinessEntitySelect"></select>
               </label>
 
               <label class="field" data-create-expense-field="account" data-create-expense-school-only>
@@ -388,6 +376,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=cash-expense-save-split-20260804-1"></script>
+    <script type="module" src="./js/expense-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>

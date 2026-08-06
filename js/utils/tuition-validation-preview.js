@@ -12,7 +12,7 @@ export function validateTuitionValidationPreviewDetails(response, expected = {})
     throw new Error("学费预览学生与当前选择不一致，请重新加载。");
   }
   if (response.business_entity_id !== expected.businessEntityId) {
-    throw new Error("学费预览业务归属与当前学生不一致，请重新加载。");
+    throw new Error("学费预览内部范围与当前学生不一致，请重新加载。");
   }
   if (response.billing_month !== expected.billingMonth) {
     throw new Error("学费预览月份与当前选择不一致，请重新加载。");
@@ -187,7 +187,7 @@ export function mapTuitionValidationPreviewError(error) {
     ["R2_F_B_STUDENT_REQUIRED", "请选择学生后再生成学费预览。"],
     ["R2_F_B_STUDENT_NOT_FOUND", "当前学生资料不可用，请刷新页面后重试。"],
     ["R2_F_B_STUDENT_INACTIVE", "当前学生不是有效在读状态，不能生成学费预览。"],
-    ["R2_F_B_BUSINESS_ENTITY_REQUIRED", "当前学生缺少业务归属，不能生成学费预览。"],
+    ["R2_F_B_BUSINESS_ENTITY_REQUIRED", "当前学生缺少内部范围，不能生成学费预览。"],
     ["R2_F_B_BILLING_MONTH_INVALID", "学费月份无效，请重新选择。"],
     ["R2_F_B_EXCHANGE_RATE_INVALID", "通知汇率必须大于零。"],
     ["R2_F_B_TARGET_SETTLEMENT_LOCKED", "本月学生结算已经锁定，不能重新生成学费预览。"],

@@ -264,23 +264,18 @@ function mergeWageBlocker(settlement, blocker) {
       paidPaymentRequestCount: blocker.paid_payment_request_count || 0,
       expenseCount: blocker.expense_count || 0,
       accountTransactionCount: blocker.account_transaction_count || 0,
-      businessNames: blocker.wage_business_names || "",
     },
   };
 }
 
 async function fetchSettlementDetailLookups() {
-  const [studentsResult, businessEntitiesResult, teachersResult, subjectsResult, accountsResult] =
+  const [studentsResult, teachersResult, subjectsResult, accountsResult] =
     await Promise.all([
       supabase
         .from("school_students")
         .select("id,student_code,name,display_name,status,course_track,target_type,default_currency,app_type")
         .eq("app_type", "school")
         .order("display_name", { ascending: true })
-        .order("name", { ascending: true }),
-      supabase
-        .from("school_business_entities")
-        .select("id,code,name,entity_type,default_currency,is_active")
         .order("name", { ascending: true }),
       supabase
         .from("school_teachers")
@@ -302,14 +297,12 @@ async function fetchSettlementDetailLookups() {
     ]);
 
   if (studentsResult.error) throw studentsResult.error;
-  if (businessEntitiesResult.error) throw businessEntitiesResult.error;
   if (teachersResult.error) throw teachersResult.error;
   if (subjectsResult.error) throw subjectsResult.error;
   if (accountsResult.error) throw accountsResult.error;
 
   return {
     students: studentsResult.data || [],
-    businessEntities: businessEntitiesResult.data || [],
     teachers: teachersResult.data || [],
     subjects: subjectsResult.data || [],
     accounts: accountsResult.data || [],

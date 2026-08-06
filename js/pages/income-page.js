@@ -40,14 +40,11 @@ import {
   validateTuitionValidationPreviewDetails,
 } from "../utils/tuition-validation-preview.js?v=v2.115.2-tuition-duplicate-message";
 import {
-  defaultNewBusinessEntityId,
-  isNewBusinessEntityId,
-  newBusinessEntities,
-} from "../utils/business-entity-policy.js";
+  requirePrimarySchoolBusinessEntityId,
+} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",
-  businessEntityId: "",
   accountId: "",
   incomeCategory: "",
   currency: "",
@@ -146,7 +143,6 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#incomeYearFilter");
   dom.monthFilter = document.querySelector("#incomeMonthFilter");
   dom.studentSelect = document.querySelector("#incomeStudentSelect");
-  dom.businessEntitySelect = document.querySelector("#incomeBusinessEntitySelect");
   dom.accountSelect = document.querySelector("#incomeAccountSelect");
   dom.categorySelect = document.querySelector("#incomeCategorySelect");
   dom.currencySelect = document.querySelector("#incomeCurrencySelect");
@@ -170,7 +166,6 @@ function cacheDom() {
   dom.createIncomeModeSelect = document.querySelector("#createIncomeModeSelect");
   dom.createIncomeDateInput = document.querySelector("#createIncomeDateInput");
   dom.createSettlementMonthInput = document.querySelector("#createSettlementMonthInput");
-  dom.createIncomeBusinessEntitySelect = document.querySelector("#createIncomeBusinessEntitySelect");
   dom.createIncomeStudentSelect = document.querySelector("#createIncomeStudentSelect");
   dom.createIncomeAccountSelect = document.querySelector("#createIncomeAccountSelect");
   dom.createIncomeCurrencySelect = document.querySelector("#createIncomeCurrencySelect");
@@ -258,13 +253,6 @@ function bindEvents() {
 
     updateCreateModeUi({ preserveBusinessEntity: true });
   });
-  dom.createIncomeBusinessEntitySelect.addEventListener("change", () => {
-    renderCreateStudentOptions();
-    renderCreateAccountOptions();
-    renderCreateCashAccountOptions();
-    clearCreateFieldInvalid("businessEntity");
-    hideCreateErrorIfClean();
-  });
   dom.createIncomeStudentSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("student");
     hideCreateErrorIfClean();
@@ -306,7 +294,6 @@ function bindEvents() {
 function setDefaultFilters(overrides = null) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.categorySelect.value = DEFAULT_FILTERS.incomeCategory;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
@@ -325,6 +312,7 @@ async function loadInitialData() {
     ]);
     students = lookups.students;
     businessEntities = lookups.businessEntities;
+    requirePrimarySchoolBusinessEntityId(businessEntities);
     accounts = lookups.accounts;
     teachers = lessonTeachers;
     subjects = lessonSubjects;
@@ -417,7 +405,6 @@ function readFilters() {
   return {
     month,
     studentId: dom.studentSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     accountId: dom.accountSelect.value,
     incomeCategory: dom.categorySelect.value,
     currency: dom.currencySelect.value,
@@ -427,7 +414,6 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
   dom.accountSelect.value = filters.accountId;
   dom.categorySelect.value = filters.incomeCategory;
   dom.currencySelect.value = filters.currency;
@@ -445,7 +431,6 @@ function updateMonthNavigationFromCurrentSelection() {
 
 function renderMasterOptions() {
   renderEntityOptions(dom.studentSelect, students, studentName);
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
   renderEntityOptions(dom.accountSelect, accounts, accountName);
 }
 
@@ -527,9 +512,8 @@ function renderIncomeSourceCell(row) {
 }
 
 function renderIncomeRelatedCell(row) {
-  const primary = businessNameById(row.business_entity_id);
+  const primary = incomeAccountDisplayName(row);
   const secondary = [
-    incomeAccountDisplayName(row),
     row.settlement_month ? `结算 ${formatMonth(row.settlement_month)}` : "",
     row.receipt_status ? `收据 ${row.receipt_status}` : "",
   ].filter((value) => value && value !== "-").join(" / ");
@@ -1553,7 +1537,7 @@ function openGenerateTuitionBillDialog() {
   dom.tuitionBillBillingRateInput.value = "";
   dom.tuitionBillNoteInput.value = "";
   clearTuitionBillPreview();
-  renderTuitionBillStudentOptions(filters?.studentId || "", filters?.businessEntityId || "");
+  renderTuitionBillStudentOptions(filters?.studentId || "");
 
   dom.generateTuitionBillDialog.classList.remove("is-hidden");
   dom.generateTuitionBillDialog.setAttribute("aria-hidden", "false");
@@ -1652,8 +1636,9 @@ function readGenerateTuitionBillPayload() {
     return null;
   }
   const selectedStudent = students.find((student) => student.id === studentId);
-  if (!selectedStudent?.business_entity_id) {
-    showTuitionBillError("当前学生缺少业务归属，不能生成学费验证预览。", ["student"]);
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
+  if (selectedStudent?.business_entity_id !== businessEntityId) {
+    showTuitionBillError("当前学生不属于可新增业务的内部范围，不能生成学费验证预览。", ["student"]);
     return null;
   }
 
@@ -1666,15 +1651,16 @@ function readGenerateTuitionBillPayload() {
   return {
     billingMonth,
     studentId,
-    businessEntityId: selectedStudent.business_entity_id,
+    businessEntityId,
     billingExchangeRate,
     note: dom.tuitionBillNoteInput.value.trim(),
   };
 }
 
-function renderTuitionBillStudentOptions(selectedStudentId = "", businessEntityId = "") {
+function renderTuitionBillStudentOptions(selectedStudentId = "") {
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   const rows = students.filter((student) => {
-    if (businessEntityId && student.business_entity_id !== businessEntityId) {
+    if (student.business_entity_id !== businessEntityId) {
       return false;
     }
     return isActiveStudent(student);
@@ -1729,7 +1715,6 @@ function showTuitionBillError(message, fieldIds = []) {
 
 function renderTuitionBillPreview(preview) {
   const student = students.find((row) => row.id === preview.student_id);
-  const entity = businessEntities.find((row) => row.id === preview.business_entity_id);
   const existingText = preview.existing_tuition_bill_id
     ? `${preview.existing_tuition_bill_status || "-"} / ${preview.existing_income_status || "-"}`
     : "无";
@@ -1738,7 +1723,6 @@ function renderTuitionBillPreview(preview) {
     <div><dt>原子生成状态</dt><dd>${escapeHtml(preview.generate_feature_state)}</dd></div>
     <div><dt>Revision</dt><dd>${escapeHtml(preview.message || "-")}</dd></div>
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
-    <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
     <div><dt>candidate / 课次数</dt><dd>${escapeHtml(`${preview.candidate_count} 条 / ${preview.total_lesson_count} 次`)}</dd></div>
     <div><dt>总时长</dt><dd>${escapeHtml(`${formatDecimal(preview.total_duration_hours, 2)} h`)}</dd></div>
@@ -1802,14 +1786,12 @@ function clearTuitionBillPreview({ invalidateRequest = true } = {}) {
 
 function openGenerateTuitionBillConfirmation(preview) {
   const student = students.find((row) => row.id === preview.student_id);
-  const entity = businessEntities.find((row) => row.id === preview.business_entity_id);
   const note = dom.tuitionBillNoteInput.value.trim() || "无";
   dom.confirmGenerateTuitionBillError.textContent = "";
   dom.confirmGenerateTuitionBillError.classList.add("is-hidden");
   dom.confirmGenerateTuitionBillSummary.innerHTML = `
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
-    <div><dt>业务归属</dt><dd>${escapeHtml(entity ? businessEntityName(entity) : "-")}</dd></div>
     <div><dt>candidate课程</dt><dd>${escapeHtml(`${preview.candidate_count} 条`)}</dd></div>
     <div><dt>总课次数</dt><dd>${escapeHtml(`${preview.total_lesson_count} 次`)}</dd></div>
     <div><dt>总时长</dt><dd>${escapeHtml(`${formatDecimal(preview.total_duration_hours, 2)} h`)}</dd></div>
@@ -1939,9 +1921,6 @@ function openCreateIncomeDialog() {
   setCreateSubmitting(false);
 
   const filters = readFilters();
-  const defaultBusinessEntityId = isNewBusinessEntityId(businessEntities, filters?.businessEntityId)
-    ? filters.businessEntityId
-    : defaultNewBusinessEntityId(businessEntities);
   const defaultStudentId = filters?.studentId || "";
   const defaultAccountId = filters?.accountId || "";
 
@@ -1959,11 +1938,6 @@ function openCreateIncomeDialog() {
   dom.createIncomeTaxCategoryInput.value = "売上";
   dom.createIncomeReceiptStatusInput.value = "待确认";
   dom.createIncomeNoteInput.value = "";
-
-  renderCreateBusinessEntityOptions();
-  dom.createIncomeBusinessEntitySelect.value = filteredCreateBusinessEntities().some((entity) => entity.id === defaultBusinessEntityId)
-    ? defaultBusinessEntityId
-    : "";
 
   renderCreateStudentOptions();
   dom.createIncomeStudentSelect.value = filteredCreateStudents().some((student) => student.id === defaultStudentId)
@@ -2033,11 +2007,7 @@ function readCreateIncomePayload() {
     return null;
   }
 
-  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
-  if (!businessEntityId) {
-    showCreateError("请选择业务归属。", ["businessEntity"]);
-    return null;
-  }
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
 
   const createMode = dom.createIncomeModeSelect.value || CREATE_MODE_SCHOOL_ACCOUNT;
 
@@ -2106,7 +2076,7 @@ function readCreateIncomePayload() {
   }
 
   if (account.business_entity_id !== businessEntityId) {
-    showCreateError("入账账户与业务归属不一致。", ["account"]);
+    showCreateError("入账账户与内部范围不一致。", ["account"]);
     return null;
   }
 
@@ -2166,19 +2136,6 @@ function showIncomeCreateSuccess(result, createMode) {
   }
 }
 
-function renderCreateBusinessEntityOptions() {
-  const selectedValue = dom.createIncomeBusinessEntitySelect.value;
-  const rows = filteredCreateBusinessEntities();
-  const options = ['<option value="">请选择业务归属</option>'];
-  for (const entity of rows) {
-    options.push(`<option value="${escapeAttribute(entity.id)}">${escapeHtml(businessEntityName(entity))}</option>`);
-  }
-  dom.createIncomeBusinessEntitySelect.innerHTML = options.join("");
-  if (rows.some((entity) => entity.id === selectedValue)) {
-    dom.createIncomeBusinessEntitySelect.value = selectedValue;
-  }
-}
-
 function renderCreateStudentOptions() {
   const selectedValue = dom.createIncomeStudentSelect.value;
   const options = ['<option value="">请选择学生</option>'];
@@ -2229,12 +2186,8 @@ async function ensureCashEligibleAccountsLoaded() {
   hasLoadedCashEligibleAccounts = true;
 }
 
-function filteredCreateBusinessEntities() {
-  return newBusinessEntities(businessEntities);
-}
-
 function filteredCreateStudents() {
-  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   return students.filter((student) => {
     if (businessEntityId && student.business_entity_id !== businessEntityId) {
       return false;
@@ -2249,7 +2202,7 @@ function isActiveStudent(student) {
 }
 
 function filteredCreateAccounts() {
-  const businessEntityId = dom.createIncomeBusinessEntitySelect.value;
+  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
   return accounts.filter((account) => {
     if (account.is_active !== true || account.app_type !== "school") {
       return false;
@@ -2286,16 +2239,7 @@ function createCashAccountLabel(account) {
   ].filter(Boolean).join(" / ");
 }
 
-function updateCreateModeUi(options = {}) {
-  const previousBusinessEntityId = options.preserveBusinessEntity
-    ? dom.createIncomeBusinessEntitySelect.value
-    : "";
-
-  renderCreateBusinessEntityOptions();
-  if (previousBusinessEntityId && filteredCreateBusinessEntities().some((entity) => entity.id === previousBusinessEntityId)) {
-    dom.createIncomeBusinessEntitySelect.value = previousBusinessEntityId;
-  }
-
+function updateCreateModeUi() {
   const cashMode = isCashIncomeCreateMode();
   setCreateFieldHidden("account", cashMode);
   setCreateFieldHidden("cashCurrency", !cashMode);
@@ -2354,7 +2298,7 @@ function setCreateSubmitting(isSubmitting) {
 function clearCreateErrors() {
   dom.createIncomeError.textContent = "";
   dom.createIncomeError.classList.add("is-hidden");
-  for (const fieldId of ["createMode", "incomeDate", "settlementMonth", "businessEntity", "student", "account", "cashCurrency", "cashMapping", "incomeCategory", "amount", "paymentMethod", "exchangeRate"]) {
+  for (const fieldId of ["createMode", "incomeDate", "settlementMonth", "student", "account", "cashCurrency", "cashMapping", "incomeCategory", "amount", "paymentMethod", "exchangeRate"]) {
     clearCreateFieldInvalid(fieldId);
   }
 }
@@ -2374,7 +2318,6 @@ function createFieldIdsForError(message) {
   if (text.includes("金额")) fields.push("amount");
   if (text.includes("收款日期")) fields.push("incomeDate");
   if (text.includes("结算月份") || text.includes("已锁定")) fields.push("settlementMonth");
-  if (text.includes("业务归属")) fields.push("businessEntity");
   if (text.includes("学生")) fields.push("student");
   if (text.includes("Cash")) fields.push("cashMapping");
   if (text.includes("币种") && isCashIncomeCreateMode()) fields.push("cashCurrency");
@@ -2409,9 +2352,6 @@ function filterIncomeRecords(rows, filters) {
       return false;
     }
 
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
-      return false;
-    }
 
     if (filters.accountId && row.account_id !== filters.accountId) {
       return false;
@@ -2540,15 +2480,6 @@ function incomeReceivedMonth(row) {
   return /^\d{4}-\d{2}/.test(dateText) ? dateText.slice(0, 7) : "";
 }
 
-function businessNameById(id) {
-  const entity = businessEntities.find((item) => item.id === id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  return businessEntityName(entity);
-}
-
 function accountNameById(id) {
   const account = accounts.find((item) => item.id === id);
   if (!account) {
@@ -2608,10 +2539,6 @@ function teacherNameById(id) {
 
 function subjectNameById(id) {
   return safeText(subjects.find((row) => row.id === id)?.name) || "未设置科目";
-}
-
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
 }
 
 function accountName(account) {

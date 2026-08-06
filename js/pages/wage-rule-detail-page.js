@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js";
+import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=be-ui-20260806-1";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const SETTLEMENT_TYPE_LABELS = {
@@ -17,12 +17,6 @@ const STUDENT_STATUS_LABELS = {
   active: "在读",
   inactive: "停用",
   graduated: "毕业",
-};
-
-const BUSINESS_ENTITY_TYPE_LABELS = {
-  school: "学校",
-  company: "公司",
-  individual: "个人",
 };
 
 const dom = {};
@@ -85,7 +79,7 @@ async function loadWageRuleDetail(wageRuleId) {
 }
 
 function renderWageRuleDetail(data) {
-  const { rule, teacher, student, subject, businessEntity } = data;
+  const { rule, teacher, student, subject } = data;
 
   dom.titleText.textContent = `${teacherName(teacher, rule.teacher_id)} / ${studentName(student, rule.student_id)} / ${subjectName(subject, rule.subject_id)}`;
 
@@ -107,9 +101,6 @@ function renderWageRuleDetail(data) {
     ["学生状态", studentStatusLabel(student?.status)],
     ["科目", subjectName(subject, rule.subject_id)],
     ["科目分类", displaySubjectCategory(subject)],
-    ["业务归属", businessEntityName(businessEntity, rule.business_entity_id)],
-    ["业务编码", displayValue(businessEntity?.code)],
-    ["业务类型", businessEntityTypeLabel(businessEntity?.entity_type)],
   ]);
 
   dom.rateInfo.innerHTML = renderDefinitionList([
@@ -124,7 +115,6 @@ function renderWageRuleDetail(data) {
     ["teacher_id", shortId(rule.teacher_id)],
     ["student_id", shortId(rule.student_id)],
     ["subject_id", shortId(rule.subject_id)],
-    ["business_entity_id", shortId(rule.business_entity_id)],
     ["created_at", formatDate(rule.created_at)],
     ["updated_at", formatDate(rule.updated_at)],
   ]);
@@ -162,11 +152,6 @@ function subjectName(subject, fallbackId) {
   return safeText(subject.name) || "未设置";
 }
 
-function businessEntityName(entity, fallbackId) {
-  if (!entity) return fallbackId ? "未知" : "未设置";
-  return safeText(entity.name) || "未设置";
-}
-
 function displaySubjectCategory(subject) {
   if (!subject) return "-";
   return [subject.primary_category, subject.category]
@@ -185,10 +170,6 @@ function teacherStatusLabel(value) {
 
 function studentStatusLabel(value) {
   return STUDENT_STATUS_LABELS[value] || displayValue(value);
-}
-
-function businessEntityTypeLabel(value) {
-  return BUSINESS_ENTITY_TYPE_LABELS[value] || displayValue(value);
 }
 
 function activeLabel(value) {

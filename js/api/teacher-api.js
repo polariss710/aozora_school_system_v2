@@ -42,7 +42,7 @@ export async function fetchTeachers(filters) {
 export async function fetchTeacherFilterOptions() {
   const { data, error } = await supabase
     .from("school_teachers")
-    .select("status,department,default_business_entity_id")
+    .select("status,department")
     .eq("app_type", "school");
 
   if (error) {
@@ -147,12 +147,6 @@ function applyTeacherFilters(query, filters) {
 
   if (filters.department) {
     query = query.eq("department", filters.department);
-  }
-
-  if (filters.businessEntityId === "__unset__") {
-    query = query.is("default_business_entity_id", null);
-  } else if (filters.businessEntityId) {
-    query = query.eq("default_business_entity_id", filters.businessEntityId);
   }
 
   return query;

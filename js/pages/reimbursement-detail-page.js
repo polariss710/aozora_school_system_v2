@@ -2,7 +2,7 @@ import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   fetchReimbursementDetailPage,
   reverseReimbursementRecord,
-} from "../api/reimbursement-detail-api.js";
+} from "../api/reimbursement-detail-api.js?v=be-ui-20260806-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const REIMBURSEMENT_STATUS_LABELS = {
@@ -158,7 +158,6 @@ function renderReimbursementDetail(data) {
     ["报销日期", formatDateOnly(reimbursement.reimbursement_date)],
     ["目标月份", formatMonth(reimbursement.year_month)],
     ["状态", reimbursementStatusLabel(reimbursement.status)],
-    ["业务归属", businessNameById(reimbursement.business_entity_id)],
     ["金额", formatCurrency(reimbursement.amount, reimbursement.currency)],
     ["币种", displayValue(reimbursement.currency)],
     ["创建时间", formatDate(reimbursement.created_at)],
@@ -451,17 +450,6 @@ function renderDefinitionList(items) {
       `).join("")}
     </dl>
   `;
-}
-
-function businessNameById(id) {
-  const entity = detailData?.lookups.businessEntities.find((item) => item.id === id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  const code = safeText(entity.code);
-  const name = safeText(entity.name) || "未设置";
-  return code ? `${name} / ${code}` : name;
 }
 
 function accountById(id) {

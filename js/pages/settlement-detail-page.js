@@ -1,9 +1,9 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=p0e-20260803-1";
+import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=be-ui-20260806-1";
 import {
   relockStudentMonthlySettlement,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js?v=p0e-20260803-1";
+} from "../api/settlement-api.js?v=be-ui-20260806-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   buildActualOverageDisplay,
@@ -170,12 +170,11 @@ function renderSettlementDetail(data) {
   const student = studentById(settlement.student_id);
 
   renderActionControls(settlement);
-  dom.titleText.textContent = `${formatMonth(settlement.year_month)} / ${studentNameById(settlement.student_id)} / ${businessNameById(settlement.business_entity_id)}`;
+  dom.titleText.textContent = `${formatMonth(settlement.year_month)} / ${studentNameById(settlement.student_id)}`;
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["结算年月", formatMonth(settlement.year_month)],
     ["学生", studentNameById(settlement.student_id)],
     ["学生编号", displayValue(student?.student_code)],
-    ["业务归属", businessNameById(settlement.business_entity_id)],
     ["物理状态", settlementStatusLabel(settlement.physical_status || settlement.settlement_status)],
     ["有效业务状态", settlementStatusLabel(settlement.effective_status || settlement.settlement_status)],
     ["不可修改原因", displayValue(settlement.immutable_reason)],
@@ -244,7 +243,6 @@ function renderSettlementDetail(data) {
   dom.systemInfo.innerHTML = renderDefinitionList([
     ["settlement id", shortId(settlement.id)],
     ["student_id", shortId(settlement.student_id)],
-    ["business_entity_id", shortId(settlement.business_entity_id)],
     ["teacher_wage_blocker", teacherWageBlockerDisplay(settlement)],
     ["effective_status", displayValue(settlement.effective_status)],
     ["immutable_error_code", displayValue(settlement.immutable_error_code)],
@@ -455,7 +453,6 @@ function renderStatusActionSummary(settlement) {
   dom.statusActionSummary.innerHTML = [
     ["学生", studentNameById(settlement.student_id)],
     ["结算月份", formatMonth(settlement.year_month)],
-    ["业务归属", businessNameById(settlement.business_entity_id)],
     ["当前状态", settlementStatusLabel(settlement.settlement_status)],
     ["后续锁定", teacherWageBlockerDisplay(settlement)],
     ["锁定时间", formatDate(settlement.locked_at)],
@@ -593,17 +590,6 @@ function studentNameById(id) {
   }
 
   return safeText(student.display_name || student.name) || "未设置";
-}
-
-function businessNameById(id) {
-  const entity = detailData?.lookups.businessEntities.find((item) => item.id === id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  const code = safeText(entity.code);
-  const name = safeText(entity.name) || "未设置";
-  return code ? `${name} / ${code}` : name;
 }
 
 function teacherNameById(id) {

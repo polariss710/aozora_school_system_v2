@@ -209,7 +209,6 @@ function buildReturnUrl() {
     "year",
     "month",
     "teacherId",
-    "businessEntityId",
     "settlementType",
     "status",
     "keyword",
@@ -257,7 +256,6 @@ function renderWageDetail(data) {
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["结算月份", formatMonth(wageLock.settlement_month)],
     ["老师", displayValue(wageLock.teacher_name)],
-    ["业务归属", displayValue(wageLock.business_name)],
     ["结算类型", settlementTypeLabel(wageLock.settlement_type)],
     ["状态", wageStatusLabel(wageLock.status)],
     ["生成时间", formatDate(wageLock.locked_at)],
@@ -297,7 +295,6 @@ function renderWageDetail(data) {
   dom.systemInfo.innerHTML = renderDefinitionList([
     ["wage snapshot id", shortId(wageLock.id)],
     ["teacher_id", shortId(wageLock.teacher_id)],
-    ["business_entity_id", shortId(wageLock.business_entity_id)],
     ["created_at", formatDate(wageLock.created_at)],
     ["updated_at", formatDate(wageLock.updated_at)],
   ]);
@@ -435,7 +432,6 @@ function renderVoidWageLockSummary(wageLock) {
   return [
     renderDialogSummaryRow("工资月份", formatMonth(wageLock?.settlement_month)),
     renderDialogSummaryRow("老师", displayValue(wageLock?.teacher_name)),
-    renderDialogSummaryRow("业务归属", displayValue(wageLock?.business_name)),
     renderDialogSummaryRow("当前状态", wageStatusLabel(wageLock?.status)),
     renderDialogSummaryRow("明细条数", displayCount(wageLock?.lesson_count)),
     renderDialogSummaryRow("合计金额", formatCurrency(wageLock?.total_jpy, "JPY")),
@@ -490,7 +486,7 @@ function openCreatePaymentRequestDialog() {
   }
 
   if (!wageLock.teacher_id || !wageLock.business_entity_id) {
-    showMessage("error", "工资快照缺少老师或业务归属，不能生成支出记录。");
+    showMessage("error", "工资快照缺少老师或内部范围键，不能生成支出记录。");
     return;
   }
 
@@ -541,7 +537,7 @@ async function submitCreatePaymentRequest() {
   }
 
   if (!wageLock.teacher_id || !wageLock.business_entity_id) {
-    showCreatePaymentRequestError("工资快照缺少老师或业务归属，不能生成支出记录。");
+    showCreatePaymentRequestError("工资快照缺少老师或内部范围键，不能生成支出记录。");
     return;
   }
 
@@ -643,7 +639,6 @@ function renderCreatePaymentRequestSummary(wageLock) {
   return [
     renderDialogSummaryRow("工资月份", formatMonth(wageLock.settlement_month)),
     renderDialogSummaryRow("老师", displayValue(wageLock.teacher_name)),
-    renderDialogSummaryRow("业务归属", displayValue(wageLock.business_name)),
     renderDialogSummaryRow("支付对象", "老师"),
     renderDialogSummaryRow("支出金额", formatCurrency(wageLock.total_jpy, "JPY")),
     renderDialogSummaryRow("来源", `工资快照 ${shortId(wageLock.id)}`),
@@ -796,7 +791,6 @@ function renderDetailRows(rows, canAdjust = false, readonlyReason = "") {
       <td class="wage-nowrap">${escapeHtml(timeRange(row.start_time, row.end_time))}</td>
       <td>${escapeHtml(displayValue(row.student_name))}</td>
       <td>${escapeHtml(displayValue(row.subject_name))}</td>
-      <td>${escapeHtml(displayValue(row.business_name))}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.pay_hours))}</td>
       <td><span class="status-badge status-neutral">${escapeHtml(settlementTypeLabel(row.settlement_type))}</span></td>
       <td class="number-cell wage-nowrap">${escapeHtml(formatCurrency(row.lesson_wage_jpy, "JPY"))}</td>

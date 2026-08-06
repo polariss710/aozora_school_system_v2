@@ -320,7 +320,7 @@ async function fetchWageLocks(lockIds) {
 }
 
 async function fetchLessonDetailLookups(studentId) {
-  const [studentsResult, teachersResult, subjectsResult, businessEntitiesResult] = await Promise.all([
+  const [studentsResult, teachersResult, subjectsResult] = await Promise.all([
     supabase
       .from("school_students")
       .select("id,student_code,name,display_name")
@@ -339,21 +339,15 @@ async function fetchLessonDetailLookups(studentId) {
       .select("id,name,category,primary_category,is_active")
       .order("sort_order", { ascending: true })
       .order("name", { ascending: true }),
-    supabase
-      .from("school_business_entities")
-      .select("id,code,name,entity_type,is_active")
-      .order("name", { ascending: true }),
   ]);
 
   if (studentsResult.error) throw studentsResult.error;
   if (teachersResult.error) throw teachersResult.error;
   if (subjectsResult.error) throw subjectsResult.error;
-  if (businessEntitiesResult.error) throw businessEntitiesResult.error;
 
   return {
     students: studentsResult.data || [],
     teachers: teachersResult.data || [],
     subjects: subjectsResult.data || [],
-    businessEntities: businessEntitiesResult.data || [],
   };
 }

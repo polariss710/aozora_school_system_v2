@@ -1074,7 +1074,7 @@ async function submitIncomeGenerationConfirmDialog() {
 function renderIncomeGenerationConfirmSummary(settlement, workplaceName) {
   const summaryRows = [
     ["结算月", settlement.year_month || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter)],
-    ["业务归属 / 机构名称", workplaceName || settlement.workplace_name || "-"],
+    ["授课机构", workplaceName || settlement.workplace_name || "-"],
     ["实际课时", `${formatHours(settlement.actual_hours_total)} h`],
     ["课时工资", formatCurrency(settlement.lesson_wage_jpy, "JPY")],
     ["交通费", formatCurrency(settlement.transportation_fee_jpy, "JPY")],
@@ -1402,7 +1402,7 @@ function renderReadonlyDetail(lesson) {
     ["时间", timeRange(lesson.start_time, lesson.end_time)],
     ["学生", lesson.student_name || lesson.student || "-"],
     ["科目", lesson.subject_name || "-"],
-    ["业务归属", lesson.business_entity_name || lesson.workplace_name || "-"],
+    ["授课地点", lesson.workplace_name || "-"],
     [hoursLabel, `${formatHours(hours)} h`],
     ["回数", formatLessonCount(lessonCount(lesson))],
     ["累计课时", `${formatHours(cumulativeHours(lesson))} h`],

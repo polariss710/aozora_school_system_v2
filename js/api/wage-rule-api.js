@@ -69,11 +69,10 @@ export async function fetchWageRules() {
 export async function fetchWageRuleDetailPage(wageRuleId) {
   const rule = await fetchWageRule(wageRuleId);
 
-  const [teacher, student, subject, businessEntity] = await Promise.all([
+  const [teacher, student, subject] = await Promise.all([
     fetchTeacher(rule.teacher_id),
     fetchStudent(rule.student_id),
     fetchSubject(rule.subject_id),
-    fetchBusinessEntity(rule.business_entity_id),
   ]);
 
   return {
@@ -81,7 +80,6 @@ export async function fetchWageRuleDetailPage(wageRuleId) {
     teacher,
     student,
     subject,
-    businessEntity,
   };
 }
 
@@ -267,22 +265,6 @@ async function fetchSubject(subjectId) {
     .from("school_subjects")
     .select(SUBJECT_COLUMNS)
     .eq("id", subjectId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data || null;
-}
-
-async function fetchBusinessEntity(businessEntityId) {
-  if (!businessEntityId) return null;
-
-  const { data, error } = await supabase
-    .from("school_business_entities")
-    .select(BUSINESS_ENTITY_COLUMNS)
-    .eq("id", businessEntityId)
     .maybeSingle();
 
   if (error) {

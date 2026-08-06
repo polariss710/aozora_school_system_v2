@@ -1,5 +1,5 @@
-import { APP_VERSION } from "./config.js";
-import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
 import { initClassroomSchedulePage } from "./pages/classroom-schedule-page.js?v=v10.3.81-office-capacity";
 
 const globalSessionPromise = requireGlobalSession();

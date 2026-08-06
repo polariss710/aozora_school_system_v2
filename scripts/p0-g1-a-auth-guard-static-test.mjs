@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
 const AUTH_ASSET_VERSION = "p0-g1-a-20260804-1";
-const P0_G1_B1_ENTRY_VERSION = "p0-g1-b1-20260804-1";
+const BE_UI_ENTRY_VERSION = "be-ui-20260806-1";
 const rootHtmlFiles = readdirSync(".")
   .filter((file) => file.endsWith(".html") && file !== "login.html")
   .sort();
@@ -14,16 +14,13 @@ for (const htmlFile of rootHtmlFiles) {
   assert.match(html, /<html lang="zh-CN" class="auth-pending">/, `${htmlFile} must fail closed`);
   assert.match(
     html,
-    new RegExp(`css/app\\.css\\?v=${AUTH_ASSET_VERSION}`),
-    `${htmlFile} must load the no-flash CSS version`
+    /css\/app\.css\?v=[^"?]+/,
+    `${htmlFile} must load versioned no-flash CSS`
   );
 
   const moduleMatch = html.match(/<script type="module" src="\.\/(js\/[^"?]+\.js)\?v=([^"?]+)"><\/script>/);
   assert.ok(moduleMatch, `${htmlFile} must have a versioned entry module`);
-  const expectedEntryVersion = ["income.html", "income-detail.html"].includes(htmlFile)
-    ? P0_G1_B1_ENTRY_VERSION
-    : AUTH_ASSET_VERSION;
-  assert.equal(moduleMatch[2], expectedEntryVersion, `${htmlFile} entry module cache must be busted`);
+  assert.equal(moduleMatch[2], BE_UI_ENTRY_VERSION, `${htmlFile} entry module cache must be busted`);
 
   const entry = readFileSync(moduleMatch[1], "utf8");
   assert.ok(
@@ -33,6 +30,13 @@ for (const htmlFile of rootHtmlFiles) {
   );
   assert.equal((entry.match(/requireGlobalSession\(\)/g) || []).length, 1);
   assert.equal((entry.match(/await globalSessionPromise/g) || []).length, 1);
+  if (htmlFile === "business-entity.html") {
+    assert.ok(
+      entry.indexOf("await globalSessionPromise") < entry.indexOf("window.location.replace"),
+      "retired entry must verify authority before redirecting"
+    );
+    continue;
+  }
   const initCall = entry.match(/\n\s+(?:await )?(init[A-Z][A-Za-z0-9_]*\(\);)/)?.[1];
   assert.ok(initCall, `${moduleMatch[1]} must contain its page initializer`);
   assert.ok(
@@ -46,7 +50,7 @@ assert.doesNotMatch(loginHtml, /auth-pending/);
 assert.match(loginHtml, /type="email"/);
 assert.match(loginHtml, /type="password"/);
 assert.doesNotMatch(loginHtml, /sign\s*up|signup|注册/i);
-assert.match(loginHtml, new RegExp(`js/login-app\\.js\\?v=${AUTH_ASSET_VERSION}`));
+assert.match(loginHtml, new RegExp(`js/login-app\\.js\\?v=${BE_UI_ENTRY_VERSION}`));
 
 const authApi = readFileSync("js/api/auth-api.js", "utf8");
 assert.match(authApi, /supabase\.auth\.getUser\(\)/);

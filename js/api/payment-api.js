@@ -28,14 +28,6 @@ const PAYMENT_REQUEST_COLUMNS = [
   "reissued_at",
 ].join(",");
 
-const BUSINESS_ENTITY_SELECT_CANDIDATES = [
-  "id,code,name,entity_type,is_active",
-  "id,name",
-  "id,business_name",
-  "id,entity_name",
-  "id,label",
-];
-
 const ACCOUNT_COLUMNS = [
   "id",
   "account_code",
@@ -53,7 +45,7 @@ function toRpcParams(filters) {
     p_request_month: filters.month || null,
     p_status: filters.status || null,
     p_source_type: filters.sourceType || null,
-    p_business_entity_id: filters.businessEntityId || null,
+    p_business_entity_id: null,
     p_currency: filters.currency || null,
   };
 }
@@ -85,27 +77,6 @@ export async function fetchPaymentRequests(filters) {
   }
 
   return data || [];
-}
-
-export async function fetchBusinessEntities() {
-  const errors = [];
-
-  for (const columns of BUSINESS_ENTITY_SELECT_CANDIDATES) {
-    const { data, error } = await supabase
-      .from("school_business_entities")
-      .select(columns);
-
-    if (!error) {
-      return {
-        data: normalizeBusinessEntities(data || []),
-        warning: "",
-      };
-    }
-
-    errors.push(error.message);
-  }
-
-  return { data: [], warning: errors.join(" / ") };
 }
 
 export async function fetchAccounts() {
@@ -241,18 +212,6 @@ export async function reissueReversedPaymentRequest(payload) {
   return data;
 }
 
-function normalizeBusinessEntities(rows) {
-  return rows
-    .map((row) => ({
-      id: row.id,
-      code: row.code || "",
-      name: row.name || row.business_name || row.entity_name || row.label || row.id,
-      entityType: row.entity_type || "",
-      isActive: row.is_active,
-    }))
-    .sort((a, b) => String(a.name).localeCompare(String(b.name), "zh-CN"));
-}
-
 function applyPaymentFilters(query, filters) {
   if (filters.month) {
     query = query.eq("request_month", filters.month);
@@ -266,10 +225,6 @@ function applyPaymentFilters(query, filters) {
 
   if (filters.sourceType) {
     query = query.eq("source_type", filters.sourceType);
-  }
-
-  if (filters.businessEntityId) {
-    query = query.eq("business_entity_id", filters.businessEntityId);
   }
 
   if (filters.currency) {

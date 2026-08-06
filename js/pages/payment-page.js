@@ -5,13 +5,12 @@ import {
   cancelPaymentRequest,
   confirmPaymentRequest,
   fetchAccounts,
-  fetchBusinessEntities,
   fetchPaymentRequests,
   fetchPaymentSummary,
   reissueReversedPaymentRequest,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
-} from "../api/payment-api.js?v=v2.112.0-cash-retry-attempts-20260614";
+} from "../api/payment-api.js?v=be-ui-20260806-1";
 import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=v2.112.0-cash-retry-attempts-20260614";
 import {
   formatCurrency,
@@ -38,7 +37,6 @@ const SUMMARY_FIELDS = [
 
 const dom = {};
 let accounts = [];
-let businessEntities = [];
 let cashLinkageEvents = [];
 let currentConfirmRow = null;
 let isConfirmSubmitting = false;
@@ -69,7 +67,6 @@ export function initPaymentPage() {
     return;
   }
 
-  loadBusinessEntities();
   loadAccounts();
   loadPaymentData();
 }
@@ -81,7 +78,6 @@ function cacheDom() {
   dom.monthFilter = document.querySelector("#monthFilter");
   dom.statusSelect = document.querySelector("#statusSelect");
   dom.sourceTypeSelect = document.querySelector("#sourceTypeSelect");
-  dom.businessEntitySelect = document.querySelector("#businessEntitySelect");
   dom.currencySelect = document.querySelector("#currencySelect");
   dom.resetButton = document.querySelector("#resetButton");
   dom.summaryGrid = document.querySelector("#summaryGrid");
@@ -208,18 +204,7 @@ function setDefaultFilters() {
   setMonthSelectValue(currentYearMonth());
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.sourceTypeSelect.value = DEFAULT_FILTERS.sourceType;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
-}
-
-async function loadBusinessEntities() {
-  const result = await fetchBusinessEntities();
-  setBusinessEntities(result.data);
-  renderBusinessEntities(businessEntities);
-
-  if (result.warning) {
-    showMessage("warning", `业务归属选项读取失败，已继续加载支付数据：${result.warning}`);
-  }
 }
 
 async function loadAccounts() {
@@ -245,18 +230,10 @@ async function loadPaymentData() {
   showMessage("info", "正在加载老师工资支付数据...");
 
   try {
-    const [entitiesResult, summary, requests] = await Promise.all([
-      fetchBusinessEntities(),
+    const [summary, requests] = await Promise.all([
       fetchPaymentSummary(filters),
       fetchPaymentRequests(filters),
     ]);
-
-    setBusinessEntities(entitiesResult.data);
-    renderBusinessEntities(businessEntities);
-    dom.businessEntitySelect.value = filters.businessEntityId;
-    if (entitiesResult.warning) {
-      showMessage("warning", `业务归属选项读取失败，已继续加载支付数据：${entitiesResult.warning}`);
-    }
 
     await loadPersonalCashLookups();
 
@@ -288,7 +265,6 @@ function readFilters() {
     month: selectedMonth,
     status: dom.statusSelect.value,
     sourceType: dom.sourceTypeSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     currency: dom.currencySelect.value,
   };
 }
@@ -340,23 +316,6 @@ function getSelectedYearMonth() {
   return yearMonth;
 }
 
-function renderBusinessEntities(items) {
-  const options = ['<option value="">全部</option>'];
-
-  for (const item of items) {
-    const name = item.name || item.id;
-    options.push(
-      `<option value="${escapeAttribute(item.id)}">${escapeHtml(name)}</option>`
-    );
-  }
-
-  dom.businessEntitySelect.innerHTML = options.join("");
-}
-
-function setBusinessEntities(items) {
-  businessEntities = items || [];
-}
-
 function renderSummary(summary) {
   const cards = SUMMARY_FIELDS.map((field) => {
     const value = summary[field.key];
@@ -389,7 +348,6 @@ function renderRows(rows) {
           <td>${escapeHtml(formatMonth(month))}</td>
           <td><span class="status-badge status-${escapeAttribute(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td>
           <td>${escapeHtml(sourceTypeLabel(row.source_type))}</td>
-          <td>${escapeHtml(row.business_name || row.business_entity_id || "-")}</td>
           <td class="description-cell">${escapeHtml(targetText || "-")}</td>
           <td>${escapeHtml(row.currency || "-")}</td>
           <td class="number-cell">${escapeHtml(formatCurrency(row.amount, row.currency))}</td>
@@ -645,7 +603,6 @@ function renderConfirmDialogChrome() {
 function renderConfirmSummary(row) {
   const items = [
     ["支付对象", row.payee_name || row.source_id || row.id],
-    ["业务归属", row.business_name || row.business_entity_id || "-"],
     ["请求月份", formatMonth(row.request_month)],
     ["来源类型", sourceTypeLabel(row.source_type)],
     ["支付金额", formatCurrency(row.amount, row.currency)],
@@ -847,7 +804,6 @@ function setReverseSubmitting(isSubmitting) {
 function renderReverseSummary(row) {
   const items = [
     ["支付对象", row.payee_name || row.source_id || row.id],
-    ["业务归属", row.business_name || row.business_entity_id || "-"],
     ["请求月份", formatMonth(row.request_month)],
     ["来源类型", sourceTypeLabel(row.source_type)],
     ["支付金额", formatCurrency(row.amount, row.currency)],
@@ -1020,7 +976,6 @@ function renderStatusActionContent(row, actionType) {
 function renderStatusActionSummary(row) {
   const items = [
     ["支付对象", row.payee_name || row.source_id || row.id],
-    ["业务归属", row.business_name || row.business_entity_id || "-"],
     ["请求月份", formatMonth(row.request_month)],
     ["来源类型", sourceTypeLabel(row.source_type)],
     ["支付金额", formatCurrency(row.amount, row.currency)],
@@ -1153,7 +1108,6 @@ async function submitReissuePayment() {
 function renderReissueSummary(row) {
   const items = [
     ["支付对象", row.payee_name || row.source_id || row.id],
-    ["业务归属", row.business_name || row.business_entity_id || "-"],
     ["请求月份", formatMonth(row.request_month)],
     ["币种", row.currency || "-"],
     ["支付金额", formatCurrency(row.amount, row.currency)],

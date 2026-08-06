@@ -8,7 +8,8 @@ export function isPrimarySchoolBusinessEntity(entity) {
 }
 
 export function primarySchoolBusinessEntity(entities = []) {
-  return (entities || []).find(isPrimarySchoolBusinessEntity) || null;
+  const matches = (entities || []).filter(isPrimarySchoolBusinessEntity);
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function newBusinessEntities(entities = []) {
@@ -21,6 +22,14 @@ export function newBusinessEntities(entities = []) {
 
 export function defaultNewBusinessEntityId(entities = []) {
   return primarySchoolBusinessEntity(entities)?.id || "";
+}
+
+export function requirePrimarySchoolBusinessEntityId(entities = []) {
+  const matches = (entities || []).filter(isPrimarySchoolBusinessEntity);
+  if (matches.length !== 1 || matches[0].is_active === false) {
+    throw new Error("学校主体配置异常：必须且只能存在一条启用的青空进学塾主数据。");
+  }
+  return matches[0].id;
 }
 
 export function historicalEditBusinessEntities(entities = [], currentId = "") {

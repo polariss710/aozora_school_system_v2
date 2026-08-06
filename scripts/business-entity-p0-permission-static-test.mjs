@@ -14,6 +14,7 @@ const coreSql = read("sql/current/school_business_entity_p0_permission_closure_c
 const deploySql = read("sql/current/school_business_entity_p0_permission_closure_deploy_20260806.sql");
 const postdeploySql = read("sql/current/school_business_entity_p0_permission_closure_postdeploy_20260806.sql");
 const rollbackSql = read("sql/tests/school_business_entity_p0_permission_closure_rollback_test_20260806.sql");
+const uiCoreSql = read("sql/current/school_business_entity_ui_closure_core_20260806.sql");
 const apiSource = read("js/api/business-entity-api.js");
 
 assert(occurrences(createSql, "perform public.school_require_current_app_admin();") === 2,
@@ -54,10 +55,16 @@ assert(!/school_(create|update)_business_entity_profile\s*\(/i.test(
 
 assert(apiSource.includes('.from("school_business_entities")') && apiSource.includes('.select(BUSINESS_ENTITY_COLUMNS)'),
   "API must retain the authorized read path");
-assert(apiSource.includes('supabase.rpc("school_create_business_entity_profile"'),
-  "create must remain behind the API-layer RPC");
-assert(apiSource.includes('supabase.rpc("school_update_business_entity_profile"'),
-  "update must remain behind the API-layer RPC");
+assert(!apiSource.includes('supabase.rpc("school_create_business_entity_profile"'),
+  "retired create Profile writer must have no browser consumer");
+assert(!apiSource.includes('supabase.rpc("school_update_business_entity_profile"'),
+  "retired update Profile writer must have no browser consumer");
+assert(occurrences(uiCoreSql, "revoke all on function public.school_create_business_entity_profile") === 2,
+  "BE-UI must close both create Profile overload ACLs");
+assert(occurrences(uiCoreSql, "revoke all on function public.school_update_business_entity_profile") === 2,
+  "BE-UI must close both update Profile overload ACLs");
+assert(!/grant execute on function public\.school_(create|update)_business_entity_profile/i.test(uiCoreSql),
+  "BE-UI must not restore any Profile writer execute grant");
 
 const pageFiles = fs.readdirSync(path.join(root, "js/pages"))
   .filter((name) => name.endsWith(".js"));

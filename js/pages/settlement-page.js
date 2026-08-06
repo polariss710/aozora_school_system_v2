@@ -1,15 +1,14 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
-  fetchSettlementBusinessEntities,
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=settlement-trusted-tool-20260803-1";
+} from "../api/settlement-api.js?v=be-ui-20260806-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
-} from "../api/business-error.js?v=settlement-trusted-tool-20260803-1";
+} from "../api/business-error.js?v=be-ui-20260806-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -22,7 +21,6 @@ import { hasFrozenSettlementOverage } from "../utils/actual-overage.js";
 
 const DEFAULT_FILTERS = {
   studentId: "",
-  businessEntityId: "",
   status: "",
   keyword: "",
 };
@@ -49,7 +47,6 @@ const TRUSTED_TOOL_MESSAGE = "V2财务写操作请使用本机受信管理工具
 
 const dom = {};
 let students = [];
-let businessEntities = [];
 let settlements = [];
 let loadedMonth = "";
 let currentLockSettlement = null;
@@ -90,7 +87,6 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#settlementYearFilter");
   dom.monthFilter = document.querySelector("#settlementMonthFilter");
   dom.studentSelect = document.querySelector("#settlementStudentSelect");
-  dom.businessEntitySelect = document.querySelector("#settlementBusinessEntitySelect");
   dom.statusSelect = document.querySelector("#settlementStatusSelect");
   dom.keywordInput = document.querySelector("#settlementKeywordInput");
   dom.resetButton = document.querySelector("#settlementResetButton");
@@ -254,7 +250,6 @@ function bindEvents() {
 function setDefaultFilters() {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
-  dom.businessEntitySelect.value = DEFAULT_FILTERS.businessEntityId;
   dom.statusSelect.value = DEFAULT_FILTERS.status;
   dom.keywordInput.value = DEFAULT_FILTERS.keyword;
 }
@@ -264,10 +259,7 @@ async function loadInitialData() {
   showMessage("info", "正在加载学生月度结算数据...");
 
   try {
-    [students, businessEntities] = await Promise.all([
-      fetchSettlementStudents(),
-      fetchSettlementBusinessEntities(),
-    ]);
+    students = await fetchSettlementStudents();
 
     renderMasterOptions();
     await loadSettlementMonth(currentYearMonth());
@@ -275,7 +267,6 @@ async function loadInitialData() {
     showMessage("success", "学生月度结算数据已加载。");
   } catch (error) {
     students = [];
-    businessEntities = [];
     settlements = [];
     loadedMonth = "";
     renderMasterOptions();
@@ -356,7 +347,6 @@ function readFilters() {
   return {
     month,
     studentId: dom.studentSelect.value,
-    businessEntityId: dom.businessEntitySelect.value,
     status: dom.statusSelect.value,
     keyword: dom.keywordInput.value.trim(),
   };
@@ -365,14 +355,12 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
-  dom.businessEntitySelect.value = filters.businessEntityId;
   dom.statusSelect.value = filters.status;
   dom.keywordInput.value = filters.keyword;
 }
 
 function renderMasterOptions() {
   renderEntityOptions(dom.studentSelect, students, studentName);
-  renderEntityOptions(dom.businessEntitySelect, businessEntities, businessEntityName);
 }
 
 function renderStatusOptions(rows) {
@@ -413,7 +401,6 @@ function renderSettlements(rows) {
       <td class="settlement-nowrap settlement-action-cell">${renderSettlementDetailAction(row)}</td>
       <td class="settlement-nowrap">${escapeHtml(formatMonth(row.year_month))}</td>
       <td>${escapeHtml(nameById(students, row.student_id, studentName))}</td>
-      <td>${escapeHtml(nameById(businessEntities, row.business_entity_id, businessEntityName))}</td>
       <td><span class="status-badge ${escapeAttribute(statusClass(effectiveSettlementStatus(row)))}" title="${escapeAttribute(row.immutable_reason || "")}">${escapeHtml(settlementStatusLabel(effectiveSettlementStatus(row)))}</span></td>
       <td>${renderTeacherWageBlocker(row)}</td>
       <td class="number-cell settlement-nowrap">${escapeHtml(formatCurrency(row.previous_balance_cny, "CNY"))}</td>
@@ -525,7 +512,6 @@ function renderLockSummary(row) {
   const rows = [
     ["学生", nameById(students, row.student_id, studentName)],
     ["学生结算月（后端权威）", formatMonth(row.year_month)],
-    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["预定课时费", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
     ["实际课时费", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
     ["课时差额处理", sourceTreatmentModeLabel(row.source_treatment_mode)],
@@ -674,7 +660,6 @@ function renderStatusActionSummary(row) {
   const rows = [
     ["学生", nameById(students, row.student_id, studentName)],
     ["学生结算月（后端权威）", formatMonth(row.year_month)],
-    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["当前状态", settlementStatusLabel(row.settlement_status)],
     ["锁定时间", formatDate(row.locked_at)],
     ["撤销时间", formatDate(row.unlocked_at)],
@@ -833,7 +818,6 @@ function renderAdjustmentCurrentState(state, row = currentAdjustmentSettlement) 
     dom.adjustmentCurrentState.innerHTML = renderSummaryRows([
       ["学生", nameById(students, row.student_id, studentName)],
       ["结算月份", formatMonth(row.year_month)],
-      ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
       ["数据库状态", "正在读取…"],
     ]);
     return;
@@ -842,7 +826,6 @@ function renderAdjustmentCurrentState(state, row = currentAdjustmentSettlement) 
   dom.adjustmentCurrentState.innerHTML = renderSummaryRows([
     ["学生", nameById(students, row.student_id, studentName)],
     ["结算月份", formatMonth(row.year_month)],
-    ["业务归属", nameById(businessEntities, row.business_entity_id, businessEntityName)],
     ["保存状态", state.is_saved ? "已有数据库保存事实" : "尚未保存"],
     ["结算状态", state.settlement_status
       ? (SETTLEMENT_STATUS_LABELS[state.settlement_status] || state.settlement_status)
@@ -1292,10 +1275,6 @@ function filterSettlements(rows, filters) {
       return false;
     }
 
-    if (filters.businessEntityId && row.business_entity_id !== filters.businessEntityId) {
-      return false;
-    }
-
     if (filters.status && effectiveSettlementStatus(row) !== filters.status) {
       return false;
     }
@@ -1312,7 +1291,6 @@ function matchesKeyword(row, keyword) {
   const normalizedKeyword = keyword.toLowerCase();
   return [
     nameById(students, row.student_id, studentName),
-    nameById(businessEntities, row.business_entity_id, businessEntityName),
     settlementStatusLabel(effectiveSettlementStatus(row)),
     effectiveSettlementStatus(row),
     row.physical_status,
@@ -1335,12 +1313,6 @@ function sortSettlements(rows) {
       .localeCompare(nameById(students, right.student_id, studentName), "zh-CN");
     if (studentCompare !== 0) {
       return studentCompare;
-    }
-
-    const businessCompare = nameById(businessEntities, left.business_entity_id, businessEntityName)
-      .localeCompare(nameById(businessEntities, right.business_entity_id, businessEntityName), "zh-CN");
-    if (businessCompare !== 0) {
-      return businessCompare;
     }
 
     return safeText(left.locked_at).localeCompare(safeText(right.locked_at));
@@ -1368,10 +1340,6 @@ function nameById(rows, id, labelGetter) {
 
 function studentName(student) {
   return safeText(student.display_name || student.name) || "未设置";
-}
-
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
 }
 
 function settlementStatusLabel(value) {

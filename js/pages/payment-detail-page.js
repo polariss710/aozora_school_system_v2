@@ -136,7 +136,6 @@ function renderPaymentDetail(data) {
     ["请求月份", formatMonth(paymentRequest.request_month)],
     ["收款方类型", payeeTypeLabel(paymentRequest.payee_type)],
     ["收款方", displayValue(paymentRequest.payee_name)],
-    ["业务归属", displayValue(paymentRequest.business_name || paymentRequest.business_entity_id)],
     ["状态", paymentRequestStatusLabel(paymentRequest.status)],
     ["到期日", formatDateOnly(paymentRequest.due_date)],
   ]);
@@ -164,7 +163,6 @@ function renderPaymentDetail(data) {
     ["source_type", displayValue(paymentRequest.source_type)],
     ["source_id", shortId(paymentRequest.source_id)],
     ["payee_id", shortId(paymentRequest.payee_id)],
-    ["business_entity_id", shortId(paymentRequest.business_entity_id)],
     ["paid_expense_id", shortId(paymentRequest.paid_expense_id)],
     ["paid_account_transaction_id", shortId(paymentRequest.paid_account_transaction_id)],
     ["reversal_transaction_id", shortId(paymentRequest.reversal_transaction_id)],
@@ -199,7 +197,6 @@ function renderWageLock(wageLock, paymentRequest) {
       ${renderDefinitionList([
         ["结算月份", formatMonth(wageLock.settlement_month)],
         ["老师", displayValue(wageLock.teacher_name)],
-        ["业务归属", displayValue(wageLock.business_name)],
         ["结算类型", settlementTypeLabel(wageLock.settlement_type)],
         ["课时数", displayValue(wageLock.lesson_count)],
         ["支付小时", displayValue(wageLock.pay_hours)],
@@ -263,7 +260,6 @@ function renderAccount(accountId) {
     ["币种", displayValue(account.currency)],
     ["公司账户", booleanLabel(account.is_company_account)],
     ["启用状态", booleanLabel(account.is_active)],
-    ["business_entity_id", shortId(account.business_entity_id)],
   ]);
 }
 

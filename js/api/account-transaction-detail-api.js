@@ -36,15 +36,6 @@ const ACCOUNT_COLUMNS = [
   "updated_at",
 ].join(",");
 
-const BUSINESS_ENTITY_COLUMNS = [
-  "id",
-  "code",
-  "name",
-  "entity_type",
-  "default_currency",
-  "is_active",
-].join(",");
-
 const INCOME_COLUMNS = [
   "id",
   "income_date",
@@ -237,25 +228,19 @@ async function fetchAccountTransaction(transactionId) {
 }
 
 async function fetchAccountTransactionLookups() {
-  const [accountsResult, businessEntitiesResult] = await Promise.all([
+  const [accountsResult] = await Promise.all([
     supabase
       .from("school_accounts")
       .select(ACCOUNT_COLUMNS)
       .eq("app_type", "school")
       .order("currency", { ascending: true })
       .order("name", { ascending: true }),
-    supabase
-      .from("school_business_entities")
-      .select(BUSINESS_ENTITY_COLUMNS)
-      .order("name", { ascending: true }),
   ]);
 
   if (accountsResult.error) throw accountsResult.error;
-  if (businessEntitiesResult.error) throw businessEntitiesResult.error;
 
   return {
     accounts: accountsResult.data || [],
-    businessEntities: businessEntitiesResult.data || [],
   };
 }
 

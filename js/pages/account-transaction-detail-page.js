@@ -3,7 +3,7 @@ import {
   fetchAccountTransactionDetailPage,
   reverseAccountAdjustment,
   reverseAccountTransfer,
-} from "../api/account-transaction-detail-api.js";
+} from "../api/account-transaction-detail-api.js?v=be-ui-20260806-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const TRANSACTION_TYPE_LABELS = {
@@ -171,7 +171,6 @@ function renderTransactionDetail(data) {
     ["目标月份", formatMonth(transaction.year_month)],
     ["流水类型", transactionTypeLabel(transaction.transaction_type)],
     ["关联来源", relatedTableLabel(transaction.related_table)],
-    ["业务归属", businessNameById(transaction.business_entity_id)],
   ]);
 
   dom.amountInfo.innerHTML = `
@@ -190,7 +189,6 @@ function renderTransactionDetail(data) {
   dom.systemInfo.innerHTML = renderDefinitionList([
     ["id", shortId(transaction.id)],
     ["account_id", shortId(transaction.account_id)],
-    ["business_entity_id", shortId(transaction.business_entity_id)],
     ["related_table", displayValue(transaction.related_table)],
     ["related_id", shortId(transaction.related_id)],
     ["app_type", displayValue(transaction.app_type)],
@@ -220,7 +218,6 @@ function renderAccountInfo(transaction) {
       ["账户编码", displayValue(account.account_code)],
       ["账户类型", accountTypeLabel(account.account_type)],
       ["账户币种", displayValue(account.currency)],
-      ["业务归属", businessNameById(account.business_entity_id)],
       ["公司账户", booleanLabel(account.is_company_account)],
       ["启用状态", booleanLabel(account.is_active)],
       ["流水后余额", formatCurrency(transaction.balance_after, transaction.currency)],
@@ -276,7 +273,6 @@ function openReverseAccountAdjustmentDialog() {
     ["调整 ID", shortId(adjustment.id)],
     ["调整日期", formatDateOnly(adjustment.adjustment_date)],
     ["账户", accountNameById(adjustment.account_id)],
-    ["业务归属", businessNameById(adjustment.business_entity_id)],
     ["调整金额", formatCurrency(adjustment.amount, adjustment.currency)],
     ["撤销后影响", formatCurrency(Number(adjustment.amount || 0) * -1, adjustment.currency)],
   ]);
@@ -409,7 +405,6 @@ function openReverseAccountTransferDialog() {
     ["转账日期", formatDateOnly(transfer.transfer_date)],
     ["转出账户", accountNameById(transfer.from_account_id)],
     ["转入账户", accountNameById(transfer.to_account_id)],
-    ["业务归属", businessNameById(transfer.business_entity_id)],
     ["转账金额", formatCurrency(transfer.amount, transfer.currency)],
     ["撤销后转出账户影响", formatCurrency(Number(transfer.amount || 0), transfer.currency)],
     ["撤销后转入账户影响", formatCurrency(Number(transfer.amount || 0) * -1, transfer.currency)],
@@ -602,7 +597,6 @@ function sourceDefinitionItems(table, row) {
       ["请求月份", formatMonth(row.request_month)],
       ["来源类型", displayValue(row.source_type)],
       ["收款方", displayValue(row.payee_name)],
-      ["业务归属", displayValue(row.business_name)],
       ["金额", formatCurrency(row.amount, row.currency)],
       ["JPY 金额", formatCurrency(row.amount_jpy, "JPY")],
       ["CNY 金额", formatCurrency(row.amount_cny, "CNY")],
@@ -618,7 +612,6 @@ function sourceDefinitionItems(table, row) {
     return [
       ["报销日期", formatDateOnly(row.reimbursement_date)],
       ["目标月份", formatMonth(row.year_month)],
-      ["业务归属", businessNameById(row.business_entity_id)],
       ["转出账户", accountNameById(row.from_account_id)],
       ["转入账户", accountNameById(row.to_account_id)],
       ["金额", formatCurrency(row.amount, row.currency)],
@@ -632,7 +625,6 @@ function sourceDefinitionItems(table, row) {
     return [
       ["调整日期", formatDateOnly(row.adjustment_date)],
       ["目标月份", formatMonth(row.year_month)],
-      ["业务归属", businessNameById(row.business_entity_id)],
       ["账户", accountNameById(row.account_id)],
       ["金额", formatCurrency(row.amount, row.currency)],
       ["调整前余额", formatCurrency(row.balance_before, row.currency)],
@@ -652,7 +644,6 @@ function sourceDefinitionItems(table, row) {
     return [
       ["转账日期", formatDateOnly(row.transfer_date)],
       ["目标月份", formatMonth(row.year_month)],
-      ["业务归属", businessNameById(row.business_entity_id)],
       ["转出账户", accountNameById(row.from_account_id)],
       ["转入账户", accountNameById(row.to_account_id)],
       ["金额", formatCurrency(row.amount, row.currency)],
@@ -679,7 +670,6 @@ function sourceDefinitionItems(table, row) {
       ["账户编码", displayValue(row.account_code)],
       ["账户类型", accountTypeLabel(row.account_type)],
       ["币种", displayValue(row.currency)],
-      ["业务归属", businessNameById(row.business_entity_id)],
       ["当前余额", formatCurrency(row.current_balance, row.currency)],
       ["启用状态", booleanLabel(row.is_active)],
       ["创建时间", formatDate(row.created_at)],
@@ -706,10 +696,6 @@ function accountById(id) {
   return detailData?.lookups.accounts.find((item) => item.id === id) || null;
 }
 
-function businessById(id) {
-  return detailData?.lookups.businessEntities.find((item) => item.id === id) || null;
-}
-
 function accountNameById(id) {
   const account = accountById(id);
   if (!account) {
@@ -719,17 +705,6 @@ function accountNameById(id) {
   const name = safeText(account.name) || "未设置";
   const currency = safeText(account.currency);
   return currency ? `${name} / ${currency}` : name;
-}
-
-function businessNameById(id) {
-  const entity = businessById(id);
-  if (!entity) {
-    return id ? "未知" : "未设置";
-  }
-
-  const name = safeText(entity.name) || "未设置";
-  const code = safeText(entity.code);
-  return code ? `${name} / ${code}` : name;
 }
 
 function transactionTypeLabel(type) {

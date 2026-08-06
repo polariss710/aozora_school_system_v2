@@ -12,7 +12,7 @@ const sql = fs.readFileSync(
 
 assert.match(html, /V2财务写操作请使用本机受信管理工具执行。/);
 assert.match(html, /月结差额 DB 只读 Preview/);
-assert.match(html, /settlement-app\.js\?v=p0-g1-a-20260804-1/);
+assert.match(html, /settlement-app\.js\?v=be-ui-20260806-1/);
 assert.match(page, /DB只读 Preview/);
 assert.match(page, /dom\.adjustmentSubmitButton\.disabled = true/);
 assert.doesNotMatch(page, /data-lock-settlement-id=/);

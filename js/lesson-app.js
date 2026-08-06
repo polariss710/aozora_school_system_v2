@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=phase-b4-lesson-candidates-20260806";
-import { requireGlobalSession } from "./auth-guard.js?v=p0-g1-a-20260804-1";
-import { initLessonPage } from "./pages/lesson-page.js?v=phase-b4-lesson-candidates-20260806";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
+import { initLessonPage } from "./pages/lesson-page.js?v=be-ui-20260806-1";
 
 const globalSessionPromise = requireGlobalSession();
 

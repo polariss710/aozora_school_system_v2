@@ -24,7 +24,6 @@ const EDIT_LESSON_FIELD_IDS = [
   "student",
   "teacher",
   "subject",
-  "businessEntity",
   "startTime",
   "endTime",
   "lessonDeliveryMode",
@@ -50,7 +49,6 @@ export function cacheLessonEditDialogDom(root = document) {
     studentSelect: root.querySelector("#editLessonStudentSelect"),
     teacherSelect: root.querySelector("#editLessonTeacherSelect"),
     subjectSelect: root.querySelector("#editLessonSubjectSelect"),
-    businessEntitySelect: root.querySelector("#editLessonBusinessEntitySelect"),
     startTimeInput: root.querySelector("#editLessonStartTimeInput"),
     endTimeInput: root.querySelector("#editLessonEndTimeInput"),
     deliveryModeSelect: root.querySelector("#editLessonDeliveryModeSelect"),
@@ -120,7 +118,6 @@ export function createLessonEditDialogController(options) {
       ["student", dom.studentSelect],
       ["teacher", dom.teacherSelect],
       ["subject", dom.subjectSelect],
-      ["businessEntity", dom.businessEntitySelect],
       ["startTime", dom.startTimeInput],
       ["endTime", dom.endTimeInput],
       ["lessonDeliveryMode", dom.deliveryModeSelect],
@@ -265,9 +262,7 @@ export function createLessonEditDialogController(options) {
   }
 
   function renderOptions() {
-    const { students = [], teachers = [], subjects = [], businessEntities = [] } = getMasterData() || {};
-    const currentBusinessEntityId = safeText(currentLesson?.business_entity_id);
-    const currentBusinessEntity = businessEntities.find((entity) => entity.id === currentBusinessEntityId);
+    const { students = [], teachers = [], subjects = [] } = getMasterData() || {};
     const currentStudent = students.find((student) => student.id === currentLesson?.student_id);
     renderEntityOptionsWithPlaceholder(dom.studentSelect, currentStudent ? [currentStudent] : [], studentName, "请选择学生");
     renderEntityOptionsWithPlaceholder(
@@ -281,12 +276,6 @@ export function createLessonEditDialogController(options) {
       subjects.filter((subject) => subject.is_active !== false),
       subjectName,
       "请选择科目"
-    );
-    renderEntityOptionsWithPlaceholder(
-      dom.businessEntitySelect,
-      currentBusinessEntity ? [currentBusinessEntity] : [],
-      businessEntityName,
-      currentBusinessEntity ? "当前业务归属" : "请选择业务归属"
     );
   }
 
@@ -336,7 +325,6 @@ export function createLessonEditDialogController(options) {
     dom.studentSelect.value = safeText(lesson.student_id);
     dom.teacherSelect.value = safeText(lesson.teacher_id);
     dom.subjectSelect.value = safeText(lesson.subject_id);
-    dom.businessEntitySelect.value = safeText(lesson.business_entity_id);
     dom.startTimeInput.value = formatInputTime(lesson.start_time);
     dom.endTimeInput.value = formatInputTime(lesson.end_time);
     dom.deliveryModeSelect.value = safeText(lesson.lesson_delivery_mode);
@@ -386,9 +374,6 @@ export function createLessonEditDialogController(options) {
       element.disabled = isLinkedActual;
       element.title = isLinkedActual ? "已关联来源课时，对象信息不可在此修改。" : "";
     });
-    dom.businessEntitySelect.disabled = true;
-    dom.businessEntitySelect.title = "课时业务归属不可在编辑中修改；历史记录按原归属保留。";
-
     [dom.startTimeInput, dom.endTimeInput, dom.durationInput, dom.unitPriceInput].forEach((element) => {
       element.readOnly = isLinkedActual;
       element.title = isLinkedActual
@@ -509,7 +494,7 @@ export function createLessonEditDialogController(options) {
     const studentId = dom.studentSelect.value;
     const teacherId = dom.teacherSelect.value;
     const subjectId = dom.subjectSelect.value;
-    const businessEntityId = dom.businessEntitySelect.value;
+    const businessEntityId = safeText(lesson.business_entity_id);
     const startTime = dom.startTimeInput.value;
     const endTime = dom.endTimeInput.value;
     const lessonDeliveryMode = dom.deliveryModeSelect.value;
@@ -537,14 +522,14 @@ export function createLessonEditDialogController(options) {
     if (!studentId) invalidFields.push("student");
     if (!teacherId) invalidFields.push("teacher");
     if (!subjectId) invalidFields.push("subject");
-    if (!businessEntityId) invalidFields.push("businessEntity");
+    if (!businessEntityId) invalidFields.push("lessonDate");
     if (isLinkedActual && (
       studentId !== lesson.student_id
       || teacherId !== lesson.teacher_id
       || subjectId !== lesson.subject_id
       || businessEntityId !== lesson.business_entity_id
     )) {
-      invalidFields.push("student", "teacher", "subject", "businessEntity");
+      invalidFields.push("student", "teacher", "subject");
     }
     if (startTime && !isTimeValue(startTime)) invalidFields.push("startTime");
     if (endTime && !isTimeValue(endTime)) invalidFields.push("endTime");
@@ -656,7 +641,6 @@ export function createLessonEditDialogController(options) {
     if (text.includes("学生")) fields.push("student");
     if (text.includes("老师")) fields.push("teacher");
     if (text.includes("科目")) fields.push("subject");
-    if (text.includes("业务归属")) fields.push("businessEntity");
     if (text.includes("开始时间")) fields.push("startTime");
     if (text.includes("结束时间")) fields.push("endTime");
     if (text.includes("授课方式")) fields.push("lessonDeliveryMode");
@@ -722,7 +706,6 @@ export function createLessonEditDialogController(options) {
       student: dom.studentSelect.value,
       teacher: dom.teacherSelect.value,
       subject: dom.subjectSelect.value,
-      businessEntity: dom.businessEntitySelect.value,
       startTime: dom.startTimeInput.value,
       endTime: dom.endTimeInput.value,
       lessonDeliveryMode: dom.deliveryModeSelect.value,
@@ -812,13 +795,9 @@ function subjectName(subject) {
   return safeText(subject.name) || "未设置";
 }
 
-function businessEntityName(entity) {
-  return safeText(entity.name) || "未设置";
-}
-
 function selectedOptionText(selectEl) {
   const text = safeText(selectEl?.selectedOptions?.[0]?.textContent);
-  return text === "请选择学生" || text === "请选择老师" || text === "请选择科目" || text === "请选择业务归属"
+  return text === "请选择学生" || text === "请选择老师" || text === "请选择科目"
     ? ""
     : text;
 }

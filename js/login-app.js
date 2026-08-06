@@ -1,4 +1,4 @@
-import { APP_VERSION } from "./config.js?v=p0-g1-a-20260804-1";
+import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
 import {
   failClosedSignOut,
   signInAndVerify,

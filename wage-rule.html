@@ -58,7 +58,7 @@
                   <details class="page-nav-group">
                     <summary>设置</summary>
                     <div class="page-nav-group-links">
-                      <a href="./business-entity.html">业务归属</a>
+
                       <a href="./account.html">账户</a>
                       <a href="./subject.html">科目</a>
                     </div>
@@ -108,13 +108,6 @@
             </label>
 
             <label class="field">
-              <span>业务归属</span>
-              <select id="wageRuleBusinessEntitySelect" name="businessEntityId">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
               <span>结算类型</span>
               <select id="wageRuleSettlementTypeSelect" name="settlementType">
                 <option value="">全部</option>
@@ -139,7 +132,7 @@
 
             <label class="field">
               <span>关键字</span>
-              <input id="wageRuleKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 学生 / 科目 / 业务归属 / 备注">
+              <input id="wageRuleKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 学生 / 科目 / 备注">
             </label>
 
             <div class="filter-actions wage-rule-filter-actions">
@@ -175,7 +168,6 @@
                   <th>老师状态</th>
                   <th>学生</th>
                   <th>科目</th>
-                  <th>业务归属</th>
                   <th>结算类型</th>
                   <th>日元时薪</th>
                   <th>人民币时薪</th>
@@ -217,11 +209,6 @@
         <label class="field" data-create-wage-rule-field="subject">
           <span>科目</span>
           <select id="createWageRuleSubjectSelect"></select>
-        </label>
-
-        <label class="field" data-create-wage-rule-field="businessEntity">
-          <span>业务归属</span>
-          <select id="createWageRuleBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-create-wage-rule-field="settlementType">
@@ -278,11 +265,6 @@
         <label class="field" data-edit-wage-rule-field="subject">
           <span>科目</span>
           <select id="editWageRuleSubjectSelect"></select>
-        </label>
-
-        <label class="field" data-edit-wage-rule-field="businessEntity">
-          <span>业务归属</span>
-          <select id="editWageRuleBusinessEntitySelect"></select>
         </label>
 
         <label class="field" data-edit-wage-rule-field="settlementType">
@@ -344,6 +326,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=p0-g1-a-20260804-1"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=be-ui-20260806-1"></script>
   </body>
 </html>
