@@ -155,4 +155,4 @@ P0完成后，active admin/operator 可以恢复生产“登记待补课完成�
 
 后续必须独立授权：李天伦4个误建 exact-ID 纠正；历史 raw-negative/fee anomaly 修复；余额徽章/reader；跨月排序；移动端/UI；张倬闻实际时间编辑与生产 exact-record 纠正。不得因本 P0 完成而自动启动这些阶段。
 
-提交、push、最终 Pages run、最终 HEAD/origin/main 与工作区状态记录在本任务最终交付中。
+实现提交为 `f3eb43c6949bc44edeffe0c41fc82d7717004e10`，已推送 `main`。首次 Pages run `31102416890` 的 build 成功，但同 SHA deployment 首次等待10分钟后由 GitHub Pages 服务端超时，随后两个 rerun 因相同 `pages_build_version` 已处于 cancelled 终态而立即返回 `Deployment cancelled`；仓库构建没有失败。为取得新的 Pages deployment ID，本段发布记录由后续纯文档提交发布；最终文档提交、Pages run、HEAD/origin/main 与工作区状态记录在任务交付中。
