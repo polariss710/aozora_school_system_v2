@@ -92,7 +92,7 @@ Actual 4 条：
 - `e317c07fc5c44eecb084a8de72bcfa0a703d9b30`：exact correction trigger/RPC、reader/API、wage 过滤及 `v10.5.13`
 - `2a399dc80753fedb0aabf8c6bc67f49a301953ce`：Void Actual 页面二次过滤修复及 `v10.5.14`
 
-Pages：`v10.5.13` run `31113670351` attempt 3 success；`v10.5.14` run `31116902526` 同 SHA rerun 状态待最终记录。
+Pages：`v10.5.13` run `31113670351` attempt 3 success；`v10.5.14` run `31116902526` 三次均因 GitHub Pages 平台失败（第3次仍停在 `Set up job`，未 checkout），任务收敛时线上仍为 `v10.5.13`。后续仅文档提交触发的 run `31117857748` 处于 queued；按收敛指令不继续等待或重试 Pages。
 
 ## 保护文件与边界
 
