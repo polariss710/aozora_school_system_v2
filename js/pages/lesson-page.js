@@ -1968,7 +1968,7 @@ function openCreateActualLessonDialog(plannedLessonId) {
     return;
   }
 
-  if (isVoidedPlanned(plannedLesson)) {
+  if (isVoidedLesson(plannedLesson)) {
     showMessage("error", "该预定课时已作废，不能生成 actual。");
     return;
   }
@@ -2328,7 +2328,7 @@ function openCreateCancelledActualLessonDialog(plannedLessonId) {
     return;
   }
 
-  if (isVoidedPlanned(plannedLesson)) {
+  if (isVoidedLesson(plannedLesson)) {
     showCreateCancelledActualLessonActionError(plannedLessonId, "该预定课时已作废，不能标记取消。");
     return;
   }
@@ -2585,7 +2585,7 @@ function openCreateMakeupActualLessonDialog(plannedLessonId) {
     return;
   }
 
-  if (isVoidedPlanned(plannedLesson)) {
+  if (isVoidedLesson(plannedLesson)) {
     showMessage("error", "该预定课时已作废，不能生成 makeup_completed actual。");
     return;
   }
@@ -6963,7 +6963,7 @@ function canMarkCancelledActualFromPlanned(planned) {
   return currentUserCanMarkLessonCancelled()
     && planned?.lesson_type === "planned"
     && planned.status === "planned"
-    && !isVoidedPlanned(planned)
+    && !isVoidedLesson(planned)
     && !linkedActualForPlannedLesson(planned.id);
 }
 
@@ -6971,7 +6971,7 @@ function canGenerateActualFromPlanned(planned) {
   return planned
     && planned.lesson_type === "planned"
     && ["planned", "pending_makeup"].includes(planned.status)
-    && !isVoidedPlanned(planned);
+    && !isVoidedLesson(planned);
 }
 
 function renderLessonEditAction(record) {
@@ -7031,8 +7031,8 @@ function hasLinkedActualLesson(plannedLessonId) {
   return hasSameMonthActual || hasCrossMonthActual;
 }
 
-function isVoidedPlanned(record) {
-  return Boolean(record && record.lesson_type === "planned" && record.voided_at);
+function isVoidedLesson(record) {
+  return Boolean(record && record.voided_at);
 }
 
 function renderLessonPairCard(record, side) {
@@ -7258,10 +7258,10 @@ function filterLessonRecords(records, filters) {
 
 function recordMatchesStatusFilter(record, statusFilter) {
   if (statusFilter === "voided") {
-    return isVoidedPlanned(record);
+    return isVoidedLesson(record);
   }
 
-  if (isVoidedPlanned(record)) {
+  if (isVoidedLesson(record)) {
     return false;
   }
 

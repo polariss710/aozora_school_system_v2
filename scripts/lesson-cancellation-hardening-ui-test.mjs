@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const lessonPage = readFileSync(new URL("../js/pages/lesson-page.js", import.meta.url), "utf8");
+const lessonDetailPage = readFileSync(new URL("../js/pages/lesson-detail-page.js", import.meta.url), "utf8");
 const lessonApi = readFileSync(new URL("../js/api/lesson-api.js", import.meta.url), "utf8");
 const lessonHtml = readFileSync(new URL("../lesson.html", import.meta.url), "utf8");
 const lessonApp = readFileSync(new URL("../js/lesson-app.js", import.meta.url), "utf8");
@@ -89,11 +90,16 @@ assert.match(lessonApi, /durationHours: Number\.isFinite/);
 assert.match(lessonApi, /options\.status === "voided"[\s\S]*\.not\("voided_at", "is", null\)/);
 assert.match(lessonApi, /else \{[\s\S]*query = query\.is\("voided_at", null\)/);
 assert.doesNotMatch(lessonApi, /options\.status === "voided"[\s\S]{0,160}\.eq\("lesson_type", "planned"\)/);
+assert.match(lessonPage, /function isVoidedLesson\(record\)[\s\S]*Boolean\(record && record\.voided_at\)/);
+assert.match(lessonPage, /statusFilter === "voided"[\s\S]*return isVoidedLesson\(record\)/);
+assert.doesNotMatch(lessonPage, /function isVoidedPlanned/);
+assert.match(lessonDetailPage, /function isVoidedLesson\(lesson\)[\s\S]*Boolean\(lesson && lesson\.voided_at\)/);
+assert.doesNotMatch(lessonDetailPage, /function isVoidedPlanned/);
 assert.match(writerSql, /extract\(epoch from \(v_end_value - v_start_value\)\)::numeric \/ 3600/);
 assert.match(writerSql, /p_duration_hours is distinct from v_duration_hours/);
 assert.match(writerSql, /actual_minutes, teacher_settlement_month/);
 
-assert.match(config, /APP_VERSION = "v10\.5\.13"/);
+assert.match(config, /APP_VERSION = "v10\.5\.14"/);
 assert.match(lessonHtml, /<body class="lesson-page">/);
 assert.match(lessonHtml, /app\.css\?v=phase-b4-lesson-candidates-20260806/);
 assert.match(lessonHtml, /lesson-app\.js\?v=be-ui-20260806-1/);

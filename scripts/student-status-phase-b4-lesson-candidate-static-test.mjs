@@ -33,6 +33,6 @@ assert(wageApi.includes("fetchStudentMonthCandidates") && !wageApi.includes('sup
 assert(sql.includes("school_expand_planned_lesson_batch_occurrences_v1") && sql.includes("school_preflight_planned_lesson_batch_student_candidates_v1"), "B4 lesson SQL helpers missing");
 assert(sql.includes("cross join lateral public.school_expand_planned_lesson_batch_occurrences_v1"), "formal batch writer must use shared occurrence helper");
 assert(sql.includes("school_resolve_planned_billing_attribution") && sql.includes("school_resolve_student_status_at_month_core_v1"), "DB authority resolver chain missing");
-assert(config.includes('APP_VERSION = "v10.5.13"'), "APP_VERSION must be v10.5.13");
+assert(config.includes('APP_VERSION = "v10.5.14"'), "APP_VERSION must be v10.5.14");
 
 console.log("STUDENT_STATUS_PHASE_B4_LESSON_CANDIDATE_STATIC_TEST_PASS");

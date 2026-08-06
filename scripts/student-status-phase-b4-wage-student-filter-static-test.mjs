@@ -49,7 +49,7 @@ assert.doesNotMatch(
 assert.match(page, /学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行/);
 
 assert.match(app, /be-ui-20260806-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.13"/);
+assert.match(config, /APP_VERSION = "v10\.5\.14"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

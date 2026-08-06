@@ -384,10 +384,10 @@ function renderLessonDetail(data) {
 
   syncReturnLink();
   renderEditAction(lesson);
-  dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}${isVoidedPlanned(lesson) ? " / 已作废" : ""}`;
+  dom.titleText.textContent = `${formatDateOnly(lesson.lesson_date)} / ${studentNameById(lookups, lesson.student_id)} / ${lessonTypeLabel(lesson.lesson_type)}${isVoidedLesson(lesson) ? " / 已作废" : ""}`;
   dom.basicInfo.innerHTML = renderDefinitionList([
     ["课时类型", lessonTypeLabel(lesson.lesson_type)],
-    ["状态", isVoidedPlanned(lesson) ? `${lessonStatusLabel(lesson.status)} / 已作废` : lessonStatusLabel(lesson.status)],
+    ["状态", isVoidedLesson(lesson) ? `${lessonStatusLabel(lesson.status)} / 已作废` : lessonStatusLabel(lesson.status)],
     ["作废时间", formatDate(lesson.voided_at)],
     [lesson.lesson_type === "actual" ? "实际发生日期" : "预计上课日期", formatDateOnly(lesson.lesson_date)],
     [lesson.lesson_type === "planned" ? "收费归属月" : "学生结算月", formatMonth(monthSemantics.studentSettlementMonth)],
@@ -688,14 +688,14 @@ function renderLessonStatusBadges(lesson) {
   const badges = [
     `<span class="status-badge ${escapeAttribute(lessonStatusClass(lesson.status))}">${escapeHtml(lessonStatusLabel(lesson.status))}</span>`,
   ];
-  if (isVoidedPlanned(lesson)) {
+  if (isVoidedLesson(lesson)) {
     badges.push('<span class="status-badge status-cancelled">已作废</span>');
   }
   return badges.join(" ");
 }
 
-function isVoidedPlanned(lesson) {
-  return Boolean(lesson && lesson.lesson_type === "planned" && lesson.voided_at);
+function isVoidedLesson(lesson) {
+  return Boolean(lesson && lesson.voided_at);
 }
 
 function settlementStatusLabel(value) {
