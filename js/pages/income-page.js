@@ -14,7 +14,7 @@ import {
   fetchStudentTuitionValidationPreviewDetails,
   generateStudentTuitionBillAtomic,
   requestCashIncomeConfirmationForRecord,
-} from "../api/income-api.js?v=p0-g1-b1-20260804-1";
+} from "../api/income-api.js?v=phase-b4-finance-20260807-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { fetchLessonSubjects, fetchLessonTeachers } from "../api/lesson-api.js";
 import {
@@ -42,9 +42,16 @@ import {
 import {
   requirePrimarySchoolBusinessEntityId,
 } from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+import {
+  fetchStudentMonthCandidates,
+  readStudentCandidateQuery,
+  renderStudentMonthCandidateOptions,
+  writeStudentCandidateQuery,
+} from "../api/student-status-api.js?v=phase-b4-finance-20260807-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",
+  includeInactive: false,
   accountId: "",
   incomeCategory: "",
   currency: "",
@@ -111,6 +118,13 @@ let isCreateSubmitting = false;
 let batchCashIncomeRows = [];
 let isBatchCashSubmitting = false;
 let initialMonth = "";
+let initialFilters = null;
+let topStudentCandidates = [];
+let topStudentCandidateKey = "";
+let createStudentCandidates = [];
+let tuitionBillStudentCandidates = [];
+let createStudentCandidateRequestId = 0;
+let tuitionStudentCandidateRequestId = 0;
 let isTuitionBillPreviewLoading = false;
 let tuitionBillPreviewSignature = "";
 const tuitionBillPreviewRequestGate = createLatestTuitionPreviewRequestGate();
@@ -122,7 +136,8 @@ export function initIncomePage() {
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   initialMonth = initialYearMonthFromUrl();
-  setDefaultFilters();
+  initialFilters = readIncomeQuery();
+  setDefaultFilters(initialFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -143,6 +158,7 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#incomeYearFilter");
   dom.monthFilter = document.querySelector("#incomeMonthFilter");
   dom.studentSelect = document.querySelector("#incomeStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#incomeIncludeInactiveCheckbox");
   dom.accountSelect = document.querySelector("#incomeAccountSelect");
   dom.categorySelect = document.querySelector("#incomeCategorySelect");
   dom.currencySelect = document.querySelector("#incomeCurrencySelect");
@@ -167,6 +183,7 @@ function cacheDom() {
   dom.createIncomeDateInput = document.querySelector("#createIncomeDateInput");
   dom.createSettlementMonthInput = document.querySelector("#createSettlementMonthInput");
   dom.createIncomeStudentSelect = document.querySelector("#createIncomeStudentSelect");
+  dom.createIncomeIncludeInactiveCheckbox = document.querySelector("#createIncomeIncludeInactiveCheckbox");
   dom.createIncomeAccountSelect = document.querySelector("#createIncomeAccountSelect");
   dom.createIncomeCurrencySelect = document.querySelector("#createIncomeCurrencySelect");
   dom.createIncomeCashMappingSelect = document.querySelector("#createIncomeCashMappingSelect");
@@ -189,6 +206,7 @@ function cacheDom() {
   dom.tuitionBillCandidateRows = document.querySelector("#tuitionBillCandidateRows");
   dom.tuitionBillMonthInput = document.querySelector("#tuitionBillMonthInput");
   dom.tuitionBillStudentSelect = document.querySelector("#tuitionBillStudentSelect");
+  dom.tuitionBillIncludeInactiveCheckbox = document.querySelector("#tuitionBillIncludeInactiveCheckbox");
   dom.tuitionBillBillingRateInput = document.querySelector("#tuitionBillBillingRateInput");
   dom.tuitionBillNoteInput = document.querySelector("#tuitionBillNoteInput");
   dom.generateTuitionBillCancelButton = document.querySelector("#generateTuitionBillCancelButton");
@@ -206,8 +224,9 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
-  dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
-  dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
+  dom.yearFilter.addEventListener("change", applyQuery);
+  dom.monthFilter.addEventListener("change", applyQuery);
+  dom.includeInactiveCheckbox.addEventListener("change", applyQuery);
 
   dom.resetButton.addEventListener("click", () => {
     clearTuitionBillPreview();
@@ -242,6 +261,11 @@ function bindEvents() {
   dom.tuitionBillMonthInput.addEventListener("change", () => {
     clearTuitionBillFieldInvalid("billingMonth");
     clearTuitionBillPreview();
+    refreshTuitionBillStudentCandidates();
+  });
+  dom.tuitionBillIncludeInactiveCheckbox.addEventListener("change", () => {
+    clearTuitionBillPreview();
+    refreshTuitionBillStudentCandidates();
   });
   dom.tuitionBillBillingRateInput.addEventListener("input", () => {
     clearTuitionBillFieldInvalid("billingRate");
@@ -257,6 +281,8 @@ function bindEvents() {
     clearCreateFieldInvalid("student");
     hideCreateErrorIfClean();
   });
+  dom.createIncomeIncludeInactiveCheckbox.addEventListener("change", refreshCreateStudentCandidates);
+  dom.createSettlementMonthInput.addEventListener("change", refreshCreateStudentCandidates);
   dom.createIncomeAccountSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("account");
     hideCreateErrorIfClean();
@@ -294,9 +320,16 @@ function bindEvents() {
 function setDefaultFilters(overrides = null) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(overrides?.includeInactive);
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.categorySelect.value = DEFAULT_FILTERS.incomeCategory;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
+  if (overrides) {
+    dom.studentSelect.value = overrides.studentId || "";
+    dom.accountSelect.value = overrides.accountId || "";
+    dom.categorySelect.value = overrides.incomeCategory || "";
+    dom.currencySelect.value = overrides.currency || "";
+  }
   updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
 }
 
@@ -316,11 +349,12 @@ async function loadInitialData() {
     accounts = lookups.accounts;
     teachers = lessonTeachers;
     subjects = lessonSubjects;
+    const filters = initialFilters || readFilters();
+    await Promise.all([loadIncomeMonth(filters.month), loadTopStudentCandidates(filters)]);
     renderMasterOptions();
-    const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
-    await loadIncomeMonth(month);
-    updateUrlMonthParams(month);
-    updateMonthScopedNavigation(month);
+    restoreFilterSelections(filters);
+    syncIncomeQuery(filters);
+    updateMonthScopedNavigation(filters.month);
     applyCurrentFilters();
     showMessage("success", "收入记录数据已加载。");
   } catch (error) {
@@ -333,6 +367,8 @@ async function loadInitialData() {
     hasLoadedCashEligibleAccounts = false;
     incomeRecords = [];
     loadedMonth = "";
+    topStudentCandidates = [];
+    topStudentCandidateKey = "";
     renderMasterOptions();
     renderDataOptions([]);
     renderIncomeRecords([]);
@@ -352,21 +388,23 @@ async function applyQuery() {
     return;
   }
 
-  updateUrlMonthParams(filters.month);
+  syncIncomeQuery(filters);
   updateMonthScopedNavigation(filters.month);
 
-  if (filters.month !== loadedMonth) {
+  if (filters.month !== loadedMonth || studentCandidateKey(filters) !== topStudentCandidateKey) {
     setLoading(true);
     showMessage("info", "正在加载收入记录...");
 
     try {
-      await loadIncomeMonth(filters.month);
+      await Promise.all([loadIncomeMonth(filters.month), loadTopStudentCandidates(filters)]);
       restoreFilterSelections(filters);
       applyCurrentFilters();
       showMessage("success", "收入记录已加载。");
     } catch (error) {
       incomeRecords = [];
       loadedMonth = "";
+      topStudentCandidates = [];
+      topStudentCandidateKey = "";
       renderDataOptions([]);
       renderIncomeRecords([]);
       showMessage("error", `读取收入记录失败：${error.message || error}`);
@@ -383,6 +421,18 @@ async function loadIncomeMonth(month) {
   incomeRecords = await fetchIncomeRecords(month);
   loadedMonth = month;
   renderDataOptions(incomeRecords);
+}
+
+async function loadTopStudentCandidates(filters) {
+  topStudentCandidates = await fetchStudentMonthCandidates({
+    month: filters.month,
+    includeInactive: filters.includeInactive,
+    selectedStudentId: filters.studentId || null,
+  });
+  topStudentCandidateKey = studentCandidateKey(filters);
+  renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
+    selectedStudentId: filters.studentId,
+  });
 }
 
 function applyCurrentFilters() {
@@ -405,6 +455,7 @@ function readFilters() {
   return {
     month,
     studentId: dom.studentSelect.value,
+    includeInactive: dom.includeInactiveCheckbox.checked,
     accountId: dom.accountSelect.value,
     incomeCategory: dom.categorySelect.value,
     currency: dom.currencySelect.value,
@@ -414,6 +465,7 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.accountSelect.value = filters.accountId;
   dom.categorySelect.value = filters.incomeCategory;
   dom.currencySelect.value = filters.currency;
@@ -425,12 +477,48 @@ function updateMonthNavigationFromCurrentSelection() {
   if (!month) {
     return;
   }
-  updateUrlMonthParams(month);
   updateMonthScopedNavigation(month);
 }
 
+function studentCandidateKey(filters) {
+  return `${filters.month}::${filters.includeInactive ? "1" : "0"}::${filters.studentId || ""}`;
+}
+
+function readIncomeQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const candidate = readStudentCandidateQuery(window.location.search);
+  return {
+    month: initialMonth || currentYearMonth(),
+    ...DEFAULT_FILTERS,
+    ...candidate,
+    accountId: params.get("account_id") || "",
+    incomeCategory: params.get("income_category") || "",
+    currency: params.get("currency") || "",
+  };
+}
+
+function syncIncomeQuery(filters) {
+  if (!window.history?.replaceState) return;
+  const [year, month] = filters.month.split("-");
+  const url = new URL(window.location.href);
+  url.searchParams.set("year", year);
+  url.searchParams.set("month", month);
+  writeStudentCandidateQuery(url.searchParams, filters);
+  setOptionalQuery(url.searchParams, "account_id", filters.accountId);
+  setOptionalQuery(url.searchParams, "income_category", filters.incomeCategory);
+  setOptionalQuery(url.searchParams, "currency", filters.currency);
+  window.history.replaceState({}, "", url);
+}
+
+function setOptionalQuery(params, key, value) {
+  if (value) params.set(key, value);
+  else params.delete(key);
+}
+
 function renderMasterOptions() {
-  renderEntityOptions(dom.studentSelect, students, studentName);
+  renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
+    selectedStudentId: dom.studentSelect.value,
+  });
   renderEntityOptions(dom.accountSelect, accounts, accountName);
 }
 
@@ -568,11 +656,15 @@ function renderIncomeRowActions(row) {
 function incomeDetailHref(incomeId) {
   const params = new URLSearchParams();
   params.set("id", incomeId);
-  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
-  if (month) {
-    const [year, monthPart] = month.split("-");
+  const filters = readFilters();
+  if (filters?.month) {
+    const [year, monthPart] = filters.month.split("-");
     params.set("year", year);
     params.set("month", monthPart);
+    writeStudentCandidateQuery(params, filters);
+    setOptionalQuery(params, "account_id", filters.accountId);
+    setOptionalQuery(params, "income_category", filters.incomeCategory);
+    setOptionalQuery(params, "currency", filters.currency);
   }
   return `./income-detail.html?${params.toString()}`;
 }
@@ -1523,7 +1615,7 @@ function buildCashIncomeRequestNoteFromBase(income, amount, currency, exchangeRa
   return `${base}；${requiredText}`;
 }
 
-function openGenerateTuitionBillDialog() {
+async function openGenerateTuitionBillDialog() {
   if (!hasSupabaseConfig()) {
     showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
     return;
@@ -1536,11 +1628,16 @@ function openGenerateTuitionBillDialog() {
   dom.tuitionBillMonthInput.value = filters?.month || currentYearMonth();
   dom.tuitionBillBillingRateInput.value = "";
   dom.tuitionBillNoteInput.value = "";
+  dom.tuitionBillIncludeInactiveCheckbox.checked = Boolean(filters?.includeInactive);
   clearTuitionBillPreview();
-  renderTuitionBillStudentOptions(filters?.studentId || "");
+  tuitionBillStudentCandidates = [];
+  renderStudentMonthCandidateOptions(dom.tuitionBillStudentSelect, [], {
+    placeholder: "正在按学费月份加载...",
+  });
 
   dom.generateTuitionBillDialog.classList.remove("is-hidden");
   dom.generateTuitionBillDialog.setAttribute("aria-hidden", "false");
+  await refreshTuitionBillStudentCandidates(filters?.studentId || "");
 }
 
 function closeGenerateTuitionBillDialog() {
@@ -1549,6 +1646,7 @@ function closeGenerateTuitionBillDialog() {
   }
 
   closeGenerateTuitionBillConfirmation();
+  tuitionStudentCandidateRequestId += 1;
   dom.generateTuitionBillDialog.classList.add("is-hidden");
   dom.generateTuitionBillDialog.setAttribute("aria-hidden", "true");
   clearTuitionBillPreview();
@@ -1635,12 +1733,7 @@ function readGenerateTuitionBillPayload() {
     showTuitionBillError("请选择学生。", ["student"]);
     return null;
   }
-  const selectedStudent = students.find((student) => student.id === studentId);
   const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
-  if (selectedStudent?.business_entity_id !== businessEntityId) {
-    showTuitionBillError("当前学生不属于可新增业务的内部范围，不能生成学费验证预览。", ["student"]);
-    return null;
-  }
 
   const billingExchangeRate = parseNumberInput(dom.tuitionBillBillingRateInput.value);
   if (!Number.isFinite(billingExchangeRate) || billingExchangeRate <= 0) {
@@ -1657,20 +1750,30 @@ function readGenerateTuitionBillPayload() {
   };
 }
 
-function renderTuitionBillStudentOptions(selectedStudentId = "") {
-  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
-  const rows = students.filter((student) => {
-    if (student.business_entity_id !== businessEntityId) {
-      return false;
-    }
-    return isActiveStudent(student);
-  });
-  dom.tuitionBillStudentSelect.innerHTML = [
-    '<option value="">请选择学生</option>',
-    ...rows.map((student) => `<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`),
-  ].join("");
-  if (rows.some((student) => student.id === selectedStudentId)) {
-    dom.tuitionBillStudentSelect.value = selectedStudentId;
+async function refreshTuitionBillStudentCandidates(selectedOverride = "") {
+  const month = dom.tuitionBillMonthInput.value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+  const selectedStudentId = selectedOverride || dom.tuitionBillStudentSelect.value || "";
+  const requestId = ++tuitionStudentCandidateRequestId;
+  dom.tuitionBillStudentSelect.disabled = true;
+  try {
+    tuitionBillStudentCandidates = await fetchStudentMonthCandidates({
+      month,
+      includeInactive: dom.tuitionBillIncludeInactiveCheckbox.checked,
+      selectedStudentId: selectedStudentId || null,
+    });
+    if (requestId !== tuitionStudentCandidateRequestId) return;
+    renderStudentMonthCandidateOptions(dom.tuitionBillStudentSelect, tuitionBillStudentCandidates, {
+      placeholder: "请选择学生",
+      selectedStudentId,
+    });
+  } catch (error) {
+    if (requestId !== tuitionStudentCandidateRequestId) return;
+    tuitionBillStudentCandidates = [];
+    renderStudentMonthCandidateOptions(dom.tuitionBillStudentSelect, [], { placeholder: "学生候选加载失败" });
+    showTuitionBillError(`读取学费月份学生候选失败：${error.message || error}`, ["student"]);
+  } finally {
+    if (requestId === tuitionStudentCandidateRequestId) dom.tuitionBillStudentSelect.disabled = false;
   }
 }
 
@@ -1911,7 +2014,7 @@ function clearTuitionBillFieldInvalid(fieldId) {
   setTuitionBillFieldInvalid(fieldId, false);
 }
 
-function openCreateIncomeDialog() {
+async function openCreateIncomeDialog() {
   if (!hasSupabaseConfig()) {
     showMessage("error", "请先在 js/config.js 填写 Supabase URL 和 anon key。");
     return;
@@ -1938,11 +2041,12 @@ function openCreateIncomeDialog() {
   dom.createIncomeTaxCategoryInput.value = "売上";
   dom.createIncomeReceiptStatusInput.value = "待确认";
   dom.createIncomeNoteInput.value = "";
+  dom.createIncomeIncludeInactiveCheckbox.checked = Boolean(filters?.includeInactive);
 
-  renderCreateStudentOptions();
-  dom.createIncomeStudentSelect.value = filteredCreateStudents().some((student) => student.id === defaultStudentId)
-    ? defaultStudentId
-    : "";
+  createStudentCandidates = [];
+  renderStudentMonthCandidateOptions(dom.createIncomeStudentSelect, [], {
+    placeholder: "正在按结算月份加载...",
+  });
 
   renderCreateAccountOptions();
   dom.createIncomeAccountSelect.value = filteredCreateAccounts().some((account) => account.id === defaultAccountId)
@@ -1953,6 +2057,7 @@ function openCreateIncomeDialog() {
 
   dom.createIncomeDialog.classList.remove("is-hidden");
   dom.createIncomeDialog.setAttribute("aria-hidden", "false");
+  await refreshCreateStudentCandidates(defaultStudentId);
 }
 
 function closeCreateIncomeDialog() {
@@ -1960,6 +2065,7 @@ function closeCreateIncomeDialog() {
     return;
   }
 
+  createStudentCandidateRequestId += 1;
   dom.createIncomeDialog.classList.add("is-hidden");
   dom.createIncomeDialog.setAttribute("aria-hidden", "true");
 }
@@ -2136,15 +2242,30 @@ function showIncomeCreateSuccess(result, createMode) {
   }
 }
 
-function renderCreateStudentOptions() {
-  const selectedValue = dom.createIncomeStudentSelect.value;
-  const options = ['<option value="">请选择学生</option>'];
-  for (const student of filteredCreateStudents()) {
-    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
-  }
-  dom.createIncomeStudentSelect.innerHTML = options.join("");
-  if (filteredCreateStudents().some((student) => student.id === selectedValue)) {
-    dom.createIncomeStudentSelect.value = selectedValue;
+async function refreshCreateStudentCandidates(selectedOverride = "") {
+  const month = dom.createSettlementMonthInput.value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+  const selectedStudentId = selectedOverride || dom.createIncomeStudentSelect.value || "";
+  const requestId = ++createStudentCandidateRequestId;
+  dom.createIncomeStudentSelect.disabled = true;
+  try {
+    createStudentCandidates = await fetchStudentMonthCandidates({
+      month,
+      includeInactive: dom.createIncomeIncludeInactiveCheckbox.checked,
+      selectedStudentId: selectedStudentId || null,
+    });
+    if (requestId !== createStudentCandidateRequestId) return;
+    renderStudentMonthCandidateOptions(dom.createIncomeStudentSelect, createStudentCandidates, {
+      placeholder: "请选择学生",
+      selectedStudentId,
+    });
+  } catch (error) {
+    if (requestId !== createStudentCandidateRequestId) return;
+    createStudentCandidates = [];
+    renderStudentMonthCandidateOptions(dom.createIncomeStudentSelect, [], { placeholder: "学生候选加载失败" });
+    showCreateError(`读取结算月份学生候选失败：${error.message || error}`, ["student"]);
+  } finally {
+    if (requestId === createStudentCandidateRequestId) dom.createIncomeStudentSelect.disabled = false;
   }
 }
 
@@ -2184,21 +2305,6 @@ async function ensureCashEligibleAccountsLoaded() {
     CASH_INCOME_CURRENCIES.includes(account.currency)
   ));
   hasLoadedCashEligibleAccounts = true;
-}
-
-function filteredCreateStudents() {
-  const businessEntityId = requirePrimarySchoolBusinessEntityId(businessEntities);
-  return students.filter((student) => {
-    if (businessEntityId && student.business_entity_id !== businessEntityId) {
-      return false;
-    }
-
-    return isActiveStudent(student);
-  });
-}
-
-function isActiveStudent(student) {
-  return safeText(student?.status) === "active";
 }
 
 function filteredCreateAccounts() {
@@ -2262,7 +2368,10 @@ function updateCreateModeUi() {
     dom.createIncomeCashMappingSelect.value = "";
   }
 
-  renderCreateStudentOptions();
+  renderStudentMonthCandidateOptions(dom.createIncomeStudentSelect, createStudentCandidates, {
+    placeholder: "请选择学生",
+    selectedStudentId: dom.createIncomeStudentSelect.value,
+  });
   renderCreateAccountOptions();
   renderCreateCashAccountOptions();
 }

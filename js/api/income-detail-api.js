@@ -148,7 +148,7 @@ export async function fetchIncomeDetailPage(incomeId) {
   const isTuition = income.source_type === "student_tuition_bill";
 
   const [lookups, settlements, transactions, cashIncomeLinkageEvents, preflightResult, tuitionVoidPreflightResult, forwardAdjustmentResult] = await Promise.all([
-    fetchIncomeDetailLookups(),
+    fetchIncomeDetailLookups(income),
     fetchSettlementReferences(income),
     fetchAccountTransactions(income.id),
     fetchPersonalCashIncomeLinkageEvents(income.id),
@@ -324,14 +324,13 @@ async function fetchIncomeDetail(incomeId) {
   return data;
 }
 
-async function fetchIncomeDetailLookups() {
+async function fetchIncomeDetailLookups(income) {
   const [studentsResult, businessEntitiesResult, accountsResult] = await Promise.all([
     supabase
       .from("school_students")
       .select(STUDENT_COLUMNS)
       .eq("app_type", "school")
-      .order("display_name", { ascending: true })
-      .order("name", { ascending: true }),
+      .eq("id", income.student_id || "00000000-0000-0000-0000-000000000000"),
     supabase
       .from("school_business_entities")
       .select(BUSINESS_ENTITY_COLUMNS)

@@ -130,7 +130,7 @@ export async function fetchSettlementDetailPage(settlementId) {
 
   const [effectiveState, lookups, lessons, incomes, adjustments, wageBlockers] = await Promise.all([
     fetchSettlementEffectiveState(physicalSettlement.id),
-    fetchSettlementDetailLookups(),
+    fetchSettlementDetailLookups(physicalSettlement.student_id),
     fetchLessonReferences(physicalSettlement),
     fetchIncomeReferences(physicalSettlement),
     fetchAdjustmentReferences(physicalSettlement.id),
@@ -268,15 +268,14 @@ function mergeWageBlocker(settlement, blocker) {
   };
 }
 
-async function fetchSettlementDetailLookups() {
+async function fetchSettlementDetailLookups(studentId) {
   const [studentsResult, teachersResult, subjectsResult, accountsResult] =
     await Promise.all([
       supabase
         .from("school_students")
         .select("id,student_code,name,display_name,status,course_track,target_type,default_currency,app_type")
         .eq("app_type", "school")
-        .order("display_name", { ascending: true })
-        .order("name", { ascending: true }),
+        .eq("id", studentId),
       supabase
         .from("school_teachers")
         .select("id,name,display_name,status,app_type")

@@ -1,9 +1,9 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=be-ui-20260806-1";
+import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=phase-b4-finance-20260807-1";
 import {
   relockStudentMonthlySettlement,
   unlockStudentMonthlySettlement,
-} from "../api/settlement-api.js?v=be-ui-20260806-1";
+} from "../api/settlement-api.js?v=phase-b4-finance-20260807-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   buildActualOverageDisplay,
@@ -60,6 +60,7 @@ let isStatusActionSubmitting = false;
 
 export function initSettlementDetailPage() {
   cacheDom();
+  configureReturnLink();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -87,6 +88,7 @@ function cacheDom() {
   dom.actionStatus = document.querySelector("#settlementDetailActionStatus");
   dom.unlockButton = document.querySelector("#openUnlockSettlementButton");
   dom.relockButton = document.querySelector("#openRelockSettlementButton");
+  dom.returnLink = document.querySelector('a[href="./settlement.html"]');
   dom.titleText = document.querySelector("#settlementDetailTitleText");
   dom.basicInfo = document.querySelector("#settlementDetailBasicInfo");
   dom.feeInfo = document.querySelector("#settlementDetailFeeInfo");
@@ -118,6 +120,14 @@ function cacheDom() {
   dom.statusActionSubmitButton = document.querySelector("#detailSettlementStatusActionSubmitButton");
   dom.statusActionCancelButton = document.querySelector("#detailSettlementStatusActionCancelButton");
   bindEvents();
+}
+
+function configureReturnLink() {
+  if (!dom.returnLink) return;
+  const params = new URLSearchParams(window.location.search);
+  params.delete("id");
+  const query = params.toString();
+  dom.returnLink.href = `./settlement.html${query ? `?${query}` : ""}`;
 }
 
 function bindEvents() {

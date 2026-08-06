@@ -13,7 +13,7 @@ import {
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
   requestCashExpenseConfirmation,
-} from "../api/expense-api.js?v=cash-expense-create-20260804-1";
+} from "../api/expense-api.js?v=phase-b4-finance-20260807-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
   currentJapanDate,
@@ -30,9 +30,16 @@ import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/form
 import {
   requirePrimarySchoolBusinessEntityId,
 } from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+import {
+  fetchStudentMonthCandidates,
+  readStudentCandidateQuery,
+  renderStudentMonthCandidateOptions,
+  writeStudentCandidateQuery,
+} from "../api/student-status-api.js?v=phase-b4-finance-20260807-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",
+  includeInactive: false,
   teacherId: "",
   accountId: "",
   currency: "",
@@ -140,6 +147,9 @@ let createExpenseClientRequestId = "";
 let batchCashExpenseRows = [];
 let isBatchCashSubmitting = false;
 let initialMonth = "";
+let initialFilters = null;
+let topStudentCandidates = [];
+let topStudentCandidateKey = "";
 
 export async function initExpensePage() {
   cacheDom();
@@ -148,7 +158,8 @@ export async function initExpensePage() {
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
   initialMonth = initialYearMonthFromUrl();
-  setDefaultFilters();
+  initialFilters = readExpenseQuery();
+  setDefaultFilters(initialFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -169,6 +180,7 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#expenseYearFilter");
   dom.monthFilter = document.querySelector("#expenseMonthFilter");
   dom.studentSelect = document.querySelector("#expenseStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#expenseIncludeInactiveCheckbox");
   dom.teacherSelect = document.querySelector("#expenseTeacherSelect");
   dom.accountSelect = document.querySelector("#expenseAccountSelect");
   dom.currencySelect = document.querySelector("#expenseCurrencySelect");
@@ -211,8 +223,9 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
-  dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
-  dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
+  dom.yearFilter.addEventListener("change", applyQuery);
+  dom.monthFilter.addEventListener("change", applyQuery);
+  dom.includeInactiveCheckbox.addEventListener("change", applyQuery);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters({ month: currentYearMonth() });
@@ -277,9 +290,16 @@ function updateExpenseAdminControls() {
 function setDefaultFilters(overrides = null) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, overrides?.month || initialMonth || currentYearMonth());
   dom.studentSelect.value = DEFAULT_FILTERS.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(overrides?.includeInactive);
   dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
   dom.accountSelect.value = DEFAULT_FILTERS.accountId;
   dom.currencySelect.value = DEFAULT_FILTERS.currency;
+  if (overrides) {
+    dom.studentSelect.value = overrides.studentId || "";
+    dom.teacherSelect.value = overrides.teacherId || "";
+    dom.accountSelect.value = overrides.accountId || "";
+    dom.currencySelect.value = overrides.currency || "";
+  }
   updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
 }
 
@@ -294,11 +314,12 @@ async function loadInitialData() {
     accounts = lookups.accounts;
     teachers = lookups.teachers;
     students = lookups.students;
+    const filters = initialFilters || readFilters();
+    await Promise.all([loadExpenseMonth(filters.month), loadTopStudentCandidates(filters)]);
     renderMasterOptions();
-    const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter) || currentYearMonth();
-    await loadExpenseMonth(month);
-    updateUrlMonthParams(month);
-    updateMonthScopedNavigation(month);
+    restoreFilterSelections(filters);
+    syncExpenseQuery(filters);
+    updateMonthScopedNavigation(filters.month);
     applyCurrentFilters();
     showMessage("success", "支出记录数据已加载。");
   } catch (error) {
@@ -310,6 +331,8 @@ async function loadInitialData() {
     paymentRequestsByExpenseId = new Map();
     attachmentCountsByExpenseId = new Map();
     loadedMonth = "";
+    topStudentCandidates = [];
+    topStudentCandidateKey = "";
     renderMasterOptions();
     renderDataOptions([]);
     renderExpenseRecords([]);
@@ -329,15 +352,15 @@ async function applyQuery() {
     return;
   }
 
-  updateUrlMonthParams(filters.month);
+  syncExpenseQuery(filters);
   updateMonthScopedNavigation(filters.month);
 
-  if (filters.month !== loadedMonth) {
+  if (filters.month !== loadedMonth || studentCandidateKey(filters) !== topStudentCandidateKey) {
     setLoading(true);
     showMessage("info", "正在加载支出记录...");
 
     try {
-      await loadExpenseMonth(filters.month);
+      await Promise.all([loadExpenseMonth(filters.month), loadTopStudentCandidates(filters)]);
       restoreFilterSelections(filters);
       applyCurrentFilters();
       showMessage("success", "支出记录已加载。");
@@ -346,6 +369,8 @@ async function applyQuery() {
       paymentRequestsByExpenseId = new Map();
       attachmentCountsByExpenseId = new Map();
       loadedMonth = "";
+      topStudentCandidates = [];
+      topStudentCandidateKey = "";
       renderDataOptions([]);
       renderExpenseRecords([]);
       showMessage("error", `读取支出记录失败：${error.message || error}`);
@@ -370,6 +395,18 @@ async function loadExpenseMonth(month) {
   renderDataOptions(expenseRecords);
 }
 
+async function loadTopStudentCandidates(filters) {
+  topStudentCandidates = await fetchStudentMonthCandidates({
+    month: filters.month,
+    includeInactive: filters.includeInactive,
+    selectedStudentId: filters.studentId || null,
+  });
+  topStudentCandidateKey = studentCandidateKey(filters);
+  renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
+    selectedStudentId: filters.studentId,
+  });
+}
+
 function applyCurrentFilters() {
   const filters = readFilters();
   if (!filters) {
@@ -390,6 +427,7 @@ function readFilters() {
   return {
     month,
     studentId: dom.studentSelect.value,
+    includeInactive: dom.includeInactiveCheckbox.checked,
     teacherId: dom.teacherSelect.value,
     accountId: dom.accountSelect.value,
     currency: dom.currencySelect.value,
@@ -399,6 +437,7 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.teacherSelect.value = filters.teacherId;
   dom.accountSelect.value = filters.accountId;
   dom.currencySelect.value = filters.currency;
@@ -410,12 +449,48 @@ function updateMonthNavigationFromCurrentSelection() {
   if (!month) {
     return;
   }
-  updateUrlMonthParams(month);
   updateMonthScopedNavigation(month);
 }
 
+function studentCandidateKey(filters) {
+  return `${filters.month}::${filters.includeInactive ? "1" : "0"}::${filters.studentId || ""}`;
+}
+
+function readExpenseQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const candidate = readStudentCandidateQuery(window.location.search);
+  return {
+    month: initialMonth || currentYearMonth(),
+    ...DEFAULT_FILTERS,
+    ...candidate,
+    teacherId: params.get("teacher_id") || "",
+    accountId: params.get("account_id") || "",
+    currency: params.get("currency") || "",
+  };
+}
+
+function syncExpenseQuery(filters) {
+  if (!window.history?.replaceState) return;
+  const [year, month] = filters.month.split("-");
+  const url = new URL(window.location.href);
+  url.searchParams.set("year", year);
+  url.searchParams.set("month", month);
+  writeStudentCandidateQuery(url.searchParams, filters);
+  setOptionalQuery(url.searchParams, "teacher_id", filters.teacherId);
+  setOptionalQuery(url.searchParams, "account_id", filters.accountId);
+  setOptionalQuery(url.searchParams, "currency", filters.currency);
+  window.history.replaceState({}, "", url);
+}
+
+function setOptionalQuery(params, key, value) {
+  if (value) params.set(key, value);
+  else params.delete(key);
+}
+
 function renderMasterOptions() {
-  renderEntityOptions(dom.studentSelect, students, studentName);
+  renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
+    selectedStudentId: dom.studentSelect.value,
+  });
   renderEntityOptions(dom.teacherSelect, teachers, teacherName, "全部老师");
   renderEntityOptions(dom.accountSelect, accounts, accountName);
 }
@@ -2057,11 +2132,15 @@ function displayValue(value) {
 function expenseDetailUrl(expenseId) {
   const params = new URLSearchParams();
   params.set("id", safeText(expenseId));
-  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
-  if (month) {
-    const [year, monthPart] = month.split("-");
+  const filters = readFilters();
+  if (filters?.month) {
+    const [year, monthPart] = filters.month.split("-");
     params.set("year", year);
     params.set("month", monthPart);
+    writeStudentCandidateQuery(params, filters);
+    setOptionalQuery(params, "teacher_id", filters.teacherId);
+    setOptionalQuery(params, "account_id", filters.accountId);
+    setOptionalQuery(params, "currency", filters.currency);
   }
   return `./expense-detail.html?${params.toString()}`;
 }

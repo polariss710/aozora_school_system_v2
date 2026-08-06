@@ -12,7 +12,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=cash-expense-create-20260804-1";
+} from "../api/expense-detail-api.js?v=phase-b4-finance-20260807-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -306,8 +306,8 @@ function configureMonthScopedLinks() {
     return;
   }
 
-  const [year, monthPart] = month.split("-");
-  const params = new URLSearchParams({ year, month: monthPart });
+  const params = new URLSearchParams(window.location.search);
+  params.delete("id");
   if (dom.returnLink) {
     dom.returnLink.href = `./expense.html?${params.toString()}`;
   }

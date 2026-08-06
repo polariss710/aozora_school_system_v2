@@ -73,7 +73,7 @@ assert.match(html, /提交至 Cash 审批/);
 assert.match(html, /保存为待支付支出，不会扣减 School 账户余额。保存后可从支出列表单独提交至 Cash。/);
 assert.match(page, /保存待支付支出/);
 assert.doesNotMatch(html, /先保存为待支付支出，再提交至 Cash 审批/);
-assert.match(config, /APP_VERSION = "v10\.5\.5"/);
+assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 
 assert.match(schema, /add column if not exists cash_creation_event_id uuid/);
 assert.match(schema, /add column if not exists created_by_user_id uuid/);

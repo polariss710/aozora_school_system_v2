@@ -141,7 +141,7 @@ export async function fetchExpenseDetailPage(expenseId) {
 
   const [lookups, paymentRequests, directTransactions, reimbursementItems, attachments] =
     await Promise.all([
-      fetchExpenseDetailLookups(),
+      fetchExpenseDetailLookups(expense),
       fetchPaymentRequestsByExpenseId(expense.id),
       fetchDirectAccountTransactions(expense.id),
       fetchReimbursementItems(expense.id),
@@ -309,7 +309,7 @@ async function fetchExpenseDetail(expenseId) {
   return data;
 }
 
-async function fetchExpenseDetailLookups() {
+async function fetchExpenseDetailLookups(expense) {
   const [businessEntitiesResult, accountsResult, teachersResult, studentsResult] = await Promise.all([
     supabase
       .from("school_business_entities")
@@ -331,8 +331,7 @@ async function fetchExpenseDetailLookups() {
       .from("school_students")
       .select("id,name,display_name,student_code,status,business_entity_id")
       .eq("app_type", "school")
-      .order("display_name", { ascending: true })
-      .order("name", { ascending: true }),
+      .eq("id", expense.student_id || "00000000-0000-0000-0000-000000000000"),
   ]);
 
   if (businessEntitiesResult.error) throw businessEntitiesResult.error;

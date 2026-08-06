@@ -262,7 +262,7 @@ export async function fetchExpenseLookups() {
       .order("name", { ascending: true }),
     supabase
       .from("school_students")
-      .select("id,name,display_name,status,business_entity_id,app_type")
+      .select("id,name,display_name,student_code,app_type")
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),

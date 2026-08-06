@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { APP_VERSION } from "./config.js?v=phase-b4-finance-20260807-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=be-ui-20260806-1";
+import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=phase-b4-finance-20260807-1";
 
 const SETTLEMENT_PAGE_VERSION = "p0f-20260803-1";
 

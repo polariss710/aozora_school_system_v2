@@ -9,7 +9,7 @@ import {
   requestCashIncomeConfirmationForRecord,
   reverseIncomeRecord,
   updateIncomeRecord,
-} from "../api/income-detail-api.js?v=p0-g1-b1-20260804-1";
+} from "../api/income-detail-api.js?v=phase-b4-finance-20260807-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -17,6 +17,10 @@ import {
   monthFromUrl,
   updateMonthScopedNavigation,
 } from "../utils/month-filter.js";
+import {
+  fetchStudentMonthCandidates,
+  renderStudentMonthCandidateOptions,
+} from "../api/student-status-api.js?v=phase-b4-finance-20260807-1";
 
 const INCOME_STATUS_LABELS = {
   pending: "待确认",
@@ -71,6 +75,8 @@ let isEditSubmitting = false;
 let isCashRequestSubmitting = false;
 let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
+let editStudentCandidates = [];
+let editStudentCandidateRequestId = 0;
 const REVERSE_INCOME_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const CANCEL_INCOME_FIELD_IDS = ["reason", "confirmCheck"];
 const EDIT_INCOME_FIELD_IDS = [
@@ -166,6 +172,7 @@ function cacheDom() {
   dom.editIncomeDateInput = document.querySelector("#editIncomeDateInput");
   dom.editSettlementMonthInput = document.querySelector("#editSettlementMonthInput");
   dom.editStudentSelect = document.querySelector("#editIncomeStudentSelect");
+  dom.editIncludeInactiveCheckbox = document.querySelector("#editIncomeIncludeInactiveCheckbox");
   dom.editAccountSelect = document.querySelector("#editIncomeAccountSelect");
   dom.editCategorySelect = document.querySelector("#editIncomeCategorySelect");
   dom.editAmountInput = document.querySelector("#editIncomeAmountInput");
@@ -209,6 +216,8 @@ function bindEvents() {
     setEditFieldInvalid("student", false);
     hideEditErrorIfClean();
   });
+  dom.editIncludeInactiveCheckbox.addEventListener("change", refreshEditStudentCandidates);
+  dom.editSettlementMonthInput.addEventListener("change", refreshEditStudentCandidates);
   dom.editAccountSelect.addEventListener("change", () => {
     setEditFieldInvalid("account", false);
     hideEditErrorIfClean();
@@ -261,8 +270,8 @@ function configureMonthScopedLinks() {
     return;
   }
 
-  const [year, monthPart] = month.split("-");
-  const params = new URLSearchParams({ year, month: monthPart });
+  const params = new URLSearchParams(window.location.search);
+  params.delete("id");
   if (dom.returnLink) {
     dom.returnLink.href = `./income.html?${params.toString()}`;
   }
@@ -996,7 +1005,7 @@ function buildCashIncomeRequestNote(income, amount, currency, receivedDate) {
   return base.includes("实际到账日") ? base : `${base}；${requiredText}`;
 }
 
-function openEditDialog() {
+async function openEditDialog() {
   if (isEditSubmitting) {
     return;
   }
@@ -1016,6 +1025,7 @@ function openEditDialog() {
   setEditSubmitting(false);
   dom.editDialog.classList.remove("is-hidden");
   dom.editDialog.setAttribute("aria-hidden", "false");
+  await refreshEditStudentCandidates(detailData.income.student_id || "");
 }
 
 function closeEditDialog() {
@@ -1023,6 +1033,7 @@ function closeEditDialog() {
     return;
   }
 
+  editStudentCandidateRequestId += 1;
   dom.editDialog.classList.add("is-hidden");
   dom.editDialog.setAttribute("aria-hidden", "true");
 }
@@ -1030,6 +1041,7 @@ function closeEditDialog() {
 function populateEditDialog(income) {
   dom.editIncomeDateInput.value = income.income_date || "";
   dom.editSettlementMonthInput.value = income.settlement_month || income.year_month || "";
+  dom.editIncludeInactiveCheckbox.checked = false;
   dom.editAmountInput.value = income.amount ?? "";
   dom.editPaymentMethodSelect.value = income.payment_method || "";
   dom.editCategorySelect.value = EDITABLE_INCOME_CATEGORIES.includes(income.income_category)
@@ -1042,10 +1054,9 @@ function populateEditDialog(income) {
   dom.editReceiptStatusInput.value = income.receipt_status || "";
   dom.editNoteInput.value = income.note || "";
 
-  renderEditStudentOptions();
-  dom.editStudentSelect.value = filteredEditStudents().some((student) => student.id === income.student_id)
-    ? income.student_id
-    : "";
+  renderStudentMonthCandidateOptions(dom.editStudentSelect, [], {
+    placeholder: "正在按记录月份加载...",
+  });
   renderEditAccountOptions();
   dom.editAccountSelect.value = filteredEditAccounts().some((account) => account.id === income.account_id)
     ? income.account_id
@@ -1179,15 +1190,31 @@ function readEditIncomePayload() {
   };
 }
 
-function renderEditStudentOptions() {
-  const selectedValue = dom.editStudentSelect.value;
-  const options = ['<option value="">请选择学生</option>'];
-  for (const student of filteredEditStudents()) {
-    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
-  }
-  dom.editStudentSelect.innerHTML = options.join("");
-  if (filteredEditStudents().some((student) => student.id === selectedValue)) {
-    dom.editStudentSelect.value = selectedValue;
+async function refreshEditStudentCandidates(selectedOverride = "") {
+  if (!detailData?.income) return;
+  const month = dom.editSettlementMonthInput.value;
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return;
+  const selectedStudentId = selectedOverride || dom.editStudentSelect.value || detailData.income.student_id || "";
+  const requestId = ++editStudentCandidateRequestId;
+  dom.editStudentSelect.disabled = true;
+  try {
+    editStudentCandidates = await fetchStudentMonthCandidates({
+      month,
+      includeInactive: dom.editIncludeInactiveCheckbox.checked,
+      selectedStudentId: selectedStudentId || null,
+    });
+    if (requestId !== editStudentCandidateRequestId) return;
+    renderStudentMonthCandidateOptions(dom.editStudentSelect, editStudentCandidates, {
+      placeholder: "请选择学生",
+      selectedStudentId,
+    });
+  } catch (error) {
+    if (requestId !== editStudentCandidateRequestId) return;
+    editStudentCandidates = [];
+    renderStudentMonthCandidateOptions(dom.editStudentSelect, [], { placeholder: "学生候选加载失败" });
+    showEditError(`读取记录月份学生候选失败：${error.message || error}`, ["student"]);
+  } finally {
+    if (requestId === editStudentCandidateRequestId) dom.editStudentSelect.disabled = false;
   }
 }
 
@@ -1201,20 +1228,6 @@ function renderEditAccountOptions() {
   if (filteredEditAccounts().some((account) => account.id === selectedValue)) {
     dom.editAccountSelect.value = selectedValue;
   }
-}
-
-function filteredEditStudents() {
-  const businessEntityId = detailData.income.business_entity_id;
-  return detailData.lookups.students.filter((student) => {
-    if (businessEntityId && student.business_entity_id !== businessEntityId) {
-      return false;
-    }
-    return isActiveStudent(student);
-  });
-}
-
-function isActiveStudent(student) {
-  return safeText(student?.status) === "active";
 }
 
 function filteredEditAccounts() {

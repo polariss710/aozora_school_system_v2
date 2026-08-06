@@ -4,7 +4,7 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=be-ui-20260806-1";
+} from "../api/settlement-api.js?v=phase-b4-finance-20260807-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -16,11 +16,18 @@ import {
   populateYearSelect,
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
+import {
+  fetchStudentMonthCandidates,
+  readStudentCandidateQuery,
+  renderStudentMonthCandidateOptions,
+  writeStudentCandidateQuery,
+} from "../api/student-status-api.js?v=phase-b4-finance-20260807-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import { hasFrozenSettlementOverage } from "../utils/actual-overage.js";
 
 const DEFAULT_FILTERS = {
   studentId: "",
+  includeInactive: false,
   status: "",
   keyword: "",
 };
@@ -47,8 +54,11 @@ const TRUSTED_TOOL_MESSAGE = "V2财务写操作请使用本机受信管理工具
 
 const dom = {};
 let students = [];
+let studentMonthCandidates = [];
 let settlements = [];
 let loadedMonth = "";
+let loadedStudentCandidateKey = "";
+let initialFilters = null;
 let currentLockSettlement = null;
 let isLockSubmitting = false;
 let currentStatusActionSettlement = null;
@@ -66,7 +76,8 @@ export function initSettlementPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
-  setDefaultFilters();
+  initialFilters = readSettlementQuery();
+  setDefaultFilters(initialFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -87,6 +98,7 @@ function cacheDom() {
   dom.yearFilter = document.querySelector("#settlementYearFilter");
   dom.monthFilter = document.querySelector("#settlementMonthFilter");
   dom.studentSelect = document.querySelector("#settlementStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#settlementIncludeInactiveCheckbox");
   dom.statusSelect = document.querySelector("#settlementStatusSelect");
   dom.keywordInput = document.querySelector("#settlementKeywordInput");
   dom.resetButton = document.querySelector("#settlementResetButton");
@@ -143,6 +155,9 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
+  dom.yearFilter.addEventListener("change", applyQuery);
+  dom.monthFilter.addEventListener("change", applyQuery);
+  dom.includeInactiveCheckbox.addEventListener("change", applyQuery);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
@@ -247,11 +262,13 @@ function bindEvents() {
   });
 }
 
-function setDefaultFilters() {
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
-  dom.studentSelect.value = DEFAULT_FILTERS.studentId;
-  dom.statusSelect.value = DEFAULT_FILTERS.status;
-  dom.keywordInput.value = DEFAULT_FILTERS.keyword;
+function setDefaultFilters(filters = null) {
+  const values = filters || { month: currentYearMonth(), ...DEFAULT_FILTERS };
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, values.month);
+  dom.studentSelect.value = values.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(values.includeInactive);
+  dom.statusSelect.value = values.status;
+  dom.keywordInput.value = values.keyword;
 }
 
 async function loadInitialData() {
@@ -261,14 +278,20 @@ async function loadInitialData() {
   try {
     students = await fetchSettlementStudents();
 
-    renderMasterOptions();
-    await loadSettlementMonth(currentYearMonth());
+    const filters = initialFilters || readFilters();
+    await Promise.all([
+      loadStudentCandidates(filters),
+      loadSettlementMonth(filters.month),
+    ]);
+    restoreFilterSelections(filters);
     applyCurrentFilters();
     showMessage("success", "学生月度结算数据已加载。");
   } catch (error) {
     students = [];
     settlements = [];
+    studentMonthCandidates = [];
     loadedMonth = "";
+    loadedStudentCandidateKey = "";
     renderMasterOptions();
     renderStatusOptions([]);
     renderSettlements([]);
@@ -288,18 +311,24 @@ async function applyQuery() {
     return;
   }
 
-  if (filters.month !== loadedMonth) {
+  syncSettlementQuery(filters);
+  if (filters.month !== loadedMonth || studentCandidateKey(filters) !== loadedStudentCandidateKey) {
     setLoading(true);
     showMessage("info", "正在加载学生月度结算记录...");
 
     try {
-      await loadSettlementMonth(filters.month);
+      await Promise.all([
+        loadSettlementMonth(filters.month),
+        loadStudentCandidates(filters),
+      ]);
       restoreFilterSelections(filters);
       applyCurrentFilters();
       showMessage("success", "学生月度结算记录已加载。");
     } catch (error) {
       settlements = [];
+      studentMonthCandidates = [];
       loadedMonth = "";
+      loadedStudentCandidateKey = "";
       renderStatusOptions([]);
       renderSettlements([]);
       showMessage("error", `读取学生月度结算记录失败：${error.message || error}`);
@@ -316,6 +345,18 @@ async function loadSettlementMonth(month) {
   settlements = sortSettlements(await fetchStudentSettlements(month));
   loadedMonth = month;
   renderStatusOptions(settlements);
+}
+
+async function loadStudentCandidates(filters) {
+  studentMonthCandidates = await fetchStudentMonthCandidates({
+    month: filters.month,
+    includeInactive: filters.includeInactive,
+    selectedStudentId: filters.studentId || null,
+  });
+  loadedStudentCandidateKey = studentCandidateKey(filters);
+  renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, {
+    selectedStudentId: filters.studentId,
+  });
 }
 
 function applyCurrentFilters() {
@@ -347,6 +388,7 @@ function readFilters() {
   return {
     month,
     studentId: dom.studentSelect.value,
+    includeInactive: dom.includeInactiveCheckbox.checked,
     status: dom.statusSelect.value,
     keyword: dom.keywordInput.value.trim(),
   };
@@ -355,12 +397,51 @@ function readFilters() {
 function restoreFilterSelections(filters) {
   setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, filters.month);
   dom.studentSelect.value = filters.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.statusSelect.value = filters.status;
   dom.keywordInput.value = filters.keyword;
 }
 
 function renderMasterOptions() {
-  renderEntityOptions(dom.studentSelect, students, studentName);
+  renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, {
+    selectedStudentId: dom.studentSelect.value,
+  });
+}
+
+function studentCandidateKey(filters) {
+  return `${filters.month}::${filters.includeInactive ? "1" : "0"}::${filters.studentId || ""}`;
+}
+
+function readSettlementQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const year = params.get("year") || "";
+  const monthPart = String(params.get("month") || "").padStart(2, "0");
+  const parsedMonth = `${year}-${monthPart}`;
+  const candidate = readStudentCandidateQuery(window.location.search);
+  return {
+    month: /^\d{4}-(0[1-9]|1[0-2])$/.test(parsedMonth) ? parsedMonth : currentYearMonth(),
+    ...DEFAULT_FILTERS,
+    ...candidate,
+    status: params.get("status") || "",
+    keyword: params.get("keyword") || "",
+  };
+}
+
+function syncSettlementQuery(filters) {
+  if (!window.history?.replaceState) return;
+  const [year, month] = filters.month.split("-");
+  const url = new URL(window.location.href);
+  url.searchParams.set("year", year);
+  url.searchParams.set("month", month);
+  writeStudentCandidateQuery(url.searchParams, filters);
+  setOptionalQuery(url.searchParams, "status", filters.status);
+  setOptionalQuery(url.searchParams, "keyword", filters.keyword);
+  window.history.replaceState({}, "", url);
+}
+
+function setOptionalQuery(params, key, value) {
+  if (value) params.set(key, value);
+  else params.delete(key);
 }
 
 function renderStatusOptions(rows) {
@@ -443,10 +524,24 @@ function renderSettlementDetailAction(row) {
   const actionButton = renderSettlementStatusAction(row);
   return `
     <div class="table-action-group">
-      <a class="button table-action-button" href="./settlement-detail.html?id=${encodeURIComponent(row.id)}">详情</a>
+      <a class="button table-action-button" href="${escapeAttribute(settlementDetailHref(row.id))}">详情</a>
       ${actionButton}
     </div>
   `;
+}
+
+function settlementDetailHref(settlementId) {
+  const filters = readFilters();
+  const params = new URLSearchParams({ id: settlementId });
+  if (filters?.month) {
+    const [year, month] = filters.month.split("-");
+    params.set("year", year);
+    params.set("month", month);
+    writeStudentCandidateQuery(params, filters);
+    setOptionalQuery(params, "status", filters.status);
+    setOptionalQuery(params, "keyword", filters.keyword);
+  }
+  return `./settlement-detail.html?${params.toString()}`;
 }
 
 function renderSettlementStatusAction(row) {

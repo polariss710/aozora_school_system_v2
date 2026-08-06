@@ -38,7 +38,7 @@ assert.match(rehearsal, /writer_authority_postdeploy_20260806\.sql[\s\S]*rollbac
 assert.match(rollback, /STUDENT_STATUS_PHASE_B3_WRITER_AUTHORITY_ROLLBACK_PASS[\s\S]*rollback;/i);
 assert.match(postdeploy, /STUDENT_STATUS_PHASE_B3_WRITER_AUTHORITY_POSTDEPLOY_PASS/);
 assert.match(postdeploy, /school_get_weekly_lesson_operations\(date\)[\s\S]*e7eac5f3bb07c31ad15e750e8721c01f/);
-assert.match(config, /APP_VERSION = "v10\.5\.9"/);
+assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");

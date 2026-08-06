@@ -753,6 +753,36 @@ h2 {
   align-self: stretch;
 }
 
+.student-month-candidate-field {
+  align-self: stretch;
+}
+
+.student-month-include-control {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: #526173;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.student-month-include-control input {
+  width: 16px;
+  max-width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.student-month-include-control span {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
 .lesson-include-inactive-control {
   display: flex;
   min-width: 0;

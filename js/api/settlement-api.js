@@ -415,7 +415,7 @@ function settlementStudentKey(studentId, yearMonth) {
 export async function fetchSettlementStudents() {
   const { data, error } = await supabase
     .from("school_students")
-    .select("id,name,display_name,status,business_entity_id")
+    .select("id,name,display_name,student_code")
     .eq("app_type", "school")
     .order("display_name", { ascending: true })
     .order("name", { ascending: true });

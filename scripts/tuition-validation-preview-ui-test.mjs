@@ -238,8 +238,8 @@ assert.match(cssSource, /@media \(max-width:\s*767px\)[\s\S]*?\.tuition-bill-pre
 assert.match(cssSource, /\.tuition-bill-dialog-body\s*\{[\s\S]*?overflow-y:\s*auto/);
 assert.match(cssSource, /\.tuition-bill-dialog-panel\s*\{[\s\S]*?overflow:\s*hidden/);
 assert.doesNotMatch(pageSource, /generateTuitionBillDialog\.addEventListener\(\s*["']click/);
-assert.match(incomeAppSource, /income-page\.js\?v=be-ui-20260806-1/);
-assert.match(htmlSource, /income-app\.js\?v=be-ui-20260806-1/);
+assert.match(incomeAppSource, /income-page\.js\?v=phase-b4-finance-20260807-1/);
+assert.match(htmlSource, /income-app\.js\?v=phase-b4-finance-20260807-1/);
 assert.match(pageSource, /tuition-validation-preview\.js\?v=v2\.115\.2-tuition-duplicate-message/);
 assert.doesNotMatch(apiSource, /\.rpc\("school_generate_student_tuition_bill"/);
 assert.doesNotMatch(apiSource, /school_create_student_tuition_bill_income_record/);

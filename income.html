@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=p0-g1-a-20260804-1">
+    <link rel="stylesheet" href="./css/app.css?v=phase-b4-finance-20260807-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -114,12 +114,16 @@
               </div>
             </label>
 
-            <label class="field">
+            <div class="field student-month-candidate-field">
               <span>学生</span>
               <select id="incomeStudentSelect" name="studentId">
                 <option value="">全部</option>
               </select>
-            </label>
+              <label class="student-month-include-control">
+                <input id="incomeIncludeInactiveCheckbox" type="checkbox">
+                <span>包含暂停/离校学生</span>
+              </label>
+            </div>
 
             <label class="field">
               <span>账户</span>
@@ -276,10 +280,14 @@
                 <input id="createSettlementMonthInput" type="month">
               </label>
 
-              <label class="field" data-create-income-field="student">
+              <div class="field" data-create-income-field="student">
                 <span>学生 <b class="required-mark">必填</b></span>
                 <select id="createIncomeStudentSelect"></select>
-              </label>
+                <label class="student-month-include-control">
+                  <input id="createIncomeIncludeInactiveCheckbox" type="checkbox">
+                  <span>包含暂停/离校学生</span>
+                </label>
+              </div>
 
               <label class="field" data-create-income-field="account">
                 <span>School / 法人账户 <b class="required-mark">必填</b></span>
@@ -421,10 +429,14 @@
               <input id="tuitionBillMonthInput" type="month">
             </label>
 
-            <label class="field income-create-wide-field" data-tuition-bill-field="student">
+            <div class="field income-create-wide-field" data-tuition-bill-field="student">
               <span>学生 <b class="required-mark">必填</b></span>
               <select id="tuitionBillStudentSelect"></select>
-            </label>
+              <label class="student-month-include-control">
+                <input id="tuitionBillIncludeInactiveCheckbox" type="checkbox">
+                <span>包含暂停/离校学生</span>
+              </label>
+            </div>
 
             <label class="field" data-tuition-bill-field="billingRate">
               <span>通知汇率 CNY/JPY <b class="required-mark">必填</b></span>
@@ -463,6 +475,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=be-ui-20260806-1"></script>
+    <script type="module" src="./js/income-app.js?v=phase-b4-finance-20260807-1"></script>
   </body>
 </html>

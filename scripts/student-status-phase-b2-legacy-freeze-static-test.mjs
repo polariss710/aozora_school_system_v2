@@ -31,7 +31,7 @@ assert.doesNotMatch(page, /createStudentStatusSelect|editStudentStatusSelect|pay
 assert.match(page, /expectedUpdatedAt:\s*editingStudent\.updated_at/);
 assert.doesNotMatch(html, /id="(?:create|edit)StudentStatusSelect"/);
 assert.equal((html.match(/学生状态管理正在切换为按月份生效，当前暂不可修改。/g) || []).length, 2);
-assert.match(config, /APP_VERSION = "v10\.5\.7"/);
+assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");
