@@ -4,7 +4,7 @@
 
 阶段：Phase BE-UI — 单一业务主体 UI 收口
 
-结论：代码、只读 reader 与 Profile ACL 已完成；生产业务数据零修改。Git、Pages 与 Chrome 最终值见文末“发布闭环”。
+结论：代码、只读 reader、Profile ACL、生产对账与 Chrome 验收已完成；生产业务数据零修改。Git 与 Pages 值见文末“发布闭环”。
 
 ## 1. 授权、恢复与工作区所有权
 
@@ -39,7 +39,7 @@
 | `sql/current/school_lesson_writer_p0_permission_balance_closure_deploy_20260806.sql` | 247 | 2026-08-06T16:58:01+0900 | `b6cf7f6bf98d025b133673571f31d8262b38dac46f12f8274bbf77350b2e341f` |
 | `sql/current/school_lesson_writer_p0_permission_balance_closure_postdeploy_20260806.sql` | 7973 | 2026-08-06T16:58:01+0900 | `63615240b37518b0618bd5e7bd9005cad20649c606ae7fb3610eed0b291c6e1c` |
 
-这 9 份文件均未修改、移动、删除、执行、测试、暂存、提交或部署。结束 SHA-256 将在发布完成后再次记录；必须与上表完全一致。
+这 9 份文件均未修改、移动、删除、执行、测试、暂存、提交或部署。SQL 部署前、实现提交前及 Chrome 验收后的结束复核中，大小、mtime 与 SHA-256 均与上表完全一致；结束 SHA-256 即各自行“开始 SHA-256”。
 
 ## 3. Business-model expansion declaration
 
@@ -136,16 +136,19 @@ Cash 部署前后同样一致：external requests 42 / `39bed8915955b3fb8cbe6553
 ## 11. 发布闭环
 
 - 页面版本：`v10.5.12`，全入口缓存键 `be-ui-20260806-1`。
-- BE-UI staged allowlist：提交前以 `git diff --cached --name-status` 记录；只包含本报告所列页面/API/test/SQL/docs，绝不包含 9 份受保护或外来文件。
-- 实现 commit：待发布后填写。
-- 文档/验收 commit：待发布后填写。
-- 最终 `HEAD` / `origin/main` / ahead-behind：待发布后填写。
-- 最终 Pages run：待发布后填写。
-- Chrome active-admin 桌面、390px、逐页面、console/network 无写验收：待发布后填写。
-- Gate、signup 与 9 份文件结束指纹：待发布后填写。
+- BE-UI staged allowlist：实现提交前 `git diff --cached --name-status` 为 126 个明确路径，等于 `git show --name-status --format= 8581c25` 的完整集合；范围仅为根页面、`js/` 页面/API/工具、`docs/module-status-dashboard.html`、本报告、BE-UI fixture 与 6 个明确 BE-UI SQL。cached diff 对 6 份原保护文件和 3 份外来课时 writer 草案均为零命中。
+- 实现 commit：`8581c25ca6c5b3f63a8246b9021891d90ec0fd8c`（`feat: close business entity UI surface`）。
+- 实现 Pages run：`31087116543`，build/deploy success。
+- Chrome active-admin 桌面验收：列表与详情覆盖 index/payment、学生、老师、课时、工资规则、工资、收入、支出、报销、账户、月结、profit summary、兼职、教室、weekly，以及 lesson/wage/income/expense/reimbursement/account transaction/settlement/payment detail；全部 `v10.5.12`，无归属字段、无“个人名义”、无旧入口、无横向溢出。
+- 真实 personal 样本：课时 `dc06b98c-360f-4661-a294-52ecb82830a7` 在 2026-11 + 学生过滤下仍可查询，工资 lock `a9b44041-673e-498d-bfa2-c6d24f2a9c91` 在 2026-06 仍可查询；两个详情均未显示归属名称，也未被显示为 Aozora。
+- 旧参数：四种 legacy 参数均由 URL 删除；旧 `business-entity.html` 经认证后跳转 `index.html`，无业务归属 DOM 或链接。
+- 390×844：12 个核心列表/详情、展开后的 5 组移动导航、lesson PDF 弹窗、工资导出按钮、quote/contract/receipt/weekly image/兼职年度页均无归属文本、空列或横向溢出；测试后恢复默认视口。
+- Chrome 网络：对工资、收入、支出、账户、月结、支付与利润页分别建立独立 CDP cursor，均 `truncated=false`；非 GET 仅为 membership 及 `school_get_*`、`school_list_*`、`school_preview_*` 只读 RPC，写型 RPC、Cash Edge、PATCH/PUT/DELETE 均为 0。Console error/warning 为 0。
+- 最终 Gate：`enabled / blocked / enabled`；signup：`disable_signup=true`、`mailer_autoconfirm=false`。
+- 文档验收 commit、最终 `HEAD`/`origin/main`、ahead/behind 与最终 Pages run 由发布本报告的后续文档提交产生，记录在最终任务交付中；它不改变页面、SQL 或生产验收结果。
 
 ## 12. 零变化确认
 
-截至 SQL 部署与本地回归完成：business entity 主数据修改 0；personal 删除/停用/改名/合并 0；历史 `business_entity_id` 改写 0；生产业务 DML 0；Profile writer 生产调用 0；学生、老师、课时修改 0；工资规则/锁/明细/支付修改 0；学费/月结/收入/支出修改 0；School 账户/Cash/claim 修改 0；Storage 修改 0；两条异常学费链修改 0；Gate 变化 0；signup 变化 0；六份受保护文件变化 0；三份外来草案变化 0。
+最终确认：business entity 主数据修改 0；personal 删除/停用/改名/合并 0；历史 `business_entity_id` 改写 0；生产业务 DML 0；Profile writer 生产调用 0；学生、老师、课时修改 0；工资规则/锁/明细/支付修改 0；学费/月结/收入/支出修改 0；School 账户/Cash/claim 修改 0；Storage 修改 0；两条异常学费链修改 0；Gate 变化 0；signup 变化 0；六份受保护文件变化 0；三份外来草案变化 0。
 
-未验证项仅剩 Git/Pages/Chrome 发布闭环；完成后本节和“发布闭环”将更新为最终事实。
+没有未验证的 BE-UI 业务或页面范围。唯一仓库级提示是 GitHub Pages build 使用的 action 收到 Node.js 20 deprecated 警告，但 run 成功且不影响页面；后续可独立升级 action runtime。
