@@ -79,11 +79,9 @@ export async function fetchLessonRecords(yearMonth, options = {}) {
   });
 
   if (options.status === "voided") {
-    query = query
-      .eq("lesson_type", "planned")
-      .not("voided_at", "is", null);
+    query = query.not("voided_at", "is", null);
   } else {
-    query = query.or("lesson_type.neq.planned,voided_at.is.null");
+    query = query.is("voided_at", null);
   }
 
   const { data, error } = await query
@@ -161,9 +159,7 @@ async function fetchStudentLessonPdfRows({ studentId, yearMonth, lessonType }) {
     .eq("student_id", studentId)
     .eq("lesson_type", lessonType);
 
-  if (lessonType === "planned") {
-    query = query.is("voided_at", null);
-  }
+  query = query.is("voided_at", null);
 
   const { data, error } = await query
     .order("lesson_date", { ascending: true })
@@ -286,6 +282,7 @@ export async function fetchCrossMonthMakeupReferences(yearMonth, records = []) {
       .filter((row) => row.lesson_type === "actual" && row.status === "makeup_completed")
       .map((row) => row.planned_lesson_id)
   );
+  const includeVoided = records.some((row) => Boolean(row.voided_at));
 
   const [sourceMonthActuals, targetMonthSources] = await Promise.all([
     plannedIds.length ? fetchActualLessonsByPlannedIds(plannedIds) : Promise.resolve([]),
@@ -295,11 +292,13 @@ export async function fetchCrossMonthMakeupReferences(yearMonth, records = []) {
   return {
     sourceMonthActuals: sourceMonthActuals.filter((row) => (
       row.status === "makeup_completed"
+      && (includeVoided ? Boolean(row.voided_at) : !row.voided_at)
       && row.authoritative_student_month !== normalizedMonth
     )),
     targetMonthSources: targetMonthSources.filter((row) => (
       row.lesson_type === "planned"
       && row.status === "pending_makeup"
+      && (includeVoided ? Boolean(row.voided_at) : !row.voided_at)
       && row.authoritative_student_month !== normalizedMonth
     )),
   };

@@ -86,11 +86,14 @@ assert.doesNotMatch(lessonPage, /\.rpc\s*\(/);
 assert.doesNotMatch(lessonPage, /supabase\.(?:from|rpc)\s*\(/);
 assert.match(lessonApi, /supabase\.rpc\("school_create_cancelled_actual_lesson_from_planned"/);
 assert.match(lessonApi, /durationHours: Number\.isFinite/);
+assert.match(lessonApi, /options\.status === "voided"[\s\S]*\.not\("voided_at", "is", null\)/);
+assert.match(lessonApi, /else \{[\s\S]*query = query\.is\("voided_at", null\)/);
+assert.doesNotMatch(lessonApi, /options\.status === "voided"[\s\S]{0,160}\.eq\("lesson_type", "planned"\)/);
 assert.match(writerSql, /extract\(epoch from \(v_end_value - v_start_value\)\)::numeric \/ 3600/);
 assert.match(writerSql, /p_duration_hours is distinct from v_duration_hours/);
 assert.match(writerSql, /actual_minutes, teacher_settlement_month/);
 
-assert.match(config, /APP_VERSION = "v10\.5\.12"/);
+assert.match(config, /APP_VERSION = "v10\.5\.13"/);
 assert.match(lessonHtml, /<body class="lesson-page">/);
 assert.match(lessonHtml, /app\.css\?v=phase-b4-lesson-candidates-20260806/);
 assert.match(lessonHtml, /lesson-app\.js\?v=be-ui-20260806-1/);

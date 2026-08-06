@@ -22,6 +22,7 @@ assert.match(statusApi, /p_target_month:\s*`\$\{normalizedMonth\}-01`/);
 assert.match(statusApi, /p_include_inactive:\s*Boolean\(includeInactive\)/);
 assert.match(statusApi, /p_selected_student_id:\s*selectedStudentId \|\| null/);
 assert.match(api, /school_teacher_wage_lock_details"\)[\s\S]*\.select\("lock_id,student_id"\)/);
+assert.equal((api.match(/\.is\("voided_at", null\)/g) || []).length >= 2, true);
 assert.doesNotMatch(api, /select\("id,student_code,name,display_name,status"\)/);
 
 assert.match(page, /studentId:\s*""/);
@@ -48,7 +49,7 @@ assert.doesNotMatch(
 assert.match(page, /学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行/);
 
 assert.match(app, /be-ui-20260806-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.12"/);
+assert.match(config, /APP_VERSION = "v10\.5\.13"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

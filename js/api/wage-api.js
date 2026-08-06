@@ -110,6 +110,7 @@ export async function fetchWageCandidateLessons(month) {
       .eq("app_type", "school")
       .eq("lesson_type", "actual")
       .in("status", ["completed", "makeup_completed"])
+      .is("voided_at", null)
       .eq("teacher_settlement_month", month)
       .order("lesson_date", { ascending: true })
       .order("start_time", { ascending: true }),
@@ -119,6 +120,7 @@ export async function fetchWageCandidateLessons(month) {
       .eq("app_type", "school")
       .eq("lesson_type", "actual")
       .in("status", ["completed", "makeup_completed"])
+      .is("voided_at", null)
       .is("teacher_settlement_month", null)
       .eq("year_month", month)
       .order("lesson_date", { ascending: true })
