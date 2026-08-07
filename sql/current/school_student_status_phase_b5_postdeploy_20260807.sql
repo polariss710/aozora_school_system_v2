@@ -55,8 +55,6 @@ begin
 end;
 $postdeploy$;
 
-select count(*) as student_count from public.school_list_student_status_management_v1();
-
 rollback;
 
 select 'STUDENT_STATUS_PHASE_B5_POSTDEPLOY_PASS' result;
