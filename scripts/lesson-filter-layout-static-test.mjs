@@ -29,6 +29,7 @@ assert.match(html, /lesson-filter-primary-row[\s\S]*lesson-filter-secondary-row/
 assert.match(css, /\.lesson-filter-primary-row[\s\S]*196px[\s\S]*minmax\(0, 176px\)/);
 assert.match(css, /\.lesson-filter-secondary-row[\s\S]*repeat\(3, minmax\(0, 450px\)\)[\s\S]*minmax\(0, 1fr\)[\s\S]*auto/);
 assert.match(css, /minmax\(0, 176px\)/);
+assert.match(css, /\.lesson-filter-panel \.lesson-filter-actions\s*\{[\s\S]*grid-column: auto/);
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*\.lesson-filter-primary-row,[\s\S]*\.lesson-filter-secondary-row[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 assert.match(config, /APP_VERSION = "v10\.5\.19"/);
 

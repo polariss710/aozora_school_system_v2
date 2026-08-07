@@ -7111,6 +7111,7 @@ html.auth-authorized body {
 }
 
 .lesson-filter-panel .lesson-filter-actions {
+  grid-column: auto;
   justify-content: flex-end;
 }
 
