@@ -24,7 +24,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=lesson-filter-layout-20260807-1";
+} from "../api/lesson-api.js?v=lesson-filter-layout-20260807-2";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
