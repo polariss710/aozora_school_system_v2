@@ -7051,7 +7051,7 @@ html.auth-authorized body {
   font-size: 12px;
 }
 
-/* Lesson management owns this compact two-row filter layout. */
+/* Lesson management owns this compact single-row filter layout. */
 .lesson-filter-panel .section-heading {
   margin-bottom: 10px;
 }
@@ -7068,26 +7068,28 @@ html.auth-authorized body {
   align-items: end;
 }
 
-.lesson-filter-primary-row {
+.lesson-filter-single-row {
   grid-template-columns:
     196px
-    minmax(0, 450px)
-    minmax(0, 450px)
-    minmax(0, 176px)
-    minmax(0, 450px)
-    minmax(0, 450px);
-}
-
-.lesson-filter-secondary-row {
-  grid-template-columns:
-    repeat(3, minmax(0, 450px))
+    300px
+    250px
+    176px
+    250px
+    250px
+    250px
     minmax(0, 1fr)
     auto;
 }
 
 .lesson-include-inactive-field {
+  display: grid;
   min-width: 0;
-  align-self: end;
+  gap: 6px;
+}
+
+.lesson-filter-label-spacer {
+  min-height: 18px;
+  line-height: 18px;
 }
 
 .lesson-filter-panel .lesson-include-inactive-control {
@@ -7115,10 +7117,9 @@ html.auth-authorized body {
   justify-content: flex-end;
 }
 
-@media (max-width: 1023px) {
-  .lesson-filter-primary-row,
-  .lesson-filter-secondary-row {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (max-width: 1799px) {
+  .lesson-filter-single-row {
+    grid-template-columns: repeat(4, minmax(160px, 1fr));
   }
 
   .lesson-filter-flex-spacer {
@@ -7130,10 +7131,23 @@ html.auth-authorized body {
   }
 }
 
+@media (max-width: 1023px) {
+  .lesson-filter-single-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 767px) {
-  .lesson-filter-primary-row,
-  .lesson-filter-secondary-row {
+  .lesson-filter-single-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-filter-label-spacer {
+    display: none;
+  }
+
+  .lesson-include-inactive-field {
+    gap: 0;
   }
 
   .lesson-filter-panel .lesson-filter-actions {

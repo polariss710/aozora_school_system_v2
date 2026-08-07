@@ -91,7 +91,8 @@ assert.match(lessonApi, /options\.status === "voided"[\s\S]*\.not\("voided_at", 
 assert.match(lessonApi, /else \{[\s\S]*query = query\.is\("voided_at", null\)/);
 assert.doesNotMatch(lessonApi, /options\.status === "voided"[\s\S]{0,160}\.eq\("lesson_type", "planned"\)/);
 assert.match(lessonPage, /function isVoidedLesson\(record\)[\s\S]*Boolean\(record && record\.voided_at\)/);
-assert.match(lessonPage, /statusFilter === "voided"[\s\S]*return isVoidedLesson\(record\)/);
+assert.doesNotMatch(lessonPage, /recordMatchesStatusFilter|filters\.status/);
+assert.match(lessonPage, /fetchLessonRecords\(month, \{[\s\S]*weekStart: filters\.weekStart \|\| ""/);
 assert.doesNotMatch(lessonPage, /function isVoidedPlanned/);
 assert.match(lessonDetailPage, /function isVoidedLesson\(lesson\)[\s\S]*Boolean\(lesson && lesson\.voided_at\)/);
 assert.doesNotMatch(lessonDetailPage, /function isVoidedPlanned/);
@@ -101,9 +102,9 @@ assert.match(writerSql, /actual_minutes, teacher_settlement_month/);
 
 assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 assert.match(lessonHtml, /<body class="lesson-page">/);
-assert.match(lessonHtml, /app\.css\?v=lesson-filter-layout-20260807-3/);
-assert.match(lessonHtml, /lesson-app\.js\?v=lesson-filter-layout-20260807-3/);
-assert.match(lessonApp, /lesson-page\.js\?v=lesson-filter-layout-20260807-3/);
+assert.match(lessonHtml, /app\.css\?v=lesson-filter-single-row-20260807-1/);
+assert.match(lessonHtml, /lesson-app\.js\?v=lesson-filter-single-row-20260807-1/);
+assert.match(lessonApp, /lesson-page\.js\?v=lesson-filter-single-row-20260807-1/);
 assert.match(appCss, /\.lesson-page \.dialog-backdrop\s*\{\s*z-index:\s*1700;/);
 
 console.log("School V2 cancellation hardening UI/API/static contract: PASS");

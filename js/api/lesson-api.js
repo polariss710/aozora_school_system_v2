@@ -105,11 +105,12 @@ export async function fetchLessonManagementStats(filters = {}) {
     p_teacher_id: filters.teacherId || null,
     p_subject_id: filters.subjectId || null,
     // The RPC keeps its historical signature, but lesson management no longer
-    // permits a top-level type filter because paired view requires both sides.
+    // permits top-level type/status/billable filters because paired view and
+    // all-status/all-billable statistics must remain complete.
     p_lesson_type: null,
-    p_status: filters.status || null,
+    p_status: null,
     p_business_entity_id: filters.businessEntityId || null,
-    p_is_billable: parseBillableFilter(filters.isBillable),
+    p_is_billable: null,
     p_keyword: filters.keyword || null,
     p_week_start: filters.weekStart || null,
   });
@@ -440,16 +441,6 @@ function uniqueTextList(values) {
 function normalizeYearMonth(value) {
   const text = String(value || "").trim();
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(text) ? text : "";
-}
-
-function parseBillableFilter(value) {
-  if (value === true || value === "true") {
-    return true;
-  }
-  if (value === false || value === "false") {
-    return false;
-  }
-  return null;
 }
 
 function nullSafeEqual(left, right) {

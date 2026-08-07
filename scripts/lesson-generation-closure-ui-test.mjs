@@ -76,7 +76,6 @@ assert.match(invalidation, /筛选条件已变化，请点击“查询”显示�
 assert.doesNotMatch(invalidationBody, /fetchLesson|loadLessonMonth|applyQuery/);
 for (const filterName of [
   "weekFilter", "studentSelect", "teacherSelect", "subjectSelect",
-  "statusSelect", "billableSelect",
 ]) {
   assert.match(lessonPage, new RegExp(`dom\\.${filterName}`));
 }

@@ -24,7 +24,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=lesson-filter-layout-20260807-3";
+} from "../api/lesson-api.js?v=lesson-filter-single-row-20260807-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
@@ -67,8 +67,6 @@ const DEFAULT_FILTERS = {
   includeInactive: false,
   teacherId: "",
   subjectId: "",
-  status: "",
-  isBillable: "",
   keyword: "",
 };
 
@@ -116,16 +114,6 @@ const LESSON_STATUS_LABELS = {
 };
 
 const FIXED_ONSITE_LESSON_VENUES = ["Regus公共区", "Regus办公室"];
-
-const LESSON_STATUS_FILTER_OPTIONS = [
-  ["", "全部"],
-  ["planned", "待上课"],
-  ["pending_makeup", "待补课"],
-  ["completed", "已上课"],
-  ["cancelled", "取消课"],
-  ["makeup_completed", "已补课"],
-  ["voided", "已作废"],
-];
 
 const SUBJECT_SORT_RULES = [
   ["日语", "日本語", "JLPT"],
@@ -455,8 +443,6 @@ function cacheDom() {
   dom.includeInactiveCheckbox = document.querySelector("#lessonIncludeInactiveCheckbox");
   dom.teacherSelect = document.querySelector("#lessonTeacherSelect");
   dom.subjectSelect = document.querySelector("#lessonSubjectSelect");
-  dom.statusSelect = document.querySelector("#lessonStatusSelect");
-  dom.billableSelect = document.querySelector("#lessonBillableSelect");
   dom.keywordInput = document.querySelector("#lessonKeywordInput");
   dom.resetButton = document.querySelector("#lessonResetButton");
   dom.listViewButton = document.querySelector("#lessonListViewButton");
@@ -670,8 +656,6 @@ function bindEvents() {
     dom.studentSelect,
     dom.teacherSelect,
     dom.subjectSelect,
-    dom.statusSelect,
-    dom.billableSelect,
   ].forEach((select) => {
     select?.addEventListener("change", () => invalidateLessonResultsForFilterChange());
   });
@@ -1065,7 +1049,7 @@ function defaultLessonFilters() {
 
 function readInitialLessonQuery() {
   const params = new URLSearchParams(window.location.search);
-  clearLegacyLessonTypeQuery(params);
+  clearRetiredLessonFilterQuery(params);
   const filters = defaultLessonFilters();
   filters.month = readLessonQueryMonth(params);
   filters.weekStart = normalizeStudentSettlementWeekStart(
@@ -1077,8 +1061,6 @@ function readInitialLessonQuery() {
   filters.includeInactive = params.get("include_inactive") === "1";
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
   filters.subjectId = readLessonQueryValue(params, "subject_id", "subjectId");
-  filters.status = normalizeLessonStatusFilter(params.get("status"));
-  filters.isBillable = readLessonQueryBillable(params);
   filters.keyword = safeText(params.get("keyword")).trim();
   return filters;
 }
@@ -1103,22 +1085,12 @@ function normalizeLessonView(value) {
   return value === "list" ? "list" : DEFAULT_LESSON_VIEW;
 }
 
-function normalizeLessonStatusFilter(value) {
-  const status = safeText(value);
-  return LESSON_STATUS_FILTER_OPTIONS.some(([optionValue]) => optionValue === status) ? status : "";
-}
+function clearRetiredLessonFilterQuery(params) {
+  const retiredNames = ["lesson_type", "lessonType", "status", "is_billable", "isBillable"];
+  const hasRetiredFilter = retiredNames.some((name) => params.has(name));
+  if (!hasRetiredFilter) return;
 
-function readLessonQueryBillable(params) {
-  const value = safeText(params.get("is_billable") || params.get("isBillable"));
-  return ["true", "false"].includes(value) ? value : "";
-}
-
-function clearLegacyLessonTypeQuery(params) {
-  const hasLegacyLessonType = params.has("lesson_type") || params.has("lessonType");
-  if (!hasLegacyLessonType) return;
-
-  params["delete"]("lesson_type");
-  params["delete"]("lessonType");
+  retiredNames.forEach((name) => params["delete"](name));
   if (!window.history?.replaceState) return;
 
   const query = params.toString();
@@ -1151,8 +1123,6 @@ function buildLessonListQueryParams(filters) {
   if (filters.studentId) params.set("student_id", filters.studentId);
   if (filters.includeInactive) params.set("include_inactive", "1");
   if (filters.subjectId) params.set("subject_id", filters.subjectId);
-  if (filters.status) params.set("status", filters.status);
-  if (filters.isBillable) params.set("is_billable", filters.isBillable);
   if (filters.keyword) params.set("keyword", filters.keyword);
   if (filters.weekStart) params.set("week_start", filters.weekStart);
 
@@ -1192,7 +1162,6 @@ async function loadInitialData() {
     loadedMonth = "";
     loadedStudentCandidateKey = "";
     renderMasterOptions();
-    renderDataOptions([]);
     renderLessonRecords([]);
     renderLessonStats(null);
     console.error("Lesson management initial load failed", error);
@@ -1234,7 +1203,6 @@ async function applyQuery(options = {}) {
       lessonRecords = [];
       crossMonthMakeupReferences = emptyCrossMonthMakeupReferences();
       loadedMonth = "";
-      renderDataOptions([]);
       renderLessonRecords([]);
       console.error("Lesson records load failed", error);
       showMessage("error", lessonUserErrorMessage(error, "读取课时记录失败，请稍后重试。"));
@@ -1283,7 +1251,6 @@ async function loadLessonMonth(month, filters = {}, requestToken) {
   try {
     const [rawRecords, monthCandidates] = await Promise.all([
       fetchLessonRecords(month, {
-        status: filters.status,
         weekStart: filters.weekStart || "",
       }),
       fetchStudentMonthCandidates({
@@ -1321,12 +1288,11 @@ async function loadLessonMonth(month, filters = {}, requestToken) {
   loadedLessonRecordMode = queryMode;
   loadedStudentCandidateKey = studentCandidateKey(filters);
   renderMasterOptions();
-  renderDataOptions(lessonRecords);
   return true;
 }
 
 function lessonRecordQueryMode(filters = {}) {
-  return `${filters.status === "voided" ? "voided" : "active"}:${filters.weekStart || "month"}`;
+  return filters.weekStart || "month";
 }
 
 function normalizeWeekStart(value) {
@@ -1474,8 +1440,6 @@ function readFilters() {
     includeInactive: Boolean(dom.includeInactiveCheckbox?.checked),
     teacherId: dom.teacherSelect.value,
     subjectId: dom.subjectSelect.value,
-    status: dom.statusSelect.value,
-    isBillable: dom.billableSelect.value,
     keyword: dom.keywordInput.value.trim(),
   };
 }
@@ -1488,8 +1452,6 @@ function restoreFilterSelections(filters) {
   dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.teacherSelect.value = filters.teacherId || "";
   dom.subjectSelect.value = filters.subjectId || "";
-  dom.statusSelect.value = filters.status || "";
-  dom.billableSelect.value = filters.isBillable || "";
   dom.keywordInput.value = filters.keyword || "";
   activeView = normalizeLessonView(filters.view || activeView);
   syncViewVisibility();
@@ -1530,10 +1492,6 @@ async function refreshTopStudentCandidatesFromControls() {
     if (requestId !== topStudentCandidateRequestId) return;
     showMessage("error", lessonUserErrorMessage(error, "读取所选月份学生候选失败。"));
   }
-}
-
-function renderDataOptions(records) {
-  renderLessonStatusFilterOptions(dom.statusSelect);
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -2177,13 +2135,13 @@ async function refreshAfterCreateActualLesson(_createdLesson, previousFilters = 
 }
 
 async function refreshAfterVoidLesson(result, sourceLesson) {
-  const filters = readFilters() || { month: loadedMonth, status: "" };
+  const filters = readFilters() || { month: loadedMonth };
   await refreshLessonMonthPreservingFilters(filters.month, filters);
   showMessage("success", `预定课时已作废：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
 
 async function refreshAfterDeleteLesson(result, sourceLesson) {
-  const filters = readFilters() || { month: loadedMonth, status: "" };
+  const filters = readFilters() || { month: loadedMonth };
   await refreshLessonMonthPreservingFilters(filters.month, filters);
   showMessage("success", `预定课时已删除：${shortId(result?.lesson_id || result?.id || sourceLesson?.id)}`);
 }
@@ -3429,12 +3387,6 @@ function renderValueOptions(selectEl, values, labelGetter) {
   selectEl.innerHTML = options.join("");
 }
 
-function renderLessonStatusFilterOptions(selectEl) {
-  selectEl.innerHTML = LESSON_STATUS_FILTER_OPTIONS
-    .map(([value, label]) => `<option value="${escapeAttribute(value)}">${escapeHtml(label)}</option>`)
-    .join("");
-}
-
 async function openLessonPdfExportDialog() {
   if (!hasSupabaseConfig()) {
     showMessage("error", "当前 Supabase 配置不可用，不能导出学生课时 PDF。");
@@ -4156,7 +4108,7 @@ async function handleLessonImportPlannedSubmit() {
     renderLessonImportPreview();
 
     if (loadedMonth) {
-      await loadLessonMonth(loadedMonth, readFilters() || { status: "" });
+      await loadLessonMonth(loadedMonth, readFilters() || { month: loadedMonth });
       applyCurrentFilters();
     }
     const monthText = formatLessonImportMonthRange(lastLessonImportResult.authoritativeMonths);
@@ -7232,10 +7184,6 @@ function actualBillableSummary(record) {
 
 function filterLessonRecords(records, filters) {
   return records.filter((record) => {
-    if (!recordMatchesStatusFilter(record, filters.status)) {
-      return false;
-    }
-
     if (filters.studentId && record.student_id !== filters.studentId) {
       return false;
     }
@@ -7248,28 +7196,8 @@ function filterLessonRecords(records, filters) {
       return false;
     }
 
-    if (filters.isBillable && String(record.is_billable) !== filters.isBillable) {
-      return false;
-    }
-
     return matchesKeyword(record, filters.keyword);
   });
-}
-
-function recordMatchesStatusFilter(record, statusFilter) {
-  if (statusFilter === "voided") {
-    return isVoidedLesson(record);
-  }
-
-  if (isVoidedLesson(record)) {
-    return false;
-  }
-
-  if (!statusFilter) {
-    return true;
-  }
-
-  return record.status === statusFilter;
 }
 
 function matchesKeyword(record, keyword) {

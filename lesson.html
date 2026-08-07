@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=lesson-filter-layout-20260807-3">
+    <link rel="stylesheet" href="./css/app.css?v=lesson-filter-single-row-20260807-1">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -87,7 +87,7 @@
           </div>
 
           <form id="lessonFilterForm" class="filter-grid lesson-filter-grid">
-            <div class="lesson-filter-row lesson-filter-primary-row">
+            <div class="lesson-filter-row lesson-filter-single-row">
               <label class="field month-select-field lesson-filter-month-field">
               <span>收费 / 学生结算月</span>
               <div class="month-select-group">
@@ -111,6 +111,7 @@
               </div>
 
               <div class="lesson-include-inactive-field">
+                <span class="lesson-filter-label-spacer" aria-hidden="true">&nbsp;</span>
                 <label class="lesson-include-inactive-control">
                   <input id="lessonIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
                   <span>包含暂停/离校学生</span>
@@ -128,30 +129,6 @@
                 <span>科目</span>
                 <select id="lessonSubjectSelect" name="subjectId">
                   <option value="">全部</option>
-                </select>
-              </label>
-            </div>
-
-            <div class="lesson-filter-row lesson-filter-secondary-row">
-              <label class="field lesson-filter-status-field">
-                <span>状态</span>
-                <select id="lessonStatusSelect" name="status">
-                  <option value="">全部</option>
-                  <option value="planned">待上课</option>
-                  <option value="pending_makeup">待补课</option>
-                  <option value="completed">已上课</option>
-                  <option value="cancelled">取消课</option>
-                  <option value="makeup_completed">已补课</option>
-                  <option value="voided">已作废</option>
-                </select>
-              </label>
-
-              <label class="field lesson-filter-billable-field">
-                <span>计费</span>
-                <select id="lessonBillableSelect" name="isBillable">
-                  <option value="">全部</option>
-                  <option value="true">计费</option>
-                  <option value="false">不计费</option>
                 </select>
               </label>
 
@@ -1116,6 +1093,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=lesson-filter-layout-20260807-3"></script>
+    <script type="module" src="./js/lesson-app.js?v=lesson-filter-single-row-20260807-1"></script>
   </body>
 </html>
