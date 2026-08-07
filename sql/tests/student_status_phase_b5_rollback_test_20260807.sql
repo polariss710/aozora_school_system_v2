@@ -115,6 +115,7 @@ declare
   v_event5 record;
   v_corrected record;
   v_history_count bigint;
+  v_candidate_count bigint;
   v_denied boolean;
 begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',v_actor,'role','authenticated')::text,true);
@@ -144,6 +145,32 @@ begin
   select * into strict v_event4 from public.school_transition_student_status_v1(
     'b5000000-0000-4000-8000-000000000100','left','2026-08-01','codex-test left from pause',v_event3.event_id,'TRANSITION_STUDENT_STATUS_V1'
   );
+
+  select count(*) into v_candidate_count
+  from public.school_list_student_month_candidates_v1('2026-08-01',false,null)
+  where student_id = 'b5000000-0000-4000-8000-000000000100';
+  if v_candidate_count <> 0 then raise exception 'B5_B4_FINANCE_MONTH_CANDIDATE_NOT_UPDATED'; end if;
+  select count(*) into v_candidate_count
+  from public.school_list_student_month_candidates_v1(
+    '2026-08-01',false,'b5000000-0000-4000-8000-000000000100'
+  ) where student_id = 'b5000000-0000-4000-8000-000000000100' and is_selected_override;
+  if v_candidate_count <> 1 then raise exception 'B5_B4_SELECTED_OVERRIDE_MISSING'; end if;
+  select count(*) into v_candidate_count
+  from public.school_list_student_range_candidates_v1('2026-05-25','2026-06-07',false,null)
+  where student_id = 'b5000000-0000-4000-8000-000000000100' and is_active_in_range;
+  if v_candidate_count <> 1 then raise exception 'B5_B4_RANGE_ANY_ACTIVE_INVALID'; end if;
+  select count(*) into v_candidate_count
+  from public.school_list_current_student_month_candidates_v1(false,null)
+  where student_id = 'b5000000-0000-4000-8000-000000000100';
+  if v_candidate_count <> 0 then raise exception 'B5_B4_WAGE_RULE_CURRENT_CANDIDATE_NOT_UPDATED'; end if;
+  select count(*) into v_candidate_count
+  from public.school_list_planned_lesson_student_candidates_v1(
+    '2026-08-03',public.school_primary_business_entity_id(),
+    'b5000000-0000-4000-8000-000000000100'
+  ) where student_id = 'b5000000-0000-4000-8000-000000000100'
+      and is_selected_override and not is_eligible;
+  if v_candidate_count <> 1 then raise exception 'B5_B4_LESSON_PLANNED_SELECTED_OVERRIDE_INVALID'; end if;
+
   select * into strict v_event5 from public.school_transition_student_status_v1(
     'b5000000-0000-4000-8000-000000000100','active','2026-09-01','codex-test re-enroll',v_event4.event_id,'TRANSITION_STUDENT_STATUS_V1'
   );
