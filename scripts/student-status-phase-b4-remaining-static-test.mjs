@@ -50,6 +50,7 @@ assert.match(wageRulePage, /activeStudentCandidateById\(payload\.studentId\)/);
 assert.match(wageRulePage, /id === editingWageRule\?\.student_id/);
 assert.match(wageRulePage, /writeStudentCandidateQuery/);
 assert.match(wageRulePage, /params\.delete\("business_entity_id"\)/);
+assert.match(wageRulePage, /query \? `\$\{window\.location\.pathname\}\?\$\{query\}` : window\.location\.pathname/);
 assert.match(wageRuleHtml, /id="wageRuleIncludeInactiveCheckbox"/);
 assert.doesNotMatch(wageRulePage, /student\?\.status|isUsableStudent|isNewBusinessStudent/);
 assert.match(wageRuleDetail, /student\?\.resolved_status/);

@@ -324,7 +324,8 @@ function syncCandidateUrl(filters) {
   params.delete("business_entity_id");
   params.delete("businessEntityId");
   params.delete("business_entity");
-  window.history?.replaceState?.(null, "", `${window.location.pathname}?${params.toString()}`);
+  const query = params.toString();
+  window.history?.replaceState?.(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
