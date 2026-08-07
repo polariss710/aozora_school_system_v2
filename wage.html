@@ -104,8 +104,8 @@
             <h2 id="wageFilterTitle">筛选</h2>
           </div>
 
-          <form id="wageFilterForm" class="filter-grid">
-            <label class="field month-select-field">
+          <form id="wageFilterForm" class="filter-grid wage-filter-grid">
+            <label class="field month-select-field wage-filter-month-field">
               <span>月份</span>
               <div class="month-select-group">
                 <select id="wageYearFilter" name="year" aria-label="年份"></select>
@@ -113,47 +113,48 @@
               </div>
             </label>
 
-            <label class="field">
+            <label class="field wage-filter-teacher-field">
               <span>老师</span>
               <select id="wageTeacherSelect" name="teacherId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <div class="field wage-student-filter-field">
+            <div class="field wage-student-filter-field wage-filter-student-field">
               <span>学生</span>
               <select id="wageStudentSelect" name="student_id">
                 <option value="">全部学生</option>
               </select>
+            </div>
+
+            <div class="wage-include-inactive-field">
+              <span class="wage-filter-label-spacer" aria-hidden="true"></span>
               <label class="wage-include-inactive-control">
                 <input id="wageIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
                 <span>包含暂停/离校学生</span>
               </label>
             </div>
 
-            <label class="field">
-              <span>结算类型</span>
-              <select id="wageSettlementTypeSelect" name="settlementType">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
+            <label class="field wage-filter-status-field">
               <span>状态</span>
               <select id="wageStatusSelect" name="status">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field wage-filter-keyword-field">
               <span>关键字</span>
               <input id="wageKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 学生 / 类型 / 状态">
             </label>
+
+            <div class="wage-filter-flex-spacer" aria-hidden="true"></div>
 
             <div class="filter-actions wage-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="wageResetButton" type="button">重置</button>
             </div>
+
+            <div class="wage-filter-right-spacer" aria-hidden="true"></div>
           </form>
         </section>
 
@@ -270,6 +271,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=phase-b4-remaining-20260807-1"></script>
+    <script type="module" src="./js/wage-app.js?v=wage-filter-single-row-20260808-1"></script>
   </body>
 </html>

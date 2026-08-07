@@ -7259,3 +7259,103 @@ html.auth-authorized body {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Teacher wage settlement owns this compact single-row filter layout. */
+.wage-filter-panel .section-heading {
+  margin-bottom: 10px;
+}
+
+.wage-filter-panel .wage-filter-grid {
+  grid-template-columns:
+    196px
+    300px
+    300px
+    176px
+    300px
+    300px
+    minmax(0, 1fr)
+    auto
+    140px;
+  gap: 12px;
+  align-items: end;
+}
+
+.wage-include-inactive-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.wage-filter-label-spacer {
+  min-height: 18px;
+  line-height: 18px;
+}
+
+.wage-filter-panel .wage-include-inactive-control {
+  min-height: 42px;
+  padding: 0 4px;
+}
+
+.wage-filter-panel .wage-include-inactive-control input {
+  width: 16px;
+  max-width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.wage-filter-panel .wage-filter-actions {
+  grid-column: auto;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 1799px) {
+  .wage-filter-panel .wage-filter-grid {
+    grid-template-columns:
+      196px
+      minmax(200px, 1fr)
+      minmax(200px, 1fr)
+      176px;
+  }
+
+  .wage-filter-flex-spacer,
+  .wage-filter-right-spacer {
+    display: none;
+  }
+
+  .wage-filter-panel .wage-filter-actions {
+    grid-column: 3 / 5;
+  }
+}
+
+@media (max-width: 1279px) {
+  .wage-filter-panel .wage-filter-grid {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+
+  .wage-filter-panel .wage-filter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .wage-filter-panel .wage-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wage-filter-label-spacer {
+    display: none;
+  }
+
+  .wage-include-inactive-field {
+    gap: 0;
+  }
+
+  .wage-filter-panel .wage-filter-actions {
+    width: 100%;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

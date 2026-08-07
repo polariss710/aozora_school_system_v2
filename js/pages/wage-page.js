@@ -33,10 +33,11 @@ const DEFAULT_FILTERS = {
   teacherId: "",
   studentId: "",
   includeInactive: false,
-  settlementType: "",
   status: "",
   keyword: "",
 };
+
+const RETIRED_WAGE_FILTER_PARAMS = ["settlementType", "settlement_type"];
 
 const WAGE_STATUS_LABELS = {
   locked: "已生成快照",
@@ -95,6 +96,7 @@ export async function initWagePage() {
   await initSchoolAuth();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
+  clearRetiredWageFilterParams();
   startupFilters = readFiltersFromUrl();
   setDefaultFilters(startupFilters);
   bindEvents();
@@ -119,7 +121,6 @@ function cacheDom() {
   dom.teacherSelect = document.querySelector("#wageTeacherSelect");
   dom.studentSelect = document.querySelector("#wageStudentSelect");
   dom.includeInactiveCheckbox = document.querySelector("#wageIncludeInactiveCheckbox");
-  dom.settlementTypeSelect = document.querySelector("#wageSettlementTypeSelect");
   dom.statusSelect = document.querySelector("#wageStatusSelect");
   dom.keywordInput = document.querySelector("#wageKeywordInput");
   dom.resetButton = document.querySelector("#wageResetButton");
@@ -408,7 +409,6 @@ function readFilters() {
     teacherId: dom.teacherSelect.value,
     studentId: dom.studentSelect.value,
     includeInactive: Boolean(dom.includeInactiveCheckbox?.checked),
-    settlementType: dom.settlementTypeSelect.value,
     status: dom.statusSelect.value,
     keyword: dom.keywordInput.value.trim(),
   };
@@ -420,7 +420,6 @@ function restoreFilterSelections(filters) {
   dom.teacherSelect.value = filters.teacherId;
   dom.studentSelect.value = filters.studentId;
   dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
-  dom.settlementTypeSelect.value = filters.settlementType;
   dom.statusSelect.value = filters.status;
   dom.keywordInput.value = filters.keyword;
   updateWageMonthNavigationFromCurrentSelection();
@@ -450,7 +449,6 @@ function renderStudentMonthOptions() {
 }
 
 function renderDataOptions(rows) {
-  renderValueOptions(dom.settlementTypeSelect, distinctValues(rows, "settlement_type"), settlementTypeLabel);
   renderWageStatusOptions(distinctValues(rows, "status"));
 }
 
@@ -460,18 +458,6 @@ function renderEntityOptions(selectEl, rows, labelGetter) {
   for (const row of rows) {
     options.push(
       `<option value="${escapeAttribute(row.id)}">${escapeHtml(labelGetter(row))}</option>`
-    );
-  }
-
-  selectEl.innerHTML = options.join("");
-}
-
-function renderValueOptions(selectEl, values, labelGetter) {
-  const options = ['<option value="">全部</option>'];
-
-  for (const value of values) {
-    options.push(
-      `<option value="${escapeAttribute(value)}">${escapeHtml(labelGetter(value))}</option>`
     );
   }
 
@@ -1539,10 +1525,6 @@ function filterWageLocks(rows, filters) {
       return false;
     }
 
-    if (filters.settlementType && row.settlement_type !== filters.settlementType) {
-      return false;
-    }
-
     if (filters.status && row.status !== filters.status) {
       return false;
     }
@@ -1580,13 +1562,30 @@ function readFiltersFromUrl() {
     teacherId: safeText(params.get("teacherId")).trim(),
     studentId: safeText(params.get("student_id")).trim(),
     includeInactive: params.get("include_inactive") === "1",
-    settlementType: safeText(params.get("settlementType")).trim(),
     status: safeText(params.get("status")).trim(),
     keyword: safeText(params.get("keyword")).trim(),
   };
 
   const hasAnyFilter = Object.values(filters).some(Boolean);
   return hasAnyFilter ? filters : null;
+}
+
+function clearRetiredWageFilterParams() {
+  if (!window.history?.replaceState) {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  let removed = false;
+  for (const name of RETIRED_WAGE_FILTER_PARAMS) {
+    if (url.searchParams.has(name)) {
+      url.searchParams.delete(name);
+      removed = true;
+    }
+  }
+  if (removed) {
+    window.history.replaceState({}, "", url);
+  }
 }
 
 function updateUrlFromFilters(filters) {
@@ -1637,7 +1636,6 @@ function buildWageFilterParams(filters) {
   if (filters?.includeInactive) {
     params.set("include_inactive", "1");
   }
-  appendFilterParam(params, "settlementType", filters?.settlementType);
   appendFilterParam(params, "status", filters?.status);
   appendFilterParam(params, "keyword", filters?.keyword);
 
