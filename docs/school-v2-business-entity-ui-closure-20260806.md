@@ -152,3 +152,11 @@ Cash 部署前后同样一致：external requests 42 / `39bed8915955b3fb8cbe6553
 最终确认：business entity 主数据修改 0；personal 删除/停用/改名/合并 0；历史 `business_entity_id` 改写 0；生产业务 DML 0；Profile writer 生产调用 0；学生、老师、课时修改 0；工资规则/锁/明细/支付修改 0；学费/月结/收入/支出修改 0；School 账户/Cash/claim 修改 0；Storage 修改 0；两条异常学费链修改 0；Gate 变化 0；signup 变化 0；六份受保护文件变化 0；三份外来草案变化 0。
 
 没有未验证的 BE-UI 业务或页面范围。唯一仓库级提示是 GitHub Pages build 使用的 action 收到 Node.js 20 deprecated 警告，但 run 成功且不影响页面；后续可独立升级 action runtime。
+
+## 13. 2026-08-07 B4-Finance 后续展示补漏
+
+B4-Finance 生产验收发现月结列表/详情直接显示 DB 动态 reader 生成的原始 `teacher_wage_blocker_reason`，其中含工资快照内部归属名称。该 reason 不是持久历史字段或冻结工资快照；原始 `business_entity_id`、工资 lock/detail、`wage_business_names`、内部 blocker 判断和所有 writer 均未修改。
+
+补丁 `9bdd82d8a44b78368ae9bf5361b44beb90daffc7` 新增共享结构化展示 formatter，只把 blocker level、snapshot count、detail count 转换为“老师工资已生成或锁定……当前月结操作受工资快照保护”的中性文案；不解析、替换或回写原始字符串。系统字段驱动的 settlement/wage/income/expense/lesson、详情、PDF、导出、tooltip 和隐藏区域防回退扫描通过，用户自由备注与学校品牌语义不作粗暴替换。
+
+生产 `v10.5.16` Pages run `31146449023` 与后续候选重载修复 run `31147062882` 均 success。Chrome 桌面/390px 显示无“业务归属”“个人名义”或 `business_entity_id`，工资 snapshot 保护含义完整，Console error/warning 0；School business entity `2/41d747d4c403f549c8bdf180ae93c65d`、wage lock `95/7bbe108d3ac73d4f21530793bf141bc6`、wage detail `556/6204dc666b3b8e0f64fac901ecf0686a` 保持，历史事实与生产业务写入均为 0。

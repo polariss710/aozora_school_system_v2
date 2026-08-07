@@ -4,9 +4,9 @@
 
 ## 结论
 
-Phase B4-Finance 已在实时 `main` 上完成实现：学生月度结算、收入和支出顶部学生候选统一改用既有 `school_list_student_month_candidates_v1`；收入新增、收入编辑和学费 validation preview 的学生候选分别使用其结算月份、记录结算月份和 billing month。默认只列当月 `active`，开启“包含暂停/离校学生”后列全部；URL/页面已有 `student_id` 通过 resolver 的 selected override 保留并显示月份状态标签。
+Phase B4-Finance 已完整闭环并生产上线：学生月度结算、收入和支出顶部学生候选统一改用既有 `school_list_student_month_candidates_v1`；收入新增、收入编辑和学费 validation preview 的学生候选分别使用其结算月份、记录结算月份和 billing month。默认只列当月 `active`，开启“包含暂停/离校学生”后列全部；URL/页面已有 `student_id` 通过 resolver 的 selected override 保留并显示月份状态标签。
 
-本阶段只改变 F（候选）和必要的 L（详情按记录原 `student_id` 最小查询）。D（财务业务 reader）仍按月读取完整月结/收入/支出事实，W（writer 资格、金额、状态机、Cash、账户和学费 Gate）未变。没有新增或执行 SQL/RPC，没有 DB、Cash、Storage 或真实业务数据写入。
+本阶段只改变 F（候选）和必要的 L（详情按记录原 `student_id` 最小查询）。D（财务业务 reader）仍按月读取完整月结/收入/支出事实，W（writer 资格、金额、状态机、Cash、账户和学费 Gate）未变。最终补丁还只在展示层把工资快照 blocker 的内部归属明细转换为中性系统文案，并修正 DOM `change` Event 被误传为 selected UUID 的候选重载问题。没有新增或执行数据库部署 SQL，没有 DB、Cash、Storage 或真实业务数据写入。
 
 ## 实时起点与模型声明
 
@@ -43,6 +43,20 @@ Phase B4-Finance 已在实时 `main` 上完成实现：学生月度结算、收�
 
 共享 `js/api/student-status-api.js` 现在统一提供 candidate normalization、月份状态标签、option 渲染、`student_id/include_inactive` URL 读取和序列化；三个 Finance 页面没有复制状态解析算法。
 
+## BE-UI 工资 blocker 展示补漏
+
+生产 `v10.5.15` 首轮 Chrome 验收发现月结页直接显示 `teacher_wage_blocker_reason` 原始内部文本，其中含“业务归属：青空进学塾 / 个人名义”。只读溯源结论如下：
+
+- 原因由 DB `school_get_student_monthly_settlement_wage_blockers(text,uuid)` 动态生成；不是 `school_student_monthly_settlements`、工资锁或工资明细的持久字段，也不是冻结工资快照内容。
+- API 保留原始 `blocker_reason`；月结列表和详情曾直接渲染它。全仓运行时消费者只有这两个页面。
+- 原始 `business_entity_id`、`wage_business_names`、工资锁、工资明细及 DB 内部阻断判断均保留。没有改 reader、guard、writer 或历史数据。
+
+新增共享展示工具 `js/utils/system-blocker-display.js`，仅根据结构化 blocker level、工资快照数和明细数生成中性文案；原始 reason 只用于判断 blocker 是否存在，不参与展示，也不通过字符串改写影响锁判断。修改前示例为“老师工资已生成或锁定（业务归属：青空进学塾、个人名义）”；修改后为“老师工资已生成或锁定，涉及 N 个工资快照、M 条工资明细；当前月结操作受工资快照保护。如需变更，请先按受控流程处理未支付工资快照。”
+
+防回退扫描覆盖 settlement/wage/income/expense/lesson 的列表与详情、PDF、导出、tooltip、错误提示及隐藏区域；系统字段不再向用户显示“业务归属”“个人名义”或 `business_entity_id`。品牌/发行语义及用户自由输入内容不作全局替换。
+
+首轮 `v10.5.16` 无写验收还发现收入新增/编辑的月份与 include-inactive `change` 监听器把 DOM Event 直接传给 `selectedOverride`，导致 Event JSON 被当成 UUID。四个监听器已改为显式无参调用，并加入静态防回退断言；不改变 resolver、API、writer 或财务事实。
+
 ## 实时只读证据
 
 ### 月份候选
@@ -60,18 +74,20 @@ Phase B4-Finance 已在实时 `main` 上完成实现：学生月度结算、收�
 | 对象 | 数量 | 金额/关联摘要 | 指纹 |
 |---|---:|---|---|
 | settlements | 18 | planned JPY 4,902,875；actual JPY 4,544,145；received JPY 1,744,000；received CNY 151,094；carryover CNY -519.75 | `7986db5dd35c0ecfa180a04aef7f4051` |
-| income | 55 | student-linked 30；JPY 9,667,830；CNY 36,396 | `bd2d538d1de901621ff0e6757984a41e` |
+| income | 55 | student-linked 30；JPY 9,667,830；CNY 36,396 | `eb40e1ea59767e4299cd23b332f57d2a` |
 | tuition bills | 22 | planned JPY 6,663,800；previous carryover CNY -1,034.50 | `d079f068c0fa19fc07d4dcd94094fae2` |
 | expense | 47 | student-linked 0 / unlinked 47；JPY 2,890,406；CNY 21,098.95 | `141c76e4cf6148007e182704941a0c4a` |
 | accounts | 3 | current balance sum 1,401,412 | `443b3170f50bc23a56834d398069c565` |
 | account transactions | 187 | amount sum 310,494 | `21694ff060e23289566f0a6e9fe3e449` |
-| Cash external requests | 42 | expense approved 15/pending 1/rejected 2；income approved 6；tuition approved 18 | `39bed8915955b3fb8cbe6553928edc71` |
-| Cash CNY/JPY transactions | 36 / 3 | 不变 | `38b0e164d2a0b20ec149116002c4adc7` / `654485db35df0657c0bf7121d464baa3` |
+| Cash external requests | 43 | 全库当前值 | `f4b1876e981ef75828600e0c7f0dc371` |
+| Cash CNY/JPY transactions | 74 / 31 | 全库当前值 | `070c262ec01008d404b424233d2a6e47` / `95ab7cf8a8d167e9b052d3fc6b64614b` |
 | Storage objects/orphans | 57 / 30 | 不变 | `c2852a4dbcd13b9cddb1da0b1115b18f` |
 
 目标 paused 学生的 2026-04/05/06 月结 ID 分别为 `9d8e23f3-a102-4934-a34a-c568030bd73e`、`d70374bc-f8a5-43f3-a5a1-c45cfff78512`、`dd1a599e-a4f1-4656-ad3a-33dcdc0004f7`；2026-06 CNY 收入 `ac685f46-e924-435f-99e9-6797cca7e922` 保持可读。当前所有 47 条支出均无 student 关联，因此选择任一学生结果为 0，而“全部学生”仍显示完整 47 条。
 
 Gate 前后均为：`student_tuition_preview=enabled`、`student_tuition_generate=blocked`、`student_tuition_cash_submit=enabled`。
+
+相对最初 B4 实现基线，income 全行指纹从 `bd2d538d1de901621ff0e6757984a41e` 合法变化为 `eb40e1ea59767e4299cd23b332f57d2a`。原因不是本任务写入：收入 `efd670bc-8dba-4926-82c4-2d194281a609` 在 2026-08-07 00:14 UTC 由业务负责人完成 Cash 审批后变为 `received`；Cash request `cd3c277a-801e-4743-9345-1e07b2b31ccf` 为 approved/CNY 9,240，对应唯一 CNY transaction `46f135d2-36c5-43eb-b324-bbed9562d54f`。本轮开始复核、实现部署后复核与最终复核之间，上表当前数量和指纹完全一致。
 
 ## 测试与权限
 
@@ -87,8 +103,18 @@ Gate 前后均为：`student_tuition_preview=enabled`、`student_tuition_generat
 ## 发布与验收
 
 - 实现提交：`2fb9859c9432cad4729b09a89c8aa6e4a7b56e17`（已 push）。
-- Pages：实现 run `31120145520` 的 attempt 1、attempt 2 均在排队约 15 分钟后以 build `cancelled`、deploy `skipped` 结束，两个 build job 的 steps 均为空。同期 GitHub 官方状态确认 Actions 与 Pages 均为 `major_outage`，故障说明为 workflow 延迟或无法开始；这不是 checkout、构建或仓库代码失败。待平台恢复后需重跑并补做生产验收。
-- Chrome 桌面/390px：平台恢复并部署后执行；仅只读，不点击保存、生成、到账、取消、reverse、Cash、结算或调整。故障前生产基线仍为最后成功部署的 `v10.5.13`。
+- GitHub 官方：Pages deployment lag 于 2026-08-06 16:22:59 UTC resolved；Actions critical incident 于 2026-08-07 02:04:44 UTC resolved。封口时官方为 `All Systems Operational`。
+- 原实现 run `31120145520` attempt 2 最终为 failure（零业务步骤的平台故障）；恢复部署 run `31122017463` attempt 2 于 2026-08-07 02:32:40 UTC success，部署 `b3ac7dcaf10fbef1c08cdeded1db3871e6f456bb`，生产首次到 `v10.5.15`。
+- BE-UI 展示修复提交：`9bdd82d8a44b78368ae9bf5361b44beb90daffc7`；Pages run `31146449023` success，生产到 `v10.5.16`。
+- income 候选 Event 参数修复提交：`37a082373fccf4e0d22aec338e720e331d3f1223`；Pages run `31147062882` success，部署 commit 与生产静态资源均确认包含该提交，版本保持目标 `v10.5.16`。
+- Chrome active-admin 桌面：2026-06 月结 5 条、候选 8；2026-07/08 默认 7、include inactive 后 8，paused 标签、selected override、查询 URL、切月、重置均通过。paused 学生 2026-06 历史月结/收入和详情按 record ID 可读；月结 blocker 为中性工资快照保护文案，页面无业务归属/个人名义。
+- 收入新增默认 7、include inactive 后 8；学费 preview 默认 7、include inactive 后 8，Generate 按钮继续 blocked，未执行 preview 后生成。支出“全部学生”保留无 student 关联记录，选择 paused 学生为 0；School 直接支付与 pending/manual_cash、“保存待支付”与“提交 Cash”分离合同未回退。
+- 390×844：月结 5 条/8 候选、收入 8 条/7 候选、支出 2 条/7 候选，document/body 宽度均为 390，无横向溢出。Console error 0、warning 0；浏览器 service-role 0，page-layer 直接 RPC/DML 0。
+- 未点击或调用任何保存、生成、结算、到账、取消、reverse、支出创建、Cash 提交或其他写入口。收入编辑没有符合“可编辑且非 Cash 锁定”的生产样本，因此不制造数据强开；对应月份/include inactive Event 合同由同源修复和静态 fixture 覆盖。
 - SQL/RPC 部署：无；本阶段仅执行只读 `SELECT`/`READ ONLY` 基线与 postdeploy 核验。
+
+最终只读核验：students `8/431ae7f…`、events `1/eeeb492a…`、settlements `18/7986db5d…`、income `55/eb40e1ea…`、bills `22/d079f068…`、expenses `47/141c76e4…`、accounts `3/443b3170…`、transactions `187/21694ff0…`、wage locks/details `95/7bbe108d…` / `556/6204dc66…`、business entities `2/41d747d4…`、Storage `57/30/c2852a4d…`；Cash 为上表 `43/74/31`。两个状态事件 writer 均为 postgres owner，anon/authenticated/service_role EXECUTE 全 false。工资历史 `business_entity_id` 与 snapshot 指纹未变。
+
+六份受保护 untracked 文件结束 SHA-256 与开始完全一致：`272d0853…`、`5b11f064…`、`b8e02481…`、`5dc7c39c…`、`b9c13ddc…`、`7ed27844…`；未修改、移动、删除、暂存或提交。
 
 B4-Remaining 与 B5 均未启动。
