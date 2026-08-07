@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=phase-b4-remaining-20260807-1";
 import { requireGlobalSession } from "./auth-guard.js?v=phase-b4-remaining-20260807-1";
-import { initWageRulePage } from "./pages/wage-rule-page.js?v=phase-b4-remaining-20260807-1";
+import { initWageRulePage } from "./pages/wage-rule-page.js?v=phase-b4-remaining-20260807-2";
 
 const globalSessionPromise = requireGlobalSession();
 
