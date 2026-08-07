@@ -50,11 +50,17 @@ assert.match(income, /createSettlementMonthInput\.value/);
 assert.match(income, /tuitionBillMonthInput\.value/);
 assert.match(income, /createIncomeIncludeInactiveCheckbox/);
 assert.match(income, /tuitionBillIncludeInactiveCheckbox/);
+assert.match(income, /createIncomeIncludeInactiveCheckbox\.addEventListener\("change", \(\) => refreshCreateStudentCandidates\(\)\)/);
+assert.match(income, /createSettlementMonthInput\.addEventListener\("change", \(\) => refreshCreateStudentCandidates\(\)\)/);
+assert.doesNotMatch(income, /addEventListener\("change", refreshCreateStudentCandidates\)/);
 assert.doesNotMatch(income, /filteredCreateStudents|isActiveStudent/);
 assert.doesNotMatch(income, /selectedStudent\?\.business_entity_id/);
 
 assert.match(incomeDetail, /editSettlementMonthInput\.value/);
 assert.match(incomeDetail, /editIncomeIncludeInactiveCheckbox/);
+assert.match(incomeDetail, /editIncludeInactiveCheckbox\.addEventListener\("change", \(\) => refreshEditStudentCandidates\(\)\)/);
+assert.match(incomeDetail, /editSettlementMonthInput\.addEventListener\("change", \(\) => refreshEditStudentCandidates\(\)\)/);
+assert.doesNotMatch(incomeDetail, /addEventListener\("change", refreshEditStudentCandidates\)/);
 assert.match(incomeDetail, /selectedStudentId: selectedStudentId \|\| null/);
 assert.doesNotMatch(incomeDetail, /filteredEditStudents|isActiveStudent/);
 

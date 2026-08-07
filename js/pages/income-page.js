@@ -281,8 +281,8 @@ function bindEvents() {
     clearCreateFieldInvalid("student");
     hideCreateErrorIfClean();
   });
-  dom.createIncomeIncludeInactiveCheckbox.addEventListener("change", refreshCreateStudentCandidates);
-  dom.createSettlementMonthInput.addEventListener("change", refreshCreateStudentCandidates);
+  dom.createIncomeIncludeInactiveCheckbox.addEventListener("change", () => refreshCreateStudentCandidates());
+  dom.createSettlementMonthInput.addEventListener("change", () => refreshCreateStudentCandidates());
   dom.createIncomeAccountSelect.addEventListener("change", () => {
     clearCreateFieldInvalid("account");
     hideCreateErrorIfClean();

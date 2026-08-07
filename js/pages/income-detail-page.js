@@ -216,8 +216,8 @@ function bindEvents() {
     setEditFieldInvalid("student", false);
     hideEditErrorIfClean();
   });
-  dom.editIncludeInactiveCheckbox.addEventListener("change", refreshEditStudentCandidates);
-  dom.editSettlementMonthInput.addEventListener("change", refreshEditStudentCandidates);
+  dom.editIncludeInactiveCheckbox.addEventListener("change", () => refreshEditStudentCandidates());
+  dom.editSettlementMonthInput.addEventListener("change", () => refreshEditStudentCandidates());
   dom.editAccountSelect.addEventListener("change", () => {
     setEditFieldInvalid("account", false);
     hideEditErrorIfClean();
