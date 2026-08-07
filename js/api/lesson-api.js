@@ -104,7 +104,9 @@ export async function fetchLessonManagementStats(filters = {}) {
     p_student_id: filters.studentId || null,
     p_teacher_id: filters.teacherId || null,
     p_subject_id: filters.subjectId || null,
-    p_lesson_type: filters.lessonType || null,
+    // The RPC keeps its historical signature, but lesson management no longer
+    // permits a top-level type filter because paired view requires both sides.
+    p_lesson_type: null,
     p_status: filters.status || null,
     p_business_entity_id: filters.businessEntityId || null,
     p_is_billable: parseBillableFilter(filters.isBillable),

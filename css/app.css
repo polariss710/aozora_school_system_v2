@@ -7050,3 +7050,97 @@ html.auth-authorized body {
   margin: 20px 0 0;
   font-size: 12px;
 }
+
+/* Lesson management owns this compact two-row filter layout. */
+.lesson-filter-panel .section-heading {
+  margin-bottom: 10px;
+}
+
+.lesson-filter-panel .lesson-filter-grid {
+  grid-template-columns: 196px repeat(2, minmax(0, 450px));
+  gap: 10px 12px;
+  align-items: end;
+}
+
+.lesson-include-inactive-field {
+  min-width: 0;
+  align-self: end;
+}
+
+.lesson-filter-panel .lesson-include-inactive-control {
+  min-height: 42px;
+  padding: 0 4px;
+}
+
+.lesson-filter-panel .lesson-include-inactive-control input {
+  width: 16px;
+  max-width: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.lesson-filter-panel .lesson-include-inactive-control span {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.lesson-filter-panel .lesson-filter-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
+
+@media (min-width: 1800px) {
+  .lesson-filter-panel .lesson-filter-grid {
+    grid-template-areas:
+      "month week student inactive teacher subject"
+      "status billable keyword spacer actions actions";
+    grid-template-columns:
+      196px
+      minmax(0, 450px)
+      minmax(0, 450px)
+      minmax(0, 176px)
+      minmax(0, 450px)
+      minmax(0, 450px);
+  }
+
+  .lesson-filter-month-field { grid-area: month; }
+  .lesson-filter-week-field { grid-area: week; }
+  .lesson-student-filter-field { grid-area: student; }
+  .lesson-include-inactive-field { grid-area: inactive; }
+  .lesson-filter-teacher-field { grid-area: teacher; }
+  .lesson-filter-subject-field { grid-area: subject; }
+  .lesson-filter-status-field { grid-area: status; }
+  .lesson-filter-billable-field { grid-area: billable; }
+  .lesson-filter-keyword-field { grid-area: keyword; }
+
+  .lesson-filter-panel .lesson-filter-actions {
+    grid-area: actions;
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 1023px) {
+  .lesson-filter-panel .lesson-filter-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .lesson-filter-panel .lesson-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lesson-filter-panel .lesson-filter-actions {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 479px) {
+  .lesson-filter-panel .lesson-filter-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

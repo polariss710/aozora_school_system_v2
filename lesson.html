@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase-b4-lesson-candidates-20260806">
+    <link rel="stylesheet" href="./css/app.css?v=lesson-filter-layout-20260807-1">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -86,8 +86,8 @@
             <h2 id="lessonFilterTitle">筛选</h2>
           </div>
 
-          <form id="lessonFilterForm" class="filter-grid">
-            <label class="field month-select-field">
+          <form id="lessonFilterForm" class="filter-grid lesson-filter-grid">
+            <label class="field month-select-field lesson-filter-month-field">
               <span>收费 / 学生结算月</span>
               <div class="month-select-group">
                 <select id="lessonYearFilter" name="year" aria-label="年份"></select>
@@ -95,7 +95,7 @@
               </div>
             </label>
 
-            <label class="field">
+            <label class="field lesson-filter-week-field">
               <span>自然周（planned按收费周周一归属月份）</span>
               <select id="lessonWeekFilter" name="weekStart">
                 <option value="">整月</option>
@@ -107,34 +107,30 @@
               <select id="lessonStudentSelect" name="studentId">
                 <option value="">全部学生</option>
               </select>
+            </div>
+
+            <div class="lesson-include-inactive-field">
               <label class="lesson-include-inactive-control">
                 <input id="lessonIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
                 <span>包含暂停/离校学生</span>
               </label>
             </div>
 
-            <label class="field">
+            <label class="field lesson-filter-teacher-field">
               <span>老师</span>
               <select id="lessonTeacherSelect" name="teacherId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field lesson-filter-subject-field">
               <span>科目</span>
               <select id="lessonSubjectSelect" name="subjectId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
-              <span>课时类型</span>
-              <select id="lessonTypeSelect" name="lessonType">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
+            <label class="field lesson-filter-status-field">
               <span>状态</span>
               <select id="lessonStatusSelect" name="status">
                 <option value="">全部</option>
@@ -147,7 +143,7 @@
               </select>
             </label>
 
-            <label class="field">
+            <label class="field lesson-filter-billable-field">
               <span>计费</span>
               <select id="lessonBillableSelect" name="isBillable">
                 <option value="">全部</option>
@@ -156,7 +152,7 @@
               </select>
             </label>
 
-            <label class="field">
+            <label class="field lesson-filter-keyword-field">
               <span>关键字</span>
               <input id="lessonKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 老师 / 科目 / 内容 / 备注">
             </label>
@@ -1115,6 +1111,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=be-ui-20260806-1"></script>
+    <script type="module" src="./js/lesson-app.js?v=lesson-filter-layout-20260807-1"></script>
   </body>
 </html>

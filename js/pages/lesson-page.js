@@ -24,7 +24,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=be-ui-20260806-1";
+} from "../api/lesson-api.js?v=lesson-filter-layout-20260807-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
@@ -67,7 +67,6 @@ const DEFAULT_FILTERS = {
   includeInactive: false,
   teacherId: "",
   subjectId: "",
-  lessonType: "",
   status: "",
   isBillable: "",
   keyword: "",
@@ -456,7 +455,6 @@ function cacheDom() {
   dom.includeInactiveCheckbox = document.querySelector("#lessonIncludeInactiveCheckbox");
   dom.teacherSelect = document.querySelector("#lessonTeacherSelect");
   dom.subjectSelect = document.querySelector("#lessonSubjectSelect");
-  dom.lessonTypeSelect = document.querySelector("#lessonTypeSelect");
   dom.statusSelect = document.querySelector("#lessonStatusSelect");
   dom.billableSelect = document.querySelector("#lessonBillableSelect");
   dom.keywordInput = document.querySelector("#lessonKeywordInput");
@@ -672,7 +670,6 @@ function bindEvents() {
     dom.studentSelect,
     dom.teacherSelect,
     dom.subjectSelect,
-    dom.lessonTypeSelect,
     dom.statusSelect,
     dom.billableSelect,
   ].forEach((select) => {
@@ -1068,6 +1065,7 @@ function defaultLessonFilters() {
 
 function readInitialLessonQuery() {
   const params = new URLSearchParams(window.location.search);
+  clearLegacyLessonTypeQuery(params);
   const filters = defaultLessonFilters();
   filters.month = readLessonQueryMonth(params);
   filters.weekStart = normalizeStudentSettlementWeekStart(
@@ -1079,7 +1077,6 @@ function readInitialLessonQuery() {
   filters.includeInactive = params.get("include_inactive") === "1";
   filters.teacherId = readLessonQueryValue(params, "teacher_id", "teacherId");
   filters.subjectId = readLessonQueryValue(params, "subject_id", "subjectId");
-  filters.lessonType = readLessonQueryLessonType(params);
   filters.status = normalizeLessonStatusFilter(params.get("status"));
   filters.isBillable = readLessonQueryBillable(params);
   filters.keyword = safeText(params.get("keyword")).trim();
@@ -1111,14 +1108,26 @@ function normalizeLessonStatusFilter(value) {
   return LESSON_STATUS_FILTER_OPTIONS.some(([optionValue]) => optionValue === status) ? status : "";
 }
 
-function readLessonQueryLessonType(params) {
-  const value = safeText(params.get("lesson_type") || params.get("lessonType"));
-  return ["planned", "actual"].includes(value) ? value : "";
-}
-
 function readLessonQueryBillable(params) {
   const value = safeText(params.get("is_billable") || params.get("isBillable"));
   return ["true", "false"].includes(value) ? value : "";
+}
+
+function clearLegacyLessonTypeQuery(params) {
+  const hasLegacyLessonType = params.has("lesson_type") || params.has("lessonType");
+  if (!hasLegacyLessonType) return;
+
+  params["delete"]("lesson_type");
+  params["delete"]("lessonType");
+  if (!window.history?.replaceState) return;
+
+  const query = params.toString();
+  const hash = window.location.hash || "";
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}${query ? `?${query}` : ""}${hash}`
+  );
 }
 
 function syncLessonQueryUrl(filters) {
@@ -1142,7 +1151,6 @@ function buildLessonListQueryParams(filters) {
   if (filters.studentId) params.set("student_id", filters.studentId);
   if (filters.includeInactive) params.set("include_inactive", "1");
   if (filters.subjectId) params.set("subject_id", filters.subjectId);
-  if (filters.lessonType) params.set("lesson_type", filters.lessonType);
   if (filters.status) params.set("status", filters.status);
   if (filters.isBillable) params.set("is_billable", filters.isBillable);
   if (filters.keyword) params.set("keyword", filters.keyword);
@@ -1466,7 +1474,6 @@ function readFilters() {
     includeInactive: Boolean(dom.includeInactiveCheckbox?.checked),
     teacherId: dom.teacherSelect.value,
     subjectId: dom.subjectSelect.value,
-    lessonType: dom.lessonTypeSelect.value,
     status: dom.statusSelect.value,
     isBillable: dom.billableSelect.value,
     keyword: dom.keywordInput.value.trim(),
@@ -1481,7 +1488,6 @@ function restoreFilterSelections(filters) {
   dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.teacherSelect.value = filters.teacherId || "";
   dom.subjectSelect.value = filters.subjectId || "";
-  dom.lessonTypeSelect.value = filters.lessonType || "";
   dom.statusSelect.value = filters.status || "";
   dom.billableSelect.value = filters.isBillable || "";
   dom.keywordInput.value = filters.keyword || "";
@@ -1527,7 +1533,6 @@ async function refreshTopStudentCandidatesFromControls() {
 }
 
 function renderDataOptions(records) {
-  renderValueOptions(dom.lessonTypeSelect, ["planned", "actual"], lessonTypeLabel);
   renderLessonStatusFilterOptions(dom.statusSelect);
 }
 
@@ -7240,11 +7245,6 @@ function filterLessonRecords(records, filters) {
     }
 
     if (filters.subjectId && record.subject_id !== filters.subjectId) {
-      return false;
-    }
-
-
-    if (filters.lessonType && record.lesson_type !== filters.lessonType) {
       return false;
     }
 
