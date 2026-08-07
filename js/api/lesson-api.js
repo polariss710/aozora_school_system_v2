@@ -469,6 +469,27 @@ export async function fetchLessonStudents() {
   return data || [];
 }
 
+export async function fetchLessonStudentsByIds(studentIds) {
+  const ids = Array.from(new Set((studentIds || []).filter(Boolean)));
+  if (!ids.length) {
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from("school_students")
+    .select("id,student_code,name,display_name")
+    .eq("app_type", "school")
+    .in("id", ids)
+    .order("display_name", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
 export async function fetchPlannedLessonStudentCandidates({
   lessonDate,
   businessEntityId,

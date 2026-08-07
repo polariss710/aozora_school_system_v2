@@ -15,7 +15,7 @@ import {
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js?v=phase-b4-lesson-candidates-20260806";
+} from "../api/wage-api.js?v=phase-b4-remaining-20260807-1";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,
@@ -194,12 +194,12 @@ async function loadInitialData() {
   showMessage("info", "正在加载老师工资结算数据...");
 
   try {
-    [teachers, students, subjects, businessEntities] = await Promise.all([
+    [teachers, subjects, businessEntities] = await Promise.all([
       fetchWageTeachers(),
-      fetchWageStudents(),
       fetchWageSubjects(),
       fetchWageBusinessEntities(),
     ]);
+    students = [];
 
     renderMasterOptions();
     const filters = {
@@ -366,6 +366,12 @@ async function loadWageMonth(month, filters = DEFAULT_FILTERS) {
   wageLockStudentIdsByLockId = await fetchWageLockStudentMemberships(
     wageLocks.map((row) => row.id)
   );
+  const referencedStudentIds = Array.from(new Set([
+    ...candidateLessons.map((row) => row.student_id),
+    ...monthCandidates.map((row) => row.student_id),
+    ...Array.from(wageLockStudentIdsByLockId.values()).flatMap((ids) => Array.from(ids)),
+  ].filter(Boolean)));
+  students = await fetchWageStudents(referencedStudentIds);
   wagePaymentRequests = paymentRequests;
   wageExpenseRecords = expenseRecords;
   wageCandidateLessons = candidateLessons;

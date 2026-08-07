@@ -1,5 +1,5 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
-import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=be-ui-20260806-1";
+import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=phase-b4-remaining-20260807-1";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const SETTLEMENT_TYPE_LABELS = {
@@ -15,8 +15,8 @@ const TEACHER_STATUS_LABELS = {
 
 const STUDENT_STATUS_LABELS = {
   active: "在读",
-  inactive: "停用",
-  graduated: "毕业",
+  paused: "暂停",
+  left: "已离校",
 };
 
 const dom = {};
@@ -98,7 +98,7 @@ function renderWageRuleDetail(data) {
     ["老师状态", teacherStatusLabel(teacher?.status)],
     ["学生", studentName(student, rule.student_id)],
     ["学生编码", displayValue(student?.student_code)],
-    ["学生状态", studentStatusLabel(student?.status)],
+    ["当前月学生状态", studentStatusLabel(student?.resolved_status)],
     ["科目", subjectName(subject, rule.subject_id)],
     ["科目分类", displaySubjectCategory(subject)],
   ]);

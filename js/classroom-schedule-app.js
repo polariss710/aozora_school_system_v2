@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
-import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initClassroomSchedulePage } from "./pages/classroom-schedule-page.js?v=v10.3.81-office-capacity";
+import { APP_VERSION } from "./config.js?v=phase-b4-remaining-20260807-1";
+import { requireGlobalSession } from "./auth-guard.js?v=phase-b4-remaining-20260807-1";
+import { initClassroomSchedulePage } from "./pages/classroom-schedule-page.js?v=phase-b4-remaining-20260807-1";
 
 const globalSessionPromise = requireGlobalSession();
 

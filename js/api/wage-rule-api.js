@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { fetchCurrentStudentMonthCandidates } from "./student-status-api.js?v=phase-b4-remaining-20260807-1";
 
 const WAGE_RULE_COLUMNS = [
   "id",
@@ -24,14 +25,6 @@ const TEACHER_COLUMNS = [
   "display_name",
   "teacher_code",
   "department",
-  "status",
-].join(",");
-
-const STUDENT_COLUMNS = [
-  "id",
-  "name",
-  "display_name",
-  "student_code",
   "status",
 ].join(",");
 
@@ -69,21 +62,31 @@ export async function fetchWageRules() {
 export async function fetchWageRuleDetailPage(wageRuleId) {
   const rule = await fetchWageRule(wageRuleId);
 
-  const [teacher, student, subject] = await Promise.all([
+  const [teacher, studentCandidates, subject] = await Promise.all([
     fetchTeacher(rule.teacher_id),
-    fetchStudent(rule.student_id),
+    fetchCurrentStudentMonthCandidates({ selectedStudentId: rule.student_id }),
     fetchSubject(rule.subject_id),
   ]);
 
   return {
     rule,
     teacher,
-    student,
+    student: studentCandidates.find((row) => row.student_id === rule.student_id) || null,
     subject,
   };
 }
 
-export async function fetchWageRuleLookups() {
+export async function fetchWageRuleLookups(studentIds = []) {
+  const ids = Array.from(new Set((studentIds || []).filter(Boolean)));
+  const studentsRequest = ids.length
+    ? supabase
+      .from("school_students")
+      .select("id,name,display_name,student_code")
+      .eq("app_type", "school")
+      .in("id", ids)
+      .order("display_name", { ascending: true })
+      .order("name", { ascending: true })
+    : Promise.resolve({ data: [], error: null });
   const [teachersResult, studentsResult, subjectsResult, businessEntitiesResult] = await Promise.all([
     supabase
       .from("school_teachers")
@@ -91,12 +94,7 @@ export async function fetchWageRuleLookups() {
       .eq("app_type", "school")
       .order("display_name", { ascending: true })
       .order("name", { ascending: true }),
-    supabase
-      .from("school_students")
-      .select("id,name,display_name,student_code,status,business_entity_id")
-      .eq("app_type", "school")
-      .order("display_name", { ascending: true })
-      .order("name", { ascending: true }),
+    studentsRequest,
     supabase
       .from("school_subjects")
       .select("id,name,category,primary_category,is_active")
@@ -130,6 +128,13 @@ export async function fetchWageRuleLookups() {
     subjects: subjectsResult.data || [],
     businessEntities: businessEntitiesResult.data || [],
   };
+}
+
+export async function fetchWageRuleCurrentStudentCandidates({
+  includeInactive = false,
+  selectedStudentId = null,
+} = {}) {
+  return fetchCurrentStudentMonthCandidates({ includeInactive, selectedStudentId });
 }
 
 export async function createWageRuleConfig(payload) {
@@ -233,22 +238,6 @@ async function fetchTeacher(teacherId) {
     .from("school_teachers")
     .select(TEACHER_COLUMNS)
     .eq("id", teacherId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data || null;
-}
-
-async function fetchStudent(studentId) {
-  if (!studentId) return null;
-
-  const { data, error } = await supabase
-    .from("school_students")
-    .select(STUDENT_COLUMNS)
-    .eq("id", studentId)
     .maybeSingle();
 
   if (error) {

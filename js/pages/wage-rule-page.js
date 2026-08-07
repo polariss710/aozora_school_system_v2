@@ -1,21 +1,26 @@
 import { hasSupabaseConfig } from "../supabase-client.js";
 import {
   createWageRuleConfig,
+  fetchWageRuleCurrentStudentCandidates,
   fetchWageRuleLookups,
   fetchWageRules,
   setWageRuleActiveState,
   updateWageRuleConfig,
-} from "../api/wage-rule-api.js?v=be-ui-20260806-1";
-import { formatCurrency, formatDate, safeText } from "../utils/format.js";
+} from "../api/wage-rule-api.js?v=phase-b4-remaining-20260807-1";
 import {
-  isNewBusinessEntityId,
-  requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+  readStudentCandidateQuery,
+  renderStudentMonthCandidateOptions,
+  studentMonthCandidateLabel,
+  writeStudentCandidateQuery,
+} from "../api/student-status-api.js?v=phase-b4-remaining-20260807-1";
+import { formatCurrency, formatDate, safeText } from "../utils/format.js";
+import { requirePrimarySchoolBusinessEntityId } from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
 
 const DEFAULT_FILTERS = {
   keyword: "",
   teacherId: "",
   studentId: "",
+  includeInactive: false,
   subjectId: "",
   settlementType: "",
   activeState: "",
@@ -55,6 +60,9 @@ const dom = {};
 let wageRules = [];
 let teachers = [];
 let students = [];
+let filterStudentCandidates = [];
+let activeStudentCandidates = [];
+let editStudentCandidates = [];
 let subjects = [];
 let businessEntities = [];
 let editingWageRule = null;
@@ -62,10 +70,12 @@ let activeStateTargetRule = null;
 let isCreateSubmitting = false;
 let isEditSubmitting = false;
 let isActiveStateSubmitting = false;
+let startupFilters = null;
 
 export function initWageRulePage() {
   cacheDom();
-  setDefaultFilters();
+  startupFilters = { ...DEFAULT_FILTERS, ...readStudentCandidateQuery() };
+  setDefaultFilters(startupFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -86,6 +96,7 @@ function cacheDom() {
   dom.keywordInput = document.querySelector("#wageRuleKeywordInput");
   dom.teacherSelect = document.querySelector("#wageRuleTeacherSelect");
   dom.studentSelect = document.querySelector("#wageRuleStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#wageRuleIncludeInactiveCheckbox");
   dom.subjectSelect = document.querySelector("#wageRuleSubjectSelect");
   dom.settlementTypeSelect = document.querySelector("#wageRuleSettlementTypeSelect");
   dom.activeSelect = document.querySelector("#wageRuleActiveSelect");
@@ -132,12 +143,14 @@ function cacheDom() {
 function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    applyCurrentFilters();
+    refreshFilterCandidatesAndApply();
   });
+
+  dom.includeInactiveCheckbox.addEventListener("change", refreshFilterCandidatesAndApply);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
-    applyCurrentFilters();
+    refreshFilterCandidatesAndApply();
   });
 
   dom.createButton.addEventListener("click", openCreateDialog);
@@ -159,7 +172,9 @@ function bindEvents() {
   dom.tableBody.addEventListener("click", (event) => {
     const editButton = event.target.closest("[data-edit-wage-rule-id]");
     if (editButton) {
-      openEditDialog(editButton.dataset.editWageRuleId);
+      openEditDialog(editButton.dataset.editWageRuleId).catch((error) => {
+        showMessage("error", `读取工资规则学生候选失败：${error.message || error}`);
+      });
       return;
     }
 
@@ -189,41 +204,46 @@ function bindEvents() {
   });
 }
 
-function setDefaultFilters() {
-  dom.keywordInput.value = DEFAULT_FILTERS.keyword;
-  dom.teacherSelect.value = DEFAULT_FILTERS.teacherId;
-  dom.studentSelect.value = DEFAULT_FILTERS.studentId;
-  dom.subjectSelect.value = DEFAULT_FILTERS.subjectId;
-  dom.settlementTypeSelect.value = DEFAULT_FILTERS.settlementType;
-  dom.activeSelect.value = DEFAULT_FILTERS.activeState;
-  dom.teacherDepartmentSelect.value = DEFAULT_FILTERS.teacherDepartment;
+function setDefaultFilters(overrides = {}) {
+  restoreFilterSelections({ ...DEFAULT_FILTERS, ...overrides });
 }
 
 async function loadWageRuleData() {
-  const filters = readFilters();
+  const filters = startupFilters || readFilters();
   setLoading(true);
   showMessage("info", "正在加载老师工资规则数据...");
 
   try {
-    const [lookupRows, ruleRows] = await Promise.all([
-      fetchWageRuleLookups(),
-      fetchWageRules(),
+    const ruleRows = await fetchWageRules();
+    const [lookupRows, filterCandidates, activeCandidates] = await Promise.all([
+      fetchWageRuleLookups(ruleRows.map((row) => row.student_id)),
+      fetchWageRuleCurrentStudentCandidates({
+        includeInactive: filters.includeInactive,
+        selectedStudentId: filters.studentId || null,
+      }),
+      fetchWageRuleCurrentStudentCandidates(),
     ]);
 
     teachers = lookupRows.teachers;
-    students = lookupRows.students;
+    filterStudentCandidates = filterCandidates;
+    activeStudentCandidates = activeCandidates;
+    students = mergeStudentRows(lookupRows.students, filterCandidates, activeCandidates);
     subjects = lookupRows.subjects;
     businessEntities = lookupRows.businessEntities;
     requirePrimarySchoolBusinessEntityId(businessEntities);
     wageRules = sortWageRules(ruleRows);
 
-    renderFilterOptions(wageRules);
+    renderFilterOptions(wageRules, filters.studentId);
     restoreFilterSelections(filters);
+    startupFilters = null;
     applyCurrentFilters();
     showMessage("success", "老师工资规则数据已加载。");
   } catch (error) {
     teachers = [];
     students = [];
+    filterStudentCandidates = [];
+    activeStudentCandidates = [];
+    editStudentCandidates = [];
     subjects = [];
     businessEntities = [];
     wageRules = [];
@@ -238,7 +258,28 @@ async function loadWageRuleData() {
 function applyCurrentFilters() {
   const filters = readFilters();
   restoreFilterSelections(filters);
+  syncCandidateUrl(filters);
   renderWageRules(filterWageRules(wageRules, filters));
+}
+
+async function refreshFilterCandidatesAndApply() {
+  const filters = readFilters();
+  setLoading(true);
+  try {
+    filterStudentCandidates = await fetchWageRuleCurrentStudentCandidates({
+      includeInactive: filters.includeInactive,
+      selectedStudentId: filters.studentId || null,
+    });
+    students = mergeStudentRows(students, filterStudentCandidates, activeStudentCandidates);
+    renderStudentMonthCandidateOptions(dom.studentSelect, filterStudentCandidates, {
+      selectedStudentId: filters.studentId,
+    });
+    applyCurrentFilters();
+  } catch (error) {
+    showMessage("error", `读取当前月学生候选失败：${error.message || error}`);
+  } finally {
+    setLoading(false);
+  }
 }
 
 function readFilters() {
@@ -246,6 +287,7 @@ function readFilters() {
     keyword: dom.keywordInput.value.trim(),
     teacherId: dom.teacherSelect.value,
     studentId: dom.studentSelect.value,
+    includeInactive: Boolean(dom.includeInactiveCheckbox.checked),
     subjectId: dom.subjectSelect.value,
     settlementType: dom.settlementTypeSelect.value,
     activeState: dom.activeSelect.value,
@@ -257,18 +299,32 @@ function restoreFilterSelections(filters) {
   dom.keywordInput.value = filters.keyword;
   dom.teacherSelect.value = filters.teacherId;
   dom.studentSelect.value = filters.studentId;
+  dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.subjectSelect.value = filters.subjectId;
   dom.settlementTypeSelect.value = filters.settlementType;
   dom.activeSelect.value = filters.activeState;
   dom.teacherDepartmentSelect.value = filters.teacherDepartment;
 }
 
-function renderFilterOptions(rows) {
+function renderFilterOptions(rows, selectedStudentId = "") {
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
-  renderEntityOptions(dom.studentSelect, students, studentName);
+  renderStudentMonthCandidateOptions(dom.studentSelect, filterStudentCandidates, {
+    selectedStudentId,
+  });
   renderEntityOptions(dom.subjectSelect, subjects, subjectName);
   renderValueOptions(dom.settlementTypeSelect, distinctValues(rows, "settlement_type"), settlementTypeLabel);
   renderValueOptions(dom.teacherDepartmentSelect, distinctTeacherDepartments(), displayValue);
+}
+
+function syncCandidateUrl(filters) {
+  const params = writeStudentCandidateQuery(new URLSearchParams(window.location.search), {
+    studentId: filters.studentId,
+    includeInactive: filters.includeInactive,
+  });
+  params.delete("business_entity_id");
+  params.delete("businessEntityId");
+  params.delete("business_entity");
+  window.history?.replaceState?.(null, "", `${window.location.pathname}?${params.toString()}`);
 }
 
 function renderEntityOptions(selectEl, rows, labelGetter) {
@@ -410,7 +466,7 @@ function validateCreatePayload(payload) {
     invalidFields.push("teacher");
   }
 
-  if (!usableStudentById(payload.studentId)) {
+  if (!activeStudentCandidateById(payload.studentId)) {
     invalidFields.push("student");
   }
 
@@ -423,7 +479,7 @@ function validateCreatePayload(payload) {
 
 function renderCreateLookupOptions() {
   renderCreateEntityOptions(dom.createTeacherSelect, teachers.filter(isUsableTeacher), teacherName, "请选择老师");
-  renderCreateEntityOptions(dom.createStudentSelect, students.filter(isNewBusinessStudent), studentName, "请选择学生");
+  renderCreateCandidateOptions(dom.createStudentSelect, activeStudentCandidates, "请选择学生");
   renderCreateEntityOptions(dom.createSubjectSelect, subjects.filter(isUsableSubject), subjectName, "请选择科目");
 }
 
@@ -438,10 +494,10 @@ function renderEditLookupOptions(rule) {
   );
   renderEditEntityOptions(
     dom.editStudentSelect,
-    students.filter(isUsableStudent),
+    editStudentCandidates,
     rule.student_id,
-    isUsableStudent,
-    studentName,
+    (student) => student.is_active === true,
+    studentMonthCandidateLabel,
     "请选择学生"
   );
   renderEditEntityOptions(
@@ -481,7 +537,7 @@ function renderEditEntityOptions(selectEl, rows, currentId, usablePredicate, lab
   selectEl.value = currentId || "";
 }
 
-function openEditDialog(wageRuleId) {
+async function openEditDialog(wageRuleId) {
   const rule = wageRules.find((item) => item.id === wageRuleId);
   if (!rule) {
     showMessage("error", "没有找到要编辑的老师工资规则。");
@@ -489,6 +545,10 @@ function openEditDialog(wageRuleId) {
   }
 
   editingWageRule = rule;
+  editStudentCandidates = await fetchWageRuleCurrentStudentCandidates({
+    selectedStudentId: rule.student_id,
+  }).then((rows) => rows.map((row) => ({ ...row, id: row.student_id })));
+  students = mergeStudentRows(students, editStudentCandidates);
   renderEditLookupOptions(rule);
   dom.editSettlementTypeSelect.value = rule.settlement_type || "jpy_hourly";
   dom.editHourlyRateJpyInput.value = displayNumberInput(rule.hourly_rate_jpy);
@@ -1067,12 +1127,12 @@ function editableTeacherById(id, currentId) {
   return id && (id === currentId ? teacherById(id) : usableTeacherById(id));
 }
 
-function usableStudentById(id) {
-  return students.find((student) => student.id === id && isUsableStudent(student)) || null;
-}
-
 function editableStudentById(id) {
-  return id && usableStudentById(id);
+  return id && (
+    id === editingWageRule?.student_id
+      ? editStudentCandidates.find((student) => student.student_id === id)
+      : activeStudentCandidateById(id)
+  );
 }
 
 function usableSubjectById(id) {
@@ -1160,12 +1220,25 @@ function isUsableTeacher(teacher) {
   return Boolean(teacher && !["inactive", "resigned", "retired"].includes(safeText(teacher.status)));
 }
 
-function isUsableStudent(student) {
-  return safeText(student?.status) === "active";
+function activeStudentCandidateById(id) {
+  return activeStudentCandidates.find((student) => student.student_id === id && student.is_active === true) || null;
 }
 
-function isNewBusinessStudent(student) {
-  return isUsableStudent(student) && isNewBusinessEntityId(businessEntities, student?.business_entity_id || "");
+function renderCreateCandidateOptions(selectEl, rows, placeholder) {
+  const options = [`<option value="">${escapeHtml(placeholder)}</option>`];
+  for (const row of rows || []) {
+    options.push(`<option value="${escapeAttribute(row.student_id)}">${escapeHtml(studentMonthCandidateLabel(row))}</option>`);
+  }
+  selectEl.innerHTML = options.join("");
+}
+
+function mergeStudentRows(...groups) {
+  const rowsById = new Map();
+  for (const row of groups.flat()) {
+    const id = row?.student_id || row?.id;
+    if (id) rowsById.set(id, { ...rowsById.get(id), ...row, id });
+  }
+  return Array.from(rowsById.values());
 }
 
 function isUsableSubject(subject) {

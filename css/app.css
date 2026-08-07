@@ -6080,6 +6080,12 @@ h2 {
   align-items: center;
 }
 
+.weekly-schedule-include-inactive-control,
+.wage-rule-include-inactive-control {
+  align-self: end;
+  min-height: 42px;
+}
+
 .weekly-schedule-preview-panel {
   background: #f8fafc;
 }

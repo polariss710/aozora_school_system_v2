@@ -48,7 +48,7 @@ assert.doesNotMatch(
 );
 assert.match(page, /学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行/);
 
-assert.match(app, /be-ui-20260806-1/);
+assert.match(app, /phase-b4-remaining-20260807-1/);
 assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 

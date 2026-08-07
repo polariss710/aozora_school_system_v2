@@ -1,5 +1,5 @@
 import { supabase } from "../supabase-client.js";
-import { fetchStudentMonthCandidates } from "./student-status-api.js?v=phase-b4-lesson-candidates-20260806";
+import { fetchStudentMonthCandidates } from "./student-status-api.js?v=phase-b4-remaining-20260807-1";
 
 const WAGE_LOCK_COLUMNS = [
   "id",
@@ -318,11 +318,17 @@ export async function fetchWageTeachers() {
   return data || [];
 }
 
-export async function fetchWageStudents() {
+export async function fetchWageStudents(studentIds) {
+  const ids = Array.from(new Set((studentIds || []).filter(Boolean)));
+  if (!ids.length) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from("school_students")
     .select("id,student_code,name,display_name")
     .eq("app_type", "school")
+    .in("id", ids)
     .order("display_name", { ascending: true })
     .order("name", { ascending: true });
 

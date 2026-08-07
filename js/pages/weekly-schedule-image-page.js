@@ -1,10 +1,15 @@
 import {
-  fetchLessonBusinessEntities,
   fetchLessonRecords,
-  fetchLessonStudents,
+  fetchLessonStudentsByIds,
   fetchLessonSubjects,
   fetchLessonTeachers,
-} from "../api/lesson-api.js";
+} from "../api/lesson-api.js?v=phase-b4-remaining-20260807-1";
+import {
+  fetchStudentRangeCandidates,
+  readStudentCandidateQuery,
+  renderStudentRangeCandidateOptions,
+  writeStudentCandidateQuery,
+} from "../api/student-status-api.js?v=phase-b4-remaining-20260807-1";
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const IMAGE_WIDTH = 1080;
@@ -13,12 +18,13 @@ const CARD_RADIUS = 28;
 
 const state = {
   students: [],
+  studentCandidates: [],
   teachers: [],
   subjects: [],
-  businessEntities: [],
   schedules: [],
   initialWeekStart: "",
   initialStudentId: "",
+  initialIncludeInactive: false,
 };
 
 const dom = {};
@@ -29,6 +35,7 @@ export function initWeeklyScheduleImagePage() {
   bindEvents();
   setDefaultWeek();
   loadLookups()
+    .then(() => refreshStudentCandidates(state.initialStudentId))
     .then(() => loadSchedules())
     .catch((error) => {
       showMessage("error", `读取课表基础数据失败：${error.message || error}`);
@@ -40,6 +47,7 @@ function cacheDom() {
   dom.form = document.querySelector("#weeklyScheduleForm");
   dom.weekStartInput = document.querySelector("#weeklyScheduleWeekStart");
   dom.studentSelect = document.querySelector("#weeklyScheduleStudentSelect");
+  dom.includeInactiveCheckbox = document.querySelector("#weeklyScheduleIncludeInactiveCheckbox");
   dom.loadButton = document.querySelector("#weeklyScheduleLoadButton");
   dom.downloadAllButton = document.querySelector("#weeklyScheduleDownloadAllButton");
   dom.countText = document.querySelector("#weeklyScheduleCount");
@@ -53,6 +61,9 @@ function bindEvents() {
     event.preventDefault();
     loadSchedules();
   });
+
+  dom.weekStartInput?.addEventListener("change", handleCandidateScopeChange);
+  dom.includeInactiveCheckbox?.addEventListener("change", handleCandidateScopeChange);
 
   dom.downloadAllButton?.addEventListener("click", () => {
     downloadAllImages();
@@ -90,26 +101,48 @@ function readInitialQuery() {
     state.initialWeekStart = weekStart;
   }
   state.initialStudentId = String(params.get("student_id") || "");
+  state.initialIncludeInactive = readStudentCandidateQuery().includeInactive;
+  dom.includeInactiveCheckbox.checked = state.initialIncludeInactive;
 }
 
 async function loadLookups() {
   setLoading(true);
   try {
-    const [students, teachers, subjects, businessEntities] = await Promise.all([
-      fetchLessonStudents(),
+    const [teachers, subjects] = await Promise.all([
       fetchLessonTeachers(),
       fetchLessonSubjects(),
-      fetchLessonBusinessEntities(),
     ]);
 
-    state.students = students || [];
     state.teachers = teachers || [];
     state.subjects = subjects || [];
-    state.businessEntities = businessEntities || [];
-    renderStudentOptions();
   } finally {
     setLoading(false);
   }
+}
+
+function handleCandidateScopeChange() {
+  refreshStudentCandidates(dom.studentSelect.value).catch((error) => {
+    showMessage("error", `读取本周学生候选失败：${error.message || error}`);
+  });
+}
+
+async function refreshStudentCandidates(selectedStudentId = "") {
+  const weekStart = parseDateInput(dom.weekStartInput.value);
+  if (!weekStart) {
+    return;
+  }
+  const normalizedWeekStart = getMonday(weekStart);
+  const weekEnd = addDays(normalizedWeekStart, 6);
+  const candidates = await fetchStudentRangeCandidates({
+    startDate: toDateInputValue(normalizedWeekStart),
+    endDate: toDateInputValue(weekEnd),
+    includeInactive: Boolean(dom.includeInactiveCheckbox.checked),
+    selectedStudentId: selectedStudentId || null,
+  });
+  state.studentCandidates = candidates;
+  renderStudentRangeCandidateOptions(dom.studentSelect, candidates, {
+    selectedStudentId,
+  });
 }
 
 async function loadSchedules() {
@@ -130,12 +163,15 @@ async function loadSchedules() {
   hideMessage();
 
   try {
+    await refreshStudentCandidates(selectedStudentId);
     const months = monthsBetween(normalizedWeekStart, weekEnd);
     const monthRows = await Promise.all(months.map((month) => fetchLessonRecords(month)));
     const rows = monthRows.flat();
+    state.students = await fetchLessonStudentsByIds(rows.map((row) => row.student_id));
     const schedules = buildSchedules(rows, normalizedWeekStart, weekEnd, selectedStudentId);
     state.schedules = schedules;
     renderSchedules();
+    syncUrl(normalizedWeekStart, selectedStudentId);
 
     if (schedules.length) {
       showMessage("success", `已生成 ${schedules.length} 张周课表图片预览。`);
@@ -151,15 +187,13 @@ async function loadSchedules() {
   }
 }
 
-function renderStudentOptions() {
-  const options = ['<option value="">全部有课学生</option>'];
-  state.students.forEach((student) => {
-    options.push(`<option value="${escapeAttribute(student.id)}">${escapeHtml(studentName(student))}</option>`);
+function syncUrl(weekStart, studentId) {
+  const params = writeStudentCandidateQuery(new URLSearchParams(), {
+    studentId,
+    includeInactive: Boolean(dom.includeInactiveCheckbox.checked),
   });
-  dom.studentSelect.innerHTML = options.join("");
-  if (state.initialStudentId && state.students.some((student) => student.id === state.initialStudentId)) {
-    dom.studentSelect.value = state.initialStudentId;
-  }
+  params.set("week_start", toDateInputValue(weekStart));
+  window.history?.replaceState?.(null, "", `${window.location.pathname}?${params.toString()}`);
 }
 
 function buildSchedules(rows, weekStart, weekEnd, selectedStudentId) {

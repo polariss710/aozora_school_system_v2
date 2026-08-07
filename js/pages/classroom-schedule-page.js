@@ -1,9 +1,9 @@
 import {
   fetchLessonRecords,
-  fetchLessonStudents,
+  fetchLessonStudentsByIds,
   fetchLessonSubjects,
   fetchLessonTeachers,
-} from "../api/lesson-api.js";
+} from "../api/lesson-api.js?v=phase-b4-remaining-20260807-1";
 import { detectRegusOfficeConflictIds } from "../utils/classroom-capacity.js";
 
 const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -51,8 +51,8 @@ function bindEvents() {
 async function loadLookupsAndSchedule() {
   setLoading(true);
   try {
-    [state.students, state.teachers, state.subjects] = await Promise.all([
-      fetchLessonStudents(), fetchLessonTeachers(), fetchLessonSubjects(),
+    [state.teachers, state.subjects] = await Promise.all([
+      fetchLessonTeachers(), fetchLessonSubjects(),
     ]);
     await loadSchedule();
   } catch (error) {
@@ -71,6 +71,7 @@ async function loadSchedule() {
   try {
     const rows = (await Promise.all(monthsBetween(weekStart, weekEnd).map(fetchLessonRecords))).flat();
     state.rows = buildEffectiveOnsiteRows(rows, weekStart, weekEnd);
+    state.students = await fetchLessonStudentsByIds(state.rows.map((row) => row.student_id));
     renderVenueOptions();
     applyVenueFilter();
     showMessage("info", state.rows.length ? "排班已刷新；Regus办公室同一时段出现多组课程时会标红，公共区不限制组数。" : "该周暂无已设置教室的线下课。");

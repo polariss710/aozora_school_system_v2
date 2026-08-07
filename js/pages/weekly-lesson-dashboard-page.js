@@ -1,4 +1,4 @@
-import { fetchLessonStudents, fetchWeeklyLessonOperations } from "../api/lesson-api.js";
+import { fetchLessonStudentsByIds, fetchWeeklyLessonOperations } from "../api/lesson-api.js?v=phase-b4-remaining-20260807-1";
 import { safeText } from "../utils/format.js";
 
 const dom = {};
@@ -8,9 +8,7 @@ export function initWeeklyLessonDashboardPage() {
   cacheDom();
   bindEvents();
   setWeekFromQueryOrToday();
-  fetchLessonStudents()
-    .then((rows) => { students = rows || []; return loadDashboard(); })
-    .catch((error) => showMessage("error", `读取本周课时失败：${error.message || error}`));
+  loadDashboard().catch((error) => showMessage("error", `读取本周课时失败：${error.message || error}`));
 }
 
 function cacheDom() {
@@ -48,6 +46,7 @@ async function loadDashboard() {
   setLoading(true); hideMessage();
   try {
     const rows = await fetchWeeklyLessonOperations(weekStart);
+    students = await fetchLessonStudentsByIds(rows.map((row) => row.student_id));
     renderRows(rows);
     syncUrl(weekStart);
   } catch (error) { renderRows([]); showMessage("error", `读取本周课时失败：${error.message || error}`); }
