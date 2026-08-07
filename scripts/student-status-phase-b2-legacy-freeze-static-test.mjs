@@ -30,7 +30,13 @@ assert.match(api, /p_expected_updated_at:\s*payload\.expectedUpdatedAt/);
 assert.doesNotMatch(page, /createStudentStatusSelect|editStudentStatusSelect|payload\.status|EDITABLE_STUDENT_STATUS_OPTIONS/);
 assert.match(page, /expectedUpdatedAt:\s*editingStudent\.updated_at/);
 assert.doesNotMatch(html, /id="(?:create|edit)StudentStatusSelect"/);
-assert.equal((html.match(/学生状态管理正在切换为按月份生效，当前暂不可修改。/g) || []).length, 2);
+assert.doesNotMatch(html, /id="(?:create|edit)StudentStatusSelect"/);
+if (html.includes("studentStatusTransitionDialog")) {
+  assert.match(html, /studentStatusHistoryDialog/);
+  assert.match(html, /studentStatusCorrectionDialog/);
+} else {
+  assert.equal((html.match(/学生状态管理正在切换为按月份生效，当前暂不可修改。/g) || []).length, 2);
+}
 assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=p0-g1-a-20260804-1">
+    <link rel="stylesheet" href="./css/app.css?v=b5-20260807-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -70,10 +70,10 @@
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
           <h1>学生管理</h1>
-          <p class="page-subtitle">管理学生基础信息、课程归属和收费默认值；状态按月份模型切换中。</p>
+          <p class="page-subtitle">管理学生基础信息，并按月份查看、变更和更正学生在读状态。</p>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">基础信息可编辑 · 状态暂不可改</span>
+          <span class="readonly-pill">月份状态由数据库权威解析</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
@@ -136,8 +136,7 @@
       <section class="dialog-panel student-profile-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="createStudentProfileTitle">
         <div class="section-heading">
           <h2 id="createStudentProfileTitle">新增学生</h2>
-          <p class="section-note">仅维护学生基础资料和默认值；新学生由数据库固定为在籍，不创建状态事件。</p>
-          <p class="section-note" data-student-status-freeze-notice>学生状态管理正在切换为按月份生效，当前暂不可修改。</p>
+          <p class="section-note">仅维护学生基础资料和默认值；新学生没有状态事件时由权威resolver解析为在读。</p>
         </div>
 
         <div id="createStudentProfileError" class="dialog-error is-hidden"></div>
@@ -194,7 +193,6 @@
         <div class="section-heading">
           <h2 id="editStudentProfileTitle">编辑学生</h2>
           <p class="section-note">仅维护学生基础资料和默认值；不会修改余额、结算、收入、支付请求、课时、工资或账户流水。</p>
-          <p class="section-note" data-student-status-freeze-notice>学生状态管理正在切换为按月份生效，当前暂不可修改。</p>
         </div>
 
         <div id="editStudentProfileError" class="dialog-error is-hidden"></div>
@@ -246,6 +244,90 @@
       </section>
     </div>
 
-    <script type="module" src="./js/student-app.js?v=be-ui-20260806-1"></script>
+    <div id="studentStatusTransitionDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel student-status-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="studentStatusTransitionTitle">
+        <div class="section-heading">
+          <h2 id="studentStatusTransitionTitle">变更学生状态</h2>
+          <p id="studentStatusTransitionDescription" class="section-note"></p>
+        </div>
+        <div id="studentStatusTransitionError" class="dialog-error is-hidden"></div>
+        <div id="studentStatusTransitionSummary" class="dialog-summary"></div>
+        <label class="field">
+          <span id="studentStatusTransitionMonthLabel">月份</span>
+          <input id="studentStatusTransitionMonthInput" type="month">
+        </label>
+        <label class="field">
+          <span>原因（必填）</span>
+          <textarea id="studentStatusTransitionReasonInput" rows="3" maxlength="1000"></textarea>
+        </label>
+        <div id="studentStatusTransitionPreview" class="student-status-preview is-hidden" aria-live="polite"></div>
+        <label id="studentStatusTransitionConfirmField" class="student-status-confirm is-hidden">
+          <input id="studentStatusTransitionConfirmInput" type="checkbox">
+          <span>我已核对数据库返回的生效月份，并确认执行本次状态变更。</span>
+        </label>
+        <div class="dialog-actions">
+          <button class="button" id="studentStatusTransitionCancelButton" type="button">取消</button>
+          <button class="button" id="studentStatusTransitionPreviewButton" type="button">预览生效月份</button>
+          <button class="button button-primary is-hidden" id="studentStatusTransitionSubmitButton" type="button">确认变更</button>
+        </div>
+      </section>
+    </div>
+
+    <div id="studentStatusHistoryDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel student-status-history-dialog-panel app-dialog--lg" role="dialog" aria-modal="true" aria-labelledby="studentStatusHistoryTitle">
+        <div class="section-heading section-heading-row">
+          <div>
+            <h2 id="studentStatusHistoryTitle">状态历史</h2>
+            <p id="studentStatusHistorySubtitle" class="section-note"></p>
+          </div>
+          <button class="button" id="studentStatusHistoryCloseButton" type="button">关闭</button>
+        </div>
+        <div id="studentStatusHistoryError" class="dialog-error is-hidden"></div>
+        <div id="studentStatusHistoryList" class="student-status-history-list"></div>
+      </section>
+    </div>
+
+    <div id="studentStatusCorrectionDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel student-status-dialog-panel app-dialog--md" role="dialog" aria-modal="true" aria-labelledby="studentStatusCorrectionTitle">
+        <div class="section-heading">
+          <h2 id="studentStatusCorrectionTitle">更正状态历史</h2>
+          <p class="section-note">原事件不会被改写或删除；提交后将作废原事件并追加replacement。</p>
+        </div>
+        <div id="studentStatusCorrectionError" class="dialog-error is-hidden"></div>
+        <div id="studentStatusCorrectionOriginal" class="dialog-summary"></div>
+        <label class="field">
+          <span>更正后的生效月份</span>
+          <input id="studentStatusCorrectionMonthInput" type="month">
+        </label>
+        <label class="field">
+          <span>更正后的状态</span>
+          <select id="studentStatusCorrectionStatusSelect">
+            <option value="active">在读</option>
+            <option value="paused">暂停</option>
+            <option value="left">离校</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>更正后的状态原因（必填）</span>
+          <textarea id="studentStatusCorrectionReasonInput" rows="3" maxlength="1000"></textarea>
+        </label>
+        <label class="field">
+          <span>更正原因（必填）</span>
+          <textarea id="studentStatusCorrectionAuditReasonInput" rows="3" maxlength="1000"></textarea>
+        </label>
+        <div id="studentStatusCorrectionPreview" class="student-status-preview is-hidden" aria-live="polite"></div>
+        <label id="studentStatusCorrectionConfirmField" class="student-status-confirm is-hidden">
+          <input id="studentStatusCorrectionConfirmInput" type="checkbox">
+          <span>我已核对更正后的时间线范围，并确认作废原事件、追加replacement。</span>
+        </label>
+        <div class="dialog-actions">
+          <button class="button" id="studentStatusCorrectionCancelButton" type="button">取消</button>
+          <button class="button" id="studentStatusCorrectionPreviewButton" type="button">预览更正时间线</button>
+          <button class="button button-primary is-hidden" id="studentStatusCorrectionSubmitButton" type="button">确认更正</button>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="./js/student-app.js?v=b5-20260807-1"></script>
   </body>
 </html>

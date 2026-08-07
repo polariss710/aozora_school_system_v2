@@ -1,5 +1,70 @@
 import { supabase } from "../supabase-client.js";
 
+export async function fetchStudentStatusManagement() {
+  const { data, error } = await supabase.rpc("school_list_student_status_management_v1");
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchStudentStatusHistory(studentId) {
+  const { data, error } = await supabase.rpc("school_list_student_status_history_v1", {
+    p_student_id: studentId,
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function previewStudentStatusTransition(payload) {
+  const { data, error } = await supabase.rpc("school_preview_student_status_transition_v1", {
+    p_student_id: payload.studentId,
+    p_requested_status: payload.requestedStatus,
+    p_input_month: monthFirst(payload.inputMonth),
+    p_expected_current_event_id: payload.expectedCurrentEventId || null,
+  });
+  if (error) throw error;
+  return firstRpcRow(data, "状态变更预览");
+}
+
+export async function transitionStudentStatus(payload) {
+  const { data, error } = await supabase.rpc("school_transition_student_status_v1", {
+    p_student_id: payload.studentId,
+    p_requested_status: payload.requestedStatus,
+    p_input_month: monthFirst(payload.inputMonth),
+    p_reason: payload.reason,
+    p_expected_current_event_id: payload.expectedCurrentEventId || null,
+    p_confirmation: "TRANSITION_STUDENT_STATUS_V1",
+  });
+  if (error) throw error;
+  return firstRpcRow(data, "状态变更");
+}
+
+export async function previewStudentStatusCorrection(payload) {
+  const { data, error } = await supabase.rpc("school_preview_student_status_correction_v1", {
+    p_event_id: payload.eventId,
+    p_expected_row_version: payload.expectedRowVersion,
+    p_expected_current_event_id: payload.expectedCurrentEventId || null,
+    p_replacement_effective_month: monthFirst(payload.replacementMonth),
+    p_replacement_status: payload.replacementStatus,
+  });
+  if (error) throw error;
+  return firstRpcRow(data, "历史更正预览");
+}
+
+export async function correctStudentStatusEvent(payload) {
+  const { data, error } = await supabase.rpc("school_correct_student_status_event_v1", {
+    p_event_id: payload.eventId,
+    p_expected_row_version: payload.expectedRowVersion,
+    p_expected_current_event_id: payload.expectedCurrentEventId || null,
+    p_replacement_effective_month: monthFirst(payload.replacementMonth),
+    p_replacement_status: payload.replacementStatus,
+    p_replacement_reason: payload.replacementReason,
+    p_correction_reason: payload.correctionReason,
+    p_confirmation: "CORRECT_STUDENT_STATUS_EVENT_B5_V1",
+  });
+  if (error) throw error;
+  return firstRpcRow(data, "历史更正");
+}
+
 export async function fetchStudentMonthCandidates({
   month,
   includeInactive = false,
@@ -150,6 +215,20 @@ export function writeStudentCandidateQuery(params, { studentId = "", includeInac
 function normalizeDateInput(value) {
   const text = String(value || "").trim();
   return /^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(text) ? text : "";
+}
+
+function monthFirst(value) {
+  const text = String(value || "").trim();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) {
+    throw new Error("请选择正确的月份。");
+  }
+  return `${text}-01`;
+}
+
+function firstRpcRow(data, action) {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error(`${action}没有返回结果。`);
+  return row;
 }
 
 function escapeHtml(value) {

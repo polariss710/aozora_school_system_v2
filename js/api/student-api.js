@@ -116,10 +116,6 @@ export async function createStudentProfile(payload) {
 }
 
 function applyStudentFilters(query, filters) {
-  if (filters.status) {
-    query = query.eq("status", filters.status);
-  }
-
   if (filters.courseTrack) {
     query = query.eq("course_track", filters.courseTrack);
   }
