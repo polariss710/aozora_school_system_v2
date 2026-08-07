@@ -40,7 +40,7 @@ assert.match(css, /\.lesson-filter-label-spacer[\s\S]*min-height: 18px/);
 assert.match(css, /\.lesson-filter-panel \.lesson-filter-actions\s*\{[\s\S]*grid-column: auto/);
 assert.match(css, /@media \(max-width: 1799px\)[\s\S]*\.lesson-filter-single-row[\s\S]*repeat\(4, minmax\(160px, 1fr\)\)/);
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*\.lesson-filter-single-row[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
-assert.match(config, /APP_VERSION = "v10\.5\.22"/);
+assert.match(config, /APP_VERSION = "v10\.5\.23"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");

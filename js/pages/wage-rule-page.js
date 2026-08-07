@@ -22,10 +22,15 @@ const DEFAULT_FILTERS = {
   studentId: "",
   includeInactive: false,
   subjectId: "",
-  settlementType: "",
   activeState: "",
-  teacherDepartment: "",
 };
+
+const RETIRED_WAGE_RULE_FILTER_PARAMS = [
+  "teacherDepartment",
+  "teacher_department",
+  "settlementType",
+  "settlement_type",
+];
 
 const SETTLEMENT_TYPE_LABELS = {
   jpy_hourly: "日元时给",
@@ -98,9 +103,7 @@ function cacheDom() {
   dom.studentSelect = document.querySelector("#wageRuleStudentSelect");
   dom.includeInactiveCheckbox = document.querySelector("#wageRuleIncludeInactiveCheckbox");
   dom.subjectSelect = document.querySelector("#wageRuleSubjectSelect");
-  dom.settlementTypeSelect = document.querySelector("#wageRuleSettlementTypeSelect");
   dom.activeSelect = document.querySelector("#wageRuleActiveSelect");
-  dom.teacherDepartmentSelect = document.querySelector("#wageRuleTeacherDepartmentSelect");
   dom.resetButton = document.querySelector("#wageRuleResetButton");
   dom.tableBody = document.querySelector("#wageRuleTableBody");
   dom.loadingState = document.querySelector("#wageRuleLoadingState");
@@ -233,7 +236,7 @@ async function loadWageRuleData() {
     requirePrimarySchoolBusinessEntityId(businessEntities);
     wageRules = sortWageRules(ruleRows);
 
-    renderFilterOptions(wageRules, filters.studentId);
+    renderFilterOptions(filters.studentId);
     restoreFilterSelections(filters);
     startupFilters = null;
     applyCurrentFilters();
@@ -247,7 +250,7 @@ async function loadWageRuleData() {
     subjects = [];
     businessEntities = [];
     wageRules = [];
-    renderFilterOptions([]);
+    renderFilterOptions();
     renderWageRules([]);
     showMessage("error", `读取老师工资规则数据失败：${error.message || error}`);
   } finally {
@@ -289,9 +292,7 @@ function readFilters() {
     studentId: dom.studentSelect.value,
     includeInactive: Boolean(dom.includeInactiveCheckbox.checked),
     subjectId: dom.subjectSelect.value,
-    settlementType: dom.settlementTypeSelect.value,
     activeState: dom.activeSelect.value,
-    teacherDepartment: dom.teacherDepartmentSelect.value,
   };
 }
 
@@ -301,19 +302,15 @@ function restoreFilterSelections(filters) {
   dom.studentSelect.value = filters.studentId;
   dom.includeInactiveCheckbox.checked = Boolean(filters.includeInactive);
   dom.subjectSelect.value = filters.subjectId;
-  dom.settlementTypeSelect.value = filters.settlementType;
   dom.activeSelect.value = filters.activeState;
-  dom.teacherDepartmentSelect.value = filters.teacherDepartment;
 }
 
-function renderFilterOptions(rows, selectedStudentId = "") {
+function renderFilterOptions(selectedStudentId = "") {
   renderEntityOptions(dom.teacherSelect, teachers, teacherName);
   renderStudentMonthCandidateOptions(dom.studentSelect, filterStudentCandidates, {
     selectedStudentId,
   });
   renderEntityOptions(dom.subjectSelect, subjects, subjectName);
-  renderValueOptions(dom.settlementTypeSelect, distinctValues(rows, "settlement_type"), settlementTypeLabel);
-  renderValueOptions(dom.teacherDepartmentSelect, distinctTeacherDepartments(), displayValue);
 }
 
 function syncCandidateUrl(filters) {
@@ -324,6 +321,7 @@ function syncCandidateUrl(filters) {
   params.delete("business_entity_id");
   params.delete("businessEntityId");
   params.delete("business_entity");
+  RETIRED_WAGE_RULE_FILTER_PARAMS.forEach((name) => params.delete(name));
   const query = params.toString();
   window.history?.replaceState?.(null, "", query ? `${window.location.pathname}?${query}` : window.location.pathname);
 }
@@ -334,18 +332,6 @@ function renderEntityOptions(selectEl, rows, labelGetter) {
   for (const row of rows) {
     options.push(
       `<option value="${escapeAttribute(row.id)}">${escapeHtml(labelGetter(row))}</option>`
-    );
-  }
-
-  selectEl.innerHTML = options.join("");
-}
-
-function renderValueOptions(selectEl, values, labelGetter) {
-  const options = ['<option value="">全部</option>'];
-
-  for (const value of values) {
-    options.push(
-      `<option value="${escapeAttribute(value)}">${escapeHtml(labelGetter(value))}</option>`
     );
   }
 
@@ -1019,8 +1005,6 @@ async function reloadWageRuleDataPreservingViewport() {
 
 function filterWageRules(rows, filters) {
   return rows.filter((rule) => {
-    const teacher = teacherById(rule.teacher_id);
-
     if (filters.teacherId && rule.teacher_id !== filters.teacherId) {
       return false;
     }
@@ -1033,19 +1017,11 @@ function filterWageRules(rows, filters) {
       return false;
     }
 
-    if (filters.settlementType && rule.settlement_type !== filters.settlementType) {
-      return false;
-    }
-
     if (filters.activeState === "active" && rule.is_active !== true) {
       return false;
     }
 
     if (filters.activeState === "inactive" && rule.is_active !== false) {
-      return false;
-    }
-
-    if (filters.teacherDepartment && safeText(teacher?.department) !== filters.teacherDepartment) {
       return false;
     }
 
@@ -1094,26 +1070,6 @@ function sortWageRules(rows) {
 
     return safeText(left.created_at).localeCompare(safeText(right.created_at));
   });
-}
-
-function distinctValues(rows, key) {
-  return Array.from(
-    new Set(
-      rows
-        .map((row) => safeText(row[key]).trim())
-        .filter(Boolean)
-    )
-  ).sort((left, right) => left.localeCompare(right, "zh-CN"));
-}
-
-function distinctTeacherDepartments() {
-  return Array.from(
-    new Set(
-      teachers
-        .map((teacher) => safeText(teacher.department).trim())
-        .filter(Boolean)
-    )
-  ).sort((left, right) => left.localeCompare(right, "zh-CN"));
 }
 
 function teacherById(id) {

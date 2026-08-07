@@ -4,9 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资规则</title>
-    <link rel="stylesheet" href="./css/app.css?v=p0-g1-a-20260804-1">
+    <link rel="stylesheet" href="./css/app.css?v=wage-rule-filter-single-row-20260808-1">
   </head>
-  <body>
+  <body class="wage-rule-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
       <div class="sidebar-brand">
         <strong>青空进学塾</strong>
@@ -65,7 +65,7 @@
                   </details>
                 </nav>
     </aside>
-    <div class="app-shell">
+    <div class="app-shell app-shell--wage-rule">
       <header class="page-header">
         <div>
           <p class="page-kicker">青空塾 管理系统 v2</p>
@@ -80,46 +80,42 @@
       <main class="page-main">
         <section id="wageRuleMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel" aria-labelledby="wageRuleFilterTitle">
+        <section class="panel filter-panel wage-rule-filter-panel" aria-labelledby="wageRuleFilterTitle">
           <div class="section-heading">
             <h2 id="wageRuleFilterTitle">筛选</h2>
           </div>
 
-          <form id="wageRuleFilterForm" class="filter-grid">
-            <label class="field">
+          <form id="wageRuleFilterForm" class="filter-grid wage-rule-filter-grid">
+            <label class="field wage-rule-filter-field wage-rule-filter-teacher-field">
               <span>老师</span>
               <select id="wageRuleTeacherSelect" name="teacherId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field wage-rule-filter-field wage-rule-filter-student-field">
               <span>学生</span>
               <select id="wageRuleStudentSelect" name="studentId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field checkbox-field wage-rule-include-inactive-control">
-              <input id="wageRuleIncludeInactiveCheckbox" type="checkbox">
-              <span>包含暂停/离校学生</span>
-            </label>
+            <div class="wage-rule-include-inactive-field">
+              <span class="wage-rule-filter-label-spacer" aria-hidden="true"></span>
+              <label class="wage-rule-include-inactive-control">
+                <input id="wageRuleIncludeInactiveCheckbox" type="checkbox">
+                <span>包含暂停/离校学生</span>
+              </label>
+            </div>
 
-            <label class="field">
+            <label class="field wage-rule-filter-field wage-rule-filter-subject-field">
               <span>科目</span>
               <select id="wageRuleSubjectSelect" name="subjectId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
-              <span>结算类型</span>
-              <select id="wageRuleSettlementTypeSelect" name="settlementType">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
+            <label class="field wage-rule-filter-field wage-rule-filter-active-field">
               <span>启用状态</span>
               <select id="wageRuleActiveSelect" name="activeState">
                 <option value="">全部</option>
@@ -128,22 +124,19 @@
               </select>
             </label>
 
-            <label class="field">
-              <span>老师分类</span>
-              <select id="wageRuleTeacherDepartmentSelect" name="teacherDepartment">
-                <option value="">全部</option>
-              </select>
-            </label>
-
-            <label class="field">
-              <span>关键字</span>
+            <label class="field wage-rule-filter-field wage-rule-filter-keyword-field">
+              <span>关键词</span>
               <input id="wageRuleKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="老师 / 学生 / 科目 / 备注">
             </label>
+
+            <div class="wage-rule-filter-flex-spacer" aria-hidden="true"></div>
 
             <div class="filter-actions wage-rule-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="wageRuleResetButton" type="button">重置</button>
             </div>
+
+            <div class="wage-rule-filter-right-spacer" aria-hidden="true"></div>
           </form>
         </section>
 
@@ -331,6 +324,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=phase-b4-remaining-20260807-2"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=wage-rule-filter-single-row-20260808-1"></script>
   </body>
 </html>
