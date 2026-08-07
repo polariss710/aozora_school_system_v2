@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生月度结算</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase-b4-finance-20260807-1">
+    <link rel="stylesheet" href="./css/app.css?v=settlement-filter-single-row-20260808-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -86,8 +86,8 @@
             <h2 id="settlementFilterTitle">筛选</h2>
           </div>
 
-          <form id="settlementFilterForm" class="filter-grid">
-            <label class="field month-select-field">
+          <form id="settlementFilterForm" class="filter-grid settlement-filter-grid">
+            <label class="field month-select-field settlement-filter-month-field">
               <span>月份</span>
               <div class="month-select-group">
                 <select id="settlementYearFilter" name="year" aria-label="年份"></select>
@@ -95,33 +95,39 @@
               </div>
             </label>
 
-            <div class="field student-month-candidate-field">
+            <div class="field student-month-candidate-field settlement-student-filter-field">
               <span>学生</span>
               <select id="settlementStudentSelect" name="studentId">
                 <option value="">全部</option>
               </select>
-              <label class="student-month-include-control">
+            </div>
+
+            <div class="settlement-include-inactive-field">
+              <span class="settlement-filter-label-spacer" aria-hidden="true">&nbsp;</span>
+              <label class="student-month-include-control settlement-include-inactive-control">
                 <input id="settlementIncludeInactiveCheckbox" type="checkbox">
                 <span>包含暂停/离校学生</span>
               </label>
             </div>
 
-            <label class="field">
+            <label class="field settlement-filter-status-field">
               <span>结算状态</span>
               <select id="settlementStatusSelect" name="status">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field settlement-filter-keyword-field">
               <span>关键字</span>
               <input id="settlementKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 状态">
             </label>
 
+            <div class="settlement-filter-flex-spacer" aria-hidden="true"></div>
             <div class="filter-actions settlement-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="settlementResetButton" type="button">重置</button>
             </div>
+            <div class="settlement-filter-right-spacer" aria-hidden="true"></div>
           </form>
         </section>
 
@@ -347,6 +353,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=be-ui-blocker-20260807-1"></script>
+    <script type="module" src="./js/settlement-app.js?v=settlement-filter-single-row-20260808-1"></script>
   </body>
 </html>
