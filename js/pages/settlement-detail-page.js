@@ -10,6 +10,7 @@ import {
   buildLessonMonthSemantics,
   hasFrozenSettlementOverage,
 } from "../utils/actual-overage.js";
+import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=be-ui-blocker-20260807-1";
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
@@ -636,7 +637,11 @@ function settlementStatusLabel(value) {
 }
 
 function teacherWageBlockerReason(settlement) {
-  return safeText(settlement?.teacher_wage_blocker_reason);
+  return formatTeacherWageBlockerDisplayReason({
+    blockerLevel: settlement?.teacher_wage_blocker_level,
+    counts: settlement?.teacher_wage_blocker_counts,
+    hasBlocker: Boolean(safeText(settlement?.teacher_wage_blocker_reason)),
+  });
 }
 
 function teacherWageBlockerDisplay(settlement) {

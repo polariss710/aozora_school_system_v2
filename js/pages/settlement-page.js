@@ -24,6 +24,7 @@ import {
 } from "../api/student-status-api.js?v=phase-b4-finance-20260807-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import { hasFrozenSettlementOverage } from "../utils/actual-overage.js";
+import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=be-ui-blocker-20260807-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",
@@ -566,7 +567,11 @@ function renderTeacherWageBlocker(row) {
 }
 
 function teacherWageBlockerReason(row) {
-  return safeText(row?.teacher_wage_blocker_reason);
+  return formatTeacherWageBlockerDisplayReason({
+    blockerLevel: row?.teacher_wage_blocker_level,
+    counts: row?.teacher_wage_blocker_counts,
+    hasBlocker: Boolean(safeText(row?.teacher_wage_blocker_reason)),
+  });
 }
 
 function openLockDialog(settlementRowId) {

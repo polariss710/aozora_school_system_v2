@@ -81,5 +81,5 @@ for (const path of [
   assert.doesNotMatch(read(path), /service[_-]?role/i, `${path}: browser service role`);
 }
 
-assert.match(read("js/config.js"), /APP_VERSION = "v10\.5\.15"/);
+assert.match(read("js/config.js"), /APP_VERSION = "v10\.5\.16"/);
 console.log("student status Phase B4 Finance static checks passed");

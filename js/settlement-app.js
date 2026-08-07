@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=phase-b4-finance-20260807-1";
+import { APP_VERSION } from "./config.js?v=be-ui-blocker-20260807-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=phase-b4-finance-20260807-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=be-ui-blocker-20260807-1";
 
 const SETTLEMENT_PAGE_VERSION = "settlement-trusted-tool-20260803-1";
 
