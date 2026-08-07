@@ -7057,9 +7057,32 @@ html.auth-authorized body {
 }
 
 .lesson-filter-panel .lesson-filter-grid {
-  grid-template-columns: 196px repeat(2, minmax(0, 450px));
-  gap: 10px 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.lesson-filter-row {
+  display: grid;
+  min-width: 0;
+  gap: 12px;
   align-items: end;
+}
+
+.lesson-filter-primary-row {
+  grid-template-columns:
+    196px
+    minmax(0, 450px)
+    minmax(0, 450px)
+    minmax(0, 176px)
+    minmax(0, 450px)
+    minmax(0, 450px);
+}
+
+.lesson-filter-secondary-row {
+  grid-template-columns:
+    repeat(3, minmax(0, 450px))
+    minmax(0, 1fr)
+    auto;
 }
 
 .lesson-include-inactive-field {
@@ -7088,48 +7111,27 @@ html.auth-authorized body {
 }
 
 .lesson-filter-panel .lesson-filter-actions {
-  grid-column: 1 / -1;
   justify-content: flex-end;
 }
 
-@media (min-width: 1800px) {
-  .lesson-filter-panel .lesson-filter-grid {
-    grid-template-areas:
-      "month week student inactive teacher subject"
-      "status billable keyword spacer actions actions";
-    grid-template-columns:
-      196px
-      minmax(0, 450px)
-      minmax(0, 450px)
-      minmax(0, 176px)
-      minmax(0, 450px)
-      minmax(0, 450px);
+@media (max-width: 1023px) {
+  .lesson-filter-primary-row,
+  .lesson-filter-secondary-row {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .lesson-filter-month-field { grid-area: month; }
-  .lesson-filter-week-field { grid-area: week; }
-  .lesson-student-filter-field { grid-area: student; }
-  .lesson-include-inactive-field { grid-area: inactive; }
-  .lesson-filter-teacher-field { grid-area: teacher; }
-  .lesson-filter-subject-field { grid-area: subject; }
-  .lesson-filter-status-field { grid-area: status; }
-  .lesson-filter-billable-field { grid-area: billable; }
-  .lesson-filter-keyword-field { grid-area: keyword; }
+  .lesson-filter-flex-spacer {
+    display: none;
+  }
 
   .lesson-filter-panel .lesson-filter-actions {
-    grid-area: actions;
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 1023px) {
-  .lesson-filter-panel .lesson-filter-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 767px) {
-  .lesson-filter-panel .lesson-filter-grid {
+  .lesson-filter-primary-row,
+  .lesson-filter-secondary-row {
     grid-template-columns: minmax(0, 1fr);
   }
 

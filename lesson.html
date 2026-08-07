@@ -87,79 +87,84 @@
           </div>
 
           <form id="lessonFilterForm" class="filter-grid lesson-filter-grid">
-            <label class="field month-select-field lesson-filter-month-field">
+            <div class="lesson-filter-row lesson-filter-primary-row">
+              <label class="field month-select-field lesson-filter-month-field">
               <span>收费 / 学生结算月</span>
               <div class="month-select-group">
                 <select id="lessonYearFilter" name="year" aria-label="年份"></select>
                 <select id="lessonMonthFilter" name="month" aria-label="月份"></select>
               </div>
-            </label>
+              </label>
 
-            <label class="field lesson-filter-week-field">
-              <span>自然周（planned按收费周周一归属月份）</span>
-              <select id="lessonWeekFilter" name="weekStart">
-                <option value="">整月</option>
-              </select>
-            </label>
+              <label class="field lesson-filter-week-field">
+                <span>自然周（planned按收费周周一归属月份）</span>
+                <select id="lessonWeekFilter" name="weekStart">
+                  <option value="">整月</option>
+                </select>
+              </label>
 
-            <div class="field lesson-student-filter-field">
-              <span>学生</span>
-              <select id="lessonStudentSelect" name="studentId">
-                <option value="">全部学生</option>
-              </select>
-            </div>
+              <div class="field lesson-student-filter-field">
+                <span>学生</span>
+                <select id="lessonStudentSelect" name="studentId">
+                  <option value="">全部学生</option>
+                </select>
+              </div>
 
-            <div class="lesson-include-inactive-field">
-              <label class="lesson-include-inactive-control">
-                <input id="lessonIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
-                <span>包含暂停/离校学生</span>
+              <div class="lesson-include-inactive-field">
+                <label class="lesson-include-inactive-control">
+                  <input id="lessonIncludeInactiveCheckbox" name="include_inactive" type="checkbox" value="1">
+                  <span>包含暂停/离校学生</span>
+                </label>
+              </div>
+
+              <label class="field lesson-filter-teacher-field">
+                <span>老师</span>
+                <select id="lessonTeacherSelect" name="teacherId">
+                  <option value="">全部</option>
+                </select>
+              </label>
+
+              <label class="field lesson-filter-subject-field">
+                <span>科目</span>
+                <select id="lessonSubjectSelect" name="subjectId">
+                  <option value="">全部</option>
+                </select>
               </label>
             </div>
 
-            <label class="field lesson-filter-teacher-field">
-              <span>老师</span>
-              <select id="lessonTeacherSelect" name="teacherId">
-                <option value="">全部</option>
-              </select>
-            </label>
+            <div class="lesson-filter-row lesson-filter-secondary-row">
+              <label class="field lesson-filter-status-field">
+                <span>状态</span>
+                <select id="lessonStatusSelect" name="status">
+                  <option value="">全部</option>
+                  <option value="planned">待上课</option>
+                  <option value="pending_makeup">待补课</option>
+                  <option value="completed">已上课</option>
+                  <option value="cancelled">取消课</option>
+                  <option value="makeup_completed">已补课</option>
+                  <option value="voided">已作废</option>
+                </select>
+              </label>
 
-            <label class="field lesson-filter-subject-field">
-              <span>科目</span>
-              <select id="lessonSubjectSelect" name="subjectId">
-                <option value="">全部</option>
-              </select>
-            </label>
+              <label class="field lesson-filter-billable-field">
+                <span>计费</span>
+                <select id="lessonBillableSelect" name="isBillable">
+                  <option value="">全部</option>
+                  <option value="true">计费</option>
+                  <option value="false">不计费</option>
+                </select>
+              </label>
 
-            <label class="field lesson-filter-status-field">
-              <span>状态</span>
-              <select id="lessonStatusSelect" name="status">
-                <option value="">全部</option>
-                <option value="planned">待上课</option>
-                <option value="pending_makeup">待补课</option>
-                <option value="completed">已上课</option>
-                <option value="cancelled">取消课</option>
-                <option value="makeup_completed">已补课</option>
-                <option value="voided">已作废</option>
-              </select>
-            </label>
+              <label class="field lesson-filter-keyword-field">
+                <span>关键字</span>
+                <input id="lessonKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 老师 / 科目 / 内容 / 备注">
+              </label>
 
-            <label class="field lesson-filter-billable-field">
-              <span>计费</span>
-              <select id="lessonBillableSelect" name="isBillable">
-                <option value="">全部</option>
-                <option value="true">计费</option>
-                <option value="false">不计费</option>
-              </select>
-            </label>
-
-            <label class="field lesson-filter-keyword-field">
-              <span>关键字</span>
-              <input id="lessonKeywordInput" name="keyword" type="search" autocomplete="off" placeholder="学生 / 老师 / 科目 / 内容 / 备注">
-            </label>
-
-            <div class="filter-actions lesson-filter-actions">
-              <button class="button button-primary" type="submit">查询</button>
-              <button class="button" id="lessonResetButton" type="button">重置</button>
+              <div class="lesson-filter-flex-spacer" aria-hidden="true"></div>
+              <div class="filter-actions lesson-filter-actions">
+                <button class="button button-primary" type="submit">查询</button>
+                <button class="button" id="lessonResetButton" type="button">重置</button>
+              </div>
             </div>
           </form>
         </section>

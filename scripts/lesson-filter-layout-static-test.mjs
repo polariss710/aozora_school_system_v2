@@ -25,9 +25,11 @@ assert.match(page, /params\.set\("student_id", filters\.studentId\)/);
 assert.match(page, /params\.set\("view", normalizeLessonView\(filters\.view\)\)/);
 assert.match(api, /p_lesson_type:\s*null/);
 
-assert.match(css, /grid-template-areas:[\s\S]*"month week student inactive teacher subject"[\s\S]*"status billable keyword spacer actions actions"/);
+assert.match(html, /lesson-filter-primary-row[\s\S]*lesson-filter-secondary-row/);
+assert.match(css, /\.lesson-filter-primary-row[\s\S]*196px[\s\S]*minmax\(0, 176px\)/);
+assert.match(css, /\.lesson-filter-secondary-row[\s\S]*repeat\(3, minmax\(0, 450px\)\)[\s\S]*minmax\(0, 1fr\)[\s\S]*auto/);
 assert.match(css, /minmax\(0, 176px\)/);
-assert.match(css, /@media \(max-width: 767px\)[\s\S]*\.lesson-filter-panel \.lesson-filter-grid[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
+assert.match(css, /@media \(max-width: 767px\)[\s\S]*\.lesson-filter-primary-row,[\s\S]*\.lesson-filter-secondary-row[\s\S]*grid-template-columns: minmax\(0, 1fr\)/);
 assert.match(config, /APP_VERSION = "v10\.5\.19"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
