@@ -2,11 +2,13 @@
 
 日期：2026-08-08（Asia/Tokyo）
 
-## 当前结论
+## 结论
 
 工资规则页已完成本地最小修复，页面版本由 `v10.5.23` 前进至 `v10.5.24`。筛选控件现明确分为 draft 与 applied 两份状态；只有显式点击“查询”或 Enter 提交才更新规则结果和合法 URL 条件。include inactive 变化只重读学生候选，并以请求序号阻止旧响应覆盖新状态。
 
-异步提示已从规则列表区域移至筛选卡标题的固定高度状态槽；规则表增加18列专属 `colgroup`，宽度由1880px扩展为卡片内部完整2210px；规则列表数量/新增按钮组在宽屏向左留出约152px。本报告将在生产 Pages 与 Chrome 无写验收后补齐最终 run、commit 和实测结果。
+异步提示已从规则列表区域移至筛选卡标题的固定高度状态槽；规则表增加18列专属 `colgroup`，宽度由1880px扩展为卡片内部完整2210px；规则列表数量/新增按钮组在宽屏向左留出153px。
+
+实现提交 `11b3118e9590bd457486cf56adbaf28d3f70e4fb` 已推送，Pages run `31231194573` 成功且部署commit一致。生产 `v10.5.24` 的筛选请求边界、7/8名候选、selected override、稳定Y坐标、18列、三档响应式、弹窗/详情、Console及部署后只读指纹全部通过。
 
 ## 实时基线与保护
 
@@ -129,6 +131,88 @@ Gate为 `student_tuition_preview=enabled / student_tuition_generate=blocked / st
 - School、Cash、Storage及真实业务写入：0；fixture：0；测试record ID：无。
 - 只执行School/Cash的 `BEGIN READ ONLY ... ROLLBACK` 指纹脚本。
 
-## 待生产封口
+## 生产 Chrome 无写验收
 
-等待实现提交、Pages成功与生产Chrome无写验收后，补齐请求调用矩阵、7/8名候选、selected override、三项Y坐标、18列实测宽度、三档响应式、Console、只读字段弹窗/详情、部署后指纹、commit/run及最终工作区。
+### 请求与显式查询矩阵
+
+生产Chrome逐项修改控件，并以页面DOM/URL签名和一对一handler中的reader调用点共同核对：
+
+| 操作 | 工资规则reader | 学生候选reader | 查询前行数/DOM | URL |
+| --- | ---: | ---: | --- | --- |
+| 老师 change | 0 | 0 | 20条，SHA-256 `af9c2333…1543`不变 | 不变 |
+| 学生 change | 0 | 0 | 20条，同一签名 | 不变 |
+| 科目 change | 0 | 0 | 20条，同一签名 | 不变 |
+| 启用状态 change | 0 | 0 | 20条，同一签名 | 不变 |
+| 关键词 input | 0 | 0 | 20条，同一签名 | 不变 |
+| include inactive change | 0 | 1 | 20条、ID集合、内容和签名不变 | 不变 |
+| 查询submit | 1 | 0 | 成功后按applied一次渲染 | 此时才写入 `student_id/include_inactive` |
+| 重置 | 1 | 1 | 恢复20条 | 清回合法默认URL |
+
+`fetchWageRules()`自身是对 `school_teacher_wage_rules` 的单次PostgREST SELECT；query handler中只有一个该调用点。普通change/input handler只有draft赋值，候选handler中只有一个resolver调用点且不存在规则reader、URL同步或tbody渲染。
+
+Chrome先累积设置老师、学生、科目、inactive和关键词，查询前仍是20条及同一DOM签名；点击查询后URL才加入学生与include inactive，结果按组合条件变为0条。重置恢复默认控件、7名候选、20条规则与原URL。合法URL直接加载paused学生时，页面一次初始化为8名候选、选中“厦门吕同学｜本月暂停”并显示其2条历史规则。
+
+### 候选、selected override与布局稳定性
+
+- 默认候选7名；include inactive draft后8名，新增标签“厦门吕同学｜本月暂停”。
+- 勾选时selected active学生保持；快速取消/再勾选最终严格服从最新checked=true、8名候选，旧响应没有覆盖。
+- paused学生已applied且显示2条后，取消include inactive只刷新候选：URL仍保留旧applied的 `include_inactive=1`，2条行完全不变；候选仍以selected override保留paused学生。再次点击查询后仅移除URL的include参数，2条历史规则继续显示。
+- 候选加载状态准确显示“正在更新学生候选…”，规则查询状态为“正在查询工资规则…”；idle时状态槽以visibility隐藏。
+
+修复后checkbox前、加载中及加载后三项Y坐标完全一致：
+
+| 时点 | 规则卡顶部Y | 表头顶部Y | 首行顶部Y |
+| --- | ---: | ---: | ---: |
+| checkbox前 | 274.5 | 356.5 | 397 |
+| 候选加载中 | 274.5 | 356.5 | 397 |
+| 候选完成后 | 274.5 | 356.5 | 397 |
+
+加载提示不再出现在规则列表，候选/查询期间不先清空现有行。筛选标题状态槽实测高20px，panel/slot `aria-busy` 正常回到false/idle。
+
+### 2560px表格与列表操作组
+
+Chrome实际视口 `2560×1205`：
+
+- 规则卡宽2248px，内部table-scroll宽2210px。
+- 表格实际宽2210px，与内部可用宽精确一致；document/body均 `2560 / 2560`，无整体横向溢出。
+- 规则列表数量/新增按钮组距卡片右边153px。
+- 18列实测宽度依次为：
+
+| 列 | 宽度px | 列 | 宽度px |
+| --- | ---: | --- | ---: |
+| 详情 | 76 | 编辑 | 76 |
+| 停用/恢复 | 104 | 老师 | 145 |
+| 老师分类 | 105 | 老师状态 | 88 |
+| 学生 | 175 | 科目 | 165 |
+| 结算类型 | 96 | 日元时薪 | 120 |
+| 人民币时薪 | 120 | 汇率 | 90 |
+| 交通费 | 105 | 教室费 | 105 |
+| 启用状态 | 90 | 备注 | 260 |
+| 创建时间 | 145 | 更新时间 | 145 |
+
+合计2210px，全部18列、顺序、字段和币种/数值展示均保留。
+
+### 1440与390px
+
+- 1440 popup实际 `1440×889`：页面内容1128px，筛选form `1090×143.5px`自动两行；表格继续2210px并只在1090px内部table-scroll横向滚动。固定标题右留白自动取消，document/body均 `1440 / 1440`。
+- 390 popup实际 `390×840`：内容区346px单列，学生后紧跟346px checkbox区；五个输入控件均346px，查询/重置各167×44px、间距12px；表格只在346px内部容器滚动，document/body均 `390 / 390`。
+- 三档Console error `0`、warning `0`。
+
+### 只读业务字段与防回退
+
+- 新增弹窗只读打开后，老师、学生、科目、结算类型、JPY/CNY时薪及备注均存在；未点击保存。
+- 首条规则编辑弹窗正确回填老师、学生、科目及 `jpy_hourly`；只点击取消。
+- 首条详情正常显示老师分类、结算类型、费率、状态和ID；没有业务归属、个人名义或 `business_entity_id` UI。
+- 未点击新增保存、编辑保存、停用、恢复或其他写入口；浏览器没有service-role，page-layer直接RPC/DML为0。
+
+## 部署与最终数据复核
+
+- 实现commit：`11b3118e9590bd457486cf56adbaf28d3f70e4fb`。
+- Pages run：`31231194573` success，部署commit与实现commit一致。
+- 生产版本：`v10.5.24`。
+- 部署后全部School/Cash/Storage数量、金额和MD5与“部署前只读指纹”逐项一致。
+- Gate前后均为 `enabled / blocked / enabled`。
+- 数据库部署SQL、DDL/DML、业务RPC、写RPC：0。
+- School、Cash、Storage及真实业务写入：0；fixture：0；测试record ID：无。
+
+本轮到此停止，只完成工资规则页面修复，不继续调整其他页面。
