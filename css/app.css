@@ -5636,6 +5636,151 @@ h2 {
   }
 }
 
+/* Income records owns this compact explicit-query filter layout. */
+.income-filter-panel .section-heading {
+  margin-bottom: 10px;
+}
+
+.income-filter-heading {
+  min-height: 28px;
+}
+
+.income-filter-status {
+  width: min(620px, 56%);
+  min-width: 0;
+  height: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.income-filter-status[data-state="idle"] {
+  visibility: hidden;
+}
+
+.income-filter-status[data-state="error"] {
+  color: var(--danger);
+}
+
+.income-filter-panel .income-filter-grid {
+  grid-template-columns:
+    196px
+    300px
+    176px
+    300px
+    300px
+    300px
+    minmax(0, 1fr)
+    auto
+    140px;
+  gap: 12px;
+  align-items: end;
+}
+
+.income-include-inactive-field {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.income-filter-label-spacer {
+  min-height: 18px;
+  line-height: 18px;
+}
+
+.income-filter-panel .income-include-inactive-control {
+  min-height: 42px;
+  padding: 0 4px;
+}
+
+.income-filter-panel .income-include-inactive-control input {
+  width: 16px;
+  max-width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+.income-filter-panel .income-filter-actions {
+  grid-column: auto;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.income-filter-panel .income-filter-actions .button {
+  width: 96px;
+  min-width: 96px;
+  height: 42px;
+  min-height: 42px;
+}
+
+@media (max-width: 1799px) {
+  .income-filter-panel .income-filter-grid {
+    grid-template-columns:
+      196px
+      minmax(200px, 1fr)
+      176px
+      minmax(200px, 1fr);
+  }
+
+  .income-filter-flex-spacer,
+  .income-filter-right-spacer {
+    display: none;
+  }
+
+  .income-filter-panel .income-filter-actions {
+    grid-column: 3 / 5;
+  }
+}
+
+@media (max-width: 1279px) {
+  .income-filter-panel .income-filter-grid {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+
+  .income-filter-panel .income-filter-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 767px) {
+  .income-filter-panel .income-filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .income-filter-label-spacer {
+    display: none;
+  }
+
+  .income-include-inactive-field {
+    gap: 0;
+  }
+
+  .income-filter-panel .income-filter-actions {
+    display: grid;
+    width: 100%;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .income-filter-panel .income-filter-actions .button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .income-filter-status {
+    width: min(220px, 64%);
+  }
+}
+
 /* Teacher wage rules own this wide, compact single-row filter layout. */
 .app-shell--wage-rule {
   max-width: none;

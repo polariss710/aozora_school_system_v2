@@ -52,7 +52,7 @@ assert.match(page, /<td><span class="status-badge status-neutral">\$\{escapeHtml
 
 assert.match(html, /wage-filter-single-row-20260808-1/);
 assert.match(app, /wage-filter-single-row-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.24"/);
+assert.match(config, /APP_VERSION = "v10\.5\.25"/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-|\.lesson-filter-panel[^\n{]*\.wage-/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

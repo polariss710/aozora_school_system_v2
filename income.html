@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase-b4-finance-20260807-1">
+    <link rel="stylesheet" href="./css/app.css?v=income-filter-explicit-query-20260808-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -100,13 +100,14 @@
       <main class="page-main">
         <section id="incomeMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel income-filter-panel" aria-labelledby="incomeFilterTitle">
-          <div class="section-heading">
+        <section class="panel filter-panel income-filter-panel" aria-labelledby="incomeFilterTitle" aria-busy="false">
+          <div class="section-heading section-heading-row income-filter-heading">
             <h2 id="incomeFilterTitle">筛选</h2>
+            <span id="incomeFilterStatus" class="income-filter-status" data-state="idle" aria-live="polite"></span>
           </div>
 
-          <form id="incomeFilterForm" class="filter-grid">
-            <label class="field month-select-field">
+          <form id="incomeFilterForm" class="filter-grid income-filter-grid">
+            <label class="field month-select-field income-filter-month-field">
               <span>记账月份</span>
               <div class="month-select-group">
                 <select id="incomeYearFilter" name="year" aria-label="年份"></select>
@@ -114,42 +115,50 @@
               </div>
             </label>
 
-            <div class="field student-month-candidate-field">
+            <label class="field income-filter-student-field">
               <span>学生</span>
               <select id="incomeStudentSelect" name="studentId">
                 <option value="">全部</option>
               </select>
-              <label class="student-month-include-control">
+            </label>
+
+            <div class="income-include-inactive-field">
+              <span class="income-filter-label-spacer" aria-hidden="true"></span>
+              <label class="student-month-include-control income-include-inactive-control">
                 <input id="incomeIncludeInactiveCheckbox" type="checkbox">
                 <span>包含暂停/离校学生</span>
               </label>
             </div>
 
-            <label class="field">
+            <label class="field income-filter-account-field">
               <span>账户</span>
               <select id="incomeAccountSelect" name="accountId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field income-filter-category-field">
               <span>分类</span>
               <select id="incomeCategorySelect" name="incomeCategory">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field income-filter-currency-field">
               <span>币种</span>
               <select id="incomeCurrencySelect" name="currency">
                 <option value="">全部</option>
               </select>
             </label>
 
+            <div class="income-filter-flex-spacer" aria-hidden="true"></div>
+
             <div class="filter-actions income-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="incomeResetButton" type="button">重置</button>
             </div>
+
+            <div class="income-filter-right-spacer" aria-hidden="true"></div>
           </form>
         </section>
 
@@ -167,7 +176,6 @@
             </div>
           </div>
 
-          <div id="incomeLoadingState" class="state-text is-hidden">正在加载收入记录...</div>
           <div id="incomeEmptyState" class="state-text is-hidden">暂无符合条件的收入记录。</div>
           <div class="table-scroll income-table-scroll">
             <table class="payment-table income-table">
@@ -475,6 +483,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=be-ui-blocker-20260807-2"></script>
+    <script type="module" src="./js/income-app.js?v=income-filter-explicit-query-20260808-1"></script>
   </body>
 </html>
