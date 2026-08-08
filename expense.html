@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 支出记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase-b4-finance-20260807-1">
+    <link rel="stylesheet" href="./css/app.css?v=expense-filter-explicit-query-20260808-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -100,13 +100,14 @@
       <main class="page-main">
         <section id="expenseMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel expense-filter-panel" aria-labelledby="expenseFilterTitle">
-          <div class="section-heading">
+        <section class="panel filter-panel expense-filter-panel" aria-labelledby="expenseFilterTitle" aria-busy="false">
+          <div class="section-heading section-heading-row expense-filter-heading">
             <h2 id="expenseFilterTitle">筛选</h2>
+            <span id="expenseFilterStatus" class="expense-filter-status" data-state="idle" aria-live="polite"></span>
           </div>
 
-          <form id="expenseFilterForm" class="filter-grid">
-            <label class="field month-select-field">
+          <form id="expenseFilterForm" class="filter-grid expense-filter-grid">
+            <label class="field month-select-field expense-filter-month-field">
               <span>记账月份</span>
               <div class="month-select-group">
                 <select id="expenseYearFilter" name="year" aria-label="年份"></select>
@@ -114,42 +115,50 @@
               </div>
             </label>
 
-            <div class="field student-month-candidate-field">
+            <label class="field expense-filter-student-field">
               <span>学生</span>
               <select id="expenseStudentSelect" name="studentId">
                 <option value="">全部</option>
               </select>
-              <label class="student-month-include-control">
+            </label>
+
+            <div class="expense-include-inactive-field">
+              <span class="expense-filter-label-spacer" aria-hidden="true"></span>
+              <label class="student-month-include-control expense-include-inactive-control">
                 <input id="expenseIncludeInactiveCheckbox" type="checkbox">
                 <span>包含暂停/离校学生</span>
               </label>
             </div>
 
-            <label class="field">
+            <label class="field expense-filter-teacher-field">
               <span>老师</span>
               <select id="expenseTeacherSelect" name="teacherId">
                 <option value="">全部老师</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field expense-filter-account-field">
               <span>账户</span>
               <select id="expenseAccountSelect" name="accountId">
                 <option value="">全部</option>
               </select>
             </label>
 
-            <label class="field">
+            <label class="field expense-filter-currency-field">
               <span>币种</span>
               <select id="expenseCurrencySelect" name="currency">
                 <option value="">全部</option>
               </select>
             </label>
 
+            <div class="expense-filter-flex-spacer" aria-hidden="true"></div>
+
             <div class="filter-actions expense-filter-actions">
               <button class="button button-primary" type="submit">查询</button>
               <button class="button" id="expenseResetButton" type="button">重置</button>
             </div>
+
+            <div class="expense-filter-right-spacer" aria-hidden="true"></div>
           </form>
         </section>
 
@@ -166,7 +175,6 @@
             </div>
           </div>
 
-          <div id="expenseLoadingState" class="state-text is-hidden">正在加载支出记录...</div>
           <div id="expenseEmptyState" class="state-text is-hidden">暂无符合条件的支出记录。</div>
           <div class="table-scroll expense-table-scroll">
             <table class="payment-table expense-table">
@@ -380,6 +388,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/expense-app.js?v=be-ui-blocker-20260807-1"></script>
+    <script type="module" src="./js/expense-app.js?v=expense-filter-explicit-query-20260808-1"></script>
   </body>
 </html>

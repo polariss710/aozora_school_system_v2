@@ -63,7 +63,7 @@ assert.match(html, /id="studentStatusHistoryDialog"/);
 assert.match(html, /id="studentStatusCorrectionDialog"/);
 assert.doesNotMatch(html, /状态暂不可改|学生状态管理正在切换为按月份生效/);
 assert.doesNotMatch(html, /business_entity_id|个人名义|业务归属/);
-assert.match(config, /APP_VERSION = "v10\.5\.25"/);
+assert.match(config, /APP_VERSION = "v10\.5\.26"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");

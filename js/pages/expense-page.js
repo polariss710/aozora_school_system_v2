@@ -150,6 +150,11 @@ let initialMonth = "";
 let initialFilters = null;
 let topStudentCandidates = [];
 let topStudentCandidateKey = "";
+let draftFilters = { month: "", ...DEFAULT_FILTERS };
+let appliedFilters = { month: "", ...DEFAULT_FILTERS };
+let topStudentCandidateRequestSequence = 0;
+let activeTopStudentCandidateRequestId = 0;
+let isExpenseQuerying = false;
 
 export async function initExpensePage() {
   cacheDom();
@@ -159,7 +164,9 @@ export async function initExpensePage() {
   populateMonthSelect(dom.monthFilter);
   initialMonth = initialYearMonthFromUrl();
   initialFilters = readExpenseQuery();
-  setDefaultFilters(initialFilters);
+  draftFilters = { ...initialFilters };
+  appliedFilters = { ...initialFilters };
+  setDefaultFilters(draftFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
@@ -185,8 +192,10 @@ function cacheDom() {
   dom.accountSelect = document.querySelector("#expenseAccountSelect");
   dom.currencySelect = document.querySelector("#expenseCurrencySelect");
   dom.resetButton = document.querySelector("#expenseResetButton");
+  dom.filterPanel = document.querySelector(".expense-filter-panel");
+  dom.filterStatus = document.querySelector("#expenseFilterStatus");
+  dom.queryButton = dom.filterForm.querySelector('button[type="submit"]');
   dom.tableBody = document.querySelector("#expenseTableBody");
-  dom.loadingState = document.querySelector("#expenseLoadingState");
   dom.emptyState = document.querySelector("#expenseEmptyState");
   dom.expenseCount = document.querySelector("#expenseCount");
   dom.openCreateExpenseButton = document.querySelector("#openCreateExpenseButton");
@@ -221,16 +230,22 @@ function cacheDom() {
 function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    applyQuery();
+    queryDraftFilters();
   });
-  dom.yearFilter.addEventListener("change", applyQuery);
-  dom.monthFilter.addEventListener("change", applyQuery);
-  dom.includeInactiveCheckbox.addEventListener("change", applyQuery);
 
-  dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters({ month: currentYearMonth() });
-    applyQuery();
+  [
+    dom.yearFilter,
+    dom.monthFilter,
+    dom.studentSelect,
+    dom.teacherSelect,
+    dom.accountSelect,
+    dom.currencySelect,
+  ].forEach((field) => {
+    field.addEventListener("change", updateDraftFiltersFromControls);
   });
+  dom.includeInactiveCheckbox.addEventListener("change", handleDraftCandidateScopeChange);
+
+  dom.resetButton.addEventListener("click", resetAndQueryFilters);
 
   dom.openCreateExpenseButton.addEventListener("click", openCreateExpenseDialog);
   dom.openBatchCashExpenseButton.addEventListener("click", () => {
@@ -300,12 +315,10 @@ function setDefaultFilters(overrides = null) {
     dom.accountSelect.value = overrides.accountId || "";
     dom.currencySelect.value = overrides.currency || "";
   }
-  updateMonthScopedNavigation(getYearMonthSelectValue(dom.yearFilter, dom.monthFilter));
 }
 
 async function loadInitialData() {
-  setLoading(true);
-  showMessage("info", "正在加载支出记录数据...");
+  setFilterStatus("query", "正在查询支出记录…");
 
   try {
     const lookups = await fetchExpenseLookups();
@@ -314,14 +327,26 @@ async function loadInitialData() {
     accounts = lookups.accounts;
     teachers = lookups.teachers;
     students = lookups.students;
-    const filters = initialFilters || readFilters();
-    await Promise.all([loadExpenseMonth(filters.month), loadTopStudentCandidates(filters)]);
+    const filters = { ...(initialFilters || appliedFilters) };
+    const [expenseSnapshot, candidateRows] = await Promise.all([
+      fetchExpenseMonthSnapshot(filters.month),
+      fetchStudentMonthCandidates({
+        month: filters.month,
+        includeInactive: filters.includeInactive,
+        selectedStudentId: filters.studentId || null,
+      }),
+    ]);
+    applyExpenseMonthSnapshot(expenseSnapshot);
+    topStudentCandidates = candidateRows;
+    topStudentCandidateKey = studentCandidateKey(filters);
     renderMasterOptions();
     restoreFilterSelections(filters);
+    draftFilters = { ...filters };
+    appliedFilters = { ...filters };
     syncExpenseQuery(filters);
     updateMonthScopedNavigation(filters.month);
-    applyCurrentFilters();
-    showMessage("success", "支出记录数据已加载。");
+    applyCurrentFilters(appliedFilters);
+    setFilterStatus("idle");
   } catch (error) {
     businessEntities = [];
     accounts = [];
@@ -336,83 +361,166 @@ async function loadInitialData() {
     renderMasterOptions();
     renderDataOptions([]);
     renderExpenseRecords([]);
-    showMessage("error", `读取支出记录数据失败：${error.message || error}`);
-  } finally {
-    setLoading(false);
+    setFilterStatus("error", `读取支出记录数据失败：${error.message || error}`);
   }
 }
 
-async function applyQuery() {
-  if (!hasSupabaseConfig()) {
-    return;
-  }
-
+function updateDraftFiltersFromControls() {
   const filters = readFilters();
-  if (!filters) {
-    return;
+  if (filters) {
+    draftFilters = { ...filters };
   }
-
-  syncExpenseQuery(filters);
-  updateMonthScopedNavigation(filters.month);
-
-  if (filters.month !== loadedMonth || studentCandidateKey(filters) !== topStudentCandidateKey) {
-    setLoading(true);
-    showMessage("info", "正在加载支出记录...");
-
-    try {
-      await Promise.all([loadExpenseMonth(filters.month), loadTopStudentCandidates(filters)]);
-      restoreFilterSelections(filters);
-      applyCurrentFilters();
-      showMessage("success", "支出记录已加载。");
-    } catch (error) {
-      expenseRecords = [];
-      paymentRequestsByExpenseId = new Map();
-      attachmentCountsByExpenseId = new Map();
-      loadedMonth = "";
-      topStudentCandidates = [];
-      topStudentCandidateKey = "";
-      renderDataOptions([]);
-      renderExpenseRecords([]);
-      showMessage("error", `读取支出记录失败：${error.message || error}`);
-    } finally {
-      setLoading(false);
-    }
-    return;
-  }
-
-  applyCurrentFilters();
 }
 
-async function loadExpenseMonth(month) {
-  expenseRecords = await fetchExpenseRecords(month);
+async function handleDraftCandidateScopeChange() {
+  updateDraftFiltersFromControls();
+  await refreshDraftStudentCandidates();
+}
+
+async function refreshDraftStudentCandidates() {
+  const filters = { ...draftFilters };
+  const requestId = ++topStudentCandidateRequestSequence;
+  activeTopStudentCandidateRequestId = requestId;
+  if (!isExpenseQuerying) {
+    setFilterStatus("candidate", "正在更新学生候选…");
+  }
+
+  try {
+    const candidateRows = await fetchStudentMonthCandidates({
+      month: filters.month,
+      includeInactive: filters.includeInactive,
+      selectedStudentId: filters.studentId || null,
+    });
+
+    if (requestId !== topStudentCandidateRequestSequence) {
+      return;
+    }
+
+    topStudentCandidates = candidateRows;
+    topStudentCandidateKey = studentCandidateKey(filters);
+    renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
+      selectedStudentId: filters.studentId,
+    });
+    draftFilters = { ...filters, studentId: dom.studentSelect.value };
+  } catch (error) {
+    if (requestId === topStudentCandidateRequestSequence && !isExpenseQuerying) {
+      setFilterStatus("error", `读取学生候选失败：${error.message || error}`);
+    }
+  } finally {
+    if (requestId === topStudentCandidateRequestSequence) {
+      activeTopStudentCandidateRequestId = 0;
+      if (!isExpenseQuerying && dom.filterStatus.dataset.state !== "error") {
+        setFilterStatus("idle");
+      }
+    }
+  }
+}
+
+async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
+  if (!hasSupabaseConfig() || isExpenseQuerying) {
+    return;
+  }
+
+  updateDraftFiltersFromControls();
+  const nextAppliedFilters = { ...draftFilters };
+  if (!nextAppliedFilters.month) {
+    return;
+  }
+
+  const previousAppliedFilters = { ...appliedFilters };
+  const shouldRefreshCandidates = forceCandidateRefresh
+    || studentCandidateKey(nextAppliedFilters) !== topStudentCandidateKey;
+  const candidateRequestId = shouldRefreshCandidates
+    ? ++topStudentCandidateRequestSequence
+    : 0;
+  if (candidateRequestId) {
+    activeTopStudentCandidateRequestId = candidateRequestId;
+  }
+  isExpenseQuerying = true;
+  setExpenseQuerying(true);
+  setFilterStatus("query", "正在查询支出记录…");
+
+  try {
+    const [expenseSnapshot, candidateRows] = await Promise.all([
+      fetchExpenseMonthSnapshot(nextAppliedFilters.month),
+      shouldRefreshCandidates
+        ? fetchStudentMonthCandidates({
+          month: nextAppliedFilters.month,
+          includeInactive: nextAppliedFilters.includeInactive,
+          selectedStudentId: nextAppliedFilters.studentId || null,
+        })
+        : Promise.resolve(null),
+    ]);
+
+    if (candidateRows && candidateRequestId === topStudentCandidateRequestSequence) {
+      topStudentCandidates = candidateRows;
+      topStudentCandidateKey = studentCandidateKey(nextAppliedFilters);
+      renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
+        selectedStudentId: nextAppliedFilters.studentId,
+      });
+    }
+
+    applyExpenseMonthSnapshot(expenseSnapshot);
+    restoreFilterSelections(nextAppliedFilters);
+    draftFilters = { ...nextAppliedFilters };
+    appliedFilters = { ...nextAppliedFilters };
+    syncExpenseQuery(appliedFilters);
+    updateMonthScopedNavigation(appliedFilters.month);
+    applyCurrentFilters(appliedFilters);
+  } catch (error) {
+    appliedFilters = previousAppliedFilters;
+    setFilterStatus("error", `读取支出记录失败：${error.message || error}`);
+    return;
+  } finally {
+    if (candidateRequestId === topStudentCandidateRequestSequence) {
+      activeTopStudentCandidateRequestId = 0;
+    }
+    isExpenseQuerying = false;
+    setExpenseQuerying(false);
+  }
+
+  if (activeTopStudentCandidateRequestId) {
+    setFilterStatus("candidate", "正在更新学生候选…");
+  } else {
+    setFilterStatus("idle");
+  }
+}
+
+async function resetAndQueryFilters() {
+  if (isExpenseQuerying) {
+    return;
+  }
+
+  topStudentCandidateRequestSequence += 1;
+  activeTopStudentCandidateRequestId = 0;
+  const defaults = { month: currentYearMonth(), ...DEFAULT_FILTERS };
+  draftFilters = { ...defaults };
+  setDefaultFilters(draftFilters);
+  await queryDraftFilters({ forceCandidateRefresh: true });
+}
+
+async function fetchExpenseMonthSnapshot(month) {
+  const rows = await fetchExpenseRecords(month);
   const [paymentRequests, attachmentCounts] = await Promise.all([
-    fetchExpensePaymentRequests(teacherWageExpenseIds(expenseRecords)),
-    fetchExpenseAttachmentCounts(expenseRecords.map((row) => row.id)),
+    fetchExpensePaymentRequests(teacherWageExpenseIds(rows)),
+    fetchExpenseAttachmentCounts(rows.map((row) => row.id)),
   ]);
-  paymentRequestsByExpenseId = groupPaymentRequestsByExpenseId(paymentRequests);
-  attachmentCountsByExpenseId = attachmentCounts;
-  loadedMonth = month;
+  return { month, rows, paymentRequests, attachmentCounts };
+}
+
+function applyExpenseMonthSnapshot(snapshot) {
+  expenseRecords = snapshot.rows;
+  paymentRequestsByExpenseId = groupPaymentRequestsByExpenseId(snapshot.paymentRequests);
+  attachmentCountsByExpenseId = snapshot.attachmentCounts;
+  loadedMonth = snapshot.month;
   renderDataOptions(expenseRecords);
 }
 
-async function loadTopStudentCandidates(filters) {
-  topStudentCandidates = await fetchStudentMonthCandidates({
-    month: filters.month,
-    includeInactive: filters.includeInactive,
-    selectedStudentId: filters.studentId || null,
-  });
-  topStudentCandidateKey = studentCandidateKey(filters);
-  renderStudentMonthCandidateOptions(dom.studentSelect, topStudentCandidates, {
-    selectedStudentId: filters.studentId,
-  });
+async function loadExpenseMonth(month) {
+  applyExpenseMonthSnapshot(await fetchExpenseMonthSnapshot(month));
 }
 
-function applyCurrentFilters() {
-  const filters = readFilters();
-  if (!filters) {
-    return;
-  }
-
+function applyCurrentFilters(filters = appliedFilters) {
   restoreFilterSelections(filters);
   renderExpenseRecords(filterExpenseRecords(expenseRecords, filters));
 }
@@ -441,15 +549,6 @@ function restoreFilterSelections(filters) {
   dom.teacherSelect.value = filters.teacherId;
   dom.accountSelect.value = filters.accountId;
   dom.currencySelect.value = filters.currency;
-  updateMonthNavigationFromCurrentSelection();
-}
-
-function updateMonthNavigationFromCurrentSelection() {
-  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
-  if (!month) {
-    return;
-  }
-  updateMonthScopedNavigation(month);
 }
 
 function studentCandidateKey(filters) {
@@ -919,14 +1018,11 @@ function updateCreateExpenseMode() {
 }
 
 async function refreshCurrentExpenseList() {
-  const filters = readFilters();
-  if (!filters) {
-    return;
-  }
-
+  const filters = { ...appliedFilters };
   await loadExpenseMonth(filters.month);
   restoreFilterSelections(filters);
-  applyCurrentFilters();
+  draftFilters = { ...filters };
+  applyCurrentFilters(filters);
 }
 
 function showExpenseCreateSuccess(result) {
@@ -2145,8 +2241,18 @@ function expenseDetailUrl(expenseId) {
   return `./expense-detail.html?${params.toString()}`;
 }
 
-function setLoading(isLoading) {
-  dom.loadingState.classList.toggle("is-hidden", !isLoading);
+function setFilterStatus(state, text = "") {
+  dom.filterStatus.dataset.state = state;
+  dom.filterStatus.textContent = text;
+  dom.filterPanel.setAttribute(
+    "aria-busy",
+    state === "query" || state === "candidate" ? "true" : "false"
+  );
+}
+
+function setExpenseQuerying(isQuerying) {
+  dom.queryButton.disabled = isQuerying;
+  dom.resetButton.disabled = isQuerying;
 }
 
 function showMessage(type, text) {

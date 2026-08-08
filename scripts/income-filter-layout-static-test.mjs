@@ -66,7 +66,7 @@ assert.doesNotMatch(css, /\.expense-filter-panel[^\n{]*\.income-filter-|\.wage-f
 assert.match(api, /export async function fetchIncomeRecords\(month\)/);
 assert.match(html, /income-filter-explicit-query-20260808-1/);
 assert.match(app, /income-filter-explicit-query-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.25"/);
+assert.match(config, /APP_VERSION = "v10\.5\.26"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
