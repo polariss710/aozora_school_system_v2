@@ -47,7 +47,7 @@ assert.match(page, /row\.student_id !== filters\.studentId/);
 assert.match(html, new RegExp(`app\\.css\\?v=${cacheKey}`));
 assert.match(html, new RegExp(`settlement-app\\.js\\?v=${cacheKey}`));
 assert.match(app, new RegExp(`config\\.js\\?v=${cacheKey}`));
-assert.match(config, /APP_VERSION = "v10\.5\.23"/);
+assert.match(config, /APP_VERSION = "v10\.5\.24"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");

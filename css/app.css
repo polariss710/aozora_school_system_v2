@@ -2156,7 +2156,9 @@ h2 {
 }
 
 .wage-rule-table {
-  min-width: 1880px;
+  width: 100%;
+  min-width: 2210px;
+  table-layout: fixed;
 }
 
 .part-time-work-pair-card .action-buttons {
@@ -5643,6 +5645,32 @@ h2 {
   margin-bottom: 10px;
 }
 
+.wage-rule-filter-panel .wage-rule-filter-heading {
+  align-items: center;
+}
+
+.wage-rule-filter-status {
+  width: min(620px, 56%);
+  min-width: 0;
+  height: 20px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wage-rule-filter-status[data-state="idle"] {
+  visibility: hidden;
+}
+
+.wage-rule-filter-status[data-state="error"] {
+  color: var(--danger);
+}
+
 .wage-rule-filter-panel .wage-rule-filter-grid {
   grid-template-columns:
     300px
@@ -5698,6 +5726,71 @@ h2 {
   justify-content: flex-end;
 }
 
+.wage-rule-list-panel .wage-rule-list-heading {
+  padding-right: 134px;
+}
+
+.wage-rule-list-panel .table-scroll {
+  width: 100%;
+}
+
+.wage-rule-table .wage-rule-col-detail,
+.wage-rule-table .wage-rule-col-edit {
+  width: 76px;
+}
+
+.wage-rule-table .wage-rule-col-active-action {
+  width: 104px;
+}
+
+.wage-rule-table .wage-rule-col-teacher {
+  width: 145px;
+}
+
+.wage-rule-table .wage-rule-col-department {
+  width: 105px;
+}
+
+.wage-rule-table .wage-rule-col-teacher-status {
+  width: 88px;
+}
+
+.wage-rule-table .wage-rule-col-student {
+  width: 175px;
+}
+
+.wage-rule-table .wage-rule-col-subject {
+  width: 165px;
+}
+
+.wage-rule-table .wage-rule-col-settlement-type {
+  width: 96px;
+}
+
+.wage-rule-table .wage-rule-col-hourly-jpy,
+.wage-rule-table .wage-rule-col-hourly-cny {
+  width: 120px;
+}
+
+.wage-rule-table .wage-rule-col-exchange-rate,
+.wage-rule-table .wage-rule-col-active-state {
+  width: 90px;
+}
+
+.wage-rule-table .wage-rule-col-transport-fee,
+.wage-rule-table .wage-rule-col-classroom-fee {
+  width: 105px;
+}
+
+.wage-rule-table .wage-rule-col-note {
+  width: 260px;
+}
+
+.wage-rule-table .wage-rule-col-created-at,
+.wage-rule-table .wage-rule-col-updated-at {
+  width: 145px;
+}
+
 @media (max-width: 1799px) {
   .wage-rule-filter-panel .wage-rule-filter-grid {
     grid-template-columns:
@@ -5714,6 +5807,10 @@ h2 {
 
   .wage-rule-filter-panel .wage-rule-filter-actions {
     grid-column: 3 / 5;
+  }
+
+  .wage-rule-list-panel .wage-rule-list-heading {
+    padding-right: 0;
   }
 }
 
@@ -5744,6 +5841,10 @@ h2 {
     width: 100%;
     grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wage-rule-filter-status {
+    width: min(220px, 64%);
   }
 }
 

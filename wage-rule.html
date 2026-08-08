@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资规则</title>
-    <link rel="stylesheet" href="./css/app.css?v=wage-rule-filter-single-row-20260808-1">
+    <link rel="stylesheet" href="./css/app.css?v=wage-rule-explicit-filter-20260808-1">
   </head>
   <body class="wage-rule-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -80,9 +80,10 @@
       <main class="page-main">
         <section id="wageRuleMessageArea" class="message is-hidden" aria-live="polite"></section>
 
-        <section class="panel filter-panel wage-rule-filter-panel" aria-labelledby="wageRuleFilterTitle">
-          <div class="section-heading">
+        <section class="panel filter-panel wage-rule-filter-panel" aria-labelledby="wageRuleFilterTitle" aria-busy="true">
+          <div class="section-heading section-heading-row wage-rule-filter-heading">
             <h2 id="wageRuleFilterTitle">筛选</h2>
+            <div id="wageRuleFilterStatus" class="wage-rule-filter-status" data-state="query" aria-live="polite" aria-atomic="true" aria-busy="true">正在查询工资规则…</div>
           </div>
 
           <form id="wageRuleFilterForm" class="filter-grid wage-rule-filter-grid">
@@ -140,22 +141,41 @@
           </form>
         </section>
 
-        <section class="panel" aria-labelledby="wageRuleListTitle">
-          <div class="section-heading section-heading-row">
+        <section class="panel wage-rule-list-panel" aria-labelledby="wageRuleListTitle">
+          <div class="section-heading section-heading-row wage-rule-list-heading">
             <div>
               <h2 id="wageRuleListTitle">规则列表</h2>
               <p class="section-note">本页显示、新增并编辑老师工资规则基础配置；只影响未来工资快照生成，不重新计算历史工资快照，也不影响老师工资支付、支出记录或账户流水。</p>
             </div>
-            <div class="header-meta">
+            <div class="header-meta wage-rule-list-actions">
               <span id="wageRuleCount" class="record-count">0 条</span>
               <button class="button button-primary" id="createWageRuleButton" type="button">新增工资规则</button>
             </div>
           </div>
 
-          <div id="wageRuleLoadingState" class="state-text is-hidden">正在加载老师工资规则...</div>
           <div id="wageRuleEmptyState" class="state-text is-hidden">暂无符合条件的老师工资规则。</div>
           <div class="table-scroll">
             <table class="payment-table wage-rule-table">
+              <colgroup>
+                <col class="wage-rule-col-detail">
+                <col class="wage-rule-col-edit">
+                <col class="wage-rule-col-active-action">
+                <col class="wage-rule-col-teacher">
+                <col class="wage-rule-col-department">
+                <col class="wage-rule-col-teacher-status">
+                <col class="wage-rule-col-student">
+                <col class="wage-rule-col-subject">
+                <col class="wage-rule-col-settlement-type">
+                <col class="wage-rule-col-hourly-jpy">
+                <col class="wage-rule-col-hourly-cny">
+                <col class="wage-rule-col-exchange-rate">
+                <col class="wage-rule-col-transport-fee">
+                <col class="wage-rule-col-classroom-fee">
+                <col class="wage-rule-col-active-state">
+                <col class="wage-rule-col-note">
+                <col class="wage-rule-col-created-at">
+                <col class="wage-rule-col-updated-at">
+              </colgroup>
               <thead>
                 <tr>
                   <th>详情</th>
@@ -324,6 +344,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/wage-rule-app.js?v=wage-rule-filter-single-row-20260808-1"></script>
+    <script type="module" src="./js/wage-rule-app.js?v=wage-rule-explicit-filter-20260808-1"></script>
   </body>
 </html>

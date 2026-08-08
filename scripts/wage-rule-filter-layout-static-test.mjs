@@ -13,6 +13,8 @@ const config = read("js/config.js");
 const filterMarkup = html.match(/<form id="wageRuleFilterForm"[\s\S]*?<\/form>/)?.[0] || "";
 const defaultFilters = page.match(/const DEFAULT_FILTERS = \{[\s\S]*?\n\};/)?.[0] || "";
 const filterFunction = page.match(/function filterWageRules\([\s\S]*?\n\}/)?.[0] || "";
+const candidateRefreshFunction = page.match(/async function refreshDraftStudentCandidates\(\) \{[\s\S]*?\n\}\n\nasync function queryDraftFilters/)?.[0] || "";
+const queryFunction = page.match(/async function queryDraftFilters\(\) \{[\s\S]*?\n\}\n\nasync function resetAndQueryFilters/)?.[0] || "";
 
 for (const id of [
   "wageRuleTeacherSelect",
@@ -46,6 +48,22 @@ assert.match(filterFunction, /filters\.activeState/);
 assert.match(filterFunction, /matchesKeyword\(rule, filters\.keyword\)/);
 assert.match(page, /includeInactive: Boolean\(dom\.includeInactiveCheckbox\.checked\)/);
 
+assert.match(page, /let draftFilters = \{ \.\.\.DEFAULT_FILTERS \}/);
+assert.match(page, /let appliedFilters = \{ \.\.\.DEFAULT_FILTERS \}/);
+assert.match(page, /dom\.includeInactiveCheckbox\.addEventListener\("change", handleDraftCandidateScopeChange\)/);
+assert.match(page, /dom\.keywordInput\.addEventListener\("input", updateDraftFiltersFromControls\)/);
+assert.match(page, /dom\.filterForm\.addEventListener\("submit",[\s\S]*?queryDraftFilters\(\)/);
+assert.match(page, /setFilterStatus\("candidate", "正在更新学生候选…"\)/);
+assert.match(page, /setFilterStatus\("query", "正在查询工资规则…"\)/);
+assert.match(candidateRefreshFunction, /fetchWageRuleCurrentStudentCandidates/);
+assert.match(candidateRefreshFunction, /requestId !== candidateRequestSequence/);
+assert.doesNotMatch(candidateRefreshFunction, /fetchWageRules|syncCandidateUrl|renderWageRules|filterWageRules/);
+assert.equal((queryFunction.match(/fetchWageRules\(\)/g) || []).length, 1, "query must call the wage-rule list reader exactly once");
+assert.match(queryFunction, /appliedFilters = nextAppliedFilters/);
+assert.match(queryFunction, /syncCandidateUrl\(appliedFilters\)/);
+assert.match(queryFunction, /renderWageRules\(filterWageRules\(wageRules, appliedFilters\)\)/);
+assert.doesNotMatch(page, /wageRuleLoadingState|refreshFilterCandidatesAndApply|applyCurrentFilters/);
+
 assert.match(html, /<th>老师分类<\/th>/);
 assert.match(html, /<th>结算类型<\/th>/);
 assert.match(page, /teacher\?\.department/);
@@ -67,17 +85,25 @@ assert.match(api, /p_settlement_type: payload\.settlementType/);
 assert.match(api, /p_business_entity_id: payload\.businessEntityId/);
 
 assert.match(html, /app-shell app-shell--wage-rule/);
+assert.match(html, /id="wageRuleFilterStatus"[\s\S]*aria-live="polite"[\s\S]*aria-busy="true"/);
+assert.match(html, /class="panel wage-rule-list-panel"/);
+assert.equal((html.match(/<col class="wage-rule-col-/g) || []).length, 18, "wage-rule table must declare all 18 columns");
 assert.match(css, /\.app-shell--wage-rule\s*\{[\s\S]*?max-width:\s*none/);
 assert.match(css, /\.wage-rule-filter-panel \.wage-rule-filter-grid\s*\{[\s\S]*?300px[\s\S]*?300px[\s\S]*?176px[\s\S]*?300px[\s\S]*?300px[\s\S]*?300px[\s\S]*?minmax\(0, 1fr\)[\s\S]*?auto[\s\S]*?140px/);
 assert.match(css, /\.wage-rule-filter-panel \.wage-rule-include-inactive-control input\s*\{[\s\S]*?width:\s*16px[\s\S]*?height:\s*16px/);
 assert.match(css, /\.wage-rule-filter-panel \.wage-rule-filter-actions\s*\{[\s\S]*?gap:\s*12px/);
+assert.match(css, /\.wage-rule-filter-status\s*\{[\s\S]*?height:\s*20px/);
+assert.match(css, /\.wage-rule-filter-status\[data-state="idle"\]\s*\{[\s\S]*?visibility:\s*hidden/);
+assert.match(css, /\.wage-rule-list-panel \.wage-rule-list-heading\s*\{[\s\S]*?padding-right:\s*134px/);
+assert.match(css, /\.wage-rule-table\s*\{[\s\S]*?width:\s*100%[\s\S]*?min-width:\s*2210px[\s\S]*?table-layout:\s*fixed/);
+assert.match(css, /\.wage-rule-table \.wage-rule-col-note\s*\{[\s\S]*?width:\s*260px/);
 assert.match(css, /@media \(max-width: 1799px\)[\s\S]*?\.wage-rule-filter-panel \.wage-rule-filter-grid/);
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.wage-rule-filter-panel \.wage-rule-filter-grid[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-rule-|\.wage-filter-panel[^\n{]*\.wage-rule-/);
 
-assert.match(html, /wage-rule-filter-single-row-20260808-1/);
-assert.match(app, /wage-rule-filter-single-row-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.23"/);
+assert.match(html, /wage-rule-explicit-filter-20260808-1/);
+assert.match(app, /wage-rule-explicit-filter-20260808-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.24"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

@@ -75,19 +75,22 @@ let activeStateTargetRule = null;
 let isCreateSubmitting = false;
 let isEditSubmitting = false;
 let isActiveStateSubmitting = false;
-let startupFilters = null;
+let draftFilters = { ...DEFAULT_FILTERS };
+let appliedFilters = { ...DEFAULT_FILTERS };
+let candidateRequestSequence = 0;
+let activeCandidateRequestId = 0;
+let isRuleQuerying = false;
 
 export function initWageRulePage() {
   cacheDom();
-  startupFilters = { ...DEFAULT_FILTERS, ...readStudentCandidateQuery() };
-  setDefaultFilters(startupFilters);
+  const initialFilters = { ...DEFAULT_FILTERS, ...readStudentCandidateQuery() };
+  draftFilters = { ...initialFilters };
+  appliedFilters = { ...initialFilters };
+  restoreFilterSelections(draftFilters);
   bindEvents();
 
   if (!hasSupabaseConfig()) {
-    showMessage(
-      "error",
-      "请先在 js/config.js 填写 Supabase URL 和 anon key。当前页面不会发起数据请求。"
-    );
+    setFilterStatus("error", "请先配置 Supabase URL 和 anon key。当前页面不会发起数据请求。");
     renderWageRules([]);
     return;
   }
@@ -106,7 +109,8 @@ function cacheDom() {
   dom.activeSelect = document.querySelector("#wageRuleActiveSelect");
   dom.resetButton = document.querySelector("#wageRuleResetButton");
   dom.tableBody = document.querySelector("#wageRuleTableBody");
-  dom.loadingState = document.querySelector("#wageRuleLoadingState");
+  dom.filterPanel = document.querySelector(".wage-rule-filter-panel");
+  dom.filterStatus = document.querySelector("#wageRuleFilterStatus");
   dom.emptyState = document.querySelector("#wageRuleEmptyState");
   dom.ruleCount = document.querySelector("#wageRuleCount");
   dom.createButton = document.querySelector("#createWageRuleButton");
@@ -146,15 +150,16 @@ function cacheDom() {
 function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    refreshFilterCandidatesAndApply();
+    queryDraftFilters();
   });
 
-  dom.includeInactiveCheckbox.addEventListener("change", refreshFilterCandidatesAndApply);
-
-  dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters();
-    refreshFilterCandidatesAndApply();
+  [dom.teacherSelect, dom.studentSelect, dom.subjectSelect, dom.activeSelect].forEach((field) => {
+    field.addEventListener("change", updateDraftFiltersFromControls);
   });
+  dom.keywordInput.addEventListener("input", updateDraftFiltersFromControls);
+  dom.includeInactiveCheckbox.addEventListener("change", handleDraftCandidateScopeChange);
+
+  dom.resetButton.addEventListener("click", resetAndQueryFilters);
 
   dom.createButton.addEventListener("click", openCreateDialog);
   dom.createCancelButton.addEventListener("click", closeCreateDialog);
@@ -207,14 +212,9 @@ function bindEvents() {
   });
 }
 
-function setDefaultFilters(overrides = {}) {
-  restoreFilterSelections({ ...DEFAULT_FILTERS, ...overrides });
-}
-
 async function loadWageRuleData() {
-  const filters = startupFilters || readFilters();
-  setLoading(true);
-  showMessage("info", "正在加载老师工资规则数据...");
+  const filters = { ...draftFilters };
+  setFilterStatus("query", "正在查询工资规则…");
 
   try {
     const ruleRows = await fetchWageRules();
@@ -238,9 +238,9 @@ async function loadWageRuleData() {
 
     renderFilterOptions(filters.studentId);
     restoreFilterSelections(filters);
-    startupFilters = null;
-    applyCurrentFilters();
-    showMessage("success", "老师工资规则数据已加载。");
+    draftFilters = readFiltersFromControls();
+    syncCandidateUrl(appliedFilters);
+    renderWageRules(filterWageRules(wageRules, appliedFilters));
   } catch (error) {
     teachers = [];
     students = [];
@@ -252,40 +252,99 @@ async function loadWageRuleData() {
     wageRules = [];
     renderFilterOptions();
     renderWageRules([]);
-    showMessage("error", `读取老师工资规则数据失败：${error.message || error}`);
-  } finally {
-    setLoading(false);
+    setFilterStatus("error", `读取老师工资规则数据失败：${error.message || error}`);
+    return;
   }
+
+  setFilterStatus("idle");
 }
 
-function applyCurrentFilters() {
-  const filters = readFilters();
-  restoreFilterSelections(filters);
-  syncCandidateUrl(filters);
-  renderWageRules(filterWageRules(wageRules, filters));
+function updateDraftFiltersFromControls() {
+  draftFilters = readFiltersFromControls();
 }
 
-async function refreshFilterCandidatesAndApply() {
-  const filters = readFilters();
-  setLoading(true);
+async function handleDraftCandidateScopeChange() {
+  updateDraftFiltersFromControls();
+  await refreshDraftStudentCandidates();
+}
+
+async function refreshDraftStudentCandidates() {
+  const filters = { ...draftFilters };
+  const requestId = ++candidateRequestSequence;
+  activeCandidateRequestId = requestId;
+  if (!isRuleQuerying) {
+    setFilterStatus("candidate", "正在更新学生候选…");
+  }
+
   try {
-    filterStudentCandidates = await fetchWageRuleCurrentStudentCandidates({
+    const candidateRows = await fetchWageRuleCurrentStudentCandidates({
       includeInactive: filters.includeInactive,
       selectedStudentId: filters.studentId || null,
     });
+
+    if (requestId !== candidateRequestSequence) {
+      return;
+    }
+
+    filterStudentCandidates = candidateRows;
     students = mergeStudentRows(students, filterStudentCandidates, activeStudentCandidates);
     renderStudentMonthCandidateOptions(dom.studentSelect, filterStudentCandidates, {
       selectedStudentId: filters.studentId,
     });
-    applyCurrentFilters();
+    draftFilters = { ...filters, studentId: dom.studentSelect.value };
   } catch (error) {
-    showMessage("error", `读取当前月学生候选失败：${error.message || error}`);
+    if (requestId === candidateRequestSequence && !isRuleQuerying) {
+      setFilterStatus("error", `读取当前月学生候选失败：${error.message || error}`);
+    }
   } finally {
-    setLoading(false);
+    if (requestId === candidateRequestSequence) {
+      activeCandidateRequestId = 0;
+      if (!isRuleQuerying && dom.filterStatus.dataset.state !== "error") {
+        setFilterStatus("idle");
+      }
+    }
   }
 }
 
-function readFilters() {
+async function queryDraftFilters() {
+  updateDraftFiltersFromControls();
+  const nextAppliedFilters = { ...draftFilters };
+  const previousAppliedFilters = { ...appliedFilters };
+  appliedFilters = nextAppliedFilters;
+  syncCandidateUrl(appliedFilters);
+  isRuleQuerying = true;
+  setFilterStatus("query", "正在查询工资规则…");
+
+  try {
+    const ruleRows = await fetchWageRules();
+    wageRules = sortWageRules(ruleRows);
+    renderWageRules(filterWageRules(wageRules, appliedFilters));
+  } catch (error) {
+    appliedFilters = previousAppliedFilters;
+    syncCandidateUrl(appliedFilters);
+    setFilterStatus("error", `读取老师工资规则失败：${error.message || error}`);
+    return;
+  } finally {
+    isRuleQuerying = false;
+  }
+
+  if (activeCandidateRequestId) {
+    setFilterStatus("candidate", "正在更新学生候选…");
+  } else {
+    setFilterStatus("idle");
+  }
+}
+
+async function resetAndQueryFilters() {
+  candidateRequestSequence += 1;
+  activeCandidateRequestId = 0;
+  draftFilters = { ...DEFAULT_FILTERS };
+  restoreFilterSelections(draftFilters);
+  await refreshDraftStudentCandidates();
+  await queryDraftFilters();
+}
+
+function readFiltersFromControls() {
   return {
     keyword: dom.keywordInput.value.trim(),
     teacherId: dom.teacherSelect.value,
@@ -1210,8 +1269,12 @@ function displayValue(value) {
   return safeText(value) || "-";
 }
 
-function setLoading(isLoading) {
-  dom.loadingState.classList.toggle("is-hidden", !isLoading);
+function setFilterStatus(state, text = "") {
+  const isBusy = state === "candidate" || state === "query";
+  dom.filterStatus.dataset.state = state;
+  dom.filterStatus.textContent = text;
+  dom.filterStatus.setAttribute("aria-busy", String(isBusy));
+  dom.filterPanel.setAttribute("aria-busy", String(isBusy));
 }
 
 function showMessage(type, text) {

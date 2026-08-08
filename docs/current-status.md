@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-08 工资规则页“显式查询＋稳定加载＋宽屏表格”修复已完成本地实现，生产部署验收待完成：已确认checkbox实际只请求候选resolver，但旧共享handler会在候选返回后同步URL并以缓存重渲染规则，造成表头/首行临时下移21px；现拆分draft/applied，普通change/input只改draft，include inactive只刷新候选并带竞态序号，显式查询才同步URL且精确调用一次规则reader。异步提示移至筛选标题固定20px状态槽，列表查询期间保留既有DOM；18列表格由1880px扩为内部完整2210px，列表操作组目标右留白153px。页面前进至`v10.5.24`；SQL/DDL/DML/写RPC及业务写入均为0。详见`docs/school-v2-wage-rule-explicit-filter-and-table-width-fix-20260808.md`。
+
 - 2026-08-08 老师工资规则筛选栏单行布局优化已完成并生产上线：顶部老师分类/结算类型DOM、state、option及本地过滤退役，旧`teacherDepartment/teacher_department/settlementType/settlement_type`由现有URL同步点清除；列表/详情及新增/编辑writer的老师分类/结算类型事实保持。工资规则页以专属shell扩宽至2248px内容区，生产`v10.5.23`在2560px实测五个控件精确300px、checkbox 16px、按钮间距12px、右侧留白152px；1440px两行、390px为346px单列，均无溢出。20条/启用18/JPY时薪78,400及完整指纹不变；当前月候选7→8、paused标签/override、联合筛选、弹窗/详情与Console 0通过。实现`5ea88da`、Pages run`31201698984`成功；School/Cash/Storage/Gate前后一致，SQL/DDL/DML/写RPC及真实业务写入均为0。详见`docs/school-v2-wage-rule-filter-single-row-20260808.md`。
 
 - 2026-08-08 老师工资结算筛选栏单行布局优化已完成并生产上线：顶部“结算类型”DOM、state、URL读写、option生成和工资快照本地过滤均已移除，旧`settlementType/settlement_type`会一次`history.replaceState`清除；底层类型事实、表格/详情/关键词/排序、状态默认排除void及全部工资writer不变。生产`v10.5.22`在2560px实测月份196px、老师/学生/状态/关键词精确300px、checkbox176px，查询/重置间距12px且右侧留白152px；1440px自动两行，390px为346px单列，均无溢出。6月删除前后均为9快照/63课时/7530分钟/JPY563,845，paused学生历史1快照/10明细/1200分钟正常；7月7→8名候选、paused标签/override、联合查询/URL/重置及Console 0通过。实现`5afc58b`、Pages run`31198977078`成功；School/Cash/Storage指纹前后一致，部署SQL/DDL/DML/写RPC及真实业务写入均为0，Gate仍`enabled / blocked / enabled`。详见`docs/school-v2-wage-filter-single-row-20260808.md`。
