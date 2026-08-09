@@ -4,12 +4,12 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-1";
+} from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-2";
 import {
   getStudentSettlementOnlineStatus,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-1";
+} from "../api/student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-2";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
@@ -23,7 +23,7 @@ import {
   isPositiveDecimalString,
   onlineStatusDisplay,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-tokyo-month-close-20260810-1";
+} from "./settlement-online-state.js?v=student-settlement-tokyo-month-close-20260810-2";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
