@@ -3113,6 +3113,16 @@ h2 {
   width: 5.42%;
 }
 
+.settlement-loading-slot {
+  min-height: 24px;
+  margin: 4px 0;
+  visibility: hidden;
+}
+
+.settlement-loading-slot.is-loading {
+  visibility: visible;
+}
+
 .lesson-detail-chain-table {
   min-width: 1600px;
 }

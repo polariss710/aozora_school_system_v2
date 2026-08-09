@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 学生月度结算</title>
-    <link rel="stylesheet" href="./css/app.css?v=settlement-filter-single-row-20260808-1">
+    <link rel="stylesheet" href="./css/app.css?v=student-settlement-online-phase-c-20260810-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -72,14 +72,14 @@
           <h1>学生月度结算</h1>
         </div>
         <div class="header-meta">
-          <span class="readonly-pill">只读版</span>
+          <span class="readonly-pill">在线草稿</span>
           <span id="appVersion" class="app-version"></span>
         </div>
       </header>
 
       <main class="page-main">
         <section id="settlementMessageArea" class="message is-hidden" aria-live="polite"></section>
-        <section class="message message-info" aria-live="polite">V2财务写操作请使用本机受信管理工具执行。</section>
+        <section class="message message-info" aria-live="polite">管理员可在线保存未完成月结的草稿；正式锁定暂未开放。</section>
 
         <section class="panel filter-panel settlement-filter-panel" aria-labelledby="settlementFilterTitle">
           <div class="section-heading">
@@ -140,7 +140,7 @@
             <span id="settlementCount" class="record-count">0 条</span>
           </div>
 
-          <div id="settlementLoadingState" class="state-text is-hidden">正在加载学生月度结算...</div>
+          <div id="settlementLoadingState" class="state-text settlement-loading-slot" aria-live="polite"></div>
           <div id="settlementEmptyState" class="state-text is-hidden">暂无符合条件的学生月度结算记录。</div>
           <div class="table-scroll">
             <table class="payment-table settlement-table">
@@ -167,7 +167,7 @@
                   <th>学生结算月</th>
                   <th>学生</th>
                   <th>结算状态</th>
-                  <th>后续锁定</th>
+                  <th>不可变链路</th>
                   <th>上月结余 CNY</th>
                   <th>预定课时费 JPY</th>
                   <th>预定课时费 CNY</th>
@@ -187,43 +187,11 @@
       </main>
     </div>
 
-    <div id="lockSettlementDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lockSettlementTitle">
-        <div class="section-heading">
-          <h2 id="lockSettlementTitle">锁定学生月度结算</h2>
-          <p class="section-note">锁定后会把预定课时、实际课时、已收学费、差额调整和结转结果一起保存为结算快照。</p>
-        </div>
-
-        <div id="lockSettlementSummary" class="dialog-summary"></div>
-
-        <div class="dialog-warning">
-          锁定后，该学生该月份的课时编辑、误录作废、actual 生成、学费收入新增或撤销都会被现有 RPC guard 拒绝；差额调整转为只读展示。
-        </div>
-
-        <div id="lockSettlementError" class="dialog-error is-hidden" aria-live="polite"></div>
-
-        <label class="field" data-lock-settlement-field="note">
-          <span>锁定备注（可选）</span>
-          <textarea id="lockSettlementNoteInput" rows="3"></textarea>
-        </label>
-
-        <label class="field confirm-check" data-lock-settlement-field="confirm">
-          <input id="lockSettlementConfirmCheckbox" type="checkbox">
-          <span>我确认锁定当前实时预览，并理解差额调整与结转结果会随本次锁定固化。</span>
-        </label>
-
-        <div class="dialog-actions">
-          <button class="button button-primary" id="lockSettlementSubmitButton" type="button" disabled title="V2财务写操作请使用本机受信管理工具执行。">仅本机受信工具可锁定</button>
-          <button class="button" id="lockSettlementCancelButton" type="button">取消</button>
-        </div>
-      </section>
-    </div>
-
     <div id="settlementAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel settlement-adjustment-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settlementAdjustmentTitle">
         <div class="section-heading">
-          <h2 id="settlementAdjustmentTitle">月结差额 DB 只读 Preview</h2>
-          <p class="section-note">数据库按调整方式计算权威调整额与结转额；页面不计算财务结果，仅提供只读 Preview。V2财务写操作请使用本机受信管理工具执行。</p>
+          <h2 id="settlementAdjustmentTitle">编辑月结草稿</h2>
+          <p class="section-note">数据库计算权威调整额与结转额。保存仅更新草稿，不会锁定月结。</p>
         </div>
 
         <div id="settlementAdjustmentError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -278,7 +246,7 @@
                 待补与超额将转换为财务净额。锁定后，相同来源不再保留独立免费补课或重复收费权益。
               </div>
 
-              <label class="field" data-settlement-adjustment-field="amount">
+              <label id="settlementAdjustmentAmountField" class="field is-hidden" data-settlement-adjustment-field="amount">
                 <span>手动调整金额 CNY（仅手动调整填写）</span>
                 <input id="settlementAdjustmentAmountInput" type="number" step="0.01" inputmode="decimal">
               </label>
@@ -302,22 +270,18 @@
                 <textarea id="settlementAdjustmentNoteInput" rows="2"></textarea>
               </label>
 
-              <label class="field confirm-check" data-settlement-adjustment-field="confirm">
-                <input id="settlementAdjustmentConfirmCheckbox" type="checkbox">
-                <span>确认该调整用于当前未锁定结算预览；锁定后只能只读查看，后续结转以调整后的本月结转为准。</span>
-              </label>
             </div>
           </div>
         </div>
 
         <div class="dialog-actions settlement-adjustment-footer">
           <button class="button" id="settlementAdjustmentCancelButton" type="button">取消</button>
-          <button class="button" id="settlementAdjustmentPreviewButton" type="button">更新数据库预览</button>
-          <button class="button button-primary" id="settlementAdjustmentSubmitButton" type="button" disabled title="V2财务写操作请使用本机受信管理工具执行。">仅本机受信工具可保存</button>
+          <button class="button" id="settlementAdjustmentPreviewButton" type="button">重新预览</button>
+          <button class="button button-primary" id="settlementAdjustmentSubmitButton" type="button" disabled>保存草稿</button>
         </div>
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=settlement-writer-p0-closure-20260809-1"></script>
+    <script type="module" src="./js/settlement-app.js?v=student-settlement-online-phase-c-20260810-1"></script>
   </body>
 </html>

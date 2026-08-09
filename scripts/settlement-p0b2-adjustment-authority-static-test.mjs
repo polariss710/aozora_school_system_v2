@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 const api = fs.readFileSync("js/api/settlement-api.js", "utf8");
 const page = fs.readFileSync("js/pages/settlement-page.js", "utf8");
+const onlineState = fs.readFileSync("js/pages/settlement-online-state.js", "utf8");
+const onlineApi = fs.readFileSync("js/api/student-settlement-online-api.js", "utf8");
 const html = fs.readFileSync("settlement.html", "utf8");
 const migration = fs.readFileSync(
   "sql/current/school_tuition_p0b2_adjustment_mode_authority_20260803.sql",
@@ -14,11 +16,14 @@ assert.doesNotMatch(page, /\.from\s*\([^)]*\)[\s\S]{0,180}\.(?:insert|update|del
 assert.doesNotMatch(page, /Math\.round/);
 assert.doesNotMatch(page, /system_difference_cny\)\s*\+|system_difference_cny\s*\+/);
 assert.doesNotMatch(api, /school_apply_student_monthly_settlement_adjustment/);
-assert.match(api, /p_adjustment_amount_cny:\s*explicitUserAmount/);
-assert.match(api, /p_adjustment_source:\s*adjustmentMode/);
-assert.match(api, /adjustmentMode !== "manual_adjustment" && explicitUserAmount !== null/);
-assert.match(page, /isManual && amountText !== ""/);
-assert.match(page, /explicitUserAmountCny === null \|\| !Number\.isFinite\(explicitUserAmountCny\)/);
+assert.match(api, /school_preview_student_settlement_adjustment_dialog/);
+assert.match(page, /saveStudentSettlementDraftOnline\(saveInput\)/);
+assert.match(onlineState, /expectedSystemDifferenceCny:\s*decimalString\(expected\.system_difference_cny/);
+assert.match(onlineState, /expectedFinalCarryoverCny:\s*decimalString\(preview\.projected_final_carryover_cny/);
+assert.match(onlineState, /manualAdjustmentAmountCny:\s*manualAmount/);
+assert.match(onlineApi, /manual_adjustment_amount_cny:\s*optionalDecimal/);
+assert.doesNotMatch(page, /Number\(amountText\)|parseFloat\(amountText\)/);
+assert.doesNotMatch(onlineState, /Math\.round|parseFloat/);
 
 const optionModes = [...html.matchAll(/<option value="([^"]+)">(?:按最终差额结转|抹平差额|手动调整)<\/option>/g)]
   .map((match) => match[1]);
@@ -27,7 +32,7 @@ assert.deepEqual(optionModes, [
   "clear_balance",
   "manual_adjustment",
 ]);
-assert.match(html, /页面不计算财务结果/);
+assert.match(html, /数据库计算权威调整额与结转额/);
 
 assert.match(migration, /school_tuition_p0b2_resolve_adjustment/);
 assert.match(migration, /v_adjustment := -v_system_difference/);

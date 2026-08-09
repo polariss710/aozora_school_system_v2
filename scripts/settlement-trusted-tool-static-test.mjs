@@ -10,11 +10,11 @@ const sql = fs.readFileSync(
   "utf8"
 );
 
-assert.match(html, /V2财务写操作请使用本机受信管理工具执行。/);
-assert.match(html, /月结差额 DB 只读 Preview/);
-assert.match(html, /settlement-app\.js\?v=settlement-writer-p0-closure-20260809-1/);
-assert.match(page, /DB只读 Preview/);
-assert.match(page, /dom\.adjustmentSubmitButton\.disabled = true/);
+assert.match(html, /管理员可在线保存未完成月结的草稿；正式锁定暂未开放。/);
+assert.match(html, /编辑月结草稿/);
+assert.match(html, /settlement-app\.js\?v=student-settlement-online-phase-c-20260810-1/);
+assert.match(page, /saveStudentSettlementDraftOnline\(saveInput\)/);
+assert.match(page, /dom\.adjustmentSubmitButton\.disabled = !canEdit/);
 assert.doesNotMatch(page, /data-lock-settlement-id=/);
 assert.doesNotMatch(page, /data-settlement-action-id=/);
 for (const writer of [
@@ -27,6 +27,7 @@ for (const writer of [
   assert.doesNotMatch(page, new RegExp(`\\b${writer}\\s*\\(`), `page still calls ${writer}`);
 }
 assert.doesNotMatch(page, /\.rpc\s*\(/);
+assert.doesNotMatch(page, /lockStudentSettlementOnline|lock-student-settlement/);
 assert.match(api, /school_preview_student_settlement_adjustment_dialog/);
 for (const coreWriter of [
   "school_lock_student_monthly_settlement",

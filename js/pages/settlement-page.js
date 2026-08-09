@@ -4,7 +4,25 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=settlement-writer-p0-closure-20260809-1";
+} from "../api/settlement-api.js?v=student-settlement-online-phase-c-20260810-1";
+import {
+  getStudentSettlementOnlineStatus,
+  saveStudentSettlementDraftOnline,
+  StudentSettlementOnlineError,
+} from "../api/student-settlement-online-api.js?v=student-settlement-online-phase-c-20260810-1";
+import {
+  ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
+  ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
+  buildOnlineDraftSaveInput,
+  canUseOnlineDraftSave,
+  canonicalDecimal,
+  classifySaveRecovery,
+  createSingleFlight,
+  decimalString,
+  isPositiveDecimalString,
+  onlineStatusDisplay,
+  statusConfirmsDraftSave,
+} from "./settlement-online-state.js?v=student-settlement-online-phase-c-20260810-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -35,42 +53,35 @@ const DEFAULT_FILTERS = {
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
+  ordinary_locked: "已正式锁定",
   unlocked: "锁定已撤销",
   preview: "未锁定 / 预览",
+  incomplete: "未完成",
   historically_consumed_immutable: "已被历史学费账单消费（不可重开）",
+  historical_zero_carry_complete: "历史零结转已完成",
 };
-
-const ADJUSTMENT_MODES = {
-  CARRY_FINAL_BALANCE: "carry_final_balance",
-  CLEAR_BALANCE: "clear_balance",
-  MANUAL_ADJUSTMENT: "manual_adjustment",
-};
-
-const SOURCE_TREATMENT_MODES = {
-  SEPARATE: "separate_makeup_and_overage_v1",
-  NET_FINANCIAL: "net_lesson_variance_to_financial_credit_v1",
-};
-
-const TRUSTED_TOOL_MESSAGE = "V2财务写操作请使用本机受信管理工具执行。";
 
 const dom = {};
 let students = [];
 let studentMonthCandidates = [];
 let settlements = [];
-let loadedMonth = "";
-let loadedStudentCandidateKey = "";
 let initialFilters = null;
-let currentLockSettlement = null;
-let isLockSubmitting = false;
+let appliedFilters = null;
+let membershipRole = "";
+let queryRequestSequence = 0;
 let currentAdjustmentSettlement = null;
 let isAdjustmentSubmitting = false;
 let isAdjustmentPreviewLoading = false;
 let currentAdjustmentPreview = null;
 let currentAdjustmentPreviewSignature = "";
-let currentAdjustmentState = null;
+let currentOnlineStatus = null;
+let currentOnlineStatusError = null;
 let adjustmentPreviewRequestSequence = 0;
+let dialogRequestSequence = 0;
+const saveSingleFlight = createSingleFlight();
 
-export function initSettlementPage() {
+export function initSettlementPage(options = {}) {
+  membershipRole = options.membershipRole || "";
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
@@ -104,13 +115,6 @@ function cacheDom() {
   dom.loadingState = document.querySelector("#settlementLoadingState");
   dom.emptyState = document.querySelector("#settlementEmptyState");
   dom.settlementCount = document.querySelector("#settlementCount");
-  dom.lockDialog = document.querySelector("#lockSettlementDialog");
-  dom.lockSummary = document.querySelector("#lockSettlementSummary");
-  dom.lockError = document.querySelector("#lockSettlementError");
-  dom.lockNoteInput = document.querySelector("#lockSettlementNoteInput");
-  dom.lockConfirmCheckbox = document.querySelector("#lockSettlementConfirmCheckbox");
-  dom.lockSubmitButton = document.querySelector("#lockSettlementSubmitButton");
-  dom.lockCancelButton = document.querySelector("#lockSettlementCancelButton");
   dom.adjustmentDialog = document.querySelector("#settlementAdjustmentDialog");
   dom.adjustmentCurrentState = document.querySelector("#settlementAdjustmentCurrentState");
   dom.adjustmentCurrentStateBadge = document.querySelector("#settlementAdjustmentCurrentStateBadge");
@@ -120,6 +124,7 @@ function cacheDom() {
   dom.adjustmentPreviewBadge = document.querySelector("#settlementAdjustmentPreviewBadge");
   dom.adjustmentError = document.querySelector("#settlementAdjustmentError");
   dom.adjustmentAmountInput = document.querySelector("#settlementAdjustmentAmountInput");
+  dom.adjustmentAmountField = document.querySelector("#settlementAdjustmentAmountField");
   dom.sourceTreatmentModeInput = document.querySelector("#settlementSourceTreatmentModeInput");
   dom.sourceTreatmentRateFields = document.querySelector("#settlementSourceTreatmentRateFields");
   dom.sourceTreatmentWarning = document.querySelector("#settlementSourceTreatmentWarning");
@@ -129,7 +134,6 @@ function cacheDom() {
   dom.adjustmentSourceInput = document.querySelector("#settlementAdjustmentSourceInput");
   dom.adjustmentReasonInput = document.querySelector("#settlementAdjustmentReasonInput");
   dom.adjustmentNoteInput = document.querySelector("#settlementAdjustmentNoteInput");
-  dom.adjustmentConfirmCheckbox = document.querySelector("#settlementAdjustmentConfirmCheckbox");
   dom.adjustmentPreviewButton = document.querySelector("#settlementAdjustmentPreviewButton");
   dom.adjustmentSubmitButton = document.querySelector("#settlementAdjustmentSubmitButton");
   dom.adjustmentCancelButton = document.querySelector("#settlementAdjustmentCancelButton");
@@ -140,39 +144,16 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
-  dom.yearFilter.addEventListener("change", applyQuery);
-  dom.monthFilter.addEventListener("change", applyQuery);
-  dom.includeInactiveCheckbox.addEventListener("change", applyQuery);
-
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
     applyQuery();
   });
 
   dom.tableBody.addEventListener("click", (event) => {
-    const lockButton = event.target.closest("[data-lock-settlement-id]");
-    if (lockButton) {
-      openLockDialog(lockButton.dataset.lockSettlementId);
-      return;
-    }
-
     const adjustmentButton = event.target.closest("[data-settlement-adjustment-id]");
     if (adjustmentButton) {
       openAdjustmentDialog(adjustmentButton.dataset.settlementAdjustmentId);
     }
-  });
-
-  dom.lockCancelButton?.addEventListener("click", () => closeLockDialog());
-  dom.lockSubmitButton?.addEventListener("click", handleLockSubmit);
-  dom.lockDialog?.addEventListener("click", (event) => {
-    if (event.target === dom.lockDialog) {
-      closeLockDialog();
-    }
-  });
-  dom.lockNoteInput?.addEventListener("input", () => hideLockErrorIfClean());
-  dom.lockConfirmCheckbox?.addEventListener("change", () => {
-    clearLockFieldInvalid("confirm");
-    hideLockErrorIfClean();
   });
 
   dom.adjustmentCancelButton?.addEventListener("click", () => closeAdjustmentDialog());
@@ -185,7 +166,7 @@ function bindEvents() {
   ].forEach(([fieldId, element]) => {
     element?.addEventListener("input", () => {
       clearAdjustmentFieldInvalid(fieldId);
-      if (fieldId === "amount") {
+      if (["amount", "reason"].includes(fieldId)) {
         invalidateAdjustmentPreview();
       }
       hideAdjustmentErrorIfClean();
@@ -215,9 +196,13 @@ function bindEvents() {
       hideAdjustmentErrorIfClean();
     });
   });
-  dom.adjustmentConfirmCheckbox?.addEventListener("change", () => {
-    clearAdjustmentFieldInvalid("confirm");
-    hideAdjustmentErrorIfClean();
+  dom.adjustmentDialog?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !isAdjustmentSubmitting) closeAdjustmentDialog();
+  });
+  window.addEventListener("popstate", () => {
+    const filters = readSettlementQuery();
+    setDefaultFilters(filters);
+    void runQuery(filters, { updateUrl: false });
   });
 }
 
@@ -231,32 +216,18 @@ function setDefaultFilters(filters = null) {
 }
 
 async function loadInitialData() {
-  setLoading(true);
-  showMessage("info", "正在加载学生月度结算数据...");
-
   try {
     students = await fetchSettlementStudents();
-
     const filters = initialFilters || readFilters();
-    await Promise.all([
-      loadStudentCandidates(filters),
-      loadSettlementMonth(filters.month),
-    ]);
-    restoreFilterSelections(filters);
-    applyCurrentFilters();
-    showMessage("success", "学生月度结算数据已加载。");
+    await runQuery(filters, { updateUrl: false, initial: true });
   } catch (error) {
     students = [];
     settlements = [];
     studentMonthCandidates = [];
-    loadedMonth = "";
-    loadedStudentCandidateKey = "";
     renderMasterOptions();
     renderStatusOptions([]);
     renderSettlements([]);
     showMessage("error", `读取学生月度结算数据失败：${error.message || error}`);
-  } finally {
-    setLoading(false);
   }
 }
 
@@ -270,66 +241,45 @@ async function applyQuery() {
     return;
   }
 
-  syncSettlementQuery(filters);
-  if (filters.month !== loadedMonth || studentCandidateKey(filters) !== loadedStudentCandidateKey) {
-    setLoading(true);
-    showMessage("info", "正在加载学生月度结算记录...");
+  await runQuery(filters, { updateUrl: true });
+}
 
-    try {
-      await Promise.all([
-        loadSettlementMonth(filters.month),
-        loadStudentCandidates(filters),
-      ]);
-      restoreFilterSelections(filters);
-      applyCurrentFilters();
-      showMessage("success", "学生月度结算记录已加载。");
-    } catch (error) {
-      settlements = [];
-      studentMonthCandidates = [];
-      loadedMonth = "";
-      loadedStudentCandidateKey = "";
-      renderStatusOptions([]);
-      renderSettlements([]);
-      showMessage("error", `读取学生月度结算记录失败：${error.message || error}`);
-    } finally {
-      setLoading(false);
-    }
-    return;
+async function runQuery(filters, { updateUrl, initial = false }) {
+  if (!filters) return;
+  const requestSequence = ++queryRequestSequence;
+  setLoading(true, initial ? "正在加载学生月度结算…" : "正在查询并读取在线状态…");
+  showMessage("info", initial ? "正在加载学生月度结算数据..." : "正在加载学生月度结算记录...");
+  try {
+    const [nextCandidates, nextSettlements] = await Promise.all([
+      fetchStudentMonthCandidates({
+        month: filters.month,
+        includeInactive: filters.includeInactive,
+        selectedStudentId: filters.studentId || null,
+      }),
+      fetchStudentSettlements(filters.month),
+    ]);
+    if (requestSequence !== queryRequestSequence) return;
+    studentMonthCandidates = nextCandidates;
+    settlements = sortSettlements(nextSettlements);
+    appliedFilters = { ...filters };
+    renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, {
+      selectedStudentId: filters.studentId,
+    });
+    renderStatusOptions(settlements);
+    renderWithFilters(appliedFilters);
+    if (updateUrl) syncSettlementQuery(appliedFilters);
+    showMessage("success", "学生月度结算数据和DB权威在线状态已加载。");
+  } catch (error) {
+    if (requestSequence !== queryRequestSequence) return;
+    showMessage("error", `读取学生月度结算记录失败：${error.message || error}`);
+  } finally {
+    if (requestSequence === queryRequestSequence) setLoading(false);
   }
-
-  applyCurrentFilters();
-}
-
-async function loadSettlementMonth(month) {
-  settlements = sortSettlements(await fetchStudentSettlements(month));
-  loadedMonth = month;
-  renderStatusOptions(settlements);
-}
-
-async function loadStudentCandidates(filters) {
-  studentMonthCandidates = await fetchStudentMonthCandidates({
-    month: filters.month,
-    includeInactive: filters.includeInactive,
-    selectedStudentId: filters.studentId || null,
-  });
-  loadedStudentCandidateKey = studentCandidateKey(filters);
-  renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, {
-    selectedStudentId: filters.studentId,
-  });
-}
-
-function applyCurrentFilters() {
-  const filters = readFilters();
-  if (!filters) {
-    return;
-  }
-
-  renderWithFilters(filters);
 }
 
 function renderWithFilters(filters) {
   const safeFilters = {
-    month: filters?.month || loadedMonth || currentYearMonth(),
+    month: filters?.month || appliedFilters?.month || currentYearMonth(),
     ...DEFAULT_FILTERS,
     ...(filters || {}),
   };
@@ -365,10 +315,6 @@ function renderMasterOptions() {
   renderStudentMonthCandidateOptions(dom.studentSelect, studentMonthCandidates, {
     selectedStudentId: dom.studentSelect.value,
   });
-}
-
-function studentCandidateKey(filters) {
-  return `${filters.month}::${filters.includeInactive ? "1" : "0"}::${filters.studentId || ""}`;
 }
 
 function readSettlementQuery() {
@@ -458,39 +404,26 @@ function renderSettlements(rows) {
 }
 
 function renderSettlementDetailAction(row) {
-  const blockerReason = teacherWageBlockerReason(row);
-
-  if (row.is_preview) {
-    if (blockerReason) {
-      return `
-        <div class="table-action-group">
-          <span class="status-badge status-pending">预览</span>
-          <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可调整</button>
-          <button class="button table-action-button" type="button" disabled title="${escapeAttribute(blockerReason)}">不可锁定</button>
-        </div>
-      `;
-    }
-
-    return `
-      <div class="table-action-group">
-        <span class="status-badge status-pending">预览</span>
-        <button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">DB只读 Preview</button>
-        <span class="table-cell-summary" title="${TRUSTED_TOOL_MESSAGE}">本机工具写入</span>
-      </div>
-    `;
-  }
-
-  const actionButton = renderSettlementStatusAction(row);
+  const statusDisplay = onlineStatusDisplay(row.online_status, row.online_status_error);
+  const canSave = canUseOnlineDraftSave(membershipRole, row.online_status);
+  const physicalSettlementId = row.online_status?.physical_settlement?.settlement_id;
+  const detailLink = physicalSettlementId
+    ? `<a class="button table-action-button" href="${escapeAttribute(settlementDetailHref(physicalSettlementId))}">详情</a>`
+    : "";
+  const action = canSave
+    ? `<button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">编辑草稿</button>`
+    : `<span class="table-cell-summary">只读</span>`;
   return `
     <div class="table-action-group">
-      <a class="button table-action-button" href="${escapeAttribute(settlementDetailHref(row.id))}">详情</a>
-      ${actionButton}
+      ${detailLink}
+      ${action}
+      <span class="status-badge ${escapeAttribute(statusDisplay.className)}" title="${escapeAttribute(statusDisplay.detail)}">${escapeHtml(statusDisplay.label)}</span>
     </div>
   `;
 }
 
 function settlementDetailHref(settlementId) {
-  const filters = readFilters();
+  const filters = appliedFilters;
   const params = new URLSearchParams({ id: settlementId });
   if (filters?.month) {
     const [year, month] = filters.month.split("-");
@@ -501,13 +434,6 @@ function settlementDetailHref(settlementId) {
     setOptionalQuery(params, "keyword", filters.keyword);
   }
   return `./settlement-detail.html?${params.toString()}`;
-}
-
-function renderSettlementStatusAction(row) {
-  if (row.editable === false || effectiveSettlementStatus(row) === "historically_consumed_immutable") {
-    return `<span class="table-cell-summary" title="${escapeAttribute(row.immutable_reason || row.display_label || "不可修改")}">只读</span>`;
-  }
-  return `<span class="table-cell-summary" title="${TRUSTED_TOOL_MESSAGE}">只读；写入使用本机工具</span>`;
 }
 
 function renderTeacherWageBlocker(row) {
@@ -532,110 +458,7 @@ function teacherWageBlockerReason(row) {
   });
 }
 
-function openLockDialog(settlementRowId) {
-  if (!hasSupabaseConfig()) {
-    showMessage("error", "当前 Supabase 配置不可用，不能锁定学生月度结算。");
-    return;
-  }
-
-  const row = settlements.find((item) => item.id === settlementRowId);
-  if (!row || !row.is_preview) {
-    showMessage("error", "未找到可锁定的实时预览记录。");
-    return;
-  }
-
-  currentLockSettlement = row;
-  dom.lockNoteInput.value = "";
-  dom.lockConfirmCheckbox.checked = false;
-  clearLockErrors();
-  renderLockSummary(row);
-  setLockSubmitting(false);
-  dom.lockDialog.classList.remove("is-hidden");
-  dom.lockDialog.setAttribute("aria-hidden", "false");
-  dom.lockConfirmCheckbox.focus();
-}
-
-function closeLockDialog(force = false) {
-  if (isLockSubmitting && !force) {
-    return;
-  }
-
-  dom.lockDialog?.classList.add("is-hidden");
-  dom.lockDialog?.setAttribute("aria-hidden", "true");
-  currentLockSettlement = null;
-  clearLockErrors();
-}
-
-function renderLockSummary(row) {
-  const rows = [
-    ["学生", nameById(students, row.student_id, studentName)],
-    ["学生结算月（后端权威）", formatMonth(row.year_month)],
-    ["预定课时费", formatCurrency(row.planned_lesson_fee_jpy, "JPY")],
-    ["实际课时费", formatCurrency(row.actual_lesson_fee_jpy, "JPY")],
-    ["课时差额处理", sourceTreatmentModeLabel(row.source_treatment_mode)],
-    ["未履约 credit", formatCurrency(row.unused_planned_credit_jpy, "JPY")],
-    ["待补权益小时", displayValue(row.pending_makeup_hours)],
-    ["实际超额收费", formatCurrency(row.overage_charge_jpy ?? row.duration_overage_fee_jpy, "JPY")],
-    ["课时净额", formatCurrency(row.net_lesson_variance_jpy, "JPY")],
-    ["显式结算汇率", displayValue(row.settlement_exchange_rate)],
-    ["课时净额 CNY", formatCurrency(row.net_lesson_variance_cny, "CNY")],
-    ["source 数量", displayValue(row.lesson_variance_source_count)],
-    ["系统差额（含后端冻结超额）", formatCurrency(row.system_difference_cny, "CNY")],
-    ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
-    ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
-  ];
-  dom.lockSummary.innerHTML = rows.map(([label, value]) => `
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">${escapeHtml(label)}</span>
-      <span>${escapeHtml(displayValue(value))}</span>
-    </div>
-  `).join("");
-}
-
-async function handleLockSubmit() {
-  showLockError(TRUSTED_TOOL_MESSAGE);
-}
-
-function setLockSubmitting(isSubmitting) {
-  isLockSubmitting = isSubmitting;
-  if (dom.lockSubmitButton) {
-    dom.lockSubmitButton.disabled = true;
-    dom.lockSubmitButton.textContent = "仅本机受信工具可锁定";
-    dom.lockSubmitButton.title = TRUSTED_TOOL_MESSAGE;
-  }
-  if (dom.lockCancelButton) {
-    dom.lockCancelButton.disabled = isSubmitting;
-  }
-}
-
-function showLockError(errorDisplay) {
-  renderDialogBusinessError(dom.lockError, errorDisplay);
-  dom.lockError.classList.remove("is-hidden");
-}
-
-function clearLockErrors() {
-  dom.lockError.replaceChildren();
-  dom.lockError.classList.add("is-hidden");
-  clearLockFieldInvalid("confirm");
-}
-
-function hideLockErrorIfClean() {
-  if (!dom.lockDialog?.querySelector(".field.is-invalid")) {
-    dom.lockError.textContent = "";
-    dom.lockError.classList.add("is-hidden");
-  }
-}
-
-function setLockFieldInvalid(fieldId, invalid) {
-  const field = dom.lockDialog?.querySelector(`[data-lock-settlement-field="${fieldId}"]`);
-  field?.classList.toggle("is-invalid", invalid);
-}
-
-function clearLockFieldInvalid(fieldId) {
-  setLockFieldInvalid(fieldId, false);
-}
-
-function openAdjustmentDialog(settlementId) {
+async function openAdjustmentDialog(settlementId) {
   if (!hasSupabaseConfig()) {
     showMessage("error", "当前 Supabase 配置不可用，不能保存差额调整。");
     return;
@@ -647,52 +470,50 @@ function openAdjustmentDialog(settlementId) {
     return;
   }
 
-  if (row.editable === false) {
-    showMessage("error", row.immutable_reason || row.display_label || "该结算为不可变历史事实，不能调整。");
-    return;
-  }
-
-  const blockerReason = teacherWageBlockerReason(row);
-  if (blockerReason) {
-    showMessage("error", blockerReason);
-    return;
-  }
-
-  if (!row.is_preview && row.settlement_status !== "unlocked") {
-    showMessage("error", "差额调整只能在锁定前录入或修改；已锁定结算只能只读查看。");
-    return;
-  }
-
   currentAdjustmentSettlement = row;
   applySettlementRateDateRange(row.year_month);
-  dom.sourceTreatmentModeInput.value = row.source_treatment_mode
-    || SOURCE_TREATMENT_MODES.SEPARATE;
-  dom.settlementExchangeRateInput.value = row.settlement_exchange_rate ?? "";
-  dom.settlementExchangeRateSourceInput.value = row.settlement_exchange_rate_source || "";
-  dom.settlementExchangeRateEffectiveDateInput.value = row.settlement_exchange_rate_effective_date
-    || `${row.year_month}-01`;
-  dom.adjustmentAmountInput.value = Number.isFinite(Number(row.adjustment_amount_cny))
-    ? formatCnyInput(row.adjustment_amount_cny)
-    : "";
-  dom.adjustmentSourceInput.value = adjustmentModeForRow(row);
-  dom.adjustmentReasonInput.value = row.adjustment_reason || "";
-  dom.adjustmentNoteInput.value = row.adjustment_note || "";
-  dom.adjustmentConfirmCheckbox.checked = false;
   clearAdjustmentErrors();
-  applyAdjustmentMode({ preserveManualAmount: true });
-  applySourceTreatmentMode();
   adjustmentPreviewRequestSequence += 1;
+  const requestSequence = ++dialogRequestSequence;
   currentAdjustmentPreview = null;
   currentAdjustmentPreviewSignature = "";
-  currentAdjustmentState = null;
+  currentOnlineStatus = null;
+  currentOnlineStatusError = null;
   isAdjustmentPreviewLoading = false;
   renderAdjustmentCurrentState(null, row);
-  renderAdjustmentPendingPreview(null, "正在取得数据库只读预览…", "读取中");
+  renderAdjustmentPendingPreview(null, "正在读取DB权威在线状态…", "读取中");
   setAdjustmentSubmitting(false);
+  setAdjustmentFormDisabled(true);
   dom.adjustmentDialog.classList.remove("is-hidden");
   dom.adjustmentDialog.setAttribute("aria-hidden", "false");
-  dom.adjustmentSourceInput.focus();
-  void refreshAdjustmentDialogPreview({ silentValidation: true });
+  dom.adjustmentCancelButton.focus();
+  try {
+    const status = await getStudentSettlementOnlineStatus(row.student_id, row.year_month);
+    if (requestSequence !== dialogRequestSequence || currentAdjustmentSettlement !== row) return;
+    currentOnlineStatus = status;
+    row.online_status = status;
+    row.online_status_error = null;
+    renderAdjustmentCurrentState(status, row);
+    if (!canUseOnlineDraftSave(membershipRole, status)) {
+      const display = onlineStatusDisplay(status);
+      renderAdjustmentPendingPreview(null, display.detail, display.label);
+      showAdjustmentError(display.detail);
+      updateAdjustmentActionState();
+      renderSettlements(filterSettlements(settlements, appliedFilters || DEFAULT_FILTERS));
+      return;
+    }
+    populateAdjustmentFormFromStatus(status);
+    setAdjustmentFormDisabled(false);
+    dom.adjustmentSourceInput.focus();
+    await refreshAdjustmentDialogPreview({ silentValidation: true });
+  } catch (error) {
+    if (requestSequence !== dialogRequestSequence) return;
+    currentOnlineStatusError = error;
+    renderAdjustmentCurrentState(null, row, error);
+    renderAdjustmentPendingPreview(null, "在线状态读取失败，本条保持只读。", "状态未知");
+    showAdjustmentError(safeOnlineErrorDisplay(error));
+    updateAdjustmentActionState();
+  }
 }
 
 function closeAdjustmentDialog(force = false) {
@@ -703,10 +524,12 @@ function closeAdjustmentDialog(force = false) {
   dom.adjustmentDialog?.classList.add("is-hidden");
   dom.adjustmentDialog?.setAttribute("aria-hidden", "true");
   adjustmentPreviewRequestSequence += 1;
+  dialogRequestSequence += 1;
   currentAdjustmentSettlement = null;
   currentAdjustmentPreview = null;
   currentAdjustmentPreviewSignature = "";
-  currentAdjustmentState = null;
+  currentOnlineStatus = null;
+  currentOnlineStatusError = null;
   isAdjustmentPreviewLoading = false;
   clearAdjustmentErrors();
 }
@@ -720,36 +543,67 @@ function renderSummaryRows(rows) {
   `).join("");
 }
 
-function renderAdjustmentCurrentState(state, row = currentAdjustmentSettlement) {
+function populateAdjustmentFormFromStatus(status) {
+  const source = status.source_treatment_draft || {};
+  const adjustment = status.adjustment_draft || {};
+  const preview = status.authoritative_preview || {};
+  dom.sourceTreatmentModeInput.value = source.source_treatment_mode
+    || preview.source_treatment_mode || SOURCE_TREATMENT_MODES.SEPARATE;
+  dom.settlementExchangeRateInput.value = source.settlement_exchange_rate ?? "";
+  dom.settlementExchangeRateSourceInput.value = source.settlement_exchange_rate_source || "";
+  dom.settlementExchangeRateEffectiveDateInput.value = source.settlement_exchange_rate_effective_date || "";
+  dom.adjustmentSourceInput.value = adjustment.adjustment_mode || ADJUSTMENT_MODES.CARRY_FINAL_BALANCE;
+  dom.adjustmentAmountInput.value = adjustment.adjustment_mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT
+    ? String(adjustment.adjustment_amount_cny ?? "") : "";
+  dom.adjustmentReasonInput.value = adjustment.reason || "";
+  dom.adjustmentNoteInput.value = adjustment.note || "";
+  applyAdjustmentMode({ preserveManualAmount: true });
+  applySourceTreatmentMode();
+}
+
+function setAdjustmentFormDisabled(disabled) {
+  [
+    dom.sourceTreatmentModeInput,
+    dom.settlementExchangeRateInput,
+    dom.settlementExchangeRateSourceInput,
+    dom.settlementExchangeRateEffectiveDateInput,
+    dom.adjustmentAmountInput,
+    dom.adjustmentSourceInput,
+    dom.adjustmentReasonInput,
+    dom.adjustmentNoteInput,
+  ].forEach((element) => { if (element) element.disabled = disabled; });
+}
+
+function renderAdjustmentCurrentState(state, row = currentAdjustmentSettlement, statusError = null) {
   if (!row) return;
   if (!state) {
-    dom.adjustmentCurrentStateBadge.textContent = "读取中";
+    dom.adjustmentCurrentStateBadge.textContent = statusError ? "状态未知" : "读取中";
     dom.adjustmentCurrentState.innerHTML = renderSummaryRows([
       ["学生", nameById(students, row.student_id, studentName)],
       ["结算月份", formatMonth(row.year_month)],
-      ["数据库状态", "正在读取…"],
+      ["数据库状态", statusError ? "读取失败，本条保持只读" : "正在读取…"],
     ]);
     return;
   }
-  dom.adjustmentCurrentStateBadge.textContent = state.is_saved ? "已保存" : "尚未保存";
+  const source = state.source_treatment_draft || {};
+  const adjustment = state.adjustment_draft || {};
+  const display = onlineStatusDisplay(state);
+  const hasSavedDrafts = source.status === "active" && adjustment.status === "active";
+  dom.adjustmentCurrentStateBadge.textContent = hasSavedDrafts ? "草稿已保存" : display.label;
   dom.adjustmentCurrentState.innerHTML = renderSummaryRows([
     ["学生", nameById(students, row.student_id, studentName)],
     ["结算月份", formatMonth(row.year_month)],
-    ["保存状态", state.is_saved ? "已有数据库保存事实" : "尚未保存"],
-    ["结算状态", state.settlement_status
-      ? (SETTLEMENT_STATUS_LABELS[state.settlement_status] || state.settlement_status)
-      : "尚未创建"],
-    ["锁定状态", state.is_locked ? "已锁定" : "未锁定"],
-    ["source draft", state.source_treatment_draft_id || "尚未保存"],
-    ["当前处理方式", state.source_treatment_mode
-      ? sourceTreatmentModeLabel(state.source_treatment_mode) : "尚未保存"],
-    ["当前汇率", state.settlement_exchange_rate ?? "-"],
-    ["adjustment draft", state.adjustment_draft_id || "尚未保存"],
-    ["当前调整方式", state.adjustment_mode
-      ? adjustmentModeLabel(state.adjustment_mode) : "尚未保存"],
-    ["当前 draft 调整", formatCurrency(state.draft_adjustment_amount_cny, "CNY")],
-    ["已固化调整", formatCurrency(state.posted_adjustment_amount_cny, "CNY")],
-    ["已固化结转", formatCurrency(state.posted_carryover_cny, "CNY")],
+    ["有效状态", display.label],
+    ["状态说明", display.detail],
+    ["source draft", draftVersionLabel(source)],
+    ["当前处理方式", source.source_treatment_mode
+      ? sourceTreatmentModeLabel(source.source_treatment_mode) : "尚未保存"],
+    ["adjustment draft", draftVersionLabel(adjustment)],
+    ["当前调整方式", adjustment.adjustment_mode
+      ? adjustmentModeLabel(adjustment.adjustment_mode) : "尚未保存"],
+    ["草稿更新时间", latestDraftUpdatedAt(source, adjustment)],
+    ["DB权威系统差额", formatCurrency(state.authoritative_system_difference_cny, "CNY")],
+    ["DB权威最终结转", formatCurrency(state.final_carryover_cny, "CNY")],
   ]);
 }
 
@@ -839,7 +693,7 @@ function invalidateAdjustmentPreview() {
   currentAdjustmentPreviewSignature = "";
   renderAdjustmentPendingPreview(
     null,
-    "表单已变更，旧预览已失效。请点击“更新数据库预览”。",
+    "表单已变更，旧预览已失效。请点击“重新预览”。",
     "已过期"
   );
   updateAdjustmentActionState();
@@ -867,7 +721,6 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
   try {
     const result = await fetchStudentSettlementAdjustmentDialogPreview({
       studentId: currentAdjustmentSettlement.student_id,
-      businessEntityId: currentAdjustmentSettlement.business_entity_id,
       yearMonth: currentAdjustmentSettlement.year_month,
       ...input,
     });
@@ -884,14 +737,13 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
       mismatchError.userMessage = "数据库预览与当前表单不一致，请重新更新预览。";
       throw mismatchError;
     }
-    currentAdjustmentState = result.current_state || null;
     currentAdjustmentPreview = result;
     currentAdjustmentPreviewSignature = requestSignature;
-    renderAdjustmentCurrentState(currentAdjustmentState);
+    renderAdjustmentCurrentState(currentOnlineStatus);
     renderAdjustmentPendingPreview(
       result,
-      "以下金额为数据库只读预览，尚未保存。",
-      "DB 已更新"
+      "以下金额为数据库权威预览；请另行点击“保存草稿”。",
+      "预览已更新"
     );
   } catch (error) {
     if (requestSequence !== adjustmentPreviewRequestSequence) return;
@@ -922,20 +774,19 @@ function readSourceTreatmentInput({ validate = true } = {}) {
     };
   }
   const rateText = dom.settlementExchangeRateInput.value.trim();
-  const rate = rateText === "" ? null : Number(rateText);
   const rateSource = dom.settlementExchangeRateSourceInput.value.trim();
   const effectiveDate = dom.settlementExchangeRateEffectiveDateInput.value;
-  if (!validate && (rate === null || !Number.isFinite(rate) || rate <= 0
+  if (!validate && (!isPositiveDecimalString(rateText)
       || !rateSource || !effectiveDate)) return null;
   const invalid = [];
-  if (rate === null || !Number.isFinite(rate) || rate <= 0) invalid.push("settlementRate");
+  if (!isPositiveDecimalString(rateText)) invalid.push("settlementRate");
   if (!rateSource) invalid.push("settlementRateSource");
   if (!effectiveDate) invalid.push("settlementRateDate");
   if (validate) invalid.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
   if (invalid.length) return null;
   return {
     sourceTreatmentMode,
-    settlementExchangeRate: rate,
+    settlementExchangeRate: rateText,
     settlementExchangeRateSource: rateSource,
     settlementExchangeRateEffectiveDate: effectiveDate,
   };
@@ -946,12 +797,16 @@ function readAdjustmentPreviewInput({ validate = true } = {}) {
   const adjustmentMode = dom.adjustmentSourceInput.value.trim();
   const isManual = adjustmentMode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   const amountText = dom.adjustmentAmountInput.value.trim();
-  const explicitUserAmountCny = isManual && amountText !== "" ? Number(amountText) : null;
+  let explicitUserAmountCny = null;
   const invalid = [];
   if (!treatment) invalid.push("sourceTreatmentMode");
   if (!Object.values(ADJUSTMENT_MODES).includes(adjustmentMode)) invalid.push("source");
-  if (isManual && (explicitUserAmountCny === null || !Number.isFinite(explicitUserAmountCny))) {
-    invalid.push("amount");
+  if (isManual) {
+    try {
+      explicitUserAmountCny = decimalString(amountText, "manualAdjustmentAmountCny");
+    } catch (_error) {
+      invalid.push("amount");
+    }
   }
   if (!validate && invalid.length) return null;
   if (validate) invalid.forEach((fieldId) => setAdjustmentFieldInvalid(fieldId, true));
@@ -966,11 +821,13 @@ function readAdjustmentPreviewInput({ validate = true } = {}) {
 function adjustmentPreviewSignature(input) {
   return JSON.stringify({
     sourceTreatmentMode: input.sourceTreatmentMode,
-    settlementExchangeRate: input.settlementExchangeRate ?? null,
+    settlementExchangeRate: input.settlementExchangeRate === null
+      ? null : canonicalDecimal(input.settlementExchangeRate),
     settlementExchangeRateSource: input.settlementExchangeRateSource || null,
     settlementExchangeRateEffectiveDate: input.settlementExchangeRateEffectiveDate || null,
     adjustmentMode: input.adjustmentMode,
-    explicitUserAmountCny: input.explicitUserAmountCny ?? null,
+    explicitUserAmountCny: input.explicitUserAmountCny === null
+      ? null : canonicalDecimal(input.explicitUserAmountCny),
   });
 }
 
@@ -980,13 +837,13 @@ function responsePreviewSignature(result) {
     sourceTreatmentMode: expected.source_treatment_mode,
     settlementExchangeRate: expected.settlement_exchange_rate === null
       || expected.settlement_exchange_rate === undefined
-      ? null : Number(expected.settlement_exchange_rate),
+      ? null : String(expected.settlement_exchange_rate),
     settlementExchangeRateSource: expected.settlement_exchange_rate_source || null,
     settlementExchangeRateEffectiveDate: expected.settlement_exchange_rate_effective_date || null,
     adjustmentMode: expected.adjustment_mode,
     explicitUserAmountCny: expected.explicit_user_amount_cny === null
       || expected.explicit_user_amount_cny === undefined
-      ? null : Number(expected.explicit_user_amount_cny),
+      ? null : String(expected.explicit_user_amount_cny),
   });
 }
 
@@ -1003,52 +860,180 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
 
   const mode = dom.adjustmentSourceInput.value || ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   const isManual = mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
-  dom.adjustmentAmountInput.readOnly = !isManual;
+  dom.adjustmentAmountField.classList.toggle("is-hidden", !isManual);
+  dom.adjustmentAmountInput.disabled = !isManual || isAdjustmentSubmitting;
 
-  if (!preserveManualAmount) {
+  if (!isManual || !preserveManualAmount) {
     dom.adjustmentAmountInput.value = "";
-    clearAdjustmentErrors();
-  }
-
-  if (mode === ADJUSTMENT_MODES.CARRY_FINAL_BALANCE) {
-    dom.adjustmentAmountInput.value = currentAdjustmentSettlement.adjustment_source === mode
-      ? formatCnyInput(currentAdjustmentSettlement.adjustment_amount_cny)
-      : "";
-  } else if (mode === ADJUSTMENT_MODES.CLEAR_BALANCE) {
-    dom.adjustmentAmountInput.value = currentAdjustmentSettlement.adjustment_source === mode
-      ? formatCnyInput(currentAdjustmentSettlement.adjustment_amount_cny)
-      : "";
-  } else if (!preserveManualAmount
-      && currentAdjustmentSettlement.adjustment_source !== mode) {
-    dom.adjustmentAmountInput.value = "";
+    clearAdjustmentFieldInvalid("amount");
   }
 
   updateAdjustmentActionState();
 }
 
 async function handleAdjustmentSubmit() {
-  showAdjustmentError(TRUSTED_TOOL_MESSAGE);
+  if (!currentAdjustmentSettlement || isAdjustmentSubmitting || saveSingleFlight.active) return;
+  clearAdjustmentPreviewFieldErrors();
+  const previewInput = readAdjustmentPreviewInput({ validate: true });
+  if (!previewInput || !currentAdjustmentPreview
+      || adjustmentPreviewSignature(previewInput) !== currentAdjustmentPreviewSignature) {
+    showAdjustmentError("当前输入尚无对应的DB权威预览，请先点击“重新预览”。");
+    return;
+  }
+  const reason = dom.adjustmentReasonInput.value.trim();
+  if (!reason) {
+    setAdjustmentFieldInvalid("reason", true);
+    showAdjustmentError("保存合同要求填写调整理由；手动调整还必须填写明确金额。请填写后重新预览。");
+    return;
+  }
+  if (reason.length > 2000 || dom.adjustmentNoteInput.value.length > 4000) {
+    showAdjustmentError("调整理由或备注过长，请缩短后重新预览。");
+    return;
+  }
+  if (!canUseOnlineDraftSave(membershipRole, currentOnlineStatus)) {
+    showAdjustmentError("DB权威状态当前不允许保存，请刷新查询后确认。 ");
+    return;
+  }
+  const input = {
+    ...previewInput,
+    reason,
+    note: dom.adjustmentNoteInput.value,
+  };
+  let saveInput;
+  try {
+    saveInput = buildOnlineDraftSaveInput({
+      row: currentAdjustmentSettlement,
+      status: currentOnlineStatus,
+      previewResult: currentAdjustmentPreview,
+      input,
+    });
+  } catch (error) {
+    showAdjustmentError(safeOnlineErrorDisplay(error));
+    return;
+  }
+  const beforeStatus = currentOnlineStatus;
+  const expectedSignature = currentAdjustmentPreviewSignature;
+  const activeDialogSequence = dialogRequestSequence;
+  await saveSingleFlight.run(async () => {
+    setAdjustmentSubmitting(true);
+    clearAdjustmentErrors();
+    renderAdjustmentPendingPreview(currentAdjustmentPreview, "正在保存草稿…", "保存中");
+    let requestId = "";
+    try {
+      const edgeResponse = await saveStudentSettlementDraftOnline(saveInput);
+      requestId = edgeResponse.request_id || "";
+      await confirmSaveWithStatus({
+        beforeStatus,
+        input,
+        requestId,
+        expectedSignature,
+        activeDialogSequence,
+      });
+    } catch (error) {
+      requestId = error?.requestId || requestId;
+      if (error instanceof StudentSettlementOnlineError && error.requiresStatusRecovery) {
+        renderAdjustmentPendingPreview(currentAdjustmentPreview, "请求结果暂不明确，正在确认服务器状态…", "确认中");
+        try {
+          await confirmSaveWithStatus({
+            beforeStatus,
+            input,
+            requestId,
+            expectedSignature,
+            activeDialogSequence,
+            uncertain: true,
+          });
+        } catch (statusError) {
+          showAdjustmentError(safeOnlineErrorDisplay(statusError, requestId));
+          renderAdjustmentPendingPreview(currentAdjustmentPreview, "服务器状态仍无法确认；禁止直接重试，请稍后刷新。", "结果未知");
+          currentAdjustmentPreview = null;
+          currentAdjustmentPreviewSignature = "";
+        }
+      } else {
+        showAdjustmentError(safeOnlineErrorDisplay(error, requestId));
+        if (requestId || error?.action === "repreview" || error?.action === "refresh_status") {
+          currentAdjustmentPreview = null;
+          currentAdjustmentPreviewSignature = "";
+          renderAdjustmentPendingPreview(
+            null,
+            requestId
+              ? "Edge已响应，但最终DB状态未能确认；禁止直接重试，请刷新状态。"
+              : "服务器权威事实已变化，请重新读取状态并预览。",
+            requestId ? "结果未确认" : "已过期",
+          );
+        }
+      }
+    } finally {
+      if (activeDialogSequence === dialogRequestSequence) setAdjustmentSubmitting(false);
+    }
+  });
+}
+
+async function confirmSaveWithStatus({
+  beforeStatus,
+  input,
+  requestId,
+  expectedSignature,
+  activeDialogSequence,
+  uncertain = false,
+}) {
+  const status = await getStudentSettlementOnlineStatus(
+    currentAdjustmentSettlement.student_id,
+    currentAdjustmentSettlement.year_month,
+  );
+  if (activeDialogSequence !== dialogRequestSequence
+      || expectedSignature !== currentAdjustmentPreviewSignature) return;
+  const recovery = classifySaveRecovery(beforeStatus, status, currentAdjustmentPreview, input);
+  currentOnlineStatus = status;
+  currentAdjustmentSettlement.online_status = status;
+  renderAdjustmentCurrentState(status);
+  renderSettlements(filterSettlements(settlements, appliedFilters || DEFAULT_FILTERS));
+  if (recovery === "confirmed" && statusConfirmsDraftSave(status, currentAdjustmentPreview, input)) {
+    const requestSuffix = requestId ? `（请求ID ${requestId}）` : "";
+    renderAdjustmentPendingPreview(currentAdjustmentPreview, `草稿已保存并经DB状态确认${requestSuffix}。`, "草稿已保存");
+    currentAdjustmentPreview = null;
+    currentAdjustmentPreviewSignature = "";
+    showMessage("success", "月结草稿已保存；正式锁定仍未开放。");
+    return;
+  }
+  currentAdjustmentPreview = null;
+  currentAdjustmentPreviewSignature = "";
+  if (recovery === "unchanged") {
+    throw new Error(uncertain
+      ? "请求结果未确认，DB仍显示原草稿版本；请稍后刷新，禁止直接重试。"
+      : "保存返回后DB仍显示原草稿版本，请刷新后重新预览。");
+  }
+  throw new Error("草稿已由其他会话更新；请刷新页面并重新预览，不能盲目覆盖。");
 }
 
 function setAdjustmentSubmitting(isSubmitting) {
   isAdjustmentSubmitting = isSubmitting;
   dom.adjustmentCancelButton.disabled = isSubmitting;
-  dom.adjustmentSubmitButton.textContent = "仅本机受信工具可保存";
+  dom.adjustmentSubmitButton.textContent = isSubmitting ? "保存中…" : "保存草稿";
+  setAdjustmentFormDisabled(isSubmitting || !canUseOnlineDraftSave(membershipRole, currentOnlineStatus));
+  applyAdjustmentMode({ preserveManualAmount: true });
   updateAdjustmentActionState();
 }
 
 function updateAdjustmentActionState() {
-  dom.adjustmentPreviewButton.disabled = isAdjustmentSubmitting || isAdjustmentPreviewLoading;
+  const canEdit = canUseOnlineDraftSave(membershipRole, currentOnlineStatus)
+    && !currentOnlineStatusError;
+  dom.adjustmentPreviewButton.disabled = !canEdit || isAdjustmentSubmitting || isAdjustmentPreviewLoading;
   dom.adjustmentPreviewButton.textContent = isAdjustmentPreviewLoading
-    ? "更新中..." : "更新数据库预览";
-  dom.adjustmentSubmitButton.disabled = true;
-  dom.adjustmentSubmitButton.title = TRUSTED_TOOL_MESSAGE;
+    ? "预览中…" : "重新预览";
+  const currentInput = readAdjustmentPreviewInput({ validate: false });
+  const hasMatchingPreview = Boolean(currentInput && currentAdjustmentPreview
+    && currentAdjustmentPreviewSignature === adjustmentPreviewSignature(currentInput));
+  const hasRequiredReason = Boolean(dom.adjustmentReasonInput.value.trim());
+  dom.adjustmentSubmitButton.disabled = !canEdit || isAdjustmentSubmitting
+    || isAdjustmentPreviewLoading || !hasMatchingPreview || !hasRequiredReason;
+  dom.adjustmentSubmitButton.title = dom.adjustmentSubmitButton.disabled
+    ? "只有active admin且DB权威状态允许、当前输入已重新预览时才能保存。" : "保存草稿（不会锁定）";
 }
 
 function clearAdjustmentErrors() {
   dom.adjustmentError.replaceChildren();
   dom.adjustmentError.classList.add("is-hidden");
-  ["amount", "source", "reason", "confirm", "sourceTreatmentMode",
+  ["amount", "source", "reason", "sourceTreatmentMode",
     "settlementRate", "settlementRateSource", "settlementRateDate"]
     .forEach(clearAdjustmentFieldInvalid);
 }
@@ -1071,6 +1056,12 @@ function renderDialogBusinessError(container, errorDisplay) {
     code.className = "dialog-error-code";
     code.textContent = `错误代码：${display.code}`;
     container.append(code);
+  }
+  if (display?.requestId) {
+    const request = document.createElement("p");
+    request.className = "dialog-error-code";
+    request.textContent = `请求ID：${display.requestId}`;
+    container.append(request);
   }
 }
 
@@ -1122,9 +1113,8 @@ function formatAdjustmentBusinessError(error) {
 function adjustmentPreviewValidationMessage() {
   if (dom.sourceTreatmentModeInput.value === SOURCE_TREATMENT_MODES.NET_FINANCIAL) {
     const rateText = dom.settlementExchangeRateInput.value.trim();
-    const rate = rateText === "" ? null : Number(rateText);
-    if (rate === null) return "请输入结算汇率。";
-    if (!Number.isFinite(rate) || rate <= 0) return "结算汇率必须是大于0的有效数字。";
+    if (!rateText) return "请输入结算汇率。";
+    if (!isPositiveDecimalString(rateText)) return "结算汇率必须是大于0的有效十进制数。";
     if (!dom.settlementExchangeRateSourceInput.value.trim()) return "请输入汇率来源。";
     if (!dom.settlementExchangeRateEffectiveDateInput.value) return "请选择汇率生效日。";
   }
@@ -1133,17 +1123,6 @@ function adjustmentPreviewValidationMessage() {
     return "手动调整必须明确填写调整金额。";
   }
   return "请完整填写当前模式所需输入后再更新数据库预览。";
-}
-
-function adjustmentModeForRow(row) {
-  const source = safeText(row?.adjustment_source).trim();
-  if (Object.values(ADJUSTMENT_MODES).includes(source)) {
-    return source;
-  }
-  if (!source && numberOrZero(row?.adjustment_amount_cny) === 0) {
-    return ADJUSTMENT_MODES.CARRY_FINAL_BALANCE;
-  }
-  return ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
 }
 
 function sourceTreatmentModeLabel(value) {
@@ -1160,22 +1139,49 @@ function adjustmentModeLabel(value) {
   return displayValue(value);
 }
 
+function draftVersionLabel(draft) {
+  if (!draft?.draft_id) return "尚未保存";
+  return `${shortId(draft.draft_id)} · ${formatDate(draft.updated_at)}`;
+}
+
+function latestDraftUpdatedAt(source, adjustment) {
+  const values = [source?.updated_at, adjustment?.updated_at].filter(Boolean).sort();
+  return values.length ? formatDate(values.at(-1)) : "尚未保存";
+}
+
+function safeOnlineErrorDisplay(error, fallbackRequestId = "") {
+  const code = safeText(error?.code) || "SETTLEMENT_ONLINE_REQUEST_FAILED";
+  const message = {
+    SETTLEMENT_ADMIN_REQUIRED: "当前账号没有结算管理权限。",
+    SETTLEMENT_HISTORICAL_ZERO_CARRY_COMPLETE: "该月份已通过历史零结转证据完成，只能查看。",
+    SETTLEMENT_HISTORICALLY_CONSUMED: "该月份已被历史账单或不可变事实消费，不能修改。",
+    SETTLEMENT_ORDINARY_ALREADY_LOCKED: "该月份已正式锁定，只能查看。",
+    SETTLEMENT_SUCCESSOR_REVISION_BLOCKED: "已存在后继学费revision，不能修改本月结算。",
+    SETTLEMENT_IMMUTABLE_CONSUMPTION_BLOCKED: "该月份已进入不可变财务链，不能修改。",
+    SETTLEMENT_WAGE_BLOCKED: "该月份已进入不可变工资链，不能修改。",
+    SETTLEMENT_PREVIEW_MANIFEST_STALE: "课时或金额事实已变化，请重新预览。",
+    SETTLEMENT_LESSON_MANIFEST_STALE: "课时明细已变化，请重新预览。",
+    SETTLEMENT_SOURCE_DRAFT_STALE: "source草稿已被其他会话更新，请刷新页面。",
+    SETTLEMENT_ADJUSTMENT_DRAFT_STALE: "adjustment草稿已被其他会话更新，请刷新页面。",
+    SETTLEMENT_EXPECTED_FACTS_MISMATCH: "服务器权威金额已变化，请重新预览。",
+    SETTLEMENT_SCOPE_BUSY: "当前记录正在处理中，请先刷新状态，稍后重试。",
+    SETTLEMENT_EDGE_RESULT_UNCERTAIN: "网络结果不明确，系统将先读取状态；禁止直接重试保存。",
+    SETTLEMENT_EDGE_UNAUTHORIZED: "登录状态已失效，请重新登录。",
+    SETTLEMENT_EDGE_FORBIDDEN: "当前账号没有结算管理权限。",
+  }[code] || "在线结算操作未完成，请刷新状态后重试。";
+  return {
+    message,
+    code,
+    requestId: safeText(error?.requestId || fallbackRequestId),
+  };
+}
+
 function formatSignedCurrency(value, currency) {
   if (value === null || value === undefined || value === "") return "-";
   const numberValue = Number(value);
   if (!Number.isFinite(numberValue)) return formatCurrency(value, currency);
   const formatted = formatCurrency(numberValue, currency);
   return numberValue > 0 ? `+${formatted}` : formatted;
-}
-
-function numberOrZero(value) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : 0;
-}
-
-function formatCnyInput(value) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? String(numberValue) : "";
 }
 
 function filterSettlements(rows, filters) {
@@ -1269,13 +1275,14 @@ function teacherWageBlockerLabel(value) {
 }
 
 function statusClass(status) {
-  if (status === "preview") {
+  if (["preview", "incomplete"].includes(status)) {
     return "status-pending";
   }
   if (status === "unlocked") {
     return "status-cancelled";
   }
-  return status === "locked" ? "status-paid" : "status-neutral";
+  return ["locked", "ordinary_locked", "historically_consumed_immutable",
+    "historical_zero_carry_complete"].includes(status) ? "status-paid" : "status-neutral";
 }
 
 function teacherWageBlockerClass(value) {
@@ -1301,8 +1308,9 @@ function shortId(value) {
   return text ? text.slice(0, 8) : "-";
 }
 
-function setLoading(isLoading) {
-  dom.loadingState.classList.toggle("is-hidden", !isLoading);
+function setLoading(isLoading, message = "") {
+  dom.loadingState.textContent = isLoading ? message : "";
+  dom.loadingState.classList.toggle("is-loading", isLoading);
 }
 
 function showMessage(type, text) {

@@ -236,8 +236,11 @@ test("static permission, deployment-unit and browser boundaries", async () => {
   const jsFiles = await walk(path.join(ROOT, "js"));
   const pageFiles = jsFiles.filter((file) => !file.includes(`${path.sep}api${path.sep}`));
   const pageSource = (await Promise.all(pageFiles.map((file) => readFile(file, "utf8")))).join("\n");
-  assert.doesNotMatch(pageSource, /student-settlement-online-api\.js/);
-  assert.doesNotMatch(pageSource, /save-student-settlement-draft|lock-student-settlement/);
+  const settlementPage = await read("js/pages/settlement-page.js");
+  assert.match(settlementPage, /getStudentSettlementOnlineStatus/);
+  assert.match(settlementPage, /saveStudentSettlementDraftOnline/);
+  assert.doesNotMatch(settlementPage, /lockStudentSettlementOnline|lock-student-settlement/);
+  assert.doesNotMatch(pageSource, /lock-student-settlement/);
   assert.doesNotMatch(pageSource, /SCHOOL_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY/);
 });
 

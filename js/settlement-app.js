@@ -1,13 +1,13 @@
-import { APP_VERSION } from "./config.js?v=settlement-writer-p0-closure-20260809-1";
+import { APP_VERSION } from "./config.js?v=student-settlement-online-phase-c-20260810-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=settlement-writer-p0-closure-20260809-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=student-settlement-online-phase-c-20260810-1";
 
-const SETTLEMENT_PAGE_VERSION = "settlement-writer-p0-closure-20260809-1";
+const SETTLEMENT_PAGE_VERSION = "student-settlement-online-phase-c-20260810-1";
 
 const globalSessionPromise = requireGlobalSession();
 
 document.addEventListener("DOMContentLoaded", async () => {
-  await globalSessionPromise;
+  const authContext = await globalSessionPromise;
   const versionEl = document.querySelector("#appVersion");
   if (versionEl) {
     versionEl.textContent = `${APP_VERSION} · ${SETTLEMENT_PAGE_VERSION}`;
@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   console.info("[aozora-school-v2]", APP_VERSION, SETTLEMENT_PAGE_VERSION);
 
   try {
-    initSettlementPage();
+    initSettlementPage({ membershipRole: authContext.membership.role });
   } catch (error) {
     const messageArea = document.querySelector("#settlementMessageArea");
     if (messageArea) {

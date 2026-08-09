@@ -1,4 +1,5 @@
 import { supabase } from "../supabase-client.js";
+import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-20260810-1";
 
 const SETTLEMENT_COLUMNS = [
   "id",
@@ -71,7 +72,68 @@ export async function fetchStudentSettlements(yearMonth) {
   ]);
   const previewRows = await fetchStudentSettlementPreviewRows(yearMonth, snapshots, candidates);
   const blockerMap = new Map(wageBlockers.map((row) => [settlementStudentKey(row.student_id, row.year_month), row]));
-  return [...snapshots.map(normalizeSnapshotRow), ...previewRows].map((row) => mergeWageBlocker(row, blockerMap));
+  const rows = [...snapshots.map(normalizeSnapshotRow), ...previewRows]
+    .map((row) => mergeWageBlocker(row, blockerMap));
+  return attachOnlineStatuses(rows);
+}
+
+async function attachOnlineStatuses(rows, concurrency = 4) {
+  const results = new Array(rows.length);
+  let nextIndex = 0;
+  const workers = Array.from({ length: Math.min(concurrency, rows.length) }, async () => {
+    while (nextIndex < rows.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const row = rows[index];
+      try {
+        const status = await getStudentSettlementOnlineStatus(row.student_id, row.year_month);
+        results[index] = mergeOnlineStatus(row, status);
+      } catch (error) {
+        results[index] = {
+          ...row,
+          online_status: null,
+          online_status_error: safeOnlineStatusError(error),
+        };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+function mergeOnlineStatus(row, status) {
+  const physical = status?.physical_settlement || {};
+  const effective = status?.effective_state || {};
+  const sourceDraft = status?.source_treatment_draft || {};
+  const adjustmentDraft = status?.adjustment_draft || {};
+  const preview = status?.authoritative_preview || {};
+  return {
+    ...row,
+    business_entity_id: status?.business_entity_id || row.business_entity_id,
+    effective_status: effective.effective_status || row.effective_status,
+    physical_status: physical.settlement_status || row.physical_status,
+    source_treatment_mode: sourceDraft.source_treatment_mode || preview.source_treatment_mode
+      || row.source_treatment_mode,
+    settlement_exchange_rate: sourceDraft.settlement_exchange_rate,
+    settlement_exchange_rate_source: sourceDraft.settlement_exchange_rate_source,
+    settlement_exchange_rate_effective_date: sourceDraft.settlement_exchange_rate_effective_date,
+    adjustment_source: adjustmentDraft.adjustment_mode || row.adjustment_source,
+    adjustment_amount_cny: adjustmentDraft.adjustment_amount_cny ?? row.adjustment_amount_cny,
+    adjustment_reason: adjustmentDraft.reason || row.adjustment_reason,
+    adjustment_note: adjustmentDraft.note || row.adjustment_note,
+    carryover_amount_cny: status?.final_carryover_cny ?? row.carryover_amount_cny,
+    immutable_error_code: status?.immutable_blocker?.code || row.immutable_error_code,
+    immutable_reason: status?.immutable_blocker?.detail || row.immutable_reason,
+    online_status: status,
+    online_status_error: null,
+  };
+}
+
+function safeOnlineStatusError(error) {
+  return {
+    code: typeof error?.code === "string" ? error.code.slice(0, 100) : "SETTLEMENT_STATUS_UNAVAILABLE",
+    message: "暂时无法读取DB权威在线状态，本条保持只读。",
+  };
 }
 
 async function fetchStudentSettlementSnapshots(yearMonth) {
@@ -243,9 +305,10 @@ export async function fetchStudentSettlementSourceTreatmentPreview(payload) {
 }
 
 export async function fetchStudentSettlementAdjustmentDialogPreview(payload) {
+  const status = await getStudentSettlementOnlineStatus(payload.studentId, payload.yearMonth);
   return fetchRpcSingle("school_preview_student_settlement_adjustment_dialog", {
     p_student_id: payload.studentId,
-    p_business_entity_id: payload.businessEntityId,
+    p_business_entity_id: status.business_entity_id,
     p_year_month: payload.yearMonth,
     p_source_treatment_mode: payload.sourceTreatmentMode,
     p_settlement_exchange_rate: payload.settlementExchangeRate ?? null,

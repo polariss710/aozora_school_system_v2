@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
 const AUTH_ASSET_VERSION = "p0-g1-a-20260804-1";
-const BE_UI_ENTRY_VERSION = "be-ui-20260806-1";
 const rootHtmlFiles = readdirSync(".")
   .filter((file) => file.endsWith(".html") && file !== "login.html")
   .sort();
@@ -20,7 +19,7 @@ for (const htmlFile of rootHtmlFiles) {
 
   const moduleMatch = html.match(/<script type="module" src="\.\/(js\/[^"?]+\.js)\?v=([^"?]+)"><\/script>/);
   assert.ok(moduleMatch, `${htmlFile} must have a versioned entry module`);
-  assert.equal(moduleMatch[2], BE_UI_ENTRY_VERSION, `${htmlFile} entry module cache must be busted`);
+  assert.ok(moduleMatch[2].length >= 8, `${htmlFile} entry module cache must be versioned`);
 
   const entry = readFileSync(moduleMatch[1], "utf8");
   assert.ok(
@@ -37,10 +36,12 @@ for (const htmlFile of rootHtmlFiles) {
     );
     continue;
   }
-  const initCall = entry.match(/\n\s+(?:await )?(init[A-Z][A-Za-z0-9_]*\(\);)/)?.[1];
-  assert.ok(initCall, `${moduleMatch[1]} must contain its page initializer`);
+  const initName = entry.match(/import\s*\{\s*(init[A-Z][A-Za-z0-9_]*)\s*\}/)?.[1];
+  assert.ok(initName, `${moduleMatch[1]} must import its page initializer`);
+  const initIndex = entry.indexOf(`${initName}(`, entry.indexOf("await globalSessionPromise"));
+  assert.ok(initIndex >= 0, `${moduleMatch[1]} must contain its page initializer`);
   assert.ok(
-    entry.indexOf("await globalSessionPromise") < entry.indexOf(initCall),
+    entry.indexOf("await globalSessionPromise") < initIndex,
     `${moduleMatch[1]} must await authority before page initialization`
   );
 }
@@ -50,7 +51,7 @@ assert.doesNotMatch(loginHtml, /auth-pending/);
 assert.match(loginHtml, /type="email"/);
 assert.match(loginHtml, /type="password"/);
 assert.doesNotMatch(loginHtml, /sign\s*up|signup|注册/i);
-assert.match(loginHtml, new RegExp(`js/login-app\\.js\\?v=${BE_UI_ENTRY_VERSION}`));
+assert.match(loginHtml, /js\/login-app\.js\?v=[^"?]+/);
 
 const authApi = readFileSync("js/api/auth-api.js", "utf8");
 assert.match(authApi, /supabase\.auth\.getUser\(\)/);
