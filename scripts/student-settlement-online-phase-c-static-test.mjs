@@ -28,6 +28,7 @@ assert.match(api, /getStudentSettlementOnlineStatus\(row\.student_id, row\.year_
 assert.match(api, /Math\.min\(concurrency, rows\.length\)/);
 assert.match(api, /online_status_error/);
 assert.match(api, /p_business_entity_id:\s*status\.business_entity_id/);
+assert.doesNotMatch(api, /carryover_amount_cny:\s*status\?\.final_carryover_cny/);
 assert.doesNotMatch(page, /businessEntityId/);
 
 for (const mode of [

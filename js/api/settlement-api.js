@@ -104,24 +104,11 @@ async function attachOnlineStatuses(rows, concurrency = 4) {
 function mergeOnlineStatus(row, status) {
   const physical = status?.physical_settlement || {};
   const effective = status?.effective_state || {};
-  const sourceDraft = status?.source_treatment_draft || {};
-  const adjustmentDraft = status?.adjustment_draft || {};
-  const preview = status?.authoritative_preview || {};
   return {
     ...row,
     business_entity_id: status?.business_entity_id || row.business_entity_id,
     effective_status: effective.effective_status || row.effective_status,
     physical_status: physical.settlement_status || row.physical_status,
-    source_treatment_mode: sourceDraft.source_treatment_mode || preview.source_treatment_mode
-      || row.source_treatment_mode,
-    settlement_exchange_rate: sourceDraft.settlement_exchange_rate,
-    settlement_exchange_rate_source: sourceDraft.settlement_exchange_rate_source,
-    settlement_exchange_rate_effective_date: sourceDraft.settlement_exchange_rate_effective_date,
-    adjustment_source: adjustmentDraft.adjustment_mode || row.adjustment_source,
-    adjustment_amount_cny: adjustmentDraft.adjustment_amount_cny ?? row.adjustment_amount_cny,
-    adjustment_reason: adjustmentDraft.reason || row.adjustment_reason,
-    adjustment_note: adjustmentDraft.note || row.adjustment_note,
-    carryover_amount_cny: status?.final_carryover_cny ?? row.carryover_amount_cny,
     immutable_error_code: status?.immutable_blocker?.code || row.immutable_error_code,
     immutable_reason: status?.immutable_blocker?.detail || row.immutable_reason,
     online_status: status,
