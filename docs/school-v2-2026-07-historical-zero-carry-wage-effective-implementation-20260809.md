@@ -150,7 +150,8 @@ PostgreSQL标识符最多63字节，因此 catalog 物理名为：
 
 ## 9. Git与现场保护
 
-- 本阶段将提交SQL、测试、本机工具、本报告及`docs/current-status.md`；没有前端、页面版本或cache chain变化。
+- 实现提交 `1424a13e3e9d9d6aeeb58af3cf2f57345a77bcd7`（`feat: add historical zero carry wage compatibility`）已推送 `main`；对应 Pages run `31304531464` 成功。生产页面仍为 `v10.5.27`；没有前端、页面版本或cache chain变化。
+- 实现提交只包含本阶段5个SQL、2个脚本、本报告和`docs/current-status.md`，没有受保护或非任务文件。
 - 六份既有受保护untracked文件始终未修改、未移动、未删除、未执行、未暂存、未提交：
   - `272d08531c39b69d1f7392f367229536174e20f54c86883f6cf469c0d2578432` `docs/school-v2-2026-05-06-tuition-candidate-manual-review-completed-20260801.csv`
   - `5b11f064b4caa01c3015b3b55b6db8bf5c38fd3607182d1b124a120662db2093` `docs/school-v2-r1b-eight-api-complete-git-diff-20260727.txt`
