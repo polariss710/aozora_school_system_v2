@@ -1,5 +1,5 @@
 import { supabase } from "../supabase-client.js";
-import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-2";
+import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-3";
 
 const SETTLEMENT_COLUMNS = [
   "id",

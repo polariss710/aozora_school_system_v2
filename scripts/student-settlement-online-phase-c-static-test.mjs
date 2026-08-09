@@ -36,6 +36,7 @@ assert.doesNotMatch(api, /carryover_amount_cny:\s*status\?\.final_carryover_cny/
 assert.doesNotMatch(page, /businessEntityId/);
 assert.match(state, /!status\?\.save_blocker_code/);
 assert.match(state, /SETTLEMENT_SOURCE_FACTS_EMPTY/);
+assert.doesNotMatch(state + page, /后继学费revision/);
 assert.match(page, /该月份没有可用于月结的课时或收款来源，不能保存草稿。/);
 
 for (const mode of [
