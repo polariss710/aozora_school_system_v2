@@ -26,10 +26,10 @@ const PREVIEW_ONLY_MONTH_BLOCKERS = new Set([
 
 export function canUseOnlineDraftPreview(membershipRole, status) {
   if (membershipRole !== "admin"
-      || status?.effective_state?.effective_status !== "incomplete"
-      || status?.immutable_blocker) return false;
-  return canUseOnlineDraftSave(membershipRole, status)
-    || PREVIEW_ONLY_MONTH_BLOCKERS.has(status?.save_blocker_code);
+      || status?.effective_state?.effective_status !== "incomplete") return false;
+  if (canUseOnlineDraftSave(membershipRole, status)) return true;
+  return PREVIEW_ONLY_MONTH_BLOCKERS.has(status?.save_blocker_code)
+    && status?.immutable_blocker?.code === status.save_blocker_code;
 }
 
 export function decimalString(value, fieldName = "decimal") {

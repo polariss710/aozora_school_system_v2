@@ -120,6 +120,7 @@ test("current and future month blockers remain preview-only for active admin", (
       can_save: false,
       save_blocker_code: code,
       save_blocker_message: "DB权威月份提示",
+      immutable_blocker: { code, detail: "DB权威月份提示" },
     });
     assert.equal(canUseOnlineDraftPreview("admin", blocked), true);
     assert.equal(canUseOnlineDraftSave("admin", blocked), false);
