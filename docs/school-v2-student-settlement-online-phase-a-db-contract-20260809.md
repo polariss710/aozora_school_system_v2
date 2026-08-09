@@ -217,6 +217,8 @@ online wrapper与local wrapper权限边界相同但operator authority不同；lo
 - Gate：`student_tuition_preview=enabled`、`student_tuition_generate=blocked`、`student_tuition_cash_submit=enabled`。
 - Edge部署0、Pages部署0、页面版本变化0。
 
+最终只读控制面指纹为：Auth `1 / 7f1f47a6f4f6f626725fc510fd21abb9`、membership `1 / 332d6f2e305a24e390b058abde88ff68`、Storage objects `57 / 62fac5521274c58c6f6982a0c690c134`；Cash external requests `43 / f4b1876e981ef75828600e0c7f0dc371`、CNY transactions `74 / 070c262ec01008d404b424233d2a6e47`、JPY transactions `31 / 95ab7cf8a8d167e9b052d3fc6b64614b`。本轮迁移与测试不含这些对象的持久写语句，也未调用Cash/Storage/Auth writer；这些值仅作为最终只读现场记录。
+
 最终受保护untracked文件：
 
 | 路径 | SHA-256 |
