@@ -1,5 +1,5 @@
 import { supabase } from "../supabase-client.js";
-import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-1";
+import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-2";
 
 const SETTLEMENT_COLUMNS = [
   "id",
@@ -64,7 +64,7 @@ const PREVIEW_INCOME_COLUMNS = [
   "app_type",
 ].join(",");
 
-export async function fetchStudentSettlements(yearMonth) {
+export async function fetchStudentSettlements(yearMonth, selectedStudentId = null) {
   const [snapshots, candidates, wageBlockers] = await Promise.all([
     fetchStudentSettlementSnapshots(yearMonth),
     fetchStudentSettlementPreviewCandidates(yearMonth),
@@ -74,7 +74,24 @@ export async function fetchStudentSettlements(yearMonth) {
   const blockerMap = new Map(wageBlockers.map((row) => [settlementStudentKey(row.student_id, row.year_month), row]));
   const rows = [...snapshots.map(normalizeSnapshotRow), ...previewRows]
     .map((row) => mergeWageBlocker(row, blockerMap));
-  return attachOnlineStatuses(rows);
+  const rowsWithStatuses = await attachOnlineStatuses(rows);
+  if (!selectedStudentId || rowsWithStatuses.some((row) => (
+    row.student_id === selectedStudentId && row.year_month === yearMonth
+  ))) {
+    return rowsWithStatuses;
+  }
+  const status = await getStudentSettlementOnlineStatus(selectedStudentId, yearMonth);
+  return [...rowsWithStatuses, mapOnlineStatusOnlyRow(selectedStudentId, yearMonth, status)];
+}
+
+function mapOnlineStatusOnlyRow(studentId, yearMonth, status) {
+  return mergeOnlineStatus({
+    id: `online-status:${studentId}:${yearMonth}`,
+    student_id: studentId,
+    year_month: yearMonth,
+    business_entity_id: status?.business_entity_id || null,
+    is_preview: true,
+  }, status);
 }
 
 async function attachOnlineStatuses(rows, concurrency = 4) {

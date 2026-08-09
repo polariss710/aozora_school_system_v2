@@ -25,6 +25,8 @@ assert.doesNotMatch(state, /Math\.round|parseFloat|Number\(/);
 assert.match(state, /decimalString\(expected\.system_difference_cny/);
 assert.match(state, /decimalString\(preview\.projected_final_carryover_cny/);
 assert.match(api, /getStudentSettlementOnlineStatus\(row\.student_id, row\.year_month\)/);
+assert.match(api, /mapOnlineStatusOnlyRow\(selectedStudentId, yearMonth, status\)/);
+assert.match(page, /fetchStudentSettlements\(filters\.month, filters\.studentId \|\| null\)/);
 assert.match(api, /status\?\.save_blocker_code/);
 assert.match(api, /status\?\.save_blocker_message/);
 assert.match(api, /Math\.min\(concurrency, rows\.length\)/);

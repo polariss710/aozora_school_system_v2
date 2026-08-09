@@ -4,12 +4,12 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=student-settlement-online-phase-c-r1-20260810-1";
+} from "../api/settlement-api.js?v=student-settlement-online-phase-c-r1-20260810-2";
 import {
   getStudentSettlementOnlineStatus,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-1";
+} from "../api/student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-2";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
@@ -22,7 +22,7 @@ import {
   isPositiveDecimalString,
   onlineStatusDisplay,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-online-phase-c-r1-20260810-1";
+} from "./settlement-online-state.js?v=student-settlement-online-phase-c-r1-20260810-2";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -256,7 +256,7 @@ async function runQuery(filters, { updateUrl, initial = false }) {
         includeInactive: filters.includeInactive,
         selectedStudentId: filters.studentId || null,
       }),
-      fetchStudentSettlements(filters.month),
+      fetchStudentSettlements(filters.month, filters.studentId || null),
     ]);
     if (requestSequence !== queryRequestSequence) return;
     studentMonthCandidates = nextCandidates;
