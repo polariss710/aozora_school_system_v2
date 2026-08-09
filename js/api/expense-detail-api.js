@@ -235,28 +235,6 @@ export async function updateExpenseRecord(payload) {
   return result;
 }
 
-export async function createExpenseAttachmentMetadata(payload) {
-  const { data, error } = await supabase.rpc("school_create_expense_attachment_metadata", {
-    p_expense_id: payload.expenseId,
-    p_file_name: payload.fileName,
-    p_file_type: payload.fileType || null,
-    p_file_size: payload.fileSize ?? null,
-    p_source_type: payload.sourceType || null,
-    p_note: payload.note || null,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  const result = Array.isArray(data) ? data[0] : data;
-  if (!result) {
-    throw new Error("附件摘要保存失败。");
-  }
-
-  return result;
-}
-
 export async function requestCashExpenseConfirmation(payload) {
   const expenseId = requireUuid(payload.expenseId, "expense_record_id");
 
