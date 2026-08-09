@@ -11,6 +11,8 @@ declare
   v_expected_count integer;
 begin
   foreach v_name in array array[
+    'school_get_student_monthly_settlement_wage_blockers',
+    'school_assert_student_monthly_settlement_no_wage_blocker',
     'school_assert_student_settlement_online_admin',
     'school_assert_student_monthly_settlement_online_writable',
     'school_assert_student_settlement_online_expected_facts',
@@ -76,6 +78,30 @@ begin
      or not has_function_privilege('service_role',
       'public.school_lock_student_monthly_settlement_online_admin(uuid,uuid,text,uuid,timestamptz,uuid,timestamptz,text,text,integer,numeric,numeric,numeric,numeric,numeric,numeric,text,uuid)', 'EXECUTE') then
     raise exception 'SETTLEMENT_ONLINE_POSTDEPLOY_SERVICE_WRAPPER_MISSING';
+  end if;
+  foreach v_role in array array['public','anon','authenticated'] loop
+    if has_function_privilege(v_role,
+      'public.school_save_student_settlement_draft_local(uuid,uuid,text,text,numeric,text,date,text,numeric,text,text,integer,numeric,numeric,numeric,numeric,numeric,numeric,text,text,text,text)', 'EXECUTE')
+       or has_function_privilege(v_role,
+      'public.school_lock_student_monthly_settlement_local(uuid,uuid,text,text,numeric,text,date,text,numeric,text,text,integer,numeric,numeric,numeric,numeric,numeric,numeric,uuid,timestamptz,uuid,timestamptz,text,text,text)', 'EXECUTE') then
+      raise exception 'SETTLEMENT_ONLINE_POSTDEPLOY_LOCAL_WRAPPER_EXPOSED:%', v_role;
+    end if;
+  end loop;
+  if not has_function_privilege('service_role',
+      'public.school_save_student_settlement_draft_local(uuid,uuid,text,text,numeric,text,date,text,numeric,text,text,integer,numeric,numeric,numeric,numeric,numeric,numeric,text,text,text,text)', 'EXECUTE')
+     or not has_function_privilege('service_role',
+      'public.school_lock_student_monthly_settlement_local(uuid,uuid,text,text,numeric,text,date,text,numeric,text,text,integer,numeric,numeric,numeric,numeric,numeric,numeric,uuid,timestamptz,uuid,timestamptz,text,text,text)', 'EXECUTE') then
+    raise exception 'SETTLEMENT_ONLINE_POSTDEPLOY_LOCAL_WRAPPER_MISSING';
+  end if;
+  if has_function_privilege('public',
+      'public.school_assert_student_monthly_settlement_no_wage_blocker(uuid,text,text)', 'EXECUTE')
+     or has_function_privilege('anon',
+      'public.school_assert_student_monthly_settlement_no_wage_blocker(uuid,text,text)', 'EXECUTE')
+     or has_function_privilege('authenticated',
+      'public.school_assert_student_monthly_settlement_no_wage_blocker(uuid,text,text)', 'EXECUTE')
+     or has_function_privilege('service_role',
+      'public.school_assert_student_monthly_settlement_no_wage_blocker(uuid,text,text)', 'EXECUTE') then
+    raise exception 'SETTLEMENT_ONLINE_POSTDEPLOY_WAGE_ASSERT_EXPOSED';
   end if;
   foreach v_role in array array['public','anon','authenticated','service_role'] loop
     if has_function_privilege(v_role,
