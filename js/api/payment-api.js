@@ -95,7 +95,7 @@ export async function fetchAccounts() {
 }
 
 export async function confirmPaymentRequest(payload) {
-  const { data, error } = await supabase.rpc("school_confirm_payment_request", {
+  const { data, error } = await supabase.rpc("school_confirm_payment_request_v2", {
     p_payment_request_id: payload.paymentRequestId,
     p_account_id: payload.accountId,
     p_pay_date: payload.payDate,
@@ -161,7 +161,7 @@ export async function fetchSchoolEligibleCashAccountsViaFunction() {
 }
 
 export async function reversePaidPaymentRequest(payload) {
-  const { data, error } = await supabase.rpc("school_reverse_paid_payment_request", {
+  const { data, error } = await supabase.rpc("school_reverse_paid_payment_request_v2", {
     p_payment_request_id: payload.paymentRequestId,
     p_reason: payload.reason,
     p_reverse_date: payload.reverseDate,

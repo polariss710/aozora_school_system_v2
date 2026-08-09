@@ -10,7 +10,7 @@ import {
   reissueReversedPaymentRequest,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
-} from "../api/payment-api.js?v=be-ui-20260806-1";
+} from "../api/payment-api.js?v=p1-b1b-payment-rpc-v2-20260809-1";
 import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=v2.112.0-cash-retry-attempts-20260614";
 import {
   formatCurrency,

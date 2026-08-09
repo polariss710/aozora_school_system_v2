@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { APP_VERSION } from "./config.js?v=p1-b1b-payment-rpc-v2-20260809-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initPaymentPage } from "./pages/payment-page.js?v=be-ui-20260806-1";
+import { initPaymentPage } from "./pages/payment-page.js?v=p1-b1b-payment-rpc-v2-20260809-1";
 
 const globalSessionPromise = requireGlobalSession();
 
