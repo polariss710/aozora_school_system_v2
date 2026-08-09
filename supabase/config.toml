@@ -3,3 +3,9 @@ verify_jwt = false
 
 [functions.void-atomic-tuition-generation]
 verify_jwt = false
+
+[functions.save-student-settlement-draft]
+verify_jwt = false
+
+[functions.lock-student-settlement]
+verify_jwt = false
