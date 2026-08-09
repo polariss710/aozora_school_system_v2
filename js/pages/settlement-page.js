@@ -4,16 +4,17 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=student-settlement-online-phase-c-r1-20260810-3";
+} from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-1";
 import {
   getStudentSettlementOnlineStatus,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-3";
+} from "../api/student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-1";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
   buildOnlineDraftSaveInput,
+  canUseOnlineDraftPreview,
   canUseOnlineDraftSave,
   canonicalDecimal,
   classifySaveRecovery,
@@ -22,7 +23,7 @@ import {
   isPositiveDecimalString,
   onlineStatusDisplay,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-online-phase-c-r1-20260810-3";
+} from "./settlement-online-state.js?v=student-settlement-tokyo-month-close-20260810-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -406,12 +407,13 @@ function renderSettlements(rows) {
 function renderSettlementDetailAction(row) {
   const statusDisplay = onlineStatusDisplay(row.online_status, row.online_status_error);
   const canSave = canUseOnlineDraftSave(membershipRole, row.online_status);
+  const canPreview = canUseOnlineDraftPreview(membershipRole, row.online_status);
   const physicalSettlementId = row.online_status?.physical_settlement?.settlement_id;
   const detailLink = physicalSettlementId
     ? `<a class="button table-action-button" href="${escapeAttribute(settlementDetailHref(physicalSettlementId))}">详情</a>`
     : "";
-  const action = canSave
-    ? `<button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">编辑草稿</button>`
+  const action = canPreview
+    ? `<button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">${canSave ? "编辑草稿" : "只读预览"}</button>`
     : `<span class="table-cell-summary">只读</span>`;
   return `
     <div class="table-action-group">
@@ -494,7 +496,7 @@ async function openAdjustmentDialog(settlementId) {
     row.online_status = status;
     row.online_status_error = null;
     renderAdjustmentCurrentState(status, row);
-    if (!canUseOnlineDraftSave(membershipRole, status)) {
+    if (!canUseOnlineDraftPreview(membershipRole, status)) {
       const display = onlineStatusDisplay(status);
       renderAdjustmentPendingPreview(null, display.detail, display.label);
       showAdjustmentError(display.detail);
@@ -742,7 +744,9 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
     renderAdjustmentCurrentState(currentOnlineStatus);
     renderAdjustmentPendingPreview(
       result,
-      "以下金额为数据库权威预览；请另行点击“保存草稿”。",
+      canUseOnlineDraftSave(membershipRole, currentOnlineStatus)
+        ? "以下金额为数据库权威预览；请另行点击“保存草稿”。"
+        : "以下金额为数据库权威预览；当前月份仅可预览，不能保存。",
       "预览已更新"
     );
   } catch (error) {
@@ -861,7 +865,8 @@ function applyAdjustmentMode({ preserveManualAmount = false } = {}) {
   const mode = dom.adjustmentSourceInput.value || ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   const isManual = mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT;
   dom.adjustmentAmountField.classList.toggle("is-hidden", !isManual);
-  dom.adjustmentAmountInput.disabled = !isManual || isAdjustmentSubmitting;
+  dom.adjustmentAmountInput.disabled = !isManual || isAdjustmentSubmitting
+    || !canUseOnlineDraftPreview(membershipRole, currentOnlineStatus);
 
   if (!isManual || !preserveManualAmount) {
     dom.adjustmentAmountInput.value = "";
@@ -1009,25 +1014,30 @@ function setAdjustmentSubmitting(isSubmitting) {
   isAdjustmentSubmitting = isSubmitting;
   dom.adjustmentCancelButton.disabled = isSubmitting;
   dom.adjustmentSubmitButton.textContent = isSubmitting ? "保存中…" : "保存草稿";
-  setAdjustmentFormDisabled(isSubmitting || !canUseOnlineDraftSave(membershipRole, currentOnlineStatus));
+  setAdjustmentFormDisabled(isSubmitting || !canUseOnlineDraftPreview(membershipRole, currentOnlineStatus));
   applyAdjustmentMode({ preserveManualAmount: true });
   updateAdjustmentActionState();
 }
 
 function updateAdjustmentActionState() {
-  const canEdit = canUseOnlineDraftSave(membershipRole, currentOnlineStatus)
+  const canPreview = canUseOnlineDraftPreview(membershipRole, currentOnlineStatus)
     && !currentOnlineStatusError;
-  dom.adjustmentPreviewButton.disabled = !canEdit || isAdjustmentSubmitting || isAdjustmentPreviewLoading;
+  const canSave = canUseOnlineDraftSave(membershipRole, currentOnlineStatus)
+    && !currentOnlineStatusError;
+  dom.adjustmentPreviewButton.disabled = !canPreview || isAdjustmentSubmitting || isAdjustmentPreviewLoading;
   dom.adjustmentPreviewButton.textContent = isAdjustmentPreviewLoading
     ? "预览中…" : "重新预览";
   const currentInput = readAdjustmentPreviewInput({ validate: false });
   const hasMatchingPreview = Boolean(currentInput && currentAdjustmentPreview
     && currentAdjustmentPreviewSignature === adjustmentPreviewSignature(currentInput));
   const hasRequiredReason = Boolean(dom.adjustmentReasonInput.value.trim());
-  dom.adjustmentSubmitButton.disabled = !canEdit || isAdjustmentSubmitting
+  dom.adjustmentSubmitButton.disabled = !canSave || isAdjustmentSubmitting
     || isAdjustmentPreviewLoading || !hasMatchingPreview || !hasRequiredReason;
   dom.adjustmentSubmitButton.title = dom.adjustmentSubmitButton.disabled
-    ? "只有active admin且DB权威状态允许、当前输入已重新预览时才能保存。" : "保存草稿（不会锁定）";
+    ? (canPreview && !canSave
+      ? "当前或未来月份仅可读取DB权威预览，月份结束前不能保存。"
+      : "只有active admin且DB权威状态允许、当前输入已重新预览时才能保存。")
+    : "保存草稿（不会锁定）";
 }
 
 function clearAdjustmentErrors() {
@@ -1159,6 +1169,8 @@ function safeOnlineErrorDisplay(error, fallbackRequestId = "") {
     SETTLEMENT_SUCCESSOR_REVISION_BLOCKED: "该月份已存在后继学费账单或不可变结算事实，不能保存新的月结草稿。",
     SETTLEMENT_IMMUTABLE_CONSUMPTION_BLOCKED: "该月份已进入不可变财务链，不能修改。",
     SETTLEMENT_WAGE_BLOCKED: "该月份已进入不可变工资链，不能修改。",
+    SETTLEMENT_MONTH_NOT_CLOSED: "当前月份尚未结束，仅可读取数据库权威预览，不能保存或锁定。",
+    SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED: "未来月份仅可读取数据库权威预览，不能保存或锁定。",
     SETTLEMENT_SOURCE_FACTS_EMPTY: "该月份没有可用于月结的课时或收款来源，不能保存草稿。",
     SETTLEMENT_PREVIEW_MANIFEST_STALE: "课时或金额事实已变化，请重新预览。",
     SETTLEMENT_LESSON_MANIFEST_STALE: "课时明细已变化，请重新预览。",

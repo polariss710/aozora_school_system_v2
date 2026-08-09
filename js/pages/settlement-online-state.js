@@ -19,6 +19,19 @@ export function canUseOnlineDraftSave(membershipRole, status) {
     && !status?.immutable_blocker;
 }
 
+const PREVIEW_ONLY_MONTH_BLOCKERS = new Set([
+  "SETTLEMENT_MONTH_NOT_CLOSED",
+  "SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED",
+]);
+
+export function canUseOnlineDraftPreview(membershipRole, status) {
+  if (membershipRole !== "admin"
+      || status?.effective_state?.effective_status !== "incomplete"
+      || status?.immutable_blocker) return false;
+  return canUseOnlineDraftSave(membershipRole, status)
+    || PREVIEW_ONLY_MONTH_BLOCKERS.has(status?.save_blocker_code);
+}
+
 export function decimalString(value, fieldName = "decimal") {
   const text = value === null || value === undefined ? "" : String(value).trim();
   if (!DECIMAL_RE.test(text)) {
@@ -217,6 +230,8 @@ function blockerLabel(code) {
     SETTLEMENT_SUCCESSOR_REVISION_BLOCKED: "后继学费事实已冻结",
     SETTLEMENT_IMMUTABLE_CONSUMPTION_BLOCKED: "不可变财务事实已消费",
     SETTLEMENT_WAGE_BLOCKED: "工资链路已冻结",
+    SETTLEMENT_MONTH_NOT_CLOSED: "当前月份仅可预览",
+    SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED: "未来月份仅可预览",
     SETTLEMENT_SOURCE_FACTS_EMPTY: "无可结算来源",
     SETTLEMENT_NOT_INCOMPLETE: "非普通未完成状态",
     SETTLEMENT_SCOPE_NOT_UNIQUE: "结算范围不唯一",

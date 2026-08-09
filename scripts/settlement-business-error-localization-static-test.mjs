@@ -68,7 +68,7 @@ assert.match(page, /settlementExchangeRateEffectiveDateInput\.max = range\?\.max
 assert.match(page, /SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH/);
 assert.match(page, /renderAdjustmentPendingPreview\(null, displayError\.message, "失败"\)/);
 assert.match(page, /showAdjustmentError\(displayError\)/);
-assert.match(page, /dom\.adjustmentSubmitButton\.disabled = !canEdit/);
+assert.match(page, /dom\.adjustmentSubmitButton\.disabled = !canSave/);
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 assert.equal(fs.existsSync("js/legacy-core.js"), false);
 

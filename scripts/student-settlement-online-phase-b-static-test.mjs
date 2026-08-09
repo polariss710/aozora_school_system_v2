@@ -201,6 +201,15 @@ test("stable database errors and response allowlist stay intact", () => {
   });
   assert.equal(mapped.status, 409);
   assert.equal(mapped.action, "repreview");
+  for (const code of [
+    "SETTLEMENT_MONTH_NOT_CLOSED",
+    "SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED",
+  ]) {
+    const monthBlocked = mapSettlementOnlineError({ code: "P0001", message: code });
+    assert.equal(monthBlocked.status, 409);
+    assert.equal(monthBlocked.action, "stop");
+    assert.doesNotMatch(monthBlocked.message, /SQL|function|schema|service.role/i);
+  }
   const result = sanitizeOnlineResult("lock", {
     settlement_id: UUID,
     actor_user_id: UUID_2,

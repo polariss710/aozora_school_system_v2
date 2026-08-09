@@ -5,6 +5,7 @@ import {
   ONLINE_ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES,
   buildOnlineDraftSaveInput,
+  canUseOnlineDraftPreview,
   canUseOnlineDraftSave,
   canonicalDecimal,
   classifySaveRecovery,
@@ -106,6 +107,34 @@ test("only active admin plus DB can_save sees save", () => {
     save_blocker_code: "SETTLEMENT_SOURCE_FACTS_EMPTY",
   })), false);
   assert.equal(canUseOnlineDraftSave("admin", status({
+    immutable_blocker: { code: "SETTLEMENT_WAGE_BLOCKED" },
+  })), false);
+});
+
+test("current and future month blockers remain preview-only for active admin", () => {
+  for (const code of [
+    "SETTLEMENT_MONTH_NOT_CLOSED",
+    "SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED",
+  ]) {
+    const blocked = status({
+      can_save: false,
+      save_blocker_code: code,
+      save_blocker_message: "DB权威月份提示",
+    });
+    assert.equal(canUseOnlineDraftPreview("admin", blocked), true);
+    assert.equal(canUseOnlineDraftSave("admin", blocked), false);
+    assert.equal(onlineStatusDisplay(blocked).key, code);
+    for (const role of ["operator", "read_only", "inactive", "", null]) {
+      assert.equal(canUseOnlineDraftPreview(role, blocked), false);
+    }
+  }
+  assert.equal(canUseOnlineDraftPreview("admin", status({
+    can_save: false,
+    save_blocker_code: "SETTLEMENT_SOURCE_FACTS_EMPTY",
+  })), false);
+  assert.equal(canUseOnlineDraftPreview("admin", status({
+    can_save: false,
+    save_blocker_code: "SETTLEMENT_MONTH_NOT_CLOSED",
     immutable_blocker: { code: "SETTLEMENT_WAGE_BLOCKED" },
   })), false);
 });
