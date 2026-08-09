@@ -38,7 +38,7 @@ begin
      ))) <> 'f9d85d62be938c5c92b2feb047616c3c'
      or md5(pg_get_functiondef(to_regprocedure(
        'public.school_set_student_monthly_settlement_draft_adjustment(uuid,text,numeric,text,text,text)'
-     ))) <> '9b68480b55736c0602b28f637dcdc7a1c'
+     ))) <> '9b68480b55736c0602b28f637dcdc7a1'
      or md5(pg_get_functiondef(to_regprocedure(
        'public.school_set_student_settlement_source_treatment_draft(uuid,text,text,numeric,text,date,text)'
      ))) <> '5982596c31fa6cbf6c99df0cc5bee732'
@@ -135,7 +135,6 @@ begin
 end
 $no_wage$;
 
-set local role authenticated;
 select set_config(
   'request.jwt.claims',
   jsonb_build_object(
@@ -145,6 +144,7 @@ select set_config(
   )::text,
   true
 );
+set local role authenticated;
 
 do $effective_states$
 declare

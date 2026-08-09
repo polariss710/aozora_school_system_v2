@@ -72,11 +72,22 @@ insert into public.school_income_records(
 insert into public.school_lesson_records(
   id,lesson_type,lesson_date,year_month,student_id,teacher_id,subject_id,
   business_entity_id,start_time,end_time,duration_hours,lesson_content,status,
-  is_billable,note,app_type,unit_price,lesson_fee,lesson_count,actual_minutes,
-  teacher_settlement_month,student_settlement_month
+  is_billable,note,app_type,unit_price,lesson_fee,lesson_count,
+  teacher_settlement_month,student_settlement_month,billing_month,
+  billing_week_start_date,scheduled_lesson_date,billing_month_source,
+  billing_month_decided_at
 ) values
-  ('a1090000-0000-4000-8000-000000001003','actual','2020-03-10','2020-03','a1090000-0000-4000-8000-00000000a001','a1090000-0000-4000-8000-000000007001','a1090000-0000-4000-8000-00000000d001','2cf7b72f-6e3c-4d09-80f7-7c58593cd466','10:00','11:00',1,'codex-test no wage','completed',true,'codex-test settlement online phase-a rollback','school',0,0,1,60,'2020-03','2020-03'),
-  ('a1090000-0000-4000-8000-000000001004','actual','2020-04-10','2020-04','a1090000-0000-4000-8000-00000000a001','a1090000-0000-4000-8000-000000007001','a1090000-0000-4000-8000-00000000d001','2cf7b72f-6e3c-4d09-80f7-7c58593cd466','10:00','11:00',1,'codex-test paid wage','completed',true,'codex-test settlement online phase-a rollback','school',1000,1000,1,60,'2020-04','2020-04');
+  ('a1090000-0000-4000-8000-000000001103','planned','2020-03-10','2020-03','a1090000-0000-4000-8000-00000000a001','a1090000-0000-4000-8000-000000007001','a1090000-0000-4000-8000-00000000d001','2cf7b72f-6e3c-4d09-80f7-7c58593cd466','10:00','12:00',2,'codex-test no wage source','planned',true,'codex-test settlement online phase-a rollback','school',0,0,1,'2020-03','2020-03','2020-03','2020-03-09','2020-03-10','explicit_billing_week_at_create',now()),
+  ('a1090000-0000-4000-8000-000000001104','planned','2020-04-10','2020-04','a1090000-0000-4000-8000-00000000a001','a1090000-0000-4000-8000-000000007001','a1090000-0000-4000-8000-00000000d001','2cf7b72f-6e3c-4d09-80f7-7c58593cd466','10:00','12:00',2,'codex-test paid wage source','planned',true,'codex-test settlement online phase-a rollback','school',1000,2000,1,'2020-04','2020-04','2020-04','2020-04-06','2020-04-10','explicit_billing_week_at_create',now());
+
+insert into public.school_lesson_records(
+  id,lesson_type,lesson_date,year_month,student_id,teacher_id,subject_id,
+  business_entity_id,start_time,end_time,duration_hours,lesson_content,status,
+  is_billable,note,app_type,unit_price,lesson_fee,lesson_count,actual_minutes,
+  teacher_settlement_month,planned_lesson_id,student_settlement_month
+) values
+  ('a1090000-0000-4000-8000-000000001003','actual','2020-03-10','2020-03','a1090000-0000-4000-8000-00000000a001','a1090000-0000-4000-8000-000000007001','a1090000-0000-4000-8000-00000000d001','2cf7b72f-6e3c-4d09-80f7-7c58593cd466','10:00','11:00',1,'codex-test no wage','completed',true,'codex-test settlement online phase-a rollback','school',0,0,1,60,'2020-03','a1090000-0000-4000-8000-000000001103','2020-03'),
+  ('a1090000-0000-4000-8000-000000001004','actual','2020-04-10','2020-04','a1090000-0000-4000-8000-00000000a001','a1090000-0000-4000-8000-000000007001','a1090000-0000-4000-8000-00000000d001','2cf7b72f-6e3c-4d09-80f7-7c58593cd466','10:00','11:00',1,'codex-test paid wage','completed',true,'codex-test settlement online phase-a rollback','school',1000,1000,1,60,'2020-04','a1090000-0000-4000-8000-000000001104','2020-04');
 
 insert into public.school_teacher_wage_locks(
   id,settlement_month,teacher_id,teacher_name,business_entity_id,business_name,
@@ -178,6 +189,68 @@ begin
     'separate_makeup_and_overage_v1',null,null,null,
     'carry_final_balance',null
   );
+  begin
+    perform public.school_save_student_monthly_settlement_draft_online_admin(
+      v_admin,v_student,'2020-01','separate_makeup_and_overage_v1',null,null,null,
+      'carry_final_balance',null,'codex-test phase-a reason','codex-test phase-a note',
+      repeat('0',64),
+      v_preview->'preview_expected_facts'->>'lesson_variance_manifest_sha256',
+      (v_preview->'preview'->>'lesson_variance_source_count')::integer,
+      (v_preview->'preview'->>'unused_planned_credit_jpy')::numeric,
+      (v_preview->'preview'->>'overage_charge_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_cny')::numeric,
+      (v_preview->'preview_expected_facts'->>'system_difference_cny')::numeric,
+      (v_preview->'preview'->>'projected_final_carryover_cny')::numeric,
+      null,null,null,null,null
+    );
+    raise exception 'EXPECTED_PREVIEW_MANIFEST_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm <> 'SETTLEMENT_PREVIEW_MANIFEST_STALE' then raise; end if;
+  end;
+  begin
+    perform public.school_save_student_monthly_settlement_draft_online_admin(
+      v_admin,v_student,'2020-01','separate_makeup_and_overage_v1',null,null,null,
+      'carry_final_balance',null,'codex-test phase-a reason','codex-test phase-a note',
+      v_preview->>'preview_manifest_sha256',repeat('1',64),
+      (v_preview->'preview'->>'lesson_variance_source_count')::integer,
+      (v_preview->'preview'->>'unused_planned_credit_jpy')::numeric,
+      (v_preview->'preview'->>'overage_charge_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_cny')::numeric,
+      (v_preview->'preview_expected_facts'->>'system_difference_cny')::numeric,
+      (v_preview->'preview'->>'projected_final_carryover_cny')::numeric,
+      null,null,null,null,null
+    );
+    raise exception 'EXPECTED_LESSON_MANIFEST_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm <> 'SETTLEMENT_LESSON_MANIFEST_STALE' then raise; end if;
+  end;
+  begin
+    perform public.school_save_student_monthly_settlement_draft_online_admin(
+      v_admin,v_student,'2020-01','separate_makeup_and_overage_v1',null,null,null,
+      'carry_final_balance',null,'codex-test phase-a reason','codex-test phase-a note',
+      v_preview->>'preview_manifest_sha256',
+      v_preview->'preview_expected_facts'->>'lesson_variance_manifest_sha256',
+      (v_preview->'preview'->>'lesson_variance_source_count')::integer + 1,
+      (v_preview->'preview'->>'unused_planned_credit_jpy')::numeric,
+      (v_preview->'preview'->>'overage_charge_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_cny')::numeric,
+      (v_preview->'preview_expected_facts'->>'system_difference_cny')::numeric,
+      (v_preview->'preview'->>'projected_final_carryover_cny')::numeric + 1,
+      null,null,null,null,null
+    );
+    raise exception 'EXPECTED_FACTS_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm <> 'SETTLEMENT_EXPECTED_FACTS_MISMATCH' then raise; end if;
+  end;
+  if exists(select 1 from public.school_student_settlement_source_treatment_drafts
+       where student_id=v_student and year_month='2020-01')
+     or exists(select 1 from public.school_student_settlement_adjustment_drafts
+       where student_id=v_student and year_month='2020-01') then
+    raise exception 'SETTLEMENT_ONLINE_NEGATIVE_PREVIEW_WROTE_DRAFT';
+  end if;
   v_result := public.school_save_student_monthly_settlement_draft_online_admin(
     v_admin,v_student,'2020-01','separate_makeup_and_overage_v1',null,null,null,
     'carry_final_balance',null,'codex-test phase-a reason','codex-test phase-a note',
@@ -265,7 +338,10 @@ begin
   );
   v_new_adjustment_updated := (v_result->>'adjustment_draft_updated_at')::timestamptz;
   if (v_result->>'source_treatment_draft_updated_at')::timestamptz <> v_source_updated
-     or v_new_adjustment_updated = v_adjustment_updated then
+     or (select adjustment_source from public.school_student_settlement_adjustment_drafts
+         where id = v_adjustment_id) <> 'manual_adjustment'
+     or (select adjustment_amount_cny from public.school_student_settlement_adjustment_drafts
+         where id = v_adjustment_id) <> 1 then
     raise exception 'SETTLEMENT_ONLINE_PARTIAL_DRAFT_UPDATE_INVALID:%', v_result;
   end if;
 
@@ -286,7 +362,8 @@ begin
       (v_preview->'preview'->>'net_lesson_variance_cny')::numeric,
       (v_preview->'preview_expected_facts'->>'system_difference_cny')::numeric,
       (v_preview->'preview'->>'projected_final_carryover_cny')::numeric,
-      v_source_id,v_source_updated,v_adjustment_id,v_adjustment_updated,null
+      v_source_id,v_source_updated,v_adjustment_id,
+      v_adjustment_updated - interval '1 second',null
     );
     raise exception 'EXPECTED_SECOND_ADMIN_STALE_REJECTION_MISSING';
   exception when others then
@@ -297,6 +374,43 @@ begin
     v_student,'2cf7b72f-6e3c-4d09-80f7-7c58593cd466','2020-01',
     'separate_makeup_and_overage_v1',null,null,null,'manual_adjustment',1
   );
+  begin
+    perform public.school_lock_student_monthly_settlement_online_admin(
+      v_admin,v_student,'2020-01',v_source_id,v_source_updated - interval '1 second',
+      v_adjustment_id,v_new_adjustment_updated,
+      v_preview->>'preview_manifest_sha256',
+      v_preview->'preview_expected_facts'->>'lesson_variance_manifest_sha256',
+      (v_preview->'preview'->>'lesson_variance_source_count')::integer,
+      (v_preview->'preview'->>'unused_planned_credit_jpy')::numeric,
+      (v_preview->'preview'->>'overage_charge_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_cny')::numeric,
+      (v_preview->'preview_expected_facts'->>'system_difference_cny')::numeric,
+      (v_preview->'preview'->>'projected_final_carryover_cny')::numeric,
+      'codex-test phase-a lock',null
+    );
+    raise exception 'EXPECTED_LOCK_SOURCE_STALE_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm <> 'SETTLEMENT_SOURCE_DRAFT_STALE' then raise; end if;
+  end;
+  begin
+    perform public.school_lock_student_monthly_settlement_online_admin(
+      v_admin,v_student,'2020-01',v_source_id,v_source_updated,
+      v_adjustment_id,v_new_adjustment_updated,repeat('0',64),
+      v_preview->'preview_expected_facts'->>'lesson_variance_manifest_sha256',
+      (v_preview->'preview'->>'lesson_variance_source_count')::integer,
+      (v_preview->'preview'->>'unused_planned_credit_jpy')::numeric,
+      (v_preview->'preview'->>'overage_charge_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_jpy')::numeric,
+      (v_preview->'preview'->>'net_lesson_variance_cny')::numeric,
+      (v_preview->'preview_expected_facts'->>'system_difference_cny')::numeric,
+      (v_preview->'preview'->>'projected_final_carryover_cny')::numeric,
+      'codex-test phase-a lock',null
+    );
+    raise exception 'EXPECTED_LOCK_PREVIEW_STALE_REJECTION_MISSING';
+  exception when others then
+    if sqlerrm <> 'SETTLEMENT_PREVIEW_MANIFEST_STALE' then raise; end if;
+  end;
   v_result := public.school_lock_student_monthly_settlement_online_admin(
     v_admin,v_student,'2020-01',v_source_id,v_source_updated,
     v_adjustment_id,v_new_adjustment_updated,
