@@ -1,8 +1,8 @@
-import { APP_VERSION } from "./config.js?v=student-settlement-tokyo-month-close-20260810-2";
+import { APP_VERSION } from "./config.js?v=student-settlement-tokyo-month-close-20260810-3";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=student-settlement-tokyo-month-close-20260810-2";
+import { initSettlementPage } from "./pages/settlement-page.js?v=student-settlement-tokyo-month-close-20260810-3";
 
-const SETTLEMENT_PAGE_VERSION = "student-settlement-tokyo-month-close-20260810-2";
+const SETTLEMENT_PAGE_VERSION = "student-settlement-tokyo-month-close-20260810-3";
 
 const globalSessionPromise = requireGlobalSession();
 

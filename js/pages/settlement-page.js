@@ -4,12 +4,12 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-2";
+} from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-3";
 import {
   getStudentSettlementOnlineStatus,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-2";
+} from "../api/student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-3";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
@@ -23,7 +23,7 @@ import {
   isPositiveDecimalString,
   onlineStatusDisplay,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-tokyo-month-close-20260810-2";
+} from "./settlement-online-state.js?v=student-settlement-tokyo-month-close-20260810-3";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -746,7 +746,7 @@ async function refreshAdjustmentDialogPreview({ silentValidation = false } = {})
       result,
       canUseOnlineDraftSave(membershipRole, currentOnlineStatus)
         ? "以下金额为数据库权威预览；请另行点击“保存草稿”。"
-        : "以下金额为数据库权威预览；当前月份仅可预览，不能保存。",
+        : "以下金额为数据库权威预览；该月份仅可预览，不能保存。",
       "预览已更新"
     );
   } catch (error) {
