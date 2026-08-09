@@ -628,6 +628,8 @@ Stop and report immediately for:
 
 ## Current To-Do / Priority
 
+- 2026-08-10 学生月度结算线上开放Phase C已完成并部署：生产`v10.5.32`仅向active admin且DB `can_save=true`的ordinary incomplete scope开放`status → DB Preview → 单独保存草稿 → status确认`；页面不计算权威金额，不提交actor/role/business entity/authority/canonical confirmation，page-layer RPC/DML与浏览器service-role均为0。lock/unlock/relock仍不可达，生产真实save/lock为0。筛选改为pending/applied且仅点击查询生效，status批量读取并发受控、失败隔离、latest-request-wins；Pages run `31321821627`在`562c3c7`成功，Chrome桌面/390px、Console/Network无写验收通过。School/Cash/Storage/Auth及全部关键业务指纹、Phase A ACL/postdeploy、两个Phase B Edge和Gate`enabled / blocked / enabled`不变。首次真实save仍需负责人授权精确scope，Phase D未开始。详见`docs/school-v2-student-settlement-online-phase-c-ui-20260810.md`。
+
 1. 学生月份状态 B4-Wage、B4-Lesson 与 B4-Finance 已实现；Finance 尚待 GitHub Actions/Pages 官方故障恢复后完成生产部署与 Chrome 最终验收。B4-Remaining 与 B5 仍未授权，两个状态事件 writer 继续 owner-only。
 2. P0-A已完成但学费运营仍冻结；后续必须分别完成P0-B、P0-C和全量E2E复审，且不得把P0-A视为自动授权开始Void/Reissue、forward adjustment或张倬闻真实数据修复。
 3. Preserve completed V1 surfaces before adding new write scope.
