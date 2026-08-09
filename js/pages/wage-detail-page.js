@@ -11,7 +11,7 @@ import {
   monthFromUrl,
   updateMonthScopedNavigation,
 } from "../utils/month-filter.js";
-import { exportWageDutyReportXlsx } from "../utils/wage-duty-report-export.js";
+import { exportWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=wage-duty-report-summary-20260809-1";
 
 const WAGE_STATUS_LABELS = {
   locked: "已生成快照",

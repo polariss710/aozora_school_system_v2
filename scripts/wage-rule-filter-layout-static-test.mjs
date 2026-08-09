@@ -103,7 +103,7 @@ assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-rule-|\.wage-fi
 
 assert.match(html, /wage-rule-explicit-filter-20260808-1/);
 assert.match(app, /wage-rule-explicit-filter-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.26"/);
+assert.match(config, /APP_VERSION = "v10\.5\.30"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

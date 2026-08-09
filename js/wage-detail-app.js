@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=be-ui-20260806-1";
+import { APP_VERSION } from "./config.js?v=wage-duty-report-summary-20260809-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initWageDetailPage } from "./pages/wage-detail-page.js?v=be-ui-20260806-1";
+import { initWageDetailPage } from "./pages/wage-detail-page.js?v=wage-duty-report-summary-20260809-1";
 
 const globalSessionPromise = requireGlobalSession();
 

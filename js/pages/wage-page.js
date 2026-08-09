@@ -27,7 +27,7 @@ import {
   updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
-import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js";
+import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=wage-duty-report-summary-20260809-1";
 
 const DEFAULT_FILTERS = {
   teacherId: "",

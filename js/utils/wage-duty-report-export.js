@@ -78,7 +78,7 @@ function appendWageDutyReportSheet(workbook, data, sheetName) {
   xlsx.utils.book_append_sheet(workbook, sheet, sheetName);
 }
 
-function buildWageDutyReport(wageLock, details) {
+export function buildWageDutyReport(wageLock, details) {
   const detailRowCount = Math.max(DUTY_REPORT_MIN_DETAIL_ROWS, details.length);
   const rows = [
     ["勤务申报表（讲师填写用）", "", "", "", "", "", "", "", "", ""],
@@ -131,7 +131,7 @@ function buildWageDutyReport(wageLock, details) {
   ]);
 
   rows.push([
-    wageLock.snapshot_summary_text || `系统快照合计：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`,
+    wageLock.snapshot_summary_text || buildWageSnapshotSummaryText([wageLock]),
     "",
     "",
     "",
@@ -256,11 +256,23 @@ function buildTeacherDutyReportData(reports) {
 }
 
 function buildTeacherSnapshotSummaryText(reports) {
-  const summaries = reports.map((report, index) => {
-    const wageLock = report.wageLock;
-    return `内部范围${index + 1}：结算课时 ${displayValue(wageLock.pay_hours)} / 课时工资 ${formatCurrency(wageLock.lesson_wage_jpy, "JPY")} / 费用 ${formatCurrency(wageLock.fee_jpy, "JPY")} / 合计 ${formatCurrency(wageLock.total_jpy, "JPY")}`;
+  return buildWageSnapshotSummaryText(reports.map((report) => report.wageLock));
+}
+
+function buildWageSnapshotSummaryText(wageLocks) {
+  const summary = wageLocks.reduce((totals, wageLock) => ({
+    payHours: totals.payHours + numberOrZero(wageLock.pay_hours),
+    lessonWageJpy: totals.lessonWageJpy + numberOrZero(wageLock.lesson_wage_jpy),
+    feeJpy: totals.feeJpy + numberOrZero(wageLock.fee_jpy),
+    totalJpy: totals.totalJpy + numberOrZero(wageLock.total_jpy),
+  }), {
+    payHours: 0,
+    lessonWageJpy: 0,
+    feeJpy: 0,
+    totalJpy: 0,
   });
-  return `系统快照合计：${summaries.join("；")}`;
+
+  return `合计：结算课时 ${displayValue(summary.payHours)} / 课时工资 ${formatCurrency(summary.lessonWageJpy, "JPY")} / 费用 ${formatCurrency(summary.feeJpy, "JPY")} / 合计 ${formatCurrency(summary.totalJpy, "JPY")}`;
 }
 
 function sortDutyDetails(a, b) {
