@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=wage-filter-single-row-20260808-1";
+import { APP_VERSION } from "./config.js?v=wage-effective-prerequisite-20260809-1";
 import { requireGlobalSession } from "./auth-guard.js?v=phase-b4-remaining-20260807-1";
-import { initWagePage } from "./pages/wage-page.js?v=wage-filter-single-row-20260808-1";
+import { initWagePage } from "./pages/wage-page.js?v=wage-effective-prerequisite-20260809-1";
 
 const globalSessionPromise = requireGlobalSession();
 

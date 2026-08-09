@@ -15,7 +15,7 @@ import {
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js?v=phase-b4-remaining-20260807-1";
+} from "../api/wage-api.js?v=wage-effective-prerequisite-20260809-1";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,
@@ -151,9 +151,6 @@ function bindEvents() {
     event.preventDefault();
     applyQuery();
   });
-  dom.yearFilter.addEventListener("change", updateWageMonthNavigationFromCurrentSelection);
-  dom.monthFilter.addEventListener("change", updateWageMonthNavigationFromCurrentSelection);
-  dom.includeInactiveCheckbox?.addEventListener("change", applyQuery);
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
@@ -211,7 +208,7 @@ async function loadInitialData() {
     restoreFilterSelections(filters);
     await loadWageMonth(filters.month, filters);
     restoreFilterSelections(filters);
-    applyCurrentFilters();
+    applyCurrentFilters(filters);
     showMessage("success", "老师工资结算数据已加载。");
   } catch (error) {
     teachers = [];
@@ -254,7 +251,7 @@ async function applyQuery() {
     try {
       await loadWageMonth(filters.month, filters);
       restoreFilterSelections(filters);
-      applyCurrentFilters();
+      applyCurrentFilters(filters);
       showMessage("success", "老师工资快照记录已加载。");
     } catch (error) {
       wageLocks = [];
@@ -273,7 +270,7 @@ async function applyQuery() {
     return;
   }
 
-  applyCurrentFilters();
+  applyCurrentFilters(filters);
 }
 
 function openGenerateDialog() {
@@ -282,7 +279,7 @@ function openGenerateDialog() {
     return;
   }
 
-  const filters = readFilters();
+  const filters = activeFilters;
   if (!filters) {
     return;
   }
@@ -313,7 +310,7 @@ async function handleGenerateSubmit() {
     return;
   }
 
-  const filters = readFilters();
+  const filters = activeFilters;
   if (!filters) {
     return;
   }
@@ -325,7 +322,7 @@ async function handleGenerateSubmit() {
 
   const unsettledGroups = candidateUnsettledStudentSettlementGroups(generationScopeCandidateLessonsForFilters(filters));
   if (unsettledGroups.length) {
-    showGenerateError(`生成前必须先完成学生月度结算：${formatUnsettledStudentSettlementGroups(unsettledGroups)}。请先到学生月度结算完成后再生成老师工资。`);
+    showGenerateError(`正式工资preflight仍有前置阻断：${formatUnsettledStudentSettlementGroups(unsettledGroups)}。请先处理阻断后再生成老师工资。`);
     return;
   }
 
@@ -340,7 +337,7 @@ async function handleGenerateSubmit() {
 
     await loadWageMonth(filters.month, filters);
     restoreFilterSelections(filters);
-    applyCurrentFilters();
+    applyCurrentFilters(filters);
     closeGenerateDialog(true);
     showMessage("success", formatGenerateSuccess(generatedRows));
   } catch (error) {
@@ -383,14 +380,13 @@ async function loadWageMonth(month, filters = DEFAULT_FILTERS) {
   renderDataOptions(wageLocks);
 }
 
-function applyCurrentFilters() {
-  const filters = readFilters();
-  if (!filters) {
+function applyCurrentFilters(filters = activeFilters) {
+  if (!filters?.month) {
     return;
   }
 
   restoreFilterSelections(filters);
-  activeFilters = filters;
+  activeFilters = { ...filters };
   updateUrlFromFilters(filters);
   updateMonthScopedNavigation(filters.month);
   renderWageLocks(filterWageLocks(wageLocks, filters));
@@ -783,7 +779,7 @@ function renderWageCandidates(rows) {
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.duration_hours))}</td>
       <td class="number-cell wage-nowrap">${escapeHtml(displayValue(row.actual_minutes))}</td>
       <td class="wage-nowrap">${escapeHtml(booleanLabel(row.is_billable))}</td>
-      <td>${renderCandidateStudentSettlementState(row)}</td>
+      <td>${renderCandidateWagePrerequisiteState(row)}</td>
       <td>${renderCandidateLockState(row)}</td>
       <td class="wage-candidate-note-cell" title="${escapeAttribute(candidateNote(row))}"><span class="table-cell-summary">${escapeHtml(candidateNote(row))}</span></td>
     </tr>
@@ -795,13 +791,14 @@ function renderCandidateSummaryCards(rows) {
   const totalHours = totalMinutes / 60;
   const teacherCount = new Set(rows.map((row) => row.teacher_id).filter(Boolean)).size;
   const statusCounts = candidateStatusCounts(rows);
-  const studentSettlementCounts = candidateStudentSettlementCounts(rows);
+  const prerequisiteCounts = candidateWagePrerequisiteCounts(rows);
 
   return [
     renderSummaryCard("候选课时", `${rows.length} 条`),
     renderSummaryCard("实际分钟", `${totalMinutes} 分钟`),
     renderSummaryCard("未生成 / 已生成", `${statusCounts.pending} / ${statusCounts.locked}`),
-    renderSummaryCard("学生结算完成 / 未完成", `${studentSettlementCounts.locked} / ${studentSettlementCounts.notLocked}`),
+    renderSummaryCard("工资前置满足 / 阻断", `${prerequisiteCounts.satisfied} / ${prerequisiteCounts.blocked}`),
+    renderSummaryCard("no_wage 无需月结", `${prerequisiteCounts.noWageLessons} 条 / ${prerequisiteCounts.noWageMinutes} 分钟`),
     renderSummaryCard("已作废关联", `${statusCounts.voided} 条`),
     renderSummaryCard("折算小时", `${formatNumber(totalHours)} 小时`),
     renderSummaryCard("老师", `${teacherCount} 名`),
@@ -827,8 +824,8 @@ function renderCandidateLockState(row) {
   `;
 }
 
-function renderCandidateStudentSettlementState(row) {
-  const state = candidateStudentSettlementState(row);
+function renderCandidateWagePrerequisiteState(row) {
+  const state = candidateWagePrerequisiteState(row);
   return `
     <span
       class="status-badge ${escapeAttribute(state.className)}"
@@ -837,36 +834,43 @@ function renderCandidateStudentSettlementState(row) {
   `;
 }
 
-function candidateStudentSettlementState(row) {
-  if (row.studentSettlementStatus === "locked" && row.studentSettlementMatchedBusiness) {
+function candidateWagePrerequisiteState(row) {
+  if (row.wagePrerequisiteStatus === "no_wage_not_required") {
     return {
-      label: "已完成",
+      label: "无需月结",
       className: "status-paid",
-      title: `学生月度结算已完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)}`,
+      title: "该课时为active no_wage；工资生成保留课时审计，但不要求学生月结。",
     };
   }
 
-  if (row.studentSettlementStatus && !row.studentSettlementMatchedBusiness) {
+  if (row.wagePrerequisiteSatisfied) {
     return {
-      label: "内部范围不一致",
-      className: "status-cancelled",
-      title: `存在同学生同月份结算，但内部范围与当前课时不一致。请先完成 ${formatMonth(row.year_month)} / ${studentNameById(row.student_id)} 的正确学生月度结算。`,
-    };
-  }
-
-  if (row.studentSettlementStatus === "unlocked") {
-    return {
-      label: "未完成",
-      className: "status-pending",
-      title: `学生月度结算已解锁/未完成。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)}`,
+      label: "前置满足",
+      className: "status-paid",
+      title: wagePrerequisiteSatisfiedTitle(row),
     };
   }
 
   return {
-    label: "未生成",
+    label: "阻断",
     className: "status-cancelled",
-    title: `未找到已完成学生月度结算。请先完成：${formatMonth(row.year_month)} / ${studentNameById(row.student_id)}`,
+    title: row.wagePrerequisiteBlockerDetail
+      || row.wagePrerequisiteBlockerCode
+      || "正式工资preflight判定该课时存在阻断。",
   };
+}
+
+function wagePrerequisiteSatisfiedTitle(row) {
+  switch (row.wagePrerequisiteStatus) {
+    case "ordinary_locked":
+      return "正式工资preflight：普通学生月结已锁定，工资前置满足。";
+    case "historically_consumed_immutable":
+      return "正式工资preflight：历史学费账单已消费的不可变结算事实，工资前置满足。";
+    case "historical_zero_carry_complete":
+      return "正式工资preflight：不可变历史零结转完成证据有效，工资前置满足。";
+    default:
+      return "正式工资preflight判定工资前置满足。";
+  }
 }
 
 function candidateWageState(row) {
@@ -932,17 +936,23 @@ function candidateStatusCounts(rows) {
   });
 }
 
-function candidateStudentSettlementCounts(rows) {
+function candidateWagePrerequisiteCounts(rows) {
   return rows.reduce((counts, row) => {
-    if (row.studentSettlementStatus === "locked" && row.studentSettlementMatchedBusiness) {
-      counts.locked += 1;
+    if (row.wagePrerequisiteSatisfied) {
+      counts.satisfied += 1;
     } else {
-      counts.notLocked += 1;
+      counts.blocked += 1;
+    }
+    if (row.wagePrerequisiteStatus === "no_wage_not_required") {
+      counts.noWageLessons += 1;
+      counts.noWageMinutes += Number(row.actual_minutes || 0);
     }
     return counts;
   }, {
-    locked: 0,
-    notLocked: 0,
+    satisfied: 0,
+    blocked: 0,
+    noWageLessons: 0,
+    noWageMinutes: 0,
   });
 }
 
@@ -984,15 +994,15 @@ function candidateGenerationGroups(rows) {
 function candidateUnsettledStudentSettlementGroups(rows) {
   const groups = new Map();
   for (const row of rows) {
-    const state = candidateStudentSettlementState(row);
-    if (state.label === "已完成") {
+    const state = candidateWagePrerequisiteState(row);
+    if (row.wagePrerequisiteSatisfied) {
       continue;
     }
 
-    const key = `${row.year_month || ""}::${row.student_id || ""}::${row.business_entity_id || ""}`;
+    const key = `${row.authoritative_student_month || ""}::${row.student_id || ""}::${row.business_entity_id || ""}`;
     if (!groups.has(key)) {
       groups.set(key, {
-        yearMonth: row.year_month,
+        yearMonth: row.authoritative_student_month,
         studentName: studentNameById(row.student_id),
         businessName: businessNameById(row.business_entity_id),
         stateLabel: state.label,
@@ -1505,7 +1515,7 @@ function renderGenerateSummary(filters) {
     renderDialogSummaryRow("内部生成范围", "保持既有完整分组"),
     renderDialogSummaryRow("当前显示分组", formatCandidateGroupSummary(visibleGroups)),
     renderDialogSummaryRow("预计生成分组", formatCandidateGroupSummary(generationGroups)),
-    renderDialogSummaryRow("学生结算未完成", unsettledGroups.length ? formatUnsettledStudentSettlementGroups(unsettledGroups) : "无"),
+    renderDialogSummaryRow("工资前置阻断", unsettledGroups.length ? formatUnsettledStudentSettlementGroups(unsettledGroups) : "无"),
     renderDialogSummaryRow("学生筛选说明", "学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行。"),
     renderDialogSummaryRow("生成内容", "工资快照主表 + 工资明细"),
     renderDialogSummaryRow("支付/账户", "不生成支付请求、支出或账户流水"),

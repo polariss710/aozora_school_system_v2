@@ -231,7 +231,7 @@
                   <th>时长</th>
                   <th>实际分钟</th>
                   <th>计费</th>
-                  <th>学生结算</th>
+                  <th>工资前置</th>
                   <th>工资状态</th>
                   <th>内容/备注</th>
                 </tr>
@@ -253,7 +253,7 @@
         <div id="wageGenerateSummary" class="dialog-summary"></div>
 
         <div class="dialog-warning">
-          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须先完成对应学生月度结算。学生仅用于筛选查看，不会传给生成 RPC；系统会保持既有内部工资分组，不会因页面简化合并历史范围。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
+          只基于 actual completed / makeup_completed 课时；cancelled 和 planned 不计入。is_billable=false 的 actual 仍可能计入老师工资。生成前必须通过正式工资preflight：有效月结、历史不可变完成事实可满足前置，active no_wage课时无需学生月结。学生仅用于筛选查看，不会传给生成 RPC；系统会保持既有内部工资分组，不会因页面简化合并历史范围。生成后会锁定该月实际课时，未完成录入或修正前不要生成。确认金额后请从工资快照生成支出记录，再到支出记录详情页提交 Cash 支付确认；本操作不会生成支出记录、Cash 请求、账户流水、收入或学生结算。
         </div>
 
         <div id="wageGenerateError" class="dialog-error is-hidden" aria-live="polite"></div>
@@ -271,6 +271,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=wage-filter-single-row-20260808-1"></script>
+    <script type="module" src="./js/wage-app.js?v=wage-effective-prerequisite-20260809-1"></script>
   </body>
 </html>

@@ -79,16 +79,6 @@ const WAGE_CANDIDATE_LESSON_COLUMNS = [
   "note",
 ].join(",");
 
-const STUDENT_SETTLEMENT_COLUMNS = [
-  "id",
-  "student_id",
-  "year_month",
-  "business_entity_id",
-  "settlement_status",
-  "locked_at",
-  "unlocked_at",
-].join(",");
-
 export async function fetchWageLocks(month) {
   const { data, error } = await supabase
     .from("school_teacher_wage_locks")
@@ -103,7 +93,7 @@ export async function fetchWageLocks(month) {
 }
 
 export async function fetchWageCandidateLessons(month) {
-  const [teacherMonthResult, fallbackMonthResult] = await Promise.all([
+  const [teacherMonthResult, fallbackMonthResult, preflightResult] = await Promise.all([
     supabase
       .from("school_lesson_records")
       .select(WAGE_CANDIDATE_LESSON_COLUMNS)
@@ -125,6 +115,11 @@ export async function fetchWageCandidateLessons(month) {
       .eq("year_month", month)
       .order("lesson_date", { ascending: true })
       .order("start_time", { ascending: true }),
+    supabase.rpc("school_get_teacher_monthly_wage_generation_preflight", {
+      p_year_month: month,
+      p_teacher_id: null,
+      p_business_entity_id: null,
+    }),
   ]);
 
   if (teacherMonthResult.error) {
@@ -132,6 +127,9 @@ export async function fetchWageCandidateLessons(month) {
   }
   if (fallbackMonthResult.error) {
     throw fallbackMonthResult.error;
+  }
+  if (preflightResult.error) {
+    throw preflightResult.error;
   }
 
   const rowsById = new Map();
@@ -175,71 +173,35 @@ export async function fetchWageCandidateLessons(month) {
   const lockedTeacherBusinessKeys = new Set(
     (wageLockBlockerResult.data || []).map((row) => teacherBusinessKey(row.teacher_id, row.business_entity_id))
   );
-  const studentSettlementInfoByCandidateKey = await fetchStudentSettlementInfoByCandidateKey(rows);
+  const prerequisiteByLessonId = wagePrerequisiteFactsByLessonId(preflightResult.data);
 
-  return rows.map((row) => ({
-    ...row,
-    wageDetailBlocked: detailLocksByLessonId.has(row.id),
-    wageDetailLockIds: detailLocksByLessonId.get(row.id) || [],
-    wageMonthBlocked: lockedTeacherBusinessKeys.has(teacherBusinessKey(row.teacher_id, row.business_entity_id)),
-    ...(studentSettlementInfoByCandidateKey.get(studentSettlementCandidateKey(row)) || {}),
-  }));
+  return rows.map((row) => {
+    const prerequisite = prerequisiteByLessonId.get(row.id);
+    if (!prerequisite) {
+      throw new Error(`WAGE_PREFLIGHT_CANDIDATE_COVERAGE_MISMATCH:${row.id}`);
+    }
+    return {
+      ...row,
+      wageDetailBlocked: detailLocksByLessonId.has(row.id),
+      wageDetailLockIds: detailLocksByLessonId.get(row.id) || [],
+      wageMonthBlocked: lockedTeacherBusinessKeys.has(teacherBusinessKey(row.teacher_id, row.business_entity_id)),
+      wagePrerequisiteSatisfied: prerequisite.prerequisite_satisfied === true,
+      wagePrerequisiteStatus: prerequisite.prerequisite_status || "",
+      wagePrerequisiteBlockerCode: prerequisite.blocker_code || "",
+      wagePrerequisiteBlockerDetail: prerequisite.blocker_detail || "",
+      wagePrerequisiteSourceType: prerequisite.effective_source_type || "",
+      wagePrerequisiteSourceId: prerequisite.effective_source_id || "",
+      wageSettlementType: prerequisite.settlement_type || "",
+      wageNoWage: prerequisite.is_no_wage === true,
+    };
+  });
 }
 
-async function fetchStudentSettlementInfoByCandidateKey(rows) {
-  const studentIds = Array.from(new Set(rows.map((row) => row.student_id).filter(Boolean)));
-  const yearMonths = Array.from(new Set(
-    rows.map((row) => row.authoritative_student_month).filter(Boolean)
-  ));
-  const resultByCandidateKey = new Map();
-
-  if (!studentIds.length || !yearMonths.length) {
-    return resultByCandidateKey;
-  }
-
-  const { data, error } = await supabase
-    .from("school_student_monthly_settlements")
-    .select(STUDENT_SETTLEMENT_COLUMNS)
-    .in("student_id", studentIds)
-    .in("year_month", yearMonths);
-
-  if (error) {
-    throw error;
-  }
-
-  const exactByKey = new Map();
-  const monthByKey = new Map();
-  for (const row of data || []) {
-    exactByKey.set(studentSettlementCandidateKey(row), row);
-    const monthKey = studentSettlementMonthKey(
-      row.student_id,
-      row.authoritative_student_month
-    );
-    if (!monthByKey.has(monthKey)) {
-      monthByKey.set(monthKey, []);
-    }
-    monthByKey.get(monthKey).push(row);
-  }
-
-  for (const row of rows) {
-    const exact = exactByKey.get(studentSettlementCandidateKey(row)) || null;
-    const monthSettlements = monthByKey.get(studentSettlementMonthKey(
-      row.student_id,
-      row.authoritative_student_month
-    )) || [];
-    const fallback = exact || monthSettlements[0] || null;
-    resultByCandidateKey.set(studentSettlementCandidateKey(row), {
-      studentSettlementId: exact?.id || "",
-      studentSettlementStatus: exact?.settlement_status || "",
-      studentSettlementLockedAt: exact?.locked_at || "",
-      studentSettlementUnlockedAt: exact?.unlocked_at || "",
-      studentSettlementBusinessEntityId: fallback?.business_entity_id || "",
-      studentSettlementMatchedBusiness: Boolean(exact),
-      studentSettlementOtherBusinessCount: exact ? 0 : monthSettlements.length,
-    });
-  }
-
-  return resultByCandidateKey;
+function wagePrerequisiteFactsByLessonId(preflight) {
+  const rows = Array.isArray(preflight?.candidate_prerequisites)
+    ? preflight.candidate_prerequisites
+    : [];
+  return new Map(rows.map((row) => [row.lesson_record_id, row]));
 }
 
 export async function fetchWageDetailFeeSummaries(wageLockIds) {
@@ -444,14 +406,6 @@ function sortCandidateLessons(left, right) {
 
 function teacherBusinessKey(teacherId, businessEntityId) {
   return `${teacherId || ""}::${businessEntityId || ""}`;
-}
-
-function studentSettlementCandidateKey(row) {
-  return `${row.student_id || ""}::${row.authoritative_student_month || ""}::${row.business_entity_id || ""}`;
-}
-
-function studentSettlementMonthKey(studentId, yearMonth) {
-  return `${studentId || ""}::${yearMonth || ""}`;
 }
 
 async function attachAuthoritativeStudentMonth(row) {
