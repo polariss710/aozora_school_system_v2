@@ -36,17 +36,17 @@ select
   s.name,
   t.student_id,
   t.year_month,
-  status->'effective_state'->>'effective_status' effective_status,
-  (status->>'source_facts_available')::boolean source_facts_available,
-  (status->>'can_save')::boolean can_save,
-  status->>'save_blocker_code' save_blocker_code,
-  (status->>'can_lock')::boolean can_lock,
-  status->>'lock_blocker_code' lock_blocker_code
+  q.status_payload->'effective_state'->>'effective_status' effective_status,
+  (q.status_payload->>'source_facts_available')::boolean source_facts_available,
+  (q.status_payload->>'can_save')::boolean can_save,
+  q.status_payload->>'save_blocker_code' save_blocker_code,
+  (q.status_payload->>'can_lock')::boolean can_lock,
+  q.status_payload->>'lock_blocker_code' lock_blocker_code
 from targets t
 join public.school_students s on s.id = t.student_id
 cross join lateral public.school_get_student_monthly_settlement_online_status_core(
   t.student_id, t.year_month
-) status
+) q(status_payload)
 order by s.name;
 
 select feature_key, state
