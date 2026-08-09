@@ -4,7 +4,7 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=phase-b4-finance-20260807-1";
+} from "../api/settlement-api.js?v=settlement-writer-p0-closure-20260809-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -62,9 +62,6 @@ let loadedStudentCandidateKey = "";
 let initialFilters = null;
 let currentLockSettlement = null;
 let isLockSubmitting = false;
-let currentStatusActionSettlement = null;
-let currentStatusAction = "";
-let isStatusActionSubmitting = false;
 let currentAdjustmentSettlement = null;
 let isAdjustmentSubmitting = false;
 let isAdjustmentPreviewLoading = false;
@@ -114,19 +111,6 @@ function cacheDom() {
   dom.lockConfirmCheckbox = document.querySelector("#lockSettlementConfirmCheckbox");
   dom.lockSubmitButton = document.querySelector("#lockSettlementSubmitButton");
   dom.lockCancelButton = document.querySelector("#lockSettlementCancelButton");
-  dom.statusActionDialog = document.querySelector("#settlementStatusActionDialog");
-  dom.statusActionTitle = document.querySelector("#settlementStatusActionTitle");
-  dom.statusActionDescription = document.querySelector("#settlementStatusActionDescription");
-  dom.statusActionSummary = document.querySelector("#settlementStatusActionSummary");
-  dom.statusActionWarning = document.querySelector("#settlementStatusActionWarning");
-  dom.statusActionError = document.querySelector("#settlementStatusActionError");
-  dom.statusActionReasonField = document.querySelector("#settlementStatusActionReasonField");
-  dom.statusActionReasonInput = document.querySelector("#settlementStatusActionReasonInput");
-  dom.statusActionNoteField = document.querySelector("#settlementStatusActionNoteField");
-  dom.statusActionNoteInput = document.querySelector("#settlementStatusActionNoteInput");
-  dom.statusActionConfirmCheckbox = document.querySelector("#settlementStatusActionConfirmCheckbox");
-  dom.statusActionSubmitButton = document.querySelector("#settlementStatusActionSubmitButton");
-  dom.statusActionCancelButton = document.querySelector("#settlementStatusActionCancelButton");
   dom.adjustmentDialog = document.querySelector("#settlementAdjustmentDialog");
   dom.adjustmentCurrentState = document.querySelector("#settlementAdjustmentCurrentState");
   dom.adjustmentCurrentStateBadge = document.querySelector("#settlementAdjustmentCurrentStateBadge");
@@ -172,15 +156,6 @@ function bindEvents() {
       return;
     }
 
-    const actionButton = event.target.closest("[data-settlement-action-id]");
-    if (actionButton) {
-      openStatusActionDialog(
-        actionButton.dataset.settlementActionId,
-        actionButton.dataset.settlementAction
-      );
-      return;
-    }
-
     const adjustmentButton = event.target.closest("[data-settlement-adjustment-id]");
     if (adjustmentButton) {
       openAdjustmentDialog(adjustmentButton.dataset.settlementAdjustmentId);
@@ -198,23 +173,6 @@ function bindEvents() {
   dom.lockConfirmCheckbox?.addEventListener("change", () => {
     clearLockFieldInvalid("confirm");
     hideLockErrorIfClean();
-  });
-
-  dom.statusActionCancelButton?.addEventListener("click", () => closeStatusActionDialog());
-  dom.statusActionSubmitButton?.addEventListener("click", handleStatusActionSubmit);
-  dom.statusActionDialog?.addEventListener("click", (event) => {
-    if (event.target === dom.statusActionDialog) {
-      closeStatusActionDialog();
-    }
-  });
-  dom.statusActionReasonInput?.addEventListener("input", () => {
-    clearStatusActionFieldInvalid("reason");
-    hideStatusActionErrorIfClean();
-  });
-  dom.statusActionNoteInput?.addEventListener("input", () => hideStatusActionErrorIfClean());
-  dom.statusActionConfirmCheckbox?.addEventListener("change", () => {
-    clearStatusActionFieldInvalid("confirm");
-    hideStatusActionErrorIfClean();
   });
 
   dom.adjustmentCancelButton?.addEventListener("click", () => closeAdjustmentDialog());
@@ -675,155 +633,6 @@ function setLockFieldInvalid(fieldId, invalid) {
 
 function clearLockFieldInvalid(fieldId) {
   setLockFieldInvalid(fieldId, false);
-}
-
-function openStatusActionDialog(settlementId, action) {
-  if (!hasSupabaseConfig()) {
-    showMessage("error", "当前 Supabase 配置不可用，不能变更学生月度结算状态。");
-    return;
-  }
-
-  const row = settlements.find((item) => item.id === settlementId);
-  if (!row || row.is_preview) {
-    showMessage("error", "未找到可变更状态的结算快照。");
-    return;
-  }
-
-  const blockerReason = teacherWageBlockerReason(row);
-  if (blockerReason) {
-    showMessage("error", blockerReason);
-    return;
-  }
-
-  if (!["unlock", "relock"].includes(action)) {
-    showMessage("error", "结算状态操作无效。");
-    return;
-  }
-
-  if (action === "unlock" && row.settlement_status !== "locked") {
-    showMessage("error", "只有已锁定的结算可以撤销锁定。");
-    return;
-  }
-
-  if (action === "relock" && row.settlement_status !== "unlocked") {
-    showMessage("error", "只有锁定已撤销的结算可以重新锁定。");
-    return;
-  }
-
-  currentStatusActionSettlement = row;
-  currentStatusAction = action;
-  dom.statusActionReasonInput.value = "";
-  dom.statusActionNoteInput.value = "";
-  dom.statusActionConfirmCheckbox.checked = false;
-  clearStatusActionErrors();
-  renderStatusActionDialog(row, action);
-  setStatusActionSubmitting(false);
-  dom.statusActionDialog.classList.remove("is-hidden");
-  dom.statusActionDialog.setAttribute("aria-hidden", "false");
-  if (action === "unlock") {
-    dom.statusActionReasonInput.focus();
-  } else {
-    dom.statusActionConfirmCheckbox.focus();
-  }
-}
-
-function closeStatusActionDialog(force = false) {
-  if (isStatusActionSubmitting && !force) {
-    return;
-  }
-
-  dom.statusActionDialog?.classList.add("is-hidden");
-  dom.statusActionDialog?.setAttribute("aria-hidden", "true");
-  currentStatusActionSettlement = null;
-  currentStatusAction = "";
-  clearStatusActionErrors();
-}
-
-function renderStatusActionDialog(row, action) {
-  const isUnlock = action === "unlock";
-  dom.statusActionTitle.textContent = isUnlock ? "撤销锁定学生月度结算" : "重新锁定学生月度结算";
-  dom.statusActionDescription.textContent = isUnlock
-    ? "撤销锁定会把当前快照状态改为锁定已撤销，保留同一条结算记录和撤销原因。"
-    : "重新锁定会复用当前实时结算口径和锁定前差额调整覆盖同一条快照金额，不创建历史版本。";
-  dom.statusActionWarning.textContent = isUnlock
-    ? "撤销锁定后，该学生该月份的课时和学费收入写入 guard 会放开；如果该结算已作为有效结转来源，RPC 会拒绝本操作。"
-    : "重新锁定后，该学生该月份的课时和学费收入写入 guard 会恢复；差额调整会随本次重新锁定固化为只读快照。";
-  dom.statusActionReasonField.classList.toggle("is-hidden", !isUnlock);
-  dom.statusActionNoteField.classList.toggle("is-hidden", isUnlock);
-  dom.statusActionSubmitButton.classList.toggle("button-danger", isUnlock);
-  dom.statusActionSubmitButton.classList.toggle("button-primary", !isUnlock);
-  dom.statusActionSubmitButton.textContent = isUnlock ? "确认撤销锁定" : "确认重新锁定";
-  renderStatusActionSummary(row);
-}
-
-function renderStatusActionSummary(row) {
-  const rows = [
-    ["学生", nameById(students, row.student_id, studentName)],
-    ["学生结算月（后端权威）", formatMonth(row.year_month)],
-    ["当前状态", settlementStatusLabel(row.settlement_status)],
-    ["锁定时间", formatDate(row.locked_at)],
-    ["撤销时间", formatDate(row.unlocked_at)],
-    ["系统差额（含后端冻结超额）", formatCurrency(row.system_difference_cny, "CNY")],
-    ["差额调整", formatCurrency(row.adjustment_amount_cny, "CNY")],
-    ["锁定后结转", formatCurrency(row.carryover_amount_cny, "CNY")],
-  ];
-  if (hasFrozenSettlementOverage(row)) {
-    rows.push(
-      ["冻结超出时长", `${displayValue(row.duration_overage_minutes)} 分钟`],
-      ["冻结超额金额 JPY", formatCurrency(row.duration_overage_fee_jpy, "JPY")],
-      ["冻结超额金额 CNY", formatCurrency(row.duration_overage_fee_cny, "CNY")]
-    );
-  }
-  dom.statusActionSummary.innerHTML = rows.map(([label, value]) => `
-    <div class="dialog-summary-row">
-      <span class="dialog-summary-label">${escapeHtml(label)}</span>
-      <span>${escapeHtml(displayValue(value))}</span>
-    </div>
-  `).join("");
-}
-
-async function handleStatusActionSubmit() {
-  showStatusActionError(TRUSTED_TOOL_MESSAGE);
-}
-
-function setStatusActionSubmitting(isSubmitting) {
-  isStatusActionSubmitting = isSubmitting;
-  if (dom.statusActionSubmitButton) {
-    dom.statusActionSubmitButton.disabled = true;
-    dom.statusActionSubmitButton.textContent = "仅本机受信工具可变更";
-    dom.statusActionSubmitButton.title = TRUSTED_TOOL_MESSAGE;
-  }
-  if (dom.statusActionCancelButton) {
-    dom.statusActionCancelButton.disabled = isSubmitting;
-  }
-}
-
-function showStatusActionError(errorDisplay) {
-  renderDialogBusinessError(dom.statusActionError, errorDisplay);
-  dom.statusActionError.classList.remove("is-hidden");
-}
-
-function clearStatusActionErrors() {
-  dom.statusActionError.replaceChildren();
-  dom.statusActionError.classList.add("is-hidden");
-  clearStatusActionFieldInvalid("reason");
-  clearStatusActionFieldInvalid("confirm");
-}
-
-function hideStatusActionErrorIfClean() {
-  if (!dom.statusActionDialog?.querySelector(".field.is-invalid")) {
-    dom.statusActionError.textContent = "";
-    dom.statusActionError.classList.add("is-hidden");
-  }
-}
-
-function setStatusActionFieldInvalid(fieldId, invalid) {
-  const field = dom.statusActionDialog?.querySelector(`[data-settlement-status-action-field="${fieldId}"]`);
-  field?.classList.toggle("is-invalid", invalid);
-}
-
-function clearStatusActionFieldInvalid(fieldId) {
-  setStatusActionFieldInvalid(fieldId, false);
 }
 
 function openAdjustmentDialog(settlementId) {

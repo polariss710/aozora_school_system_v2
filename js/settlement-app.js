@@ -1,8 +1,8 @@
-import { APP_VERSION } from "./config.js?v=settlement-filter-single-row-20260808-1";
+import { APP_VERSION } from "./config.js?v=settlement-writer-p0-closure-20260809-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=be-ui-blocker-20260807-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=settlement-writer-p0-closure-20260809-1";
 
-const SETTLEMENT_PAGE_VERSION = "settlement-trusted-tool-20260803-1";
+const SETTLEMENT_PAGE_VERSION = "settlement-writer-p0-closure-20260809-1";
 
 const globalSessionPromise = requireGlobalSession();
 

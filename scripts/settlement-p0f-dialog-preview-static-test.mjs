@@ -16,7 +16,7 @@ assert.match(html, /当前已保存状态/);
 assert.match(html, /表单待提交 Preview/);
 assert.match(html, /id="settlementAdjustmentPreviewButton"[^>]*>更新数据库预览/);
 assert.match(html, /id="settlementAdjustmentSubmitButton"[^>]*disabled[^>]*>仅本机受信工具可保存/);
-assert.match(html, /settlement-app\.js\?v=settlement-filter-single-row-20260808-1/);
+assert.match(html, /settlement-app\.js\?v=settlement-writer-p0-closure-20260809-1/);
 
 assert.match(css, /\.settlement-adjustment-dialog-panel\s*\{[\s\S]*?width:\s*min\(1040px, 100%\)/);
 assert.match(css, /grid-template-columns:\s*minmax\(0, 1\.12fr\) minmax\(330px, 0\.88fr\)/);
@@ -51,7 +51,7 @@ assert.match(page, /source_planned_lesson_id/);
 assert.match(page, /source_actual_lesson_id/);
 assert.doesNotMatch(page, /net_lesson_variance_jpy\s*[+\-*\/]|system_difference_cny\s*[+\-*\/]/);
 
-assert.match(app, /settlement-trusted-tool-20260803-1/g);
+assert.match(app, /settlement-writer-p0-closure-20260809-1/g);
 assert.match(rpc, /security definer/);
 assert.match(rpc, /set search_path=pg_catalog,public/);
 assert.match(rpc, /school_tuition_p0f_source_lines/);

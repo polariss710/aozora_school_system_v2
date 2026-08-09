@@ -219,41 +219,6 @@
       </section>
     </div>
 
-    <div id="settlementStatusActionDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
-      <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settlementStatusActionTitle">
-        <div class="section-heading">
-          <h2 id="settlementStatusActionTitle">变更学生月度结算状态</h2>
-          <p id="settlementStatusActionDescription" class="section-note"></p>
-        </div>
-
-        <div id="settlementStatusActionSummary" class="dialog-summary"></div>
-
-        <div id="settlementStatusActionWarning" class="dialog-warning"></div>
-
-        <div id="settlementStatusActionError" class="dialog-error is-hidden" aria-live="polite"></div>
-
-        <label id="settlementStatusActionReasonField" class="field" data-settlement-status-action-field="reason">
-          <span>撤销锁定原因（必填）</span>
-          <textarea id="settlementStatusActionReasonInput" rows="3"></textarea>
-        </label>
-
-        <label id="settlementStatusActionNoteField" class="field is-hidden" data-settlement-status-action-field="note">
-          <span>重新锁定备注（可选）</span>
-          <textarea id="settlementStatusActionNoteInput" rows="3"></textarea>
-        </label>
-
-        <label class="field confirm-check" data-settlement-status-action-field="confirm">
-          <input id="settlementStatusActionConfirmCheckbox" type="checkbox">
-          <span>我确认只变更当前结算快照状态，不创建历史版本；已有已固化差额调整或有效结转时 RPC 会拒绝。</span>
-        </label>
-
-        <div class="dialog-actions">
-          <button class="button button-danger" id="settlementStatusActionSubmitButton" type="button" disabled title="V2财务写操作请使用本机受信管理工具执行。">仅本机受信工具可变更</button>
-          <button class="button" id="settlementStatusActionCancelButton" type="button">取消</button>
-        </div>
-      </section>
-    </div>
-
     <div id="settlementAdjustmentDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel settlement-adjustment-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settlementAdjustmentTitle">
         <div class="section-heading">
@@ -353,6 +318,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/settlement-app.js?v=settlement-filter-single-row-20260808-1"></script>
+    <script type="module" src="./js/settlement-app.js?v=settlement-writer-p0-closure-20260809-1"></script>
   </body>
 </html>

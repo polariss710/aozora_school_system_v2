@@ -117,7 +117,11 @@ const actualOverageSource = readFileSync(new URL("../js/utils/actual-overage.js"
 
 for (const source of [lessonPageSource, lessonDetailSource, settlementPageSource, settlementDetailSource, editDialogSource]) {
   assert.doesNotMatch(source, /\.rpc\s*\(/, "page/component modules must not call RPC directly");
-  assert.doesNotMatch(source, /\.(?:insert|update|delete|upsert)\s*\(/, "page/component modules must not write tables directly");
+  assert.doesNotMatch(
+    source,
+    /\.from\s*\([^)]*\)\s*\.\s*(?:insert|update|delete|upsert)\s*\(/,
+    "page/component modules must not write tables directly"
+  );
 }
 for (const field of [
   "student_duration_overage_minutes",

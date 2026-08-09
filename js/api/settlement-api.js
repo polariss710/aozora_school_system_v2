@@ -256,18 +256,6 @@ export async function fetchStudentSettlementAdjustmentDialogPreview(payload) {
   });
 }
 
-export async function setStudentSettlementSourceTreatmentDraft(payload) {
-  return fetchRpcSingle("school_set_student_settlement_source_treatment_draft", {
-    p_student_id: payload.studentId,
-    p_year_month: payload.yearMonth,
-    p_source_treatment_mode: payload.sourceTreatmentMode,
-    p_settlement_exchange_rate: payload.settlementExchangeRate ?? null,
-    p_settlement_exchange_rate_source: payload.settlementExchangeRateSource || null,
-    p_settlement_exchange_rate_effective_date: payload.settlementExchangeRateEffectiveDate || null,
-    p_reason: payload.reason,
-  });
-}
-
 async function fetchStudentSettlementWageBlockers(yearMonth) {
   const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_wage_blockers", {
     p_year_month: yearMonth,
@@ -425,81 +413,4 @@ export async function fetchSettlementStudents() {
   }
 
   return data || [];
-}
-
-export async function lockStudentMonthlySettlement(payload) {
-  const { data, error } = await supabase.rpc("school_lock_student_monthly_settlement", {
-    p_student_id: payload.studentId,
-    p_year_month: payload.yearMonth,
-    p_note: payload.note || null,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.isArray(data) ? data[0] : data;
-}
-
-export async function unlockStudentMonthlySettlement(payload) {
-  const { data, error } = await supabase.rpc("school_unlock_student_monthly_settlement", {
-    p_settlement_id: payload.settlementId,
-    p_reason: payload.reason,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.isArray(data) ? data[0] : data;
-}
-
-export async function relockStudentMonthlySettlement(payload) {
-  const { data, error } = await supabase.rpc("school_relock_student_monthly_settlement", {
-    p_settlement_id: payload.settlementId,
-    p_note: payload.note || null,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.isArray(data) ? data[0] : data;
-}
-
-export async function setStudentMonthlySettlementDraftAdjustment(payload) {
-  const adjustmentMode = payload.adjustmentSource;
-  const allowedModes = new Set([
-    "carry_final_balance",
-    "clear_balance",
-    "manual_adjustment",
-  ]);
-  if (!allowedModes.has(adjustmentMode)) {
-    throw new Error("请选择有效的差额调整方式。");
-  }
-  const explicitUserAmount = payload.adjustmentAmountCny ?? null;
-  if (adjustmentMode === "manual_adjustment" && explicitUserAmount === null) {
-    throw new Error("手动调整必须填写明确金额。");
-  }
-  if (adjustmentMode === "manual_adjustment"
-      && (typeof explicitUserAmount !== "number" || !Number.isFinite(explicitUserAmount))) {
-    throw new Error("手动调整金额必须是有效数字。");
-  }
-  if (adjustmentMode !== "manual_adjustment" && explicitUserAmount !== null) {
-    throw new Error("该调整方式的金额必须由数据库计算。");
-  }
-  const { data, error } = await supabase.rpc("school_set_student_monthly_settlement_draft_adjustment", {
-    p_student_id: payload.studentId,
-    p_year_month: payload.yearMonth,
-    p_adjustment_amount_cny: explicitUserAmount,
-    p_adjustment_source: adjustmentMode,
-    p_adjustment_reason: payload.adjustmentReason,
-    p_note: payload.note || null,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return Array.isArray(data) ? data[0] : data;
 }

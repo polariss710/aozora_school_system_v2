@@ -12,7 +12,7 @@ const sql = fs.readFileSync(
 
 assert.match(html, /V2财务写操作请使用本机受信管理工具执行。/);
 assert.match(html, /月结差额 DB 只读 Preview/);
-assert.match(html, /settlement-app\.js\?v=settlement-filter-single-row-20260808-1/);
+assert.match(html, /settlement-app\.js\?v=settlement-writer-p0-closure-20260809-1/);
 assert.match(page, /DB只读 Preview/);
 assert.match(page, /dom\.adjustmentSubmitButton\.disabled = true/);
 assert.doesNotMatch(page, /data-lock-settlement-id=/);
@@ -28,6 +28,15 @@ for (const writer of [
 }
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 assert.match(api, /school_preview_student_settlement_adjustment_dialog/);
+for (const coreWriter of [
+  "school_lock_student_monthly_settlement",
+  "school_unlock_student_monthly_settlement",
+  "school_relock_student_monthly_settlement",
+  "school_set_student_monthly_settlement_draft_adjustment",
+  "school_set_student_settlement_source_treatment_draft",
+]) {
+  assert.doesNotMatch(api, new RegExp(`\\b${coreWriter}\\b`), `browser API still exposes ${coreWriter}`);
+}
 assert.match(tool, /SAVE STUDENT SETTLEMENT DRAFT/);
 assert.match(tool, /LOCK STUDENT SETTLEMENT/);
 assert.match(tool, /set local request\.jwt\.claims='\{"role":"service_role"\}'/);

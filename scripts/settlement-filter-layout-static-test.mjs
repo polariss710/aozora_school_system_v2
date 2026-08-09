@@ -6,7 +6,8 @@ const css = readFileSync("css/app.css", "utf8");
 const page = readFileSync("js/pages/settlement-page.js", "utf8");
 const app = readFileSync("js/settlement-app.js", "utf8");
 const config = readFileSync("js/config.js", "utf8");
-const cacheKey = "settlement-filter-single-row-20260808-1";
+const cssCacheKey = "settlement-filter-single-row-20260808-1";
+const runtimeCacheKey = "settlement-writer-p0-closure-20260809-1";
 
 const filterForm = html.match(/<form id="settlementFilterForm"[\s\S]*?<\/form>/)?.[0] || "";
 const studentField = filterForm.match(/<div class="field student-month-candidate-field settlement-student-filter-field">[\s\S]*?<\/div>/)?.[0] || "";
@@ -44,10 +45,10 @@ assert.match(page, /setOptionalQuery\(url\.searchParams, "keyword", filters\.key
 assert.match(page, /fetchStudentMonthCandidates\(\{[\s\S]*month:[\s\S]*includeInactive:[\s\S]*selectedStudentId:/);
 assert.match(page, /row\.student_id !== filters\.studentId/);
 
-assert.match(html, new RegExp(`app\\.css\\?v=${cacheKey}`));
-assert.match(html, new RegExp(`settlement-app\\.js\\?v=${cacheKey}`));
-assert.match(app, new RegExp(`config\\.js\\?v=${cacheKey}`));
-assert.match(config, /APP_VERSION = "v10\.5\.26"/);
+assert.match(html, new RegExp(`app\\.css\\?v=${cssCacheKey}`));
+assert.match(html, new RegExp(`settlement-app\\.js\\?v=${runtimeCacheKey}`));
+assert.match(app, new RegExp(`config\\.js\\?v=${runtimeCacheKey}`));
+assert.match(config, /APP_VERSION = "v10\.5\.27"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");
