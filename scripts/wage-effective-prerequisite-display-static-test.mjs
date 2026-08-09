@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const api = readFileSync("js/api/wage-api.js", "utf8");
 const page = readFileSync("js/pages/wage-page.js", "utf8");
 const html = readFileSync("wage.html", "utf8");
+const css = readFileSync("css/app.css", "utf8");
 const reader = readFileSync("sql/current/school_wage_candidate_effective_display_reader_20260809.sql", "utf8");
 const rehearsal = readFileSync("sql/current/school_wage_candidate_effective_display_reader_rollback_20260809.sql", "utf8");
 const postdeploy = readFileSync("sql/current/school_wage_candidate_effective_display_reader_postdeploy_20260809.sql", "utf8");
@@ -23,7 +24,9 @@ assert.doesNotMatch(page, /学生结算完成 \/ 未完成/);
 assert.doesNotMatch(page, /studentSettlementStatus|studentSettlementMatchedBusiness/);
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 assert.match(html, /<th>工资前置<\/th>/);
-assert.match(html, /wage-effective-prerequisite-20260809-1/);
+assert.match(html, /wage-effective-prerequisite-20260809-2/);
+assert.match(html, /wage-effective-prerequisite-stable-loading-20260809-1/);
+assert.match(css, /\.wage-list-panel #wageLoadingState\.is-hidden\s*\{[\s\S]*display:\s*block !important;[\s\S]*visibility:\s*hidden/);
 
 assert.match(reader, /candidate_prerequisites/);
 assert.match(reader, /select \* from public\.school_get_teacher_monthly_wage_generation_candidate_facts/);

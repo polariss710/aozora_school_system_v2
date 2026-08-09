@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 老师工资结算</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase-b4-lesson-candidates-20260806">
+    <link rel="stylesheet" href="./css/app.css?v=wage-effective-prerequisite-stable-loading-20260809-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -173,7 +173,7 @@
             </div>
           </div>
 
-          <div id="wageLoadingState" class="state-text is-hidden">正在加载老师工资结算...</div>
+          <div id="wageLoadingState" class="state-text is-hidden" aria-live="polite">正在加载老师工资结算...</div>
           <div id="wageEmptyState" class="state-text is-hidden">暂无符合条件的老师工资快照。</div>
           <div class="table-scroll">
             <table class="payment-table wage-table">
@@ -271,6 +271,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script type="module" src="./js/wage-app.js?v=wage-effective-prerequisite-20260809-1"></script>
+    <script type="module" src="./js/wage-app.js?v=wage-effective-prerequisite-20260809-2"></script>
   </body>
 </html>

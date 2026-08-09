@@ -50,9 +50,9 @@ assert.doesNotMatch(generateCall, /student|settlementType/i);
 assert.match(page, /generationScopeCandidateLessonsForFilters\(filters\)[\s\S]*filters\?\.teacherId/);
 assert.match(page, /<td><span class="status-badge status-neutral">\$\{escapeHtml\(settlementTypeLabel\(row\.settlement_type\)\)\}<\/span><\/td>/);
 
-assert.match(html, /wage-effective-prerequisite-20260809-1/);
-assert.match(app, /wage-effective-prerequisite-20260809-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.28"/);
+assert.match(html, /wage-effective-prerequisite-20260809-2/);
+assert.match(app, /wage-effective-prerequisite-20260809-2/);
+assert.match(config, /APP_VERSION = "v10\.5\.29"/);
 assert.doesNotMatch(page, /(?:yearFilter|monthFilter|includeInactiveCheckbox).*addEventListener\("change"/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-|\.lesson-filter-panel[^\n{]*\.wage-/);
 
