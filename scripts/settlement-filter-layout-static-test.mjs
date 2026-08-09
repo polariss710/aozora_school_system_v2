@@ -6,8 +6,8 @@ const css = readFileSync("css/app.css", "utf8");
 const page = readFileSync("js/pages/settlement-page.js", "utf8");
 const app = readFileSync("js/settlement-app.js", "utf8");
 const config = readFileSync("js/config.js", "utf8");
-const cssCacheKey = "student-settlement-online-phase-c-20260810-1";
-const runtimeCacheKey = "student-settlement-online-phase-c-20260810-1";
+const cssCacheKey = "student-settlement-online-phase-c-20260810-2";
+const runtimeCacheKey = "student-settlement-online-phase-c-20260810-2";
 
 const filterForm = html.match(/<form id="settlementFilterForm"[\s\S]*?<\/form>/)?.[0] || "";
 const studentField = filterForm.match(/<div class="field student-month-candidate-field settlement-student-filter-field">[\s\S]*?<\/div>/)?.[0] || "";

@@ -12,7 +12,7 @@ const sql = fs.readFileSync(
 
 assert.match(html, /管理员可在线保存未完成月结的草稿；正式锁定暂未开放。/);
 assert.match(html, /编辑月结草稿/);
-assert.match(html, /settlement-app\.js\?v=student-settlement-online-phase-c-20260810-1/);
+assert.match(html, /settlement-app\.js\?v=student-settlement-online-phase-c-20260810-2/);
 assert.match(page, /saveStudentSettlementDraftOnline\(saveInput\)/);
 assert.match(page, /dom\.adjustmentSubmitButton\.disabled = !canEdit/);
 assert.doesNotMatch(page, /data-lock-settlement-id=/);
