@@ -26,6 +26,8 @@ function status(overrides = {}) {
     adjustment_draft: { draft_id: null, updated_at: null },
     immutable_blocker: null,
     can_save: true,
+    save_blocker_code: null,
+    save_blocker_message: null,
     can_lock: false,
     requires_repreview: true,
     ...overrides,
@@ -101,6 +103,9 @@ test("only active admin plus DB can_save sees save", () => {
   }
   assert.equal(canUseOnlineDraftSave("admin", status({ can_save: false })), false);
   assert.equal(canUseOnlineDraftSave("admin", status({
+    save_blocker_code: "SETTLEMENT_SOURCE_FACTS_EMPTY",
+  })), false);
+  assert.equal(canUseOnlineDraftSave("admin", status({
     immutable_blocker: { code: "SETTLEMENT_WAGE_BLOCKED" },
   })), false);
 });
@@ -123,8 +128,13 @@ test("effective and blocker states remain distinct and readable", () => {
     "SETTLEMENT_SUCCESSOR_REVISION_BLOCKED",
     "SETTLEMENT_WAGE_BLOCKED",
     "SETTLEMENT_IMMUTABLE_CONSUMPTION_BLOCKED",
+    "SETTLEMENT_SOURCE_FACTS_EMPTY",
   ]) {
-    assert.equal(onlineStatusDisplay(status({ immutable_blocker: { code } })).key, code);
+    assert.equal(onlineStatusDisplay(status({
+      can_save: false,
+      save_blocker_code: code,
+      save_blocker_message: "DB安全提示",
+    })).key, code);
   }
 });
 

@@ -15,6 +15,7 @@ export function canUseOnlineDraftSave(membershipRole, status) {
   return membershipRole === "admin"
     && status?.can_save === true
     && status?.effective_state?.effective_status === "incomplete"
+    && !status?.save_blocker_code
     && !status?.immutable_blocker;
 }
 
@@ -59,7 +60,12 @@ export function onlineStatusDisplay(status, statusError = null) {
     };
   }
   const effective = status.effective_state?.effective_status || "incomplete";
-  const blocker = status.immutable_blocker;
+  const blocker = status.save_blocker_code
+    ? {
+      code: status.save_blocker_code,
+      detail: status.save_blocker_message || status.immutable_blocker?.detail,
+    }
+    : status.immutable_blocker;
   if (blocker) {
     return {
       key: blocker.code || "blocked",
@@ -211,6 +217,7 @@ function blockerLabel(code) {
     SETTLEMENT_SUCCESSOR_REVISION_BLOCKED: "后继学费revision已冻结",
     SETTLEMENT_IMMUTABLE_CONSUMPTION_BLOCKED: "不可变财务事实已消费",
     SETTLEMENT_WAGE_BLOCKED: "工资链路已冻结",
+    SETTLEMENT_SOURCE_FACTS_EMPTY: "无可结算来源",
     SETTLEMENT_NOT_INCOMPLETE: "非普通未完成状态",
     SETTLEMENT_SCOPE_NOT_UNIQUE: "结算范围不唯一",
   }[code] || "当前不可修改";

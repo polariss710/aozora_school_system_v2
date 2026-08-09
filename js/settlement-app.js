@@ -1,8 +1,8 @@
-import { APP_VERSION } from "./config.js?v=student-settlement-online-phase-c-20260810-2";
+import { APP_VERSION } from "./config.js?v=student-settlement-online-phase-c-r1-20260810-1";
 import { requireGlobalSession } from "./auth-guard.js?v=be-ui-20260806-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=student-settlement-online-phase-c-20260810-2";
+import { initSettlementPage } from "./pages/settlement-page.js?v=student-settlement-online-phase-c-r1-20260810-1";
 
-const SETTLEMENT_PAGE_VERSION = "student-settlement-online-phase-c-20260810-2";
+const SETTLEMENT_PAGE_VERSION = "student-settlement-online-phase-c-r1-20260810-1";
 
 const globalSessionPromise = requireGlobalSession();
 

@@ -25,11 +25,16 @@ assert.doesNotMatch(state, /Math\.round|parseFloat|Number\(/);
 assert.match(state, /decimalString\(expected\.system_difference_cny/);
 assert.match(state, /decimalString\(preview\.projected_final_carryover_cny/);
 assert.match(api, /getStudentSettlementOnlineStatus\(row\.student_id, row\.year_month\)/);
+assert.match(api, /status\?\.save_blocker_code/);
+assert.match(api, /status\?\.save_blocker_message/);
 assert.match(api, /Math\.min\(concurrency, rows\.length\)/);
 assert.match(api, /online_status_error/);
 assert.match(api, /p_business_entity_id:\s*status\.business_entity_id/);
 assert.doesNotMatch(api, /carryover_amount_cny:\s*status\?\.final_carryover_cny/);
 assert.doesNotMatch(page, /businessEntityId/);
+assert.match(state, /!status\?\.save_blocker_code/);
+assert.match(state, /SETTLEMENT_SOURCE_FACTS_EMPTY/);
+assert.match(page, /该月份没有可用于月结的课时或收款来源，不能保存草稿。/);
 
 for (const mode of [
   "separate_makeup_and_overage_v1",

@@ -1,5 +1,5 @@
 import { supabase } from "../supabase-client.js";
-import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-20260810-2";
+import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-1";
 
 const SETTLEMENT_COLUMNS = [
   "id",
@@ -109,8 +109,10 @@ function mergeOnlineStatus(row, status) {
     business_entity_id: status?.business_entity_id || row.business_entity_id,
     effective_status: effective.effective_status || row.effective_status,
     physical_status: physical.settlement_status || row.physical_status,
-    immutable_error_code: status?.immutable_blocker?.code || row.immutable_error_code,
-    immutable_reason: status?.immutable_blocker?.detail || row.immutable_reason,
+    immutable_error_code: status?.save_blocker_code
+      || status?.immutable_blocker?.code || row.immutable_error_code,
+    immutable_reason: status?.save_blocker_message
+      || status?.immutable_blocker?.detail || row.immutable_reason,
     online_status: status,
     online_status_error: null,
   };

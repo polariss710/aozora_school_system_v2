@@ -4,12 +4,12 @@ import {
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=student-settlement-online-phase-c-20260810-2";
+} from "../api/settlement-api.js?v=student-settlement-online-phase-c-r1-20260810-1";
 import {
   getStudentSettlementOnlineStatus,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=student-settlement-online-phase-c-20260810-2";
+} from "../api/student-settlement-online-api.js?v=student-settlement-online-phase-c-r1-20260810-1";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
@@ -22,7 +22,7 @@ import {
   isPositiveDecimalString,
   onlineStatusDisplay,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-online-phase-c-20260810-2";
+} from "./settlement-online-state.js?v=student-settlement-online-phase-c-r1-20260810-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -1156,9 +1156,10 @@ function safeOnlineErrorDisplay(error, fallbackRequestId = "") {
     SETTLEMENT_HISTORICAL_ZERO_CARRY_COMPLETE: "该月份已通过历史零结转证据完成，只能查看。",
     SETTLEMENT_HISTORICALLY_CONSUMED: "该月份已被历史账单或不可变事实消费，不能修改。",
     SETTLEMENT_ORDINARY_ALREADY_LOCKED: "该月份已正式锁定，只能查看。",
-    SETTLEMENT_SUCCESSOR_REVISION_BLOCKED: "已存在后继学费revision，不能修改本月结算。",
+    SETTLEMENT_SUCCESSOR_REVISION_BLOCKED: "该月份已存在后继学费账单或不可变结算事实，不能保存新的月结草稿。",
     SETTLEMENT_IMMUTABLE_CONSUMPTION_BLOCKED: "该月份已进入不可变财务链，不能修改。",
     SETTLEMENT_WAGE_BLOCKED: "该月份已进入不可变工资链，不能修改。",
+    SETTLEMENT_SOURCE_FACTS_EMPTY: "该月份没有可用于月结的课时或收款来源，不能保存草稿。",
     SETTLEMENT_PREVIEW_MANIFEST_STALE: "课时或金额事实已变化，请重新预览。",
     SETTLEMENT_LESSON_MANIFEST_STALE: "课时明细已变化，请重新预览。",
     SETTLEMENT_SOURCE_DRAFT_STALE: "source草稿已被其他会话更新，请刷新页面。",
