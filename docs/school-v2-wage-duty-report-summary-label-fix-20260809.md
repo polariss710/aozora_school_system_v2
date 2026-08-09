@@ -103,10 +103,11 @@
 
 ## 受保护文件
 
-7份受保护untracked文件均未修改、移动、删除、执行、暂存或提交。终态SHA-256：
+业务负责人指定的7份受保护untracked文件均未修改、移动、删除、执行、暂存或提交。文档提交阶段另发现一份并发产生的外来untracked文件，同样已纳入保护；最终现场共8份。终态SHA-256：
 
 | 文件 | SHA-256 |
 |---|---|
+| `docs/school-v1-decommission-preflight-p1a-online-evidence-20260809.md` | `a6237ad5b57a4c7ea3afce49a6ec9f7753d4e82c1ff7087000259055d7653317` |
 | `docs/school-v1-decommission-readonly-investigation-20260809.md` | `3e65e0091e68cd419ac13f0e692fcce99f07041abfcdab3b8786e526a800fcaa` |
 | `docs/school-v2-2026-05-06-tuition-candidate-manual-review-completed-20260801.csv` | `272d08531c39b69d1f7392f367229536174e20f54c86883f6cf469c0d2578432` |
 | `docs/school-v2-r1b-eight-api-complete-git-diff-20260727.txt` | `5b11f064b4caa01c3015b3b55b6db8bf5c38fd3607182d1b124a120662db2093` |
@@ -115,4 +116,4 @@
 | `sql/current/school_tuition_atomic_void_reissue_schema_fragment_20260803.sql` | `b9c13ddc107a799a914aabbc2eac4663314cacc4f31005ffb4c365902b040773` |
 | `sql/current/school_tuition_atomic_void_reissue_writer_fragment_20260803.sql` | `7ed27844edde2b18b241ec9c23de8c5faed07bd8d5bcee2d97b3252f1855939b` |
 
-其中第一份文件在本任务初始读取时即为上述SHA；本任务从未读取正文或改动该文件。
+`school-v1-decommission-readonly-investigation-20260809.md`在本任务初始读取时即为上述SHA；新增的P1A文件是在文档提交阶段首次出现。本任务从未读取两者正文或改动任一受保护文件。
