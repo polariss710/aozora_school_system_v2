@@ -4894,6 +4894,17 @@ h2 {
   line-height: 1.45;
 }
 
+#createActualLessonDialog .lesson-actual-time-field {
+  align-self: start;
+}
+
+#createActualLessonDialog .lesson-actual-time-field > input[type="time"] {
+  box-sizing: border-box;
+  height: 40px;
+  min-height: 40px;
+  align-self: start;
+}
+
 .lesson-edit-dialog-panel .section-heading {
   margin-bottom: 8px;
 }

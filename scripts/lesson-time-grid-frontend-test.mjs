@@ -91,6 +91,7 @@ const lessonPage = read("js/pages/lesson-page.js");
 const lessonEditDialog = read("js/components/lesson-edit-dialog.js");
 const gridModule = read("js/utils/lesson-time-grid.js");
 const partTimeHtml = read("part-time-work.html");
+const appCss = read("css/app.css");
 
 const mainHtmlTimeInputs = [...`${lessonHtml}\n${lessonDetailHtml}`.matchAll(/<input\b[^>]*\btype="time"[^>]*>/g)].map((match) => match[0]);
 assert.equal(mainHtmlTimeInputs.length, 14);
@@ -105,5 +106,24 @@ assert.match(lessonPage, /validateLessonTimeGrid\(startText, endText\)/);
 assert.match(lessonEditDialog, /validateLessonTimeGrid\(startText, endText\)/);
 assert.doesNotMatch(gridModule, /Math\.(?:round|floor|ceil|trunc)/);
 assert.doesNotMatch(partTimeHtml, /lesson-time-grid-hint|step="900"/);
+
+const actualTimeFields = [...lessonHtml.matchAll(/<label class="field lesson-actual-time-field" data-create-actual-lesson-field="(startTime|endTime)">/g)]
+  .map((match) => match[1]);
+assert.deepEqual(actualTimeFields, ["startTime", "endTime"]);
+assert.match(
+  appCss,
+  /#createActualLessonDialog \.lesson-actual-time-field\s*\{\s*align-self:\s*start;\s*\}/
+);
+const actualTimeInputRule = appCss.match(
+  /#createActualLessonDialog \.lesson-actual-time-field > input\[type="time"\]\s*\{([^}]*)\}/
+)?.[1] || "";
+assert.match(actualTimeInputRule, /box-sizing:\s*border-box;/);
+assert.match(actualTimeInputRule, /height:\s*40px;/);
+assert.match(actualTimeInputRule, /min-height:\s*40px;/);
+assert.match(actualTimeInputRule, /align-self:\s*start;/);
+const invalidFieldRule = appCss.match(
+  /\.field\.is-invalid input,[\s\S]*?\.field\.is-invalid textarea\s*\{([^}]*)\}/
+)?.[1] || "";
+assert.doesNotMatch(invalidFieldRule, /(?:min-)?height|padding|border-width/);
 
 console.log("lesson time grid frontend tests passed");
