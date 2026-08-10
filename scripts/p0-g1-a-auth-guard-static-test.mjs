@@ -89,12 +89,17 @@ assert.match(client, /persistSession: true/);
 assert.match(client, /detectSessionInUrl: false/);
 assert.doesNotMatch(client, /keyPrefix|slice\(0, 5\)/);
 
+assert.match(
+  authApi,
+  /supabase-client\.js\?v=p1-b2b-auth-storage-20260810-1/,
+  "auth-api must import the single versioned canonical Supabase client"
+);
 for (const file of readdirSync("js", { recursive: true }).filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/${file}`, "utf8");
   assert.doesNotMatch(
     source,
-    /supabase-client\.js\?v=/,
-    `js/${file} must reuse the canonical Supabase Auth client instance`
+    /supabase-client\.js(?!\?v=p1-b2b-auth-storage-20260810-1)/,
+    `js/${file} must use the single versioned canonical Supabase client URL`
   );
 }
 

@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js";
+import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=be-ui-20260806-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";

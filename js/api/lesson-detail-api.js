@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js";
+import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import { mergeLessonTuitionHistoryState } from "../utils/lesson-tuition-history-state.js?v=p0f-readfix-20260803-1";
 
 const LESSON_COLUMNS = [

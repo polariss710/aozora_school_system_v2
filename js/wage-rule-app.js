@@ -1,5 +1,5 @@
-import { APP_VERSION } from "./config.js?v=wage-rule-explicit-filter-20260808-1";
-import { requireGlobalSession } from "./auth-guard.js?v=phase-b4-remaining-20260807-1";
+import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
+import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
 import { initWageRulePage } from "./pages/wage-rule-page.js?v=wage-rule-explicit-filter-20260808-1";
 
 const globalSessionPromise = requireGlobalSession();

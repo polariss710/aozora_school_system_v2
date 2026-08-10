@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js";
+import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=phase-b4-remaining-20260807-1";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 

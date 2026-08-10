@@ -1,6 +1,6 @@
 import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=v2.112.0-cash-retry-attempts-20260614";
 import { initSchoolAuth } from "../auth.js?v=v10.3.38-payment-legacy-cash-cleanup";
-import { hasSupabaseConfig } from "../supabase-client.js";
+import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,

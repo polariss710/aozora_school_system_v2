@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js";
+import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import { isActiveAdmin } from "../auth.js?v=b5-20260807-1";
 import {
   createStudentProfile,

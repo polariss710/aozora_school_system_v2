@@ -1,4 +1,4 @@
-import { hasSupabaseConfig, supabase } from "../supabase-client.js";
+import { hasSupabaseConfig, supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 
 const VALID_ROLES = new Set(["admin", "operator", "read_only"]);
 let currentAuthContext = null;

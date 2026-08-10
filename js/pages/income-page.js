@@ -4,7 +4,7 @@ import {
   isActiveAdmin,
   requireActiveAdminForCashConfirmation,
 } from "../auth.js?v=p0-g1-b1-20260804-1";
-import { hasSupabaseConfig } from "../supabase-client.js";
+import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
   createIncomeRecord,
   createPendingCashIncomeRecord,

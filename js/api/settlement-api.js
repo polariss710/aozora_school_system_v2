@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js";
+import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import { getStudentSettlementOnlineStatus } from "./student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-3";
 
 const SETTLEMENT_COLUMNS = [

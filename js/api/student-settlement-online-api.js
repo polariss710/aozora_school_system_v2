@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js";
+import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import { requireUuid } from "./validation.js";
 
 const SAVE_EDGE_NAME = "save-student-settlement-draft";

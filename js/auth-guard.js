@@ -3,7 +3,7 @@ import {
   signOutLocal,
   subscribeToAuthChanges,
   verifyCurrentAuthContext,
-} from "./api/auth-api.js?v=p0-g1-a-20260804-1";
+} from "./api/auth-api.js?v=p1-b2b-auth-storage-20260810-1";
 
 let guardPromise = null;
 let redirecting = false;
