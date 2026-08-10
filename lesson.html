@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=lesson-filter-single-row-20260807-1">
+    <link rel="stylesheet" href="./css/app.css?v=lesson-time-grid-frontend-20260810-1">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -321,12 +321,13 @@
 
             <label class="field" data-create-planned-lesson-field="startTime">
               <span>开始时间</span>
-              <input id="createPlannedLessonStartTimeInput" type="time">
+              <input id="createPlannedLessonStartTimeInput" type="time" step="900">
             </label>
 
             <label class="field" data-create-planned-lesson-field="endTime">
               <span>结束时间</span>
-              <input id="createPlannedLessonEndTimeInput" type="time">
+              <input id="createPlannedLessonEndTimeInput" type="time" step="900">
+              <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
             </label>
 
             <label class="field" data-create-planned-lesson-field="lessonDeliveryMode">
@@ -423,12 +424,13 @@
 
             <label class="field" data-create-actual-lesson-field="startTime">
               <span>开始时间</span>
-              <input id="createActualLessonStartTimeInput" type="time">
+              <input id="createActualLessonStartTimeInput" type="time" step="900">
             </label>
 
             <label class="field" data-create-actual-lesson-field="endTime">
               <span>结束时间</span>
-              <input id="createActualLessonEndTimeInput" type="time">
+              <input id="createActualLessonEndTimeInput" type="time" step="900">
+              <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
             </label>
 
             <label class="field" data-create-actual-lesson-field="durationHours">
@@ -503,6 +505,7 @@
             <label class="field" data-create-cancelled-actual-lesson-field="endTime">
               <span>结束时间</span>
               <input id="createCancelledActualLessonEndTimeInput" type="time" step="900">
+              <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
             </label>
 
             <label class="field" data-create-cancelled-actual-lesson-field="durationHours">
@@ -582,12 +585,13 @@
 
             <label class="field" data-create-makeup-actual-lesson-field="startTime">
               <span>开始时间</span>
-              <input id="createMakeupActualLessonStartTimeInput" type="time">
+              <input id="createMakeupActualLessonStartTimeInput" type="time" step="900">
             </label>
 
             <label class="field" data-create-makeup-actual-lesson-field="endTime">
               <span>结束时间</span>
-              <input id="createMakeupActualLessonEndTimeInput" type="time">
+              <input id="createMakeupActualLessonEndTimeInput" type="time" step="900">
+              <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
             </label>
 
             <label class="field" data-create-makeup-actual-lesson-field="durationHours">
@@ -699,12 +703,13 @@
 
             <label class="field" data-create-cross-month-makeup-field="startTime">
               <span>开始时间</span>
-              <input id="createCrossMonthMakeupActualStartTimeInput" type="time">
+              <input id="createCrossMonthMakeupActualStartTimeInput" type="time" step="900">
             </label>
 
             <label class="field" data-create-cross-month-makeup-field="endTime">
               <span>结束时间</span>
-              <input id="createCrossMonthMakeupActualEndTimeInput" type="time">
+              <input id="createCrossMonthMakeupActualEndTimeInput" type="time" step="900">
+              <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
             </label>
 
             <label class="field" data-create-cross-month-makeup-field="durationHours">
@@ -954,12 +959,13 @@
 
             <label class="field" data-edit-lesson-field="startTime">
               <span>开始时间</span>
-              <input id="editLessonStartTimeInput" type="time">
+              <input id="editLessonStartTimeInput" type="time" step="900">
             </label>
 
             <label class="field" data-edit-lesson-field="endTime">
               <span>结束时间</span>
-              <input id="editLessonEndTimeInput" type="time">
+              <input id="editLessonEndTimeInput" type="time" step="900">
+              <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
             </label>
 
             <label class="field" data-edit-lesson-field="lessonDeliveryMode">
@@ -1093,6 +1099,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=p1-b2b-auth-storage-20260810-1"></script>
+    <script type="module" src="./js/lesson-app.js?v=lesson-time-grid-frontend-20260810-1"></script>
   </body>
 </html>

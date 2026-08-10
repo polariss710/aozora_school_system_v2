@@ -27,7 +27,7 @@ import {
 } from "../api/lesson-api.js?v=lesson-filter-single-row-20260807-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=be-ui-20260806-1";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=lesson-time-grid-frontend-20260810-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
 import {
   currentYearMonth,
@@ -37,7 +37,11 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=p0f-readfix-20260803-1";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=lesson-time-grid-frontend-20260810-1";
+import {
+  isLessonTimeValue as isTimeValue,
+  validateLessonTimeGrid,
+} from "../utils/lesson-time-grid.js?v=lesson-time-grid-frontend-20260810-1";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
@@ -4262,11 +4266,12 @@ function renderLessonBatchGeneratePatterns() {
       </label>
       <label class="field">
         <span>开始</span>
-        <input type="time" value="${escapeAttribute(pattern.startTime)}" data-batch-pattern-field="startTime">
+        <input type="time" step="900" value="${escapeAttribute(pattern.startTime)}" data-batch-pattern-field="startTime">
       </label>
       <label class="field">
         <span>结束</span>
-        <input type="time" value="${escapeAttribute(pattern.endTime)}" data-batch-pattern-field="endTime">
+        <input type="time" step="900" value="${escapeAttribute(pattern.endTime)}" data-batch-pattern-field="endTime">
+        <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
       </label>
       <label class="field">
         <span>授课方式</span>
@@ -4556,6 +4561,8 @@ function readLessonBatchGenerateDraft(options = {}) {
       if (!Number.isFinite(pattern.durationHours) || pattern.durationHours <= 0) {
         pattern.durationHours = timeCheck.durationHours;
       }
+    } else if (timeCheck.status === "error") {
+      errors.push(["patterns", `规则 ${pattern.patternIndex}：${timeCheck.message}`]);
     } else if (Number.isFinite(pattern.durationHours) && pattern.durationHours > 0) {
       pattern.startTimeForSave = null;
       pattern.endTimeForSave = null;
@@ -7529,10 +7536,6 @@ function displayInputNumber(value) {
   return String(value);
 }
 
-function isTimeValue(value) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(safeText(value));
-}
-
 function validateLessonTimeRange(startTime, endTime) {
   const startText = safeText(startTime);
   const endText = safeText(endTime);
@@ -7542,32 +7545,14 @@ function validateLessonTimeRange(startTime, endTime) {
   if (!startText || !endText) {
     return { status: "incomplete" };
   }
-  if (!isTimeValue(startText) || !isTimeValue(endText)) {
-    return {
-      status: "error",
-      message: "请填写正确的开始时间和结束时间。",
-    };
-  }
-
-  const startMinutes = clockMinutes(startText);
-  const endMinutes = clockMinutes(endText);
-  const diffMinutes = endMinutes - startMinutes;
-  if (diffMinutes <= 0) {
-    return {
-      status: "error",
-      message: "结束时间必须晚于开始时间。",
-    };
-  }
-  if (diffMinutes % 15 !== 0) {
-    return {
-      status: "error",
-      message: "开始/结束时间差必须是 15 分钟的整数倍；不会自动四舍五入。",
-    };
+  const gridValidation = validateLessonTimeGrid(startText, endText);
+  if (gridValidation.status !== "valid") {
+    return gridValidation;
   }
 
   return {
     status: "valid",
-    durationHours: Number((diffMinutes / 60).toFixed(2)),
+    durationHours: Number((gridValidation.diffMinutes / 60).toFixed(2)),
   };
 }
 

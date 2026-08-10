@@ -4889,6 +4889,11 @@ h2 {
   font-size: 12px;
 }
 
+.lesson-time-grid-hint {
+  font-weight: 500;
+  line-height: 1.45;
+}
+
 .lesson-edit-dialog-panel .section-heading {
   margin-bottom: 8px;
 }

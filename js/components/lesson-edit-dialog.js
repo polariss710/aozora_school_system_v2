@@ -1,7 +1,11 @@
 import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
 import { formatMonth, safeText } from "../utils/format.js";
 import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=p0f-readfix-20260803-1";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=p0f-readfix-20260803-1";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=lesson-time-grid-frontend-20260810-1";
+import {
+  isLessonTimeValue as isTimeValue,
+  validateLessonTimeGrid,
+} from "../utils/lesson-time-grid.js?v=lesson-time-grid-frontend-20260810-1";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",
@@ -823,10 +827,6 @@ function displayInputNumber(value) {
   return String(value);
 }
 
-function isTimeValue(value) {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(safeText(value));
-}
-
 function validateLessonTimeRange(startTime, endTime) {
   const startText = safeText(startTime);
   const endText = safeText(endTime);
@@ -836,38 +836,15 @@ function validateLessonTimeRange(startTime, endTime) {
   if (!startText || !endText) {
     return { status: "incomplete" };
   }
-  if (!isTimeValue(startText) || !isTimeValue(endText)) {
-    return {
-      status: "error",
-      message: "请填写正确的开始时间和结束时间。",
-    };
-  }
-
-  const startMinutes = clockMinutes(startText);
-  const endMinutes = clockMinutes(endText);
-  const diffMinutes = endMinutes - startMinutes;
-  if (diffMinutes <= 0) {
-    return {
-      status: "error",
-      message: "结束时间必须晚于开始时间。",
-    };
-  }
-  if (diffMinutes % 15 !== 0) {
-    return {
-      status: "error",
-      message: "开始/结束时间差必须是 15 分钟的整数倍；不会自动四舍五入。",
-    };
+  const gridValidation = validateLessonTimeGrid(startText, endText);
+  if (gridValidation.status !== "valid") {
+    return gridValidation;
   }
 
   return {
     status: "valid",
-    durationHours: Number((diffMinutes / 60).toFixed(2)),
+    durationHours: Number((gridValidation.diffMinutes / 60).toFixed(2)),
   };
-}
-
-function clockMinutes(value) {
-  const [hour, minute] = safeText(value).split(":").map(Number);
-  return hour * 60 + minute;
 }
 
 function numbersEqual(left, right) {

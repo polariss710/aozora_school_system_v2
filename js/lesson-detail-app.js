@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
+import { APP_VERSION } from "./config.js?v=lesson-time-grid-frontend-20260810-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=be-ui-20260806-1";
+import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=lesson-time-grid-frontend-20260810-1";
 
 const globalSessionPromise = requireGlobalSession();
 

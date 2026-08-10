@@ -1,4 +1,5 @@
 const LESSON_ERROR_CODE_MESSAGES = new Map([
+  ["LESSON_TIME_GRID_INVALID", "无法保存课时：开始或结束时间不符合15分钟刻度规则，请使用00、15、30或45分钟。重复提交不会解决此问题。"],
   ["FUTURE_ACTUAL_COMPLETION_FORBIDDEN", "实际完成日期不能晚于东京当前业务日期。"],
   ["R2_E_E_BILLED_PLANNED_STATUS_TRANSITION_FORBIDDEN", "已收费课时不允许执行该状态变更。"],
   ["R2_F_E_BILLED_PLANNED_STATUS_TRANSITION_FORBIDDEN", "已收费课时不允许执行该状态变更。"],
@@ -13,8 +14,12 @@ const NETWORK_TEXT_PATTERN = /(?:failed to fetch|networkerror|network request|lo
 
 export function lessonUserErrorMessage(error, fallback = "课时操作失败，请稍后重试。") {
   const rawMessage = String(error?.message || error || "").trim();
+  const stableErrorText = [rawMessage, error?.details, error?.hint, error?.code]
+    .filter((value) => value !== null && value !== undefined && String(value).trim())
+    .map((value) => String(value).trim())
+    .join(" ");
   for (const [code, message] of LESSON_ERROR_CODE_MESSAGES) {
-    if (rawMessage.includes(code)) {
+    if (stableErrorText.includes(code)) {
       return message;
     }
   }
