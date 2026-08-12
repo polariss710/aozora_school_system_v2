@@ -35,10 +35,11 @@ assert(page.includes('console.error("Lesson management initial load failed", err
 assert(!page.includes(".rpc("), "page module must not call RPC directly");
 assert(!/\.(insert|update|delete|upsert)\s*\(/.test(page), "page module must not perform direct row writes");
 
-const cacheKey = "lesson-filter-single-row-20260807-1";
-assert(html.includes(`lesson-app.js?v=${cacheKey}`), "lesson HTML must load the current app cache key");
-assert(app.includes(`config.js?v=${cacheKey}`) && app.includes(`lesson-page.js?v=${cacheKey}`), "app/config/page cache keys must match");
-assert(page.includes(`lesson-api.js?v=${cacheKey}`), "page/API cache keys must match");
+const appCacheKey = "lesson-cancel-auth-context-20260812-1";
+const apiCacheKey = "lesson-filter-single-row-20260807-1";
+assert(html.includes(`lesson-app.js?v=${appCacheKey}`), "lesson HTML must load the current app cache key");
+assert(app.includes(`config.js?v=${appCacheKey}`) && app.includes(`lesson-page.js?v=${appCacheKey}`), "app/config/page cache keys must match");
+assert(page.includes(`lesson-api.js?v=${apiCacheKey}`), "page must retain the current lesson API cache key");
 
 const sampleRecords = [
   { id: "planned-1", lesson_type: "planned" },

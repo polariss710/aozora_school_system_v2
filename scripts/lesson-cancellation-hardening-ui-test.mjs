@@ -38,15 +38,16 @@ assert.match(openDialog, /plannedLesson\.status !== "planned"/);
 assert.doesNotMatch(openDialog, /plannedLesson\.status !== "pending_makeup"/);
 assert.match(openDialog, /currentUserCanMarkLessonCancelled\(\)/);
 assert.match(openDialog, /linkedActualForPlannedLesson\(plannedLesson\.id\)/);
-assert.match(canMark, /membership\?\.is_active === true|currentUserCanMarkLessonCancelled/);
-assert.match(canMark, /planned\.status === "planned"/);
-assert.match(canMark, /!linkedActualForPlannedLesson\(planned\.id\)/);
+assert.match(canMark, /canShowPlannedCancellationAction/);
+assert.match(canMark, /authContext: getCurrentAuthContext\(\)/);
+assert.match(canMark, /linkedActualForPlannedLesson\(planned\.id\)/);
 
 // Ordinary actual remains present; cancellation is role-gated and pending
 // makeup renders only the existing makeup-completion action.
 assert.match(renderMissing, /data-generate-actual-id/);
 assert.match(renderMissing, /canMarkCancelledActualFromPlanned\(planned\)/);
 assert.match(renderMissing, /data-generate-cancelled-actual-id/);
+assert.match(renderMissing, />取消并转待补课<\/button>/);
 assert.match(renderMissing, /planned\.status === "pending_makeup"[\s\S]*data-generate-makeup-actual-id/);
 
 // Opening and closing are UI-only. Writes remain in the explicit submit path.
@@ -103,8 +104,8 @@ assert.match(writerSql, /actual_minutes, teacher_settlement_month/);
 assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 assert.match(lessonHtml, /<body class="lesson-page">/);
 assert.match(lessonHtml, /app\.css\?v=lesson-actual-time-height-20260810-1/);
-assert.match(lessonHtml, /lesson-app\.js\?v=lesson-actual-time-height-20260810-1/);
-assert.match(lessonApp, /lesson-page\.js\?v=lesson-actual-time-height-20260810-1/);
+assert.match(lessonHtml, /lesson-app\.js\?v=lesson-cancel-auth-context-20260812-1/);
+assert.match(lessonApp, /lesson-page\.js\?v=lesson-cancel-auth-context-20260812-1/);
 assert.match(appCss, /\.lesson-page \.dialog-backdrop\s*\{\s*z-index:\s*1700;/);
 
 console.log("School V2 cancellation hardening UI/API/static contract: PASS");

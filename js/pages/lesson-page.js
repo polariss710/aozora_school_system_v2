@@ -1,5 +1,5 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { getCurrentAuthContext } from "../api/auth-api.js?v=p0-g1-a-20260804-1";
+import { getCurrentAuthContext } from "../api/auth-api.js?v=p1-b2b-auth-storage-20260810-1";
 import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
   createActualLessonFromPlanned,
@@ -64,6 +64,10 @@ import {
   isNewBusinessEntityId,
   requirePrimarySchoolBusinessEntityId,
 } from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+import {
+  canShowPlannedCancellationAction,
+  isActiveLessonCancellationActor,
+} from "../utils/lesson-cancellation-capability.js?v=lesson-cancel-auth-context-20260812-1";
 
 const DEFAULT_FILTERS = {
   weekStart: "",
@@ -2211,11 +2215,7 @@ function updateCreateActualLessonFeePreview() {
 }
 
 function currentUserCanMarkLessonCancelled() {
-  const membership = getCurrentAuthContext()?.membership;
-  return Boolean(
-    membership?.is_active === true
-    && ["admin", "operator"].includes(membership.role)
-  );
+  return isActiveLessonCancellationActor(getCurrentAuthContext());
 }
 
 function linkedActualForPlannedLesson(plannedLessonId) {
@@ -6907,7 +6907,7 @@ function renderMissingActualCard(planned) {
     ];
     if (canMarkCancelledActualFromPlanned(planned)) {
       actions.push(
-        `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">标记取消并转待补课</button>`
+        `<button class="button table-action-button" type="button" data-generate-cancelled-actual-id="${escapeAttribute(planned.id)}">取消并转待补课</button>`
       );
     }
     actionHtml = actions.join("");
@@ -6924,11 +6924,11 @@ function renderMissingActualCard(planned) {
 }
 
 function canMarkCancelledActualFromPlanned(planned) {
-  return currentUserCanMarkLessonCancelled()
-    && planned?.lesson_type === "planned"
-    && planned.status === "planned"
-    && !isVoidedLesson(planned)
-    && !linkedActualForPlannedLesson(planned.id);
+  return canShowPlannedCancellationAction({
+    authContext: getCurrentAuthContext(),
+    planned,
+    hasLinkedActual: Boolean(planned?.id && linkedActualForPlannedLesson(planned.id)),
+  });
 }
 
 function canGenerateActualFromPlanned(planned) {
