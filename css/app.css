@@ -4889,11 +4889,6 @@ h2 {
   font-size: 12px;
 }
 
-.lesson-time-grid-hint {
-  font-weight: 500;
-  line-height: 1.45;
-}
-
 #createActualLessonDialog .lesson-actual-time-field {
   align-self: start;
 }

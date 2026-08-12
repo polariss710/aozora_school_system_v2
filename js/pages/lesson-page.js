@@ -4271,7 +4271,6 @@ function renderLessonBatchGeneratePatterns() {
       <label class="field">
         <span>结束</span>
         <input type="time" step="900" value="${escapeAttribute(pattern.endTime)}" data-batch-pattern-field="endTime">
-        <small class="field-hint lesson-time-grid-hint">开始和结束时间仅支持15分钟刻度：00、15、30、45。系统不会自动四舍五入。</small>
       </label>
       <label class="field">
         <span>授课方式</span>
