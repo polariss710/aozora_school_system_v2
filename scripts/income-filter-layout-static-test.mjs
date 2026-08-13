@@ -64,9 +64,9 @@ assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.income-filter-panel \.in
 assert.doesNotMatch(css, /\.expense-filter-panel[^\n{]*\.income-filter-|\.wage-filter-panel[^\n{]*\.income-filter-|\.settlement-filter-panel[^\n{]*\.income-filter-/);
 
 assert.match(api, /export async function fetchIncomeRecords\(month\)/);
-assert.match(html, /income-filter-explicit-query-20260808-1/);
-assert.match(app, /income-filter-explicit-query-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.26"/);
+assert.match(html, /income-create-student-scope-layout-20260813-1/);
+assert.match(app, /income-create-student-scope-layout-20260813-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.43"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

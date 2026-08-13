@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 收入记录</title>
-    <link rel="stylesheet" href="./css/app.css?v=income-filter-explicit-query-20260808-1">
+    <link rel="stylesheet" href="./css/app.css?v=income-create-student-scope-layout-20260813-1">
   </head>
   <body>
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -289,12 +289,15 @@
               </label>
 
               <div class="field" data-create-income-field="student">
-                <span>学生 <b class="required-mark">必填</b></span>
+                <div class="income-create-student-label-row">
+                  <label class="income-create-student-label" for="createIncomeStudentSelect">学生</label>
+                  <label class="student-month-include-control income-create-student-scope-toggle">
+                    <input id="createIncomeIncludeInactiveCheckbox" type="checkbox">
+                    <span>包含暂停/离校学生</span>
+                  </label>
+                  <b class="required-mark">必填</b>
+                </div>
                 <select id="createIncomeStudentSelect"></select>
-                <label class="student-month-include-control">
-                  <input id="createIncomeIncludeInactiveCheckbox" type="checkbox">
-                  <span>包含暂停/离校学生</span>
-                </label>
               </div>
 
               <label class="field" data-create-income-field="account">
@@ -483,6 +486,6 @@
       </section>
     </div>
 
-    <script type="module" src="./js/income-app.js?v=p1-b2b-auth-storage-20260810-1"></script>
+    <script type="module" src="./js/income-app.js?v=income-create-student-scope-layout-20260813-1"></script>
   </body>
 </html>

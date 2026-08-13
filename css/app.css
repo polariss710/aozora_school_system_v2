@@ -4653,6 +4653,41 @@ h2 {
   letter-spacing: 0;
 }
 
+#createIncomeDialog .income-create-student-label-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  color: #526173;
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+#createIncomeDialog .income-create-student-label {
+  flex: 0 0 auto;
+}
+
+#createIncomeDialog .income-create-student-scope-toggle {
+  flex: 0 0 auto;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+#createIncomeDialog .field .income-create-student-scope-toggle input {
+  box-sizing: border-box;
+  width: 16px;
+  max-width: 16px;
+  min-width: 16px;
+  height: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+}
+
+#createIncomeDialog .income-create-student-label-row .required-mark {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
 #createIncomeDialog .field input,
 #createIncomeDialog .field select,
 #createIncomeDialog .field textarea,
