@@ -16,13 +16,18 @@ import {
 import {
   currentYearMonth,
   getYearMonthSelectValue,
-  initialYearMonthFromUrl,
   populateMonthSelect,
   populateYearSelect,
   setYearMonthSelectValue,
   updateMonthScopedNavigation,
-  updateUrlMonthParams,
 } from "../utils/month-filter.js";
+import {
+  buildPartTimeWorkFiltersUrl,
+  isValidPartTimeWorkYearMonth,
+  normalizePartTimeWorkFilters,
+  partTimeWorkFiltersFromUrl,
+  resolvePartTimeWorkSettlementYearMonth,
+} from "../utils/part-time-work-filter-state.js";
 import { formatCurrency, safeText } from "../utils/format.js";
 
 const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];
@@ -84,7 +89,6 @@ let isSubmitting = false;
 let isIncomeGenerationSubmitting = false;
 const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
-let initialMonth = "";
 const appliedFilters = {
   yearMonth: "",
   workplaceName: "",
@@ -97,11 +101,15 @@ export async function initPartTimeWorkPage() {
   cacheDom();
   populateYearSelect(dom.yearFilter, PAYMENT_MONTH_FILTER_YEAR_RANGE);
   populateMonthSelect(dom.monthFilter);
-  initialMonth = initialYearMonthFromUrl();
-  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, initialMonth);
-  appliedFilters.yearMonth = initialMonth;
-  updateMonthScopedNavigation(initialMonth);
+  setAppliedFilters(partTimeWorkFiltersFromUrl(
+    window.location.search,
+    currentYearMonth(),
+    WORKPLACE_OPTIONS,
+  ));
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, appliedFilters.yearMonth);
+  updateMonthScopedNavigation(appliedFilters.yearMonth);
   renderOptionSelect(dom.workplaceFilter, WORKPLACE_OPTIONS, { includeAll: true });
+  dom.workplaceFilter.value = appliedFilters.workplaceName;
   renderOptionSelect(dom.classDescriptionFilter, [], { includeAll: true });
   renderClassDescriptionOptions([], "", "");
   renderOptionSelect(dom.workplaceNameInput, WORKPLACE_OPTIONS);
@@ -124,7 +132,7 @@ export async function initPartTimeWorkPage() {
     return;
   }
 
-  await loadPageData();
+  await loadPageData({ syncDraftFilters: true });
   if (initialView) {
     scrollToPartTimeWorkView(initialView);
   }
@@ -173,12 +181,13 @@ function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
     applyDraftFilters();
-    loadPageData({ expandSelectedWorkplace: true });
+    syncAppliedFiltersToUrl({ push: true });
+    loadPageData({ expandSelectedWorkplace: true, syncDraftFilters: true });
   });
-  dom.yearFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
-  dom.monthFilter.addEventListener("change", updateMonthNavigationFromCurrentSelection);
   dom.workplaceFilter.addEventListener("change", () => {
-    renderClassDescriptionOptions(wageLessons, dom.classDescriptionFilter.value, dom.workplaceFilter.value);
+    clearFieldInvalid(dom.workplaceFilter);
+    clearFieldInvalid(dom.classDescriptionFilter);
+    renderClassDescriptionOptions(wageLessons, "", dom.workplaceFilter.value);
   });
 
   dom.resetButton.addEventListener("click", () => {
@@ -186,13 +195,15 @@ function bindEvents() {
     dom.workplaceFilter.value = "";
     dom.classDescriptionFilter.value = "";
     renderClassDescriptionOptions(wageLessons, "", "");
-    applyDraftFilters();
-    loadPageData();
+    clearFilterInvalidFields();
+    showMessage("success", "已重置筛选条件");
   });
 
   dom.classDescriptionFilter.addEventListener("change", () => {
-    // Draft-only change. The list is updated only when the filter form is submitted.
+    clearFieldInvalid(dom.classDescriptionFilter);
   });
+
+  window.addEventListener("popstate", handleFilterHistoryNavigation);
 
   dom.openCreateButton.addEventListener("click", openCreatePlannedDialog);
   dom.cancelButton.addEventListener("click", closeDialog);
@@ -240,7 +251,6 @@ async function loadPageData(options = {}) {
   }
 
   const filters = readAppliedFilters();
-  updateUrlMonthParams(filters.yearMonth);
   updateMonthScopedNavigation(filters.yearMonth);
   setLoading(true);
   showMessage("", "");
@@ -258,7 +268,9 @@ async function loadPageData(options = {}) {
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
     const classDescription = normalizedAppliedClassDescription(filters);
-    renderClassDescriptionOptions(wageLessons, dom.classDescriptionFilter.value, dom.workplaceFilter.value);
+    if (options.syncDraftFilters) {
+      syncDraftControlsFromAppliedFilters();
+    }
     if (options.expandSelectedWorkplace && filters.workplaceName) {
       expandedWorkplaces.add(filters.workplaceName);
     }
@@ -286,11 +298,18 @@ function readDraftFilters() {
 }
 
 function applyDraftFilters() {
-  const draft = readDraftFilters();
-  appliedFilters.yearMonth = draft.yearMonth;
-  appliedFilters.workplaceName = draft.workplaceName;
-  appliedFilters.classDescription = draft.workplaceName ? draft.classDescription : "";
+  setAppliedFilters(normalizePartTimeWorkFilters(
+    readDraftFilters(),
+    currentYearMonth(),
+    WORKPLACE_OPTIONS,
+  ));
   return readAppliedFilters();
+}
+
+function setAppliedFilters(filters) {
+  appliedFilters.yearMonth = filters.yearMonth;
+  appliedFilters.workplaceName = filters.workplaceName;
+  appliedFilters.classDescription = filters.classDescription;
 }
 
 function readAppliedFilters() {
@@ -301,13 +320,45 @@ function readAppliedFilters() {
   };
 }
 
-function updateMonthNavigationFromCurrentSelection() {
-  const month = getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
-  if (!month) {
+function syncDraftControlsFromAppliedFilters() {
+  setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, appliedFilters.yearMonth);
+  dom.workplaceFilter.value = appliedFilters.workplaceName;
+  renderClassDescriptionOptions(
+    wageLessons,
+    appliedFilters.classDescription,
+    appliedFilters.workplaceName,
+  );
+}
+
+function syncAppliedFiltersToUrl({ push = false } = {}) {
+  const url = buildPartTimeWorkFiltersUrl(window.location.href, readAppliedFilters());
+  const currentUrl = new URL(window.location.href);
+  if (url.href === currentUrl.href) {
     return;
   }
-  updateUrlMonthParams(month);
-  updateMonthScopedNavigation(month);
+  const currentState = window.history.state && typeof window.history.state === "object"
+    ? window.history.state
+    : {};
+  const nextState = { ...currentState, partTimeWorkFilters: readAppliedFilters() };
+  if (push) {
+    window.history.pushState(nextState, "", url);
+  } else {
+    window.history.replaceState(nextState, "", url);
+  }
+}
+
+async function handleFilterHistoryNavigation() {
+  setAppliedFilters(partTimeWorkFiltersFromUrl(
+    window.location.search,
+    currentYearMonth(),
+    WORKPLACE_OPTIONS,
+  ));
+  const view = partTimeWorkViewFromUrl();
+  updatePartTimeWorkNavForView(view || "lessons");
+  await loadPageData({ syncDraftFilters: true, expandSelectedWorkplace: true });
+  if (view) {
+    scrollToPartTimeWorkView(view);
+  }
 }
 
 function partTimeWorkViewFromUrl() {
@@ -353,9 +404,10 @@ function renderClassDescriptionOptions(rows, selectedValue = "", workplaceName =
 
   const normalizedSelected = safeText(selectedValue).trim();
   const options = distinctClassDescriptions(rows, workplaceName);
-  const nextSelected = normalizedSelected && options.includes(normalizedSelected)
-    ? normalizedSelected
-    : "";
+  if (normalizedSelected && !options.includes(normalizedSelected)) {
+    options.unshift(normalizedSelected);
+  }
+  const nextSelected = normalizedSelected;
 
   dom.classDescriptionFilter.disabled = false;
   renderOptionSelect(dom.classDescriptionFilter, options, { includeAll: true });
@@ -365,16 +417,8 @@ function renderClassDescriptionOptions(rows, selectedValue = "", workplaceName =
 
 function normalizedAppliedClassDescription(filters) {
   if (!filters.workplaceName || !filters.classDescription) {
-    appliedFilters.classDescription = "";
     return "";
   }
-
-  const options = distinctClassDescriptions(wageLessons, filters.workplaceName);
-  if (!options.includes(filters.classDescription)) {
-    appliedFilters.classDescription = "";
-    return "";
-  }
-
   return filters.classDescription;
 }
 
@@ -541,6 +585,7 @@ function renderWageCalculation(lessonRows, settlementRows) {
 function buildEmptySettlementRow(workplaceName) {
   return {
     id: "",
+    year_month: "",
     workplace_name: workplaceName,
     actual_hours_total: 0,
     lesson_wage_jpy: 0,
@@ -564,7 +609,9 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const hasBlockingIncomeRecord = isBlockingIncomeRecord(row);
   const hasBlockingIncomeRequest = isBlockingIncomeRequest(row);
   const hasBlockingIncome = hasBlockingIncomeRecord || hasBlockingIncomeRequest;
-  const canLock = row.status === "draft";
+  const canLock = row.status === "draft"
+    && isValidPartTimeWorkYearMonth(row.year_month)
+    && row.year_month === appliedFilters.yearMonth;
   const canUnlock = row.status === "locked" && !row.income_record_id && !row.income_request_id;
   const canCreateRequest = isLocked && !hasBlockingIncome;
   const canExport = Boolean(row.id) && isLocked;
@@ -573,7 +620,7 @@ function renderWageWorkplaceSection(workplaceName, estimated, row) {
   const incomeStatus = incomeStatusForSettlement(row);
 
   return `
-    <section class="part-time-work-wage-section" data-settlement-row data-settlement-workplace="${escapeAttribute(workplaceName)}" data-settlement-id="${escapeAttribute(row.id || "")}">
+    <section class="part-time-work-wage-section" data-settlement-row data-settlement-workplace="${escapeAttribute(workplaceName)}" data-settlement-year-month="${escapeAttribute(row.year_month || "")}" data-settlement-id="${escapeAttribute(row.id || "")}">
       <div class="part-time-work-wage-title-row">
         <div class="part-time-work-wage-title-main">
           <strong>${escapeHtml(workplaceName)}</strong>
@@ -993,10 +1040,11 @@ async function handleSettlementActionClick(event) {
 
   try {
     if (action === "lock") {
-      if (!window.confirm(`确认锁定 ${workplaceName} 的月度工资结算？当前调整额和备注会一并保存，锁定后关联实际课时不能再编辑。`)) {
+      const payload = readSettlementPayload(row, workplaceName);
+      if (!window.confirm(`确认锁定 ${workplaceName} ${payload.yearMonth} 的月度工资结算？当前调整额和备注会一并保存，锁定后关联实际课时不能再编辑。`)) {
         return;
       }
-      await lockPartTimeWorkMonthlySettlement(readSettlementPayload(row, workplaceName));
+      await lockPartTimeWorkMonthlySettlement(payload);
       showMessage("success", `${workplaceName} 月度工资结算已锁定。`);
     } else if (action === "unlock") {
       if (!window.confirm(`确认撤销 ${workplaceName} 的月度工资结算锁定？锁定快照会被删除，调整额和备注将重新可编辑。`)) {
@@ -1073,7 +1121,7 @@ async function submitIncomeGenerationConfirmDialog() {
 
 function renderIncomeGenerationConfirmSummary(settlement, workplaceName) {
   const summaryRows = [
-    ["结算月", settlement.year_month || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter)],
+    ["结算月", isValidPartTimeWorkYearMonth(settlement.year_month) ? settlement.year_month : "-"],
     ["授课机构", workplaceName || settlement.workplace_name || "-"],
     ["实际课时", `${formatHours(settlement.actual_hours_total)} h`],
     ["课时工资", formatCurrency(settlement.lesson_wage_jpy, "JPY")],
@@ -1168,7 +1216,7 @@ function exportSettlementWorkbook(rows) {
   xlsx.utils.book_append_sheet(workbook, sheet, sanitizeSheetName(firstRow.workplace_name || "打工工资"));
   xlsx.writeFile(
     workbook,
-    `part_time_work_${sanitizeFileName(firstRow.year_month || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter))}_${sanitizeFileName(firstRow.workplace_name || "workplace")}.xlsx`,
+    `part_time_work_${sanitizeFileName(firstRow.year_month || "unknown-month")}_${sanitizeFileName(firstRow.workplace_name || "workplace")}.xlsx`,
     { bookType: "xlsx", cellStyles: true }
   );
 }
@@ -1215,8 +1263,23 @@ function buildSettlementExportRows(rows) {
 }
 
 function readSettlementPayload(row, workplaceName) {
+  const matchingSettlements = settlements.filter((item) => item.workplace_name === workplaceName);
+  const settlement = matchingSettlements[0];
+  if (!row || matchingSettlements.length !== 1 || !settlement) {
+    throw new Error("结算行已失效，请重新查询后再锁定。");
+  }
+  let yearMonth;
+  try {
+    yearMonth = resolvePartTimeWorkSettlementYearMonth({
+      readerYearMonth: settlement.year_month,
+      renderedYearMonth: row.dataset.settlementYearMonth,
+      appliedYearMonth: appliedFilters.yearMonth,
+    });
+  } catch {
+    throw new Error("结算月份缺失或与当前结果不一致，已阻止锁定。请重新查询后再试。");
+  }
   return {
-    yearMonth: getYearMonthSelectValue(dom.yearFilter, dom.monthFilter),
+    yearMonth,
     workplaceName,
     adjustmentJpy: parseInteger(row.querySelector('[data-settlement-input="adjustmentJpy"]')?.value),
     memo: row.querySelector('[data-settlement-input="memo"]')?.value.trim() || "",
@@ -1474,6 +1537,18 @@ function markFieldInvalid(input) {
 
 function clearFieldInvalid(input) {
   input?.closest(".field")?.classList.remove("is-invalid");
+}
+
+function clearFilterInvalidFields() {
+  for (const input of [
+    dom.yearFilter,
+    dom.monthFilter,
+    dom.workplaceFilter,
+    dom.classDescriptionFilter,
+  ]) {
+    clearFieldInvalid(input);
+    input?.removeAttribute("aria-invalid");
+  }
 }
 
 function clearInvalidFields() {
