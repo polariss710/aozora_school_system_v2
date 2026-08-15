@@ -50,6 +50,15 @@ export function buildPartTimeWorkFiltersUrl(href, filters) {
   return url;
 }
 
+export function partTimeWorkCollapseStateFromFilters(filters, workplaceOptions = []) {
+  const workplaceName = String(filters?.workplaceName || "").trim();
+  const expandedWorkplace = workplaceOptions.includes(workplaceName) ? workplaceName : "";
+  return {
+    expandedLessonWorkplaces: expandedWorkplace ? [expandedWorkplace] : [],
+    collapsedWageWorkplaces: workplaceOptions.filter((option) => option !== expandedWorkplace),
+  };
+}
+
 export function resolvePartTimeWorkSettlementYearMonth({
   readerYearMonth,
   renderedYearMonth,

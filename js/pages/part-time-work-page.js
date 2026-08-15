@@ -25,6 +25,7 @@ import {
   buildPartTimeWorkFiltersUrl,
   isValidPartTimeWorkYearMonth,
   normalizePartTimeWorkFilters,
+  partTimeWorkCollapseStateFromFilters,
   partTimeWorkFiltersFromUrl,
   resolvePartTimeWorkSettlementYearMonth,
 } from "../utils/part-time-work-filter-state.js";
@@ -182,7 +183,7 @@ function bindEvents() {
     event.preventDefault();
     applyDraftFilters();
     syncAppliedFiltersToUrl({ push: true });
-    loadPageData({ expandSelectedWorkplace: true, syncDraftFilters: true });
+    loadPageData({ syncDraftFilters: true });
   });
   dom.workplaceFilter.addEventListener("change", () => {
     clearFieldInvalid(dom.workplaceFilter);
@@ -251,6 +252,7 @@ async function loadPageData(options = {}) {
   }
 
   const filters = readAppliedFilters();
+  applyAppliedFilterCollapseState(filters);
   updateMonthScopedNavigation(filters.yearMonth);
   setLoading(true);
   showMessage("", "");
@@ -270,9 +272,6 @@ async function loadPageData(options = {}) {
     const classDescription = normalizedAppliedClassDescription(filters);
     if (options.syncDraftFilters) {
       syncDraftControlsFromAppliedFilters();
-    }
-    if (options.expandSelectedWorkplace && filters.workplaceName) {
-      expandedWorkplaces.add(filters.workplaceName);
     }
     renderVisibleLessons({ ...filters, classDescription });
     renderWageCalculation(wageLessons, settlements);
@@ -295,6 +294,18 @@ function readDraftFilters() {
     workplaceName: dom.workplaceFilter.value,
     classDescription: dom.classDescriptionFilter.value,
   };
+}
+
+function applyAppliedFilterCollapseState(filters = readAppliedFilters()) {
+  const collapseState = partTimeWorkCollapseStateFromFilters(filters, WORKPLACE_OPTIONS);
+  expandedWorkplaces.clear();
+  collapseState.expandedLessonWorkplaces.forEach((workplaceName) => {
+    expandedWorkplaces.add(workplaceName);
+  });
+  collapsedWageWorkplaces.clear();
+  collapseState.collapsedWageWorkplaces.forEach((workplaceName) => {
+    collapsedWageWorkplaces.add(workplaceName);
+  });
 }
 
 function applyDraftFilters() {
@@ -355,7 +366,7 @@ async function handleFilterHistoryNavigation() {
   ));
   const view = partTimeWorkViewFromUrl();
   updatePartTimeWorkNavForView(view || "lessons");
-  await loadPageData({ syncDraftFilters: true, expandSelectedWorkplace: true });
+  await loadPageData({ syncDraftFilters: true });
   if (view) {
     scrollToPartTimeWorkView(view);
   }
