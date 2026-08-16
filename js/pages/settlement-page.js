@@ -22,8 +22,9 @@ import {
   decimalString,
   isPositiveDecimalString,
   onlineStatusDisplay,
+  readRegisteredVarianceSummary,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-tokyo-month-close-20260810-3";
+} from "./settlement-online-state.js?v=student-settlement-registered-variance-preview-20260816-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -643,12 +644,17 @@ function renderAdjustmentPendingPreview(result, message, badge = "待更新") {
     ["来源更新时间", formatDate(preview.source_updated_at)],
     ["预览生成时间", formatDate(result.preview_generated_at)],
   ]);
-  renderAdjustmentSourceLines(preview.source_lines || []);
+  renderAdjustmentSourceLines(preview.source_lines || [], preview);
 }
 
-function renderAdjustmentSourceLines(lines) {
+function renderAdjustmentSourceLines(lines, preview) {
+  const registeredSummary = readRegisteredVarianceSummary(preview);
+  if (registeredSummary.status !== "hidden") {
+    renderRegisteredVarianceSummary(registeredSummary);
+    return;
+  }
   if (!lines.length) {
-    dom.adjustmentSourceLines.innerHTML = '<p class="section-note">当前模式没有可财务净额化的 source。</p>';
+    dom.adjustmentSourceLines.innerHTML = '<p class="section-note">当前 net Preview 没有可财务化的 eligible source line。</p>';
     return;
   }
   dom.adjustmentSourceLines.innerHTML = `
@@ -673,6 +679,52 @@ function renderAdjustmentSourceLines(lines) {
         </tr>`;
       }).join("")}</tbody>
     </table>`;
+}
+
+function renderRegisteredVarianceSummary(summary) {
+  if (summary.status === "unavailable") {
+    dom.adjustmentSourceLines.innerHTML = `
+      <section class="settlement-registered-variance-card" aria-labelledby="settlementRegisteredVarianceTitle">
+        <h4 id="settlementRegisteredVarianceTitle">当前已登记课时差额</h4>
+        <p class="section-note">暂时无法读取已登记课时差额，请重新预览。</p>
+      </section>`;
+    return;
+  }
+  if (summary.status === "empty") {
+    dom.adjustmentSourceLines.innerHTML = `
+      <section class="settlement-registered-variance-card" aria-labelledby="settlementRegisteredVarianceTitle">
+        <h4 id="settlementRegisteredVarianceTitle">当前已登记课时差额</h4>
+        <p>当前没有已登记的待补或超额事实。</p>
+        <p class="section-note">当前为“待补与超额分别处理”模式，上述差额仅展示已登记事实，不在本模式中执行财务净额化。</p>
+      </section>`;
+    return;
+  }
+
+  const netDirectionLabel = {
+    pending: "待补",
+    overage: "超额",
+    balanced: "平衡",
+  }[summary.netDirection];
+  const overageSystemDifferenceNote = summary.overageIncludedInSystemDifference
+    ? `<p class="section-note">超额折算 ${escapeHtml(formatCurrency(summary.overageAmountCny, "CNY"))} 已计入当前 system difference。</p>`
+    : "";
+  const unresolvedNote = summary.unresolvedPlannedCount > 0
+    ? `尚有 ${summary.unresolvedPlannedCount} 条 planned 未决，当前不能生成可保存的 net Preview。`
+    : "当前没有普通 planned 未决；正式 net Preview 仍以数据库权威校验为准。";
+  dom.adjustmentSourceLines.innerHTML = `
+    <section class="settlement-registered-variance-card" aria-labelledby="settlementRegisteredVarianceTitle">
+      <h4 id="settlementRegisteredVarianceTitle">当前已登记课时差额</h4>
+      <div class="dialog-summary">
+        ${renderSummaryRows([
+          ["已登记待补", `${displayValue(summary.pendingHours)} 小时 / ${formatCurrency(summary.pendingAmountJpy, "JPY")}`],
+          ["已登记超额", `${displayValue(summary.overageHours)} 小时 / ${formatCurrency(summary.overageAmountJpy, "JPY")}`],
+          ["当前已登记净差额", `${netDirectionLabel} ${displayValue(summary.netHours)} 小时 / ${formatCurrency(summary.netAmountJpy, "JPY")}`],
+        ])}
+      </div>
+      ${overageSystemDifferenceNote}
+      <p class="section-note">${escapeHtml(unresolvedNote)}</p>
+      <p class="section-note">当前为“待补与超额分别处理”模式，上述差额仅展示已登记事实，不在本模式中执行财务净额化。</p>
+    </section>`;
 }
 
 function applySourceTreatmentMode() {

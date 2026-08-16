@@ -16,7 +16,7 @@ assert.match(html, /当前已保存状态/);
 assert.match(html, /表单待提交 Preview/);
 assert.match(html, /id="settlementAdjustmentPreviewButton"[^>]*>重新预览/);
 assert.match(html, /id="settlementAdjustmentSubmitButton"[^>]*disabled[^>]*>保存草稿/);
-assert.match(html, /settlement-app\.js\?v=student-settlement-tokyo-month-close-20260810-3/);
+assert.match(html, /settlement-app\.js\?v=student-settlement-registered-variance-preview-20260816-1/);
 
 assert.match(css, /\.settlement-adjustment-dialog-panel\s*\{[\s\S]*?width:\s*min\(1040px, 100%\)/);
 assert.match(css, /grid-template-columns:\s*minmax\(0, 1\.12fr\) minmax\(330px, 0\.88fr\)/);
@@ -51,7 +51,7 @@ assert.match(page, /source_planned_lesson_id/);
 assert.match(page, /source_actual_lesson_id/);
 assert.doesNotMatch(page, /net_lesson_variance_jpy\s*[+\-*\/]|system_difference_cny\s*[+\-*\/]/);
 
-assert.match(app, /student-settlement-tokyo-month-close-20260810-3/g);
+assert.match(app, /student-settlement-registered-variance-preview-20260816-1/g);
 assert.match(rpc, /security definer/);
 assert.match(rpc, /set search_path=pg_catalog,public/);
 assert.match(rpc, /school_tuition_p0f_source_lines/);

@@ -11,6 +11,62 @@ export const ONLINE_SOURCE_TREATMENT_MODES = Object.freeze({
   NET_FINANCIAL: "net_lesson_variance_to_financial_credit_v1",
 });
 
+const REGISTERED_VARIANCE_CONTRACT_VERSION = "registered_lesson_variance_summary_v1";
+const SHA256_RE = /^[0-9a-f]{64}$/;
+const REGISTERED_NET_DIRECTIONS = new Set(["pending", "overage", "balanced"]);
+
+export function readRegisteredVarianceSummary(preview) {
+  if (preview?.source_treatment_mode !== ONLINE_SOURCE_TREATMENT_MODES.SEPARATE) {
+    return { status: "hidden" };
+  }
+  if (preview.registered_variance_contract_version !== REGISTERED_VARIANCE_CONTRACT_VERSION) {
+    return { status: "unavailable" };
+  }
+  if (preview.variance_summary_status === "empty") {
+    return isNonnegativeInteger(preview.registered_source_count)
+      && preview.registered_source_count === 0
+      ? { status: "empty" }
+      : { status: "unavailable" };
+  }
+  if (preview.variance_summary_status !== "ready"
+      || !REGISTERED_NET_DIRECTIONS.has(preview.registered_net_direction)
+      || !SHA256_RE.test(String(preview.variance_summary_manifest_sha256 || ""))
+      || !isNonnegativeInteger(preview.registered_source_count)
+      || preview.registered_source_count < 1
+      || !isNonnegativeInteger(preview.unresolved_planned_count)
+      || typeof preview.registered_overage_included_in_system_difference !== "boolean") {
+    return { status: "unavailable" };
+  }
+  const numericFields = [
+    "registered_pending_hours",
+    "registered_pending_amount_jpy",
+    "registered_overage_hours",
+    "registered_overage_amount_jpy",
+    "registered_overage_amount_cny",
+    "registered_net_hours",
+    "registered_net_amount_jpy",
+  ];
+  if (numericFields.some((field) => !isNonnegativeDecimal(preview[field]))) {
+    return { status: "unavailable" };
+  }
+  return {
+    status: "ready",
+    pendingHours: preview.registered_pending_hours,
+    pendingAmountJpy: preview.registered_pending_amount_jpy,
+    overageHours: preview.registered_overage_hours,
+    overageAmountJpy: preview.registered_overage_amount_jpy,
+    overageAmountCny: preview.registered_overage_amount_cny,
+    netDirection: preview.registered_net_direction,
+    netHours: preview.registered_net_hours,
+    netAmountJpy: preview.registered_net_amount_jpy,
+    unresolvedPlannedCount: preview.unresolved_planned_count,
+    overageIncludedInSystemDifference:
+      preview.registered_overage_included_in_system_difference,
+    sourceCount: preview.registered_source_count,
+    manifestSha256: preview.variance_summary_manifest_sha256,
+  };
+}
+
 export function canUseOnlineDraftSave(membershipRole, status) {
   return membershipRole === "admin"
     && status?.can_save === true
@@ -220,6 +276,16 @@ function nullableText(value) {
 function requireSourceCount(value) {
   if (!Number.isSafeInteger(value) || value < 0) throw new Error("expectedSourceCount is invalid");
   return value;
+}
+
+function isNonnegativeInteger(value) {
+  return Number.isSafeInteger(value) && value >= 0;
+}
+
+function isNonnegativeDecimal(value) {
+  if (value === null || value === undefined || value === "") return false;
+  const text = String(value).trim();
+  return DECIMAL_RE.test(text) && !text.startsWith("-");
 }
 
 function blockerLabel(code) {

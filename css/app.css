@@ -5138,6 +5138,25 @@ h2 {
   overflow-x: auto;
 }
 
+.settlement-registered-variance-card {
+  min-width: 0;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 10px;
+  overflow-wrap: anywhere;
+}
+
+.settlement-registered-variance-card h4 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.settlement-registered-variance-card p {
+  margin: 8px 0 0;
+}
+
 .settlement-adjustment-source-table {
   width: 100%;
   min-width: 660px;
