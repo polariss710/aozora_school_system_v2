@@ -1,6 +1,20 @@
 const YEAR_MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
+export const CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE = "补课完成日期必须属于当前页面月份。若补课实际发生在其他月份，请先切换到实际发生月份，再在‘来源月份’中选择原待补课程所在月份。";
+
+export function validateCrossMonthMakeupLessonDate(lessonDate, targetMonth) {
+  const normalizedDate = String(lessonDate || "");
+  const normalizedTargetMonth = String(targetMonth || "");
+  if (!DATE_PATTERN.test(normalizedDate) || !YEAR_MONTH_PATTERN.test(normalizedTargetMonth)) {
+    return { status: "incomplete", message: "" };
+  }
+  if (normalizedDate.slice(0, 7) !== normalizedTargetMonth) {
+    return { status: "error", message: CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE };
+  }
+  return { status: "valid", message: "" };
+}
+
 export function listStudentSettlementMonthWeeks(yearMonth) {
   const match = YEAR_MONTH_PATTERN.exec(String(yearMonth || ""));
   if (!match) {

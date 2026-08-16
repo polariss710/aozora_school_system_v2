@@ -54,12 +54,14 @@ import {
   validateActualDurationForFlow,
 } from "../utils/actual-overage.js?v=p0f-readfix-20260803-1";
 import {
+  CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE,
   createLatestRequestGate,
   listStudentSettlementMonthWeeks,
   normalizeStudentSettlementWeekStart,
   partitionAuthoritativeLessonRecords,
+  validateCrossMonthMakeupLessonDate,
   validateUniqueLessonRecordIds,
-} from "../utils/lesson-settlement-filter.js?v=p0f-readfix-20260803-1";
+} from "../utils/lesson-settlement-filter.js?v=makeup-date-hint-removal-20260816-1";
 import {
   isNewBusinessEntityId,
   requirePrimarySchoolBusinessEntityId,
@@ -1039,6 +1041,8 @@ function bindEvents() {
   dom.createCrossMonthMakeupActualStartTimeInput?.addEventListener("change", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
   dom.createCrossMonthMakeupActualEndTimeInput?.addEventListener("input", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
   dom.createCrossMonthMakeupActualEndTimeInput?.addEventListener("change", syncCreateCrossMonthMakeupActualDurationFromTimeRange);
+  dom.createCrossMonthMakeupActualDateInput?.addEventListener("input", validateCreateCrossMonthMakeupActualDateField);
+  dom.createCrossMonthMakeupActualDateInput?.addEventListener("change", validateCreateCrossMonthMakeupActualDateField);
 
 }
 
@@ -3083,7 +3087,7 @@ function readCreateCrossMonthMakeupActualPayload() {
   const source = currentCrossMonthMakeupSourceLesson;
   const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
   const lessonDate = dom.createCrossMonthMakeupActualDateInput.value;
-  const lessonMonth = safeText(lessonDate).slice(0, 7);
+  const dateValidation = validateCrossMonthMakeupLessonDate(lessonDate, targetMonth);
   const teacherId = dom.createCrossMonthMakeupActualTeacherSelect.value;
   const subjectId = dom.createCrossMonthMakeupActualSubjectSelect.value;
   const startTime = dom.createCrossMonthMakeupActualStartTimeInput.value;
@@ -3093,14 +3097,14 @@ function readCreateCrossMonthMakeupActualPayload() {
   const lessonCount = nullableIntegerFromInput(dom.createCrossMonthMakeupActualCountInput.value);
   const lessonContent = dom.createCrossMonthMakeupActualContentInput.value.trim();
   const invalidFields = [];
-  const crossMonthDateMessage = lessonDate && lessonMonth !== targetMonth
-    ? "补课完成日期必须属于当前页面月份。若补课实际发生在其他月份，请先切换到实际发生月份，再在‘来源月份’中选择原待补课程所在月份。"
+  const crossMonthDateMessage = dateValidation.status === "error"
+    ? dateValidation.message
     : "";
 
   if (!source) invalidFields.push("sourceLesson");
   if (source && fixedOnsiteVenueMigrationReason(source)) invalidFields.push("sourceLesson");
   if (!lessonDate || Number.isNaN(new Date(`${lessonDate}T00:00:00`).getTime())) invalidFields.push("lessonDate");
-  if (lessonMonth !== targetMonth) invalidFields.push("lessonDate");
+  if (dateValidation.status !== "valid") invalidFields.push("lessonDate");
   if (source?.authoritative_student_month
       && targetMonth
       && source.authoritative_student_month > targetMonth) invalidFields.push("sourceLesson");
@@ -3289,6 +3293,20 @@ function syncCreateCrossMonthMakeupActualDurationFromTimeRange() {
   clearCreateCrossMonthMakeupActualFieldInvalid("startTime");
   clearCreateCrossMonthMakeupActualFieldInvalid("endTime");
   clearCreateCrossMonthMakeupActualFieldInvalid("durationHours");
+  hideCreateCrossMonthMakeupActualErrorIfClean();
+}
+
+function validateCreateCrossMonthMakeupActualDateField() {
+  const targetMonth = loadedMonth || getYearMonthSelectValue(dom.yearFilter, dom.monthFilter);
+  const result = validateCrossMonthMakeupLessonDate(
+    dom.createCrossMonthMakeupActualDateInput.value,
+    targetMonth
+  );
+  if (result.status === "error") {
+    showCreateCrossMonthMakeupActualError(CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE, ["lessonDate"]);
+    return;
+  }
+  clearCreateCrossMonthMakeupActualFieldInvalid("lessonDate");
   hideCreateCrossMonthMakeupActualErrorIfClean();
 }
 
