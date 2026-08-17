@@ -656,6 +656,8 @@ Stop and report immediately for:
 
 ## Current To-Do / Priority
 
+- 2026-08-17 Phase 2I-A P002套餐余额生产隔离已完成：P002 planned `8b9ea410-19cf-4ed9-b1ec-c2cb5dddd7f9`原行及bill/revision/income/Cash证据保持不变，新增唯一active package lot `2a000000-0000-4000-8000-202608170002`，权威分钟为`1200/0/1200`。P002已从普通待补reader、补课来源、registered variance和net settlement source排除，makeup writer及lesson表guard在写入前拒绝package origin。本阶段没有clearance或package消费对象、没有前端/版本变更。首次部署后Chrome发现两个invoker reader无法调用owner-only helper，已立即exact rollback并验证6个原函数MD5精确恢复；改为安全SECURITY DEFINER、完整本地/生产ROLLBACK rehearsal后最终部署成功。School/Cash既有业务指纹全部不变，唯一持久业务变化为package分类事实1行；Chrome来源下拉P002命中0、writer request 0、Console warning/error 0。详见`docs/school-v2-phase2i-a-p002-package-isolation-implementation-20260817.md`。
+
 - 2026-08-10 学生月度结算线上开放Phase C已完成并部署：生产`v10.5.32`仅向active admin且DB `can_save=true`的ordinary incomplete scope开放`status → DB Preview → 单独保存草稿 → status确认`；页面不计算权威金额，不提交actor/role/business entity/authority/canonical confirmation，page-layer RPC/DML与浏览器service-role均为0。lock/unlock/relock仍不可达，生产真实save/lock为0。筛选改为pending/applied且仅点击查询生效，status批量读取并发受控、失败隔离、latest-request-wins；Pages run `31321821627`在`562c3c7`成功，Chrome桌面/390px、Console/Network无写验收通过。School/Cash/Storage/Auth及全部关键业务指纹、Phase A ACL/postdeploy、两个Phase B Edge和Gate`enabled / blocked / enabled`不变。首次真实save仍需负责人授权精确scope，Phase D未开始。详见`docs/school-v2-student-settlement-online-phase-c-ui-20260810.md`。
 
 1. 学生月份状态 B4-Wage、B4-Lesson 与 B4-Finance 已实现；Finance 尚待 GitHub Actions/Pages 官方故障恢复后完成生产部署与 Chrome 最终验收。B4-Remaining 与 B5 仍未授权，两个状态事件 writer 继续 owner-only。
