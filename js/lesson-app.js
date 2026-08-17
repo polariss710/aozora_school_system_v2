@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=phase2c-d1-clearance-workspace-20260817-2";
+import { APP_VERSION } from "./config.js?v=phase2c-d2a-clearance-submit-20260818-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initLessonPage } from "./pages/lesson-page.js?v=phase2c-d1-clearance-workspace-20260817-2";
+import { initLessonPage } from "./pages/lesson-page.js?v=phase2c-d2a-clearance-submit-20260818-1";
 
 const globalSessionPromise = requireGlobalSession();
 

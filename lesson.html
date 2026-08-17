@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase2c-d1-clearance-workspace-20260817-2">
-    <link rel="stylesheet" href="./css/lesson-clearance.css?v=phase2c-d1-clearance-workspace-20260817-2">
+    <link rel="stylesheet" href="./css/app.css?v=phase2c-d2a-clearance-submit-20260818-1">
+    <link rel="stylesheet" href="./css/lesson-clearance.css?v=phase2c-d2a-clearance-submit-20260818-1">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -251,9 +251,9 @@
         <section class="dialog-panel app-dialog--xl lesson-clearance-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonClearanceWorkspaceTitle">
           <header class="lesson-clearance-dialog-header">
             <div>
-              <p class="page-kicker">人工选择 · DB权威Preview · 写入关闭</p>
+              <p class="page-kicker">人工选择 · DB权威Preview · 两层确认</p>
               <h2 id="lessonClearanceWorkspaceTitle">课时余额与清偿</h2>
-              <p class="section-note">查看待补、超额、套餐及历史事实。清偿对象由人工选择，系统只提供FIFO建议。当前阶段仅开放预览，不会写入业务数据。</p>
+              <p class="section-note">查看待补、超额、套餐及历史事实。清偿对象由人工选择，系统只提供FIFO建议；最终提交前必须再次核对DB权威事实。</p>
             </div>
             <button class="button" id="lessonClearanceWorkspaceCloseButton" type="button">关闭</button>
           </header>
@@ -302,7 +302,7 @@
                     <h3 id="lessonClearancePreviewTitle">人工选择与DB权威Preview</h3>
                     <p class="section-note">FIFO只作建议，不自动选择。改变source、分钟、类型或原因会立即作废旧Preview并更换request identity。</p>
                   </div>
-                  <span class="readonly-pill">Preview only</span>
+                  <span class="readonly-pill">DB Preview绑定</span>
                 </div>
                 <div id="lessonClearanceSelectionPanel"></div>
                 <div id="lessonClearancePreviewPanel"></div>
@@ -311,10 +311,33 @@
           </div>
 
           <footer class="lesson-clearance-dialog-footer">
-            <p>生产试运行阶段暂未开放提交。请先核对DB权威Preview，首笔清偿将在独立授权下执行。</p>
+            <p>“核对并准备清偿”只打开最终确认dialog，不会写入。只有dialog内明确标注的最终按钮会立即建立正式记录。</p>
             <div>
               <button class="button" id="lessonClearanceFooterCloseButton" type="button">关闭</button>
-              <button class="button button-primary" id="lessonClearanceConfirmButton" type="button" disabled>确认清偿（暂未开放）</button>
+              <button class="button button-primary" id="lessonClearanceConfirmButton" type="button" disabled>核对并准备清偿</button>
+            </div>
+          </footer>
+        </section>
+      </div>
+
+      <div class="dialog-backdrop is-hidden" id="lessonClearanceFinalConfirmDialog" aria-hidden="true" data-mode="">
+        <section class="dialog-panel app-dialog--lg lesson-clearance-final-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonClearanceFinalConfirmTitle">
+          <header class="lesson-clearance-dialog-header">
+            <div>
+              <p class="page-kicker">第二层 · 正式业务写入</p>
+              <h2 id="lessonClearanceFinalConfirmTitle">最终确认</h2>
+            </div>
+            <button class="button" id="lessonClearanceFinalConfirmCloseButton" type="button">关闭</button>
+          </header>
+          <div class="lesson-clearance-final-dialog-body">
+            <div id="lessonClearanceFinalConfirmMessage" class="lesson-clearance-error is-hidden" aria-live="assertive"></div>
+            <div id="lessonClearanceFinalConfirmContent"></div>
+          </div>
+          <footer class="lesson-clearance-dialog-footer">
+            <p id="lessonClearanceFinalActionNote">点击后会立即写入正式清偿记录。</p>
+            <div>
+              <button class="button" id="lessonClearanceFinalConfirmCancelButton" type="button">返回核对</button>
+              <button class="button button-danger" id="lessonClearanceFinalSubmitButton" type="button">确认清偿</button>
             </div>
           </footer>
         </section>
@@ -1167,6 +1190,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=phase2c-d1-clearance-workspace-20260817-2"></script>
+    <script type="module" src="./js/lesson-app.js?v=phase2c-d2a-clearance-submit-20260818-1"></script>
   </body>
 </html>

@@ -26,11 +26,11 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js?v=lesson-filter-single-row-20260807-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
-import { lessonClearanceReadApi } from "../api/lesson-clearance-api.js?v=phase2c-d1-clearance-workspace-20260817-2";
+import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=phase2c-d2a-clearance-submit-20260818-1";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=lesson-time-grid-frontend-20260810-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
-import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=phase2c-d1-clearance-workspace-20260817-2";
+import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=phase2c-d2a-clearance-submit-20260818-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -365,7 +365,7 @@ export function initLessonPage() {
 
   cacheDom();
   lessonClearanceWorkspace = createLessonClearanceWorkspace({
-    api: lessonClearanceReadApi,
+    api: lessonClearanceApi,
     getRole: () => getCurrentAuthContext()?.membership?.role || "",
   });
   lessonClearanceWorkspace.init();

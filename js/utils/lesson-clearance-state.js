@@ -1,7 +1,7 @@
 const ROLE_CAPABILITIES = Object.freeze({
-  admin: Object.freeze({ view: true, select: true, preview: true, locked: true }),
-  operator: Object.freeze({ view: true, select: true, preview: true, locked: false }),
-  read_only: Object.freeze({ view: true, select: false, preview: false, locked: false }),
+  admin: Object.freeze({ view: true, select: true, preview: true, create: true, reverse: true, locked: true }),
+  operator: Object.freeze({ view: true, select: true, preview: true, create: true, reverse: false, locked: false }),
+  read_only: Object.freeze({ view: true, select: false, preview: false, create: false, reverse: false, locked: false }),
 });
 
 export const LESSON_CLEARANCE_DEFAULT_FILTERS = Object.freeze({
@@ -15,9 +15,16 @@ export const LESSON_CLEARANCE_DEFAULT_FILTERS = Object.freeze({
 
 const clone = (value) => structuredClone(value);
 const uuid = () => globalThis.crypto?.randomUUID?.() || "";
+const currentLocalDate = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 export function lessonClearanceCapabilities(role) {
-  return ROLE_CAPABILITIES[role] || Object.freeze({ view: false, select: false, preview: false, locked: false });
+  return ROLE_CAPABILITIES[role] || Object.freeze({ view: false, select: false, preview: false, create: false, reverse: false, locked: false });
 }
 
 export class LessonClearanceWorkspaceState {
@@ -47,18 +54,27 @@ export class LessonClearanceWorkspaceState {
       overtimeId: "",
       allocatedMinutes: "",
       clearanceType: "overtime_offset",
-      operationDate: new Date().toISOString().slice(0, 10),
+      operationDate: currentLocalDate(),
       deviationReasonCode: "",
       deviationReasonNote: "",
       businessNote: "",
       requestIdentity: "",
       preview: null,
+      previewBinding: null,
       previewError: "",
       crossTeacherConfirmed: false,
       crossSubjectConfirmed: false,
       forwardConfirmed: false,
+      requiredConfirmations: { crossTeacher: false, crossSubject: false, forward: false },
+      submitting: false,
+      reversalClearanceId: "",
+      reversalRequestIdentity: "",
+      reversalDate: currentLocalDate(),
+      reversalReason: "",
       reversalPreview: null,
+      reversalBinding: null,
       reversalError: "",
+      reversalSubmitting: false,
     };
   }
 
@@ -209,15 +225,51 @@ export class LessonClearanceWorkspaceState {
     if (identityFields.has(name)) this.invalidatePreview(true);
   }
 
-  invalidatePreview(regenerateIdentity = false) {
+  requestKey() {
+    return JSON.stringify(this.previewRequestFields());
+  }
+
+  previewRequestFields() {
+    return {
+      requestIdentity: this.selection.requestIdentity,
+      clearanceType: this.selection.clearanceType,
+      pendingSourcePlannedId: this.selection.pendingId,
+      overtimeSourceActualId: this.selection.overtimeId,
+      allocatedMinutes: Number(this.selection.allocatedMinutes),
+      operationDate: this.selection.operationDate,
+      deviationReasonCode: this.selection.deviationReasonCode || null,
+      deviationReasonNote: this.selection.deviationReasonNote.trim() || null,
+      businessNote: this.selection.businessNote.trim() || null,
+      administrativeFinancialTreatment: null,
+    };
+  }
+
+  invalidatePreview(regenerateIdentity = false, preserveConfirmations = false) {
     this.selection.preview = null;
+    this.selection.previewBinding = null;
     this.selection.previewError = "";
-    this.selection.crossTeacherConfirmed = false;
-    this.selection.crossSubjectConfirmed = false;
-    this.selection.forwardConfirmed = false;
+    if (!preserveConfirmations) {
+      this.selection.crossTeacherConfirmed = false;
+      this.selection.crossSubjectConfirmed = false;
+      this.selection.forwardConfirmed = false;
+      this.selection.requiredConfirmations = { crossTeacher: false, crossSubject: false, forward: false };
+    }
     if (regenerateIdentity) {
       this.selection.requestIdentity = this.selection.pendingId && this.selection.overtimeId ? uuid() : "";
     }
+  }
+
+  setConfirmation(name, checked) {
+    const fields = {
+      crossTeacher: "crossTeacherConfirmed",
+      crossSubject: "crossSubjectConfirmed",
+      forward: "forwardConfirmed",
+    };
+    const field = fields[name];
+    if (!field || this.selection[field] === Boolean(checked)) return false;
+    this.selection[field] = Boolean(checked);
+    this.invalidatePreview(true, true);
+    return true;
   }
 
   selectedPending() {
@@ -253,33 +305,142 @@ export class LessonClearanceWorkspaceState {
     const validation = this.previewValidationMessage();
     if (validation) throw new Error(validation);
     if (!this.selection.requestIdentity) this.selection.requestIdentity = uuid();
-    return {
-      requestIdentity: this.selection.requestIdentity,
-      clearanceType: this.selection.clearanceType,
-      pendingSourcePlannedId: this.selection.pendingId,
-      overtimeSourceActualId: this.selection.overtimeId,
-      allocatedMinutes: Number(this.selection.allocatedMinutes),
-      operationDate: this.selection.operationDate,
-      deviationReasonCode: this.selection.deviationReasonCode || null,
-      deviationReasonNote: this.selection.deviationReasonNote.trim() || null,
-      businessNote: this.selection.businessNote.trim() || null,
-      administrativeFinancialTreatment: null,
-    };
+    return this.previewRequestFields();
   }
 
   acceptPreview(preview) {
-    if (!preview || preview.request_identity !== this.selection.requestIdentity) {
+    const pending = this.selectedPending();
+    const overage = this.selectedOverage();
+    const sourceVersions = preview?.source_versions || {};
+    const inputMatches = preview?.request_identity === this.selection.requestIdentity
+      && preview?.clearance_type === this.selection.clearanceType
+      && Number(preview?.requested_minutes) === Number(this.selection.allocatedMinutes)
+      && preview?.operation_date === this.selection.operationDate
+      && preview?.pending_source?.planned_id === this.selection.pendingId
+      && preview?.overtime_source?.actual_id === this.selection.overtimeId;
+    const fingerprintsMatch = Boolean(sourceVersions.pending_row_md5 && sourceVersions.overtime_row_md5)
+      && sourceVersions.pending_row_md5 === pending?.source_row_md5
+      && sourceVersions.overtime_row_md5 === overage?.source_row_md5;
+    if (!preview || !inputMatches || !fingerprintsMatch || !preview.preview_manifest_sha256) {
       this.selection.preview = null;
+      this.selection.previewBinding = null;
       this.selection.previewError = "来源事实已变化，请重新预览。系统不会使用旧预览提交。";
       return false;
     }
     this.selection.preview = preview;
+    this.selection.previewBinding = {
+      requestKey: this.requestKey(),
+      manifest: preview.preview_manifest_sha256,
+      pendingFingerprint: sourceVersions.pending_row_md5,
+      overtimeFingerprint: sourceVersions.overtime_row_md5,
+    };
+    this.selection.requiredConfirmations = {
+      crossTeacher: preview.comparison?.same_teacher === false,
+      crossSubject: preview.comparison?.same_subject === false,
+      forward: preview.financial?.requires_forward_adjustment === true,
+    };
     this.selection.previewError = "";
     return true;
   }
 
   rejectPreview(error) {
     this.selection.preview = null;
+    this.selection.previewBinding = null;
     this.selection.previewError = error?.message || "课时清偿Preview读取失败，请重试。";
+  }
+
+  prepareValidationMessage() {
+    if (!this.capabilities().create) return "当前角色不能提交课时清偿。";
+    const preview = this.selection.preview;
+    const binding = this.selection.previewBinding;
+    if (!preview || !binding || binding.requestKey !== this.requestKey()) {
+      return "来源事实已变化，请重新预览。系统不会使用旧预览提交。";
+    }
+    if (preview.writer_revalidation_required !== true || preview.reservation_created !== false) {
+      return "Preview合同不完整，不能准备提交。";
+    }
+    if (preview.authorization?.can_execute_for_current_actor !== true) {
+      return preview.authorization?.blocker_message || preview.authorization?.blocker_code || "DB角色合同不允许当前操作。";
+    }
+    if (preview.comparison?.same_student === false) return "待补与超额属于不同学生，DB已拒绝提交。";
+    if (preview.comparison?.same_business_entity === false) return "待补与超额属于不同业务归属，DB已拒绝提交。";
+    if (preview.comparison?.same_unit_price === false) return "V2只允许相同单价来源，DB已拒绝异价提交。";
+    if (preview.pending_source?.active_claimed || preview.overtime_source?.active_claimed) return "来源存在active variance claim，不能提交。";
+    if (preview.fifo?.deviation_required && preview.fifo?.deviation_reason_valid !== true) return "FIFO偏离原因未通过DB校验。";
+    if (this.selection.requiredConfirmations.crossTeacher && !this.selection.crossTeacherConfirmed) return "请确认本次清偿跨老师。";
+    if (this.selection.requiredConfirmations.crossSubject && !this.selection.crossSubjectConfirmed) return "请确认本次清偿跨科目。";
+    if (this.selection.requiredConfirmations.forward && !this.selection.forwardConfirmed) return "请确认locked forward处理。";
+    if (this.selection.requiredConfirmations.forward && !this.capabilities().locked) return "当前角色不能处理locked forward，必须由active admin执行。";
+    return "";
+  }
+
+  writerRequest() {
+    const validation = this.prepareValidationMessage();
+    if (validation) throw new Error(validation);
+    return this.previewRequestFields();
+  }
+
+  beginReversal(clearanceId) {
+    if (!this.capabilities().reverse) return false;
+    const row = this.data.history.find((item) => item.clearance_id === clearanceId && item.can_reverse === true);
+    if (!row) return false;
+    this.selection.reversalClearanceId = clearanceId;
+    this.selection.reversalRequestIdentity = uuid();
+    this.selection.reversalDate = currentLocalDate();
+    this.selection.reversalReason = "";
+    this.selection.reversalPreview = null;
+    this.selection.reversalBinding = null;
+    this.selection.reversalError = "";
+    return true;
+  }
+
+  reversalPreviewRequest() {
+    if (!this.capabilities().reverse || !this.selection.reversalClearanceId) throw new Error("当前清偿不可撤销。");
+    return {
+      requestIdentity: this.selection.reversalRequestIdentity,
+      clearanceId: this.selection.reversalClearanceId,
+      reversalDate: this.selection.reversalDate,
+    };
+  }
+
+  acceptReversalPreview(preview) {
+    const valid = preview?.request_identity === this.selection.reversalRequestIdentity
+      && preview?.original_clearance?.clearance_id === this.selection.reversalClearanceId
+      && preview?.current_state?.is_effective === true
+      && preview?.current_state?.already_reversed === false
+      && preview?.authorization?.can_reverse === true
+      && Boolean(preview?.reversal_manifest_sha256);
+    if (!valid) {
+      this.selection.reversalPreview = null;
+      this.selection.reversalBinding = null;
+      this.selection.reversalError = preview?.authorization?.blocker_message
+        || "该清偿已失效、已撤销或不符合当前DB撤销合同。";
+      return false;
+    }
+    this.selection.reversalPreview = preview;
+    this.selection.reversalBinding = {
+      requestIdentity: preview.request_identity,
+      clearanceId: preview.original_clearance.clearance_id,
+      manifest: preview.reversal_manifest_sha256,
+    };
+    this.selection.reversalError = "";
+    return true;
+  }
+
+  reversalWriterRequest() {
+    const preview = this.selection.reversalPreview;
+    const binding = this.selection.reversalBinding;
+    if (!this.capabilities().reverse || !preview || !binding
+      || binding.requestIdentity !== this.selection.reversalRequestIdentity
+      || binding.clearanceId !== this.selection.reversalClearanceId) {
+      throw new Error("请先取得最新DB Reversal Preview。系统不会使用旧预览撤销。");
+    }
+    if (!this.selection.reversalReason.trim()) throw new Error("请填写撤销原因。");
+    return {
+      clearanceId: this.selection.reversalClearanceId,
+      reversalDate: this.selection.reversalDate,
+      reason: this.selection.reversalReason.trim(),
+      requestIdentity: this.selection.reversalRequestIdentity,
+    };
   }
 }

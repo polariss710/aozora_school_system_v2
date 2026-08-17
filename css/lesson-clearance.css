@@ -7,6 +7,38 @@
   padding: 0;
 }
 
+.lesson-clearance-final-dialog-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(980px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.lesson-clearance-final-dialog-body {
+  min-width: 0;
+  overflow: auto;
+  padding: 20px 22px 28px;
+  background: #f6f8fb;
+}
+
+.lesson-clearance-final-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lesson-clearance-final-warning {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 2px solid #b42318;
+  border-radius: 9px;
+  background: #fff1f0;
+  color: #7a271a;
+  font-weight: 800;
+}
+
 .lesson-clearance-dialog-header,
 .lesson-clearance-dialog-footer {
   display: flex;
@@ -355,6 +387,12 @@
   background: #fff8e8;
 }
 
+.lesson-clearance-reversal-reason {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+}
+
 .lesson-clearance-error {
   margin-top: 12px;
   padding: 11px 12px;
@@ -403,13 +441,13 @@
 }
 
 @media (max-width: 768px) {
-  .lesson-clearance-dialog-panel { width: 100%; max-height: calc(100vh - 16px); }
+  .lesson-clearance-dialog-panel, .lesson-clearance-final-dialog-panel { width: 100%; max-height: calc(100vh - 16px); }
   .lesson-clearance-dialog-header, .lesson-clearance-dialog-footer { flex-direction: column; padding: 14px; }
   .lesson-clearance-dialog-body { padding: 14px; }
   .lesson-clearance-dialog-footer > div { width: 100%; }
   .lesson-clearance-dialog-footer .button { flex: 1 1 0; }
   .lesson-clearance-summary-grid, .lesson-clearance-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lesson-clearance-fact-grid, .lesson-clearance-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lesson-clearance-fact-grid, .lesson-clearance-preview-grid, .lesson-clearance-final-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .lesson-clearance-source-card > summary { grid-template-columns: minmax(0, 1fr) auto; }
   .lesson-clearance-source-card > summary > :nth-child(2),
   .lesson-clearance-source-card > summary > :nth-child(3),
@@ -424,6 +462,7 @@
   .lesson-clearance-filter-grid,
   .lesson-clearance-fact-grid,
   .lesson-clearance-preview-grid { grid-template-columns: 1fr; }
+  .lesson-clearance-final-grid { grid-template-columns: 1fr; }
   .lesson-clearance-filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .lesson-clearance-dialog-footer > div { display: grid; grid-template-columns: 1fr; }
   .lesson-clearance-dialog-footer .button { width: 100%; }

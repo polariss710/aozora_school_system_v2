@@ -1,7 +1,7 @@
 import {
   LESSON_CLEARANCE_DEFAULT_FILTERS,
   LessonClearanceWorkspaceState,
-} from "../utils/lesson-clearance-state.js?v=phase2c-d1-clearance-workspace-20260817-2";
+} from "../utils/lesson-clearance-state.js?v=phase2c-d2a-clearance-submit-20260818-1";
 
 const ERROR_MESSAGES = new Map([
   ["LESSON_CLEARANCE_SCOPE_MISMATCH", "待补与超额必须属于同一学生及业务归属。"],
@@ -10,15 +10,34 @@ const ERROR_MESSAGES = new Map([
   ["LESSON_CLEARANCE_PRICE_POLICY_REQUIRED", "V2只允许相同单价来源，DB已拒绝异价Preview。"],
   ["LESSON_CLEARANCE_PENDING_BALANCE_INSUFFICIENT", "待补来源当前余额不足，请重新加载。"],
   ["LESSON_CLEARANCE_OVERTIME_BALANCE_INSUFFICIENT", "超额来源当前余额不足，请重新加载。"],
+  ["LESSON_CLEARANCE_PENDING_ALREADY_ALLOCATED", "待补来源已被其他clearance使用，请重新加载。"],
+  ["LESSON_CLEARANCE_OVERTIME_ALREADY_ALLOCATED", "超额来源已被其他clearance使用，请重新加载。"],
+  ["LESSON_CLEARANCE_PENDING_SOURCE_ALREADY_ALLOCATED", "待补来源已被其他clearance使用，请重新加载。"],
+  ["LESSON_CLEARANCE_OVERTIME_SOURCE_ALREADY_ALLOCATED", "超额来源已被其他clearance使用，请重新加载。"],
+  ["LESSON_CLEARANCE_PENDING_SOURCE_INVALID", "待补来源无效或已不符合清偿条件，请重新加载。"],
+  ["LESSON_CLEARANCE_OVERTIME_SOURCE_INVALID", "超额来源无效或已不符合清偿条件，请重新加载。"],
+  ["LESSON_CLEARANCE_ACTIVE_VARIANCE_CLAIM", "来源存在active variance claim，不能清偿。"],
   ["LESSON_CLEARANCE_PENDING_SOURCE_ALREADY_CLAIMED", "待补来源已被active claim占用。"],
   ["LESSON_CLEARANCE_OVERTIME_SOURCE_ALREADY_CLAIMED", "超额来源已被active claim占用。"],
   ["LESSON_CLEARANCE_REQUEST_IDENTITY_INVALID", "Preview request identity无效，请重新选择来源。"],
   ["LESSON_CLEARANCE_SOURCE_VERSION_MISMATCH", "来源事实已变化，请重新预览。系统不会使用旧预览提交。"],
+  ["LESSON_CLEARANCE_PREVIEW_STALE", "来源事实已变化，请重新预览。系统不会使用旧预览提交。"],
+  ["LESSON_CLEARANCE_FINGERPRINT_MISMATCH", "来源事实已变化，请重新预览。系统不会使用旧预览提交。"],
+  ["LESSON_CLEARANCE_IDEMPOTENCY_CONFLICT", "同一请求编号对应的业务参数不一致，系统已阻止重复提交。"],
   ["LESSON_CLEARANCE_ACTIVE_MEMBERSHIP_REQUIRED", "当前账号权限已停用，不能读取课时余额。"],
   ["LESSON_CLEARANCE_MEMBERSHIP_REQUIRED", "当前账号没有课时余额读取权限。"],
   ["LESSON_CLEARANCE_ROLE_REQUIRED", "当前角色不能执行该Preview。"],
+  ["LESSON_CLEARANCE_ADMIN_REQUIRED", "当前操作必须由active admin执行。"],
+  ["LESSON_CLEARANCE_LOCKED_FORWARD_ADMIN_REQUIRED", "locked forward必须由active admin确认。"],
+  ["LESSON_CLEARANCE_FORWARD_ADMIN_REQUIRED", "locked forward必须由active admin确认。"],
+  ["LESSON_CLEARANCE_FIFO_DEVIATION_REASON_REQUIRED", "未采用FIFO推荐对象时必须填写偏离原因。"],
+  ["LESSON_CLEARANCE_FIFO_DEVIATION_REASON_FORBIDDEN", "当前为FIFO推荐对象，不能携带偏离原因。请重新预览。"],
   ["LESSON_CLEARANCE_PACKAGE_SOURCE_FORBIDDEN", "套餐权益不能进入普通待补清偿。"],
   ["LESSON_CLEARANCE_REVERSAL_SOURCE_INVALID", "该清偿记录不能生成Reversal Preview。"],
+  ["LESSON_CLEARANCE_REVERSAL_ADMIN_REQUIRED", "撤销清偿必须由active admin执行。"],
+  ["LESSON_CLEARANCE_REVERSAL_REQUIRED_INPUT_MISSING", "请完整填写撤销日期、原因和请求编号。"],
+  ["LESSON_CLEARANCE_ALREADY_REVERSED", "该清偿已经撤销，不能重复恢复余额。"],
+  ["LESSON_CLEARANCE_REVERSAL_DOWNSTREAM_BLOCKED", "该清偿存在downstream dependency，DB已阻止撤销。"],
 ]);
 
 const text = (value) => String(value ?? "");
@@ -50,7 +69,7 @@ const evidenceLabel = (value) => ({
 }[value] || text(value) || "证据不可用");
 
 export function lessonClearanceErrorMessage(error) {
-  const raw = text(error?.message || error);
+  const raw = [error?.code, error?.message || error, error?.details, error?.hint].filter(Boolean).map(text).join(" ");
   for (const [code, message] of ERROR_MESSAGES) {
     if (raw.includes(code)) return message;
   }
@@ -75,7 +94,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
   let initialized = false;
   let loadRequestId = 0;
   let crossView = "source";
-  const counters = { readers: 0, previews: 0, reversalPreviews: 0, renders: 0 };
+  const counters = { readers: 0, previews: 0, reversalPreviews: 0, createWriters: 0, reversalWriters: 0, renders: 0 };
 
   function cacheDom() {
     dom.openButton = document.querySelector("#openLessonClearanceWorkspaceButton");
@@ -100,6 +119,14 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     dom.selectionPanel = document.querySelector("#lessonClearanceSelectionPanel");
     dom.previewPanel = document.querySelector("#lessonClearancePreviewPanel");
     dom.confirmButton = document.querySelector("#lessonClearanceConfirmButton");
+    dom.finalDialog = document.querySelector("#lessonClearanceFinalConfirmDialog");
+    dom.finalTitle = document.querySelector("#lessonClearanceFinalConfirmTitle");
+    dom.finalMessage = document.querySelector("#lessonClearanceFinalConfirmMessage");
+    dom.finalContent = document.querySelector("#lessonClearanceFinalConfirmContent");
+    dom.finalClose = document.querySelector("#lessonClearanceFinalConfirmCloseButton");
+    dom.finalCancel = document.querySelector("#lessonClearanceFinalConfirmCancelButton");
+    dom.finalSubmit = document.querySelector("#lessonClearanceFinalSubmitButton");
+    dom.finalActionNote = document.querySelector("#lessonClearanceFinalActionNote");
   }
 
   function setMessage(type, message) {
@@ -143,6 +170,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     dom.previewPanel.replaceChildren();
     setMessage("", "");
     setLoading(false);
+    closeFinalDialog();
   }
 
   async function loadData() {
@@ -354,18 +382,22 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
   function renderHistory() {
     const rows = state.historyRows();
     if (!rows.length) return empty("尚无课时差额清偿记录。");
-    return `<div class="lesson-clearance-table-wrap"><table class="lesson-clearance-table"><thead><tr><th>清偿</th><th>学生 / 归属</th><th>来源</th><th>分钟 / 金额</th><th>月份 / forward</th><th>FIFO / same-cross</th><th>证据 / identity</th><th>Reversal Preview</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${shortId(row.clearance_id)}</strong><br><small>${escapeHtml(row.created_at || "-")}</small><br>${pill(row.clearance_type || "-")}</td><td>${escapeHtml(row.student_name || "名称不可用")}<br><small>${escapeHtml(row.business_entity_name || "名称不可用")}</small></td><td>pending ${shortId(row.pending_source_planned_id)}<br>overage ${shortId(row.overtime_source_actual_id)}</td><td>${minutesLabel(row.allocated_minutes)}<br>${moneyLabel(row.financial_net_amount_jpy)}</td><td>${escapeHtml(row.operational_year_month || "-")} → ${escapeHtml(row.financial_year_month || "无forward")}<br>${row.requires_forward_adjustment ? pill("需要forward", "warning") : pill("无需forward", "ok")}</td><td>${row.deviated_from_recommendation ? pill("偏离FIFO", "warning") : pill("推荐对象", "ok")}<br>老师同源：${boolLabel(row.same_teacher)}<br>科目同源：${boolLabel(row.same_subject)}</td><td>${escapeHtml(evidenceLabel(row.source_comparison_evidence_status))}<br><small>${escapeHtml(row.request_identity || row.idempotency_key || "identity不可用")}</small></td><td>${row.can_reverse && state.role === "admin" ? `<button class="button" type="button" data-preview-clearance-reversal="${escapeHtml(row.clearance_id)}">只读Reversal Preview</button><br><button class="button button-danger" type="button" disabled>确认Reversal（暂未开放）</button>` : pill(row.reverse_blocker_code || "无可用操作", "warning")}</td></tr>`).join("")}</tbody></table></div>${state.selection.reversalError ? `<div class="lesson-clearance-error">${escapeHtml(state.selection.reversalError)}</div>` : ""}${renderReversalPreview()}`;
+    return `<div class="lesson-clearance-table-wrap"><table class="lesson-clearance-table"><thead><tr><th>清偿</th><th>学生 / 归属</th><th>来源</th><th>分钟 / 金额</th><th>月份 / forward</th><th>FIFO / same-cross</th><th>证据 / identity</th><th>撤销</th></tr></thead><tbody>${rows.map((row) => `<tr><td><strong>${shortId(row.clearance_id)}</strong><br><small>${escapeHtml(row.created_at || "-")}</small><br>${pill(row.clearance_type || "-")}</td><td>${escapeHtml(row.student_name || "名称不可用")}<br><small>${escapeHtml(row.business_entity_name || "名称不可用")}</small></td><td>pending ${shortId(row.pending_source_planned_id)}<br>overage ${shortId(row.overtime_source_actual_id)}</td><td>${minutesLabel(row.allocated_minutes)}<br>${moneyLabel(row.financial_net_amount_jpy)}</td><td>${escapeHtml(row.operational_year_month || "-")} → ${escapeHtml(row.financial_year_month || "无forward")}<br>${row.requires_forward_adjustment ? pill("需要forward", "warning") : pill("无需forward", "ok")}</td><td>${row.deviated_from_recommendation ? pill("偏离FIFO", "warning") : pill("推荐对象", "ok")}<br>老师同源：${boolLabel(row.same_teacher)}<br>科目同源：${boolLabel(row.same_subject)}</td><td>${escapeHtml(evidenceLabel(row.source_comparison_evidence_status))}<br><small>${escapeHtml(row.request_identity || row.idempotency_key || "identity不可用")}</small></td><td>${row.can_reverse && state.capabilities().reverse ? `<button class="button" type="button" data-preview-clearance-reversal="${escapeHtml(row.clearance_id)}">读取Reversal Preview</button>` : pill(row.reverse_blocker_code || "无可用操作", "warning")}</td></tr>`).join("")}</tbody></table></div>${state.selection.reversalError ? `<div class="lesson-clearance-error">${escapeHtml(state.selection.reversalError)}</div>` : ""}${renderReversalPreview()}`;
   }
 
   function renderReversalPreview() {
     const preview = state.selection.reversalPreview;
     if (!preview) return "";
-    return `<section class="lesson-clearance-preview-card"><h4>DB权威Reversal Preview（只读）</h4><div class="lesson-clearance-preview-grid">${[
+    return `<section class="lesson-clearance-preview-card"><h4>DB权威Reversal Preview</h4><div class="lesson-clearance-preview-grid">${[
       ["request identity", preview.request_identity], ["原clearance", preview.original_clearance?.clearance_id],
-      ["原分配分钟", minutesLabel(preview.original_clearance?.allocated_minutes)], ["是否已有reversal", boolLabel(preview.current_state?.is_reversed)],
-      ["锁定历史", boolLabel(preview.forward?.involves_locked_history)], ["forward目标", preview.forward?.forward_destination_month || "无"],
-      ["actor blocker", preview.authorization?.blocker_code || "无"], ["manifest", preview.reversal_manifest_sha256],
-    ].map(([label, value]) => fact(label, value)).join("")}</div><p class="section-note">Reversal确认按钮始终disabled；本阶段没有reversal writer调用路径。</p></section>`;
+      ["pending来源", preview.original_clearance?.pending_source_planned_id], ["overage来源", preview.original_clearance?.overtime_source_actual_id],
+      ["恢复分钟", minutesLabel(preview.original_clearance?.allocated_minutes)], ["是否已有reversal", boolLabel(preview.current_state?.already_reversed)],
+      ["pending当前余额", minutesLabel(preview.current_state?.pending_before_reversal_minutes)], ["pending恢复后", minutesLabel(preview.current_state?.pending_after_reversal_minutes)],
+      ["overage当前余额", minutesLabel(preview.current_state?.overtime_before_reversal_minutes)], ["overage恢复后", minutesLabel(preview.current_state?.overtime_after_reversal_minutes)],
+      ["downstream dependency", boolLabel(preview.current_state?.affects_active_claim)], ["physical lock", boolLabel(preview.forward?.involves_locked_history)],
+      ["是否forward", boolLabel(preview.forward?.only_forward)], ["forward目标", preview.forward?.forward_destination_month || "无"],
+      ["actor blocker", preview.authorization?.blocker_code || "无"], ["reversal manifest", preview.reversal_manifest_sha256],
+    ].map(([label, value]) => fact(label, value)).join("")}</div><label class="field lesson-clearance-reversal-reason"><span>撤销原因</span><textarea id="lessonClearanceReversalReasonInput">${escapeHtml(state.selection.reversalReason)}</textarea></label><div class="lesson-clearance-card-actions"><button class="button button-danger" id="lessonClearancePrepareReversalButton" type="button">核对并准备撤销</button></div></section>`;
   }
 
   function renderCrossMonth() {
@@ -399,14 +431,24 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     const pending = state.selectedPending();
     const overage = state.selectedOverage();
     const needsReason = pending && Number(pending.fifo_rank) !== 1;
-    dom.selectionPanel.innerHTML = `<div class="lesson-clearance-selection-grid"><label class="field"><span>人工选择待补来源</span><select id="lessonClearancePendingSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.pendingPayload?.items || [], "pending")}</select></label><label class="field"><span>人工选择可用超额</span><select id="lessonClearanceOverageSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.overagePayload?.items || [], "overage")}</select></label><label class="field"><span>本次清偿分钟（人工输入）</span><input id="lessonClearanceAllocatedMinutesInput" type="number" min="1" step="1" value="${escapeHtml(state.selection.allocatedMinutes)}" placeholder="DB Preview将校验余额"></label><label class="field"><span>清偿日期</span><input id="lessonClearanceOperationDateInput" type="date" value="${escapeHtml(state.selection.operationDate)}"></label>${needsReason ? `<label class="field"><span>偏离FIFO原因</span><select id="lessonClearanceDeviationReasonSelect"><option value="">请选择</option><option value="teacher_subject_match" ${state.selection.deviationReasonCode === "teacher_subject_match" ? "selected" : ""}>业务指定老师/科目</option><option value="customer_agreement" ${state.selection.deviationReasonCode === "customer_agreement" ? "selected" : ""}>客户约定</option><option value="other" ${state.selection.deviationReasonCode === "other" ? "selected" : ""}>其他</option></select></label>` : ""}${needsReason && state.selection.deviationReasonCode === "other" ? `<label class="field"><span>其他原因说明</span><textarea id="lessonClearanceDeviationNoteInput">${escapeHtml(state.selection.deviationReasonNote)}</textarea></label>` : ""}<label class="field is-wide"><span>业务备注（未来writer参数，本阶段不提交）</span><textarea id="lessonClearanceBusinessNoteInput">${escapeHtml(state.selection.businessNote)}</textarea></label><div class="lesson-clearance-selection-summary"><strong>待补</strong><br>${pending ? `${escapeHtml(pending.student_display_name)} · ${shortId(pending.pending_source_planned_id)} · FIFO ${integerLabel(pending.fifo_rank)}` : "未选择"}</div><div class="lesson-clearance-selection-summary"><strong>超额</strong><br>${overage ? `${escapeHtml(overage.student_display_name)} · ${shortId(overage.overtime_source_actual_id)} · 顺序 ${integerLabel(overage.display_rank)}` : "未选择"}</div></div><div class="lesson-clearance-preview-actions"><code>request identity：${escapeHtml(state.selection.requestIdentity || "选择两条source后生成")}</code><button class="button button-primary" id="lessonClearancePreviewButton" type="button">${state.selection.preview ? "重新预览" : "读取DB权威Preview"}</button></div>${state.selection.previewError ? `<div class="lesson-clearance-error">${escapeHtml(state.selection.previewError)}</div>` : ""}`;
+    dom.selectionPanel.innerHTML = `<div class="lesson-clearance-selection-grid"><label class="field"><span>人工选择待补来源</span><select id="lessonClearancePendingSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.pendingPayload?.items || [], "pending")}</select></label><label class="field"><span>人工选择可用超额</span><select id="lessonClearanceOverageSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.overagePayload?.items || [], "overage")}</select></label><label class="field"><span>本次清偿分钟（人工输入）</span><input id="lessonClearanceAllocatedMinutesInput" type="number" min="1" step="1" value="${escapeHtml(state.selection.allocatedMinutes)}" placeholder="DB Preview将校验余额"></label><label class="field"><span>清偿日期</span><input id="lessonClearanceOperationDateInput" type="date" value="${escapeHtml(state.selection.operationDate)}"></label>${needsReason ? `<label class="field"><span>偏离FIFO原因</span><select id="lessonClearanceDeviationReasonSelect"><option value="">请选择</option><option value="teacher_subject_match" ${state.selection.deviationReasonCode === "teacher_subject_match" ? "selected" : ""}>业务指定老师/科目</option><option value="customer_agreement" ${state.selection.deviationReasonCode === "customer_agreement" ? "selected" : ""}>客户约定</option><option value="other" ${state.selection.deviationReasonCode === "other" ? "selected" : ""}>其他</option></select></label>` : ""}${needsReason && state.selection.deviationReasonCode === "other" ? `<label class="field"><span>其他原因说明</span><textarea id="lessonClearanceDeviationNoteInput">${escapeHtml(state.selection.deviationReasonNote)}</textarea></label>` : ""}<label class="field is-wide"><span>业务备注</span><textarea id="lessonClearanceBusinessNoteInput">${escapeHtml(state.selection.businessNote)}</textarea></label><div class="lesson-clearance-selection-summary"><strong>待补</strong><br>${pending ? `${escapeHtml(pending.student_display_name)} · ${shortId(pending.pending_source_planned_id)} · FIFO ${integerLabel(pending.fifo_rank)}` : "未选择"}</div><div class="lesson-clearance-selection-summary"><strong>超额</strong><br>${overage ? `${escapeHtml(overage.student_display_name)} · ${shortId(overage.overtime_source_actual_id)} · 顺序 ${integerLabel(overage.display_rank)}` : "未选择"}</div></div><div class="lesson-clearance-preview-actions"><code>request identity：${escapeHtml(state.selection.requestIdentity || "选择两条source后生成")}</code><button class="button button-primary" id="lessonClearancePreviewButton" type="button">${state.selection.preview ? "重新预览" : "读取DB权威Preview"}</button></div>${state.selection.previewError ? `<div class="lesson-clearance-error">${escapeHtml(state.selection.previewError)}</div>` : ""}`;
+    const previewButton = dom.selectionPanel.querySelector("#lessonClearancePreviewButton");
+    if (previewButton) previewButton.addEventListener("click", requestPreview);
     renderPreview();
   }
 
   function renderPreview() {
     const preview = state.selection.preview;
     if (!preview) {
-      dom.previewPanel.innerHTML = "";
+      dom.confirmButton.disabled = true;
+      const required = state.selection.requiredConfirmations;
+      const confirmations = [];
+      if (required.crossTeacher) confirmations.push(confirmationInput("crossTeacher", "确认跨老师", "系统不会修改任何老师或工资事实。", state.selection.crossTeacherConfirmed));
+      if (required.crossSubject) confirmations.push(confirmationInput("crossSubject", "确认跨科目", "系统不会修改任何课时科目事实。", state.selection.crossSubjectConfirmed));
+      if (required.forward) confirmations.push(confirmationInput("forward", "admin forward确认", "不会回写已锁月结、账单、收款或工资；目标月份由DB返回。", state.selection.forwardConfirmed, !state.capabilities().locked));
+      dom.previewPanel.innerHTML = confirmations.length
+        ? `<section class="lesson-clearance-preview-card"><h4>人工确认已改变</h4><p class="lesson-clearance-guidance">确认项属于本次请求绑定。勾选变化已作废旧Preview并更换request identity，请完成确认后重新读取DB权威Preview。</p><div class="lesson-clearance-confirmations">${confirmations.join("")}</div></section>`
+        : "";
       return;
     }
     const comparison = preview.comparison || {};
@@ -416,9 +458,9 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     const pending = preview.pending_source || {};
     const overage = preview.overtime_source || {};
     const confirmations = [];
-    if (comparison.same_teacher === false) confirmations.push(`<label><input type="checkbox" data-clearance-confirmation="crossTeacher" ${state.selection.crossTeacherConfirmed ? "checked" : ""}><span><strong>确认跨老师</strong><br>系统不会修改任何老师或工资事实。</span></label>`);
-    if (comparison.same_subject === false) confirmations.push(`<label><input type="checkbox" data-clearance-confirmation="crossSubject" ${state.selection.crossSubjectConfirmed ? "checked" : ""}><span><strong>确认跨科目</strong><br>系统不会修改任何课时科目事实。</span></label>`);
-    if (financial.requires_forward_adjustment) confirmations.push(`<label><input type="checkbox" data-clearance-confirmation="forward" ${state.selection.forwardConfirmed ? "checked" : ""} ${state.role !== "admin" ? "disabled" : ""}><span><strong>admin forward确认</strong><br>不会回写已锁月结、账单、收款或工资；目标月份由DB返回。</span></label>`);
+    if (comparison.same_teacher === false) confirmations.push(confirmationInput("crossTeacher", "确认跨老师", "系统不会修改任何老师或工资事实。", state.selection.crossTeacherConfirmed));
+    if (comparison.same_subject === false) confirmations.push(confirmationInput("crossSubject", "确认跨科目", "系统不会修改任何课时科目事实。", state.selection.crossSubjectConfirmed));
+    if (financial.requires_forward_adjustment) confirmations.push(confirmationInput("forward", "admin forward确认", "不会回写已锁月结、账单、收款或工资；目标月份由DB返回。", state.selection.forwardConfirmed, !state.capabilities().locked));
     dom.previewPanel.innerHTML = `<section class="lesson-clearance-preview-card"><h4>DB权威Preview</h4><div class="lesson-clearance-preview-grid">${[
       ["request identity", preview.request_identity], ["manifest", preview.preview_manifest_sha256],
       ["待补来源", `${shortId(pending.planned_id)} · ${pending.student_name || "名称不可用"}`], ["超额来源", `${shortId(overage.actual_id)} · ${overage.student_name || "名称不可用"}`],
@@ -432,7 +474,12 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
       ["overage lock", boolLabel(overage.source_locked)], ["forward adjustment", boolLabel(financial.requires_forward_adjustment)],
       ["forward目标月", financial.forward_destination_month || "无"], ["actor blocker", authorization.blocker_code || "无"],
       ["pending fingerprint", preview.source_versions?.pending_row_md5], ["overage fingerprint", preview.source_versions?.overtime_row_md5],
-    ].map(([label, value]) => fact(label, value)).join("")}</div>${comparison.same_teacher === false || comparison.same_subject === false ? `<p class="lesson-clearance-guidance">本次清偿跨老师或跨科目。系统允许该业务动作，但需要人工确认选择无误。</p>` : ""}${confirmations.length ? `<div class="lesson-clearance-confirmations">${confirmations.join("")}</div>` : ""}<p class="section-note">writer_revalidation_required=${escapeHtml(boolLabel(preview.writer_revalidation_required))}；reservation_created=${escapeHtml(boolLabel(preview.reservation_created))}。最终按钮始终disabled，本阶段无writer调用路径。</p></section>`;
+    ].map(([label, value]) => fact(label, value)).join("")}</div>${comparison.same_teacher === false || comparison.same_subject === false ? `<p class="lesson-clearance-guidance">本次清偿跨老师或跨科目。系统允许该业务动作，但不会修改原课时的老师、科目或工资事实。</p>` : ""}${confirmations.length ? `<div class="lesson-clearance-confirmations">${confirmations.join("")}</div>` : ""}<p class="section-note">writer_revalidation_required=${escapeHtml(boolLabel(preview.writer_revalidation_required))}；reservation_created=${escapeHtml(boolLabel(preview.reservation_created))}。writer提交时DB将重新验证全部source事实。</p></section>`;
+    dom.confirmButton.disabled = Boolean(state.prepareValidationMessage());
+  }
+
+  function confirmationInput(name, title, detail, checked, disabled = false) {
+    return `<label><input type="checkbox" data-clearance-confirmation="${escapeHtml(name)}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}><span><strong>${escapeHtml(title)}</strong><br>${escapeHtml(detail)}</span></label>`;
   }
 
   function syncInvalidatedPreviewDisplay() {
@@ -442,6 +489,185 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     if (previewButton) previewButton.textContent = "读取DB权威Preview";
     dom.selectionPanel.querySelector(".lesson-clearance-error")?.remove();
     renderPreview();
+  }
+
+  function setFinalMessage(message = "") {
+    dom.finalMessage.textContent = message;
+    dom.finalMessage.classList.toggle("is-hidden", !message);
+  }
+
+  function closeFinalDialog(force = false) {
+    if (!dom.finalDialog || ((!force && state.selection.submitting) || (!force && state.selection.reversalSubmitting))) return;
+    dom.finalDialog.classList.add("is-hidden");
+    dom.finalDialog.setAttribute("aria-hidden", "true");
+    dom.finalDialog.dataset.mode = "";
+    setFinalMessage("");
+  }
+
+  function openCreateFinalDialog() {
+    const validation = state.prepareValidationMessage();
+    if (validation) {
+      setMessage("error", validation);
+      renderPreview();
+      return;
+    }
+    const preview = state.selection.preview;
+    const pending = preview.pending_source || {};
+    const overage = preview.overtime_source || {};
+    const comparison = preview.comparison || {};
+    const fifo = preview.fifo || {};
+    const financial = preview.financial || {};
+    dom.finalDialog.dataset.mode = "create";
+    dom.finalTitle.textContent = "最终确认：建立课时差额清偿";
+    dom.finalContent.innerHTML = `<div class="lesson-clearance-final-grid">${[
+      ["学生", pending.student_name || overage.student_name], ["业务归属", pending.business_entity_name || overage.business_entity_name],
+      ["pending来源", `${dateLabel(pending.source_date)} · ${shortId(pending.planned_id)}`], ["overage来源", `${dateLabel(overage.actual_date)} · ${shortId(overage.actual_id)}`],
+      ["清偿分钟", minutesLabel(preview.requested_minutes)], ["pending余额", `${integerLabel(pending.before_remaining_minutes)} → ${integerLabel(pending.after_remaining_minutes)}分钟`],
+      ["overage余额", `${integerLabel(overage.before_available_minutes)} → ${integerLabel(overage.after_available_minutes)}分钟`], ["单价", `pending ${moneyLabel(pending.unit_price_jpy)} / overage ${moneyLabel(overage.unit_price_jpy)}`],
+      ["JPY金额", `pending ${moneyLabel(pending.amount_jpy)} / overage ${moneyLabel(overage.amount_jpy)} / net ${moneyLabel(financial.net_amount_jpy)}`], ["same teacher", boolLabel(comparison.same_teacher)],
+      ["same subject", boolLabel(comparison.same_subject)], ["FIFO推荐对象", `${shortId(fifo.recommended_pending_planned_id)} · ${fifo.recommended_pending_planned_id || "无"}`],
+      ["人工选择对象", `${shortId(fifo.selected_pending_planned_id)} · ${fifo.selected_pending_planned_id || pending.planned_id}`], ["偏离FIFO", boolLabel(fifo.deviation_required)],
+      ["偏离原因", `${fifo.deviation_reason_code || "无"}${fifo.deviation_reason_note ? ` · ${fifo.deviation_reason_note}` : ""}`], ["locked状态", `pending ${boolLabel(pending.source_locked)} / overage ${boolLabel(overage.source_locked)}`],
+      ["lock证据", `${pending.lock_evidence || "无"} / ${overage.lock_evidence || "无"}`], ["forward adjustment", `${boolLabel(financial.requires_forward_adjustment)} · ${financial.forward_adjustment_direction || "无"} · ${moneyLabel(financial.forward_adjustment_amount_jpy)}`],
+      ["来源月 / 目标月", `${pending.student_settlement_month || "-"} / ${overage.student_settlement_month || "-"} → ${financial.forward_destination_month || "无"}`], ["request identity", shortId(preview.request_identity)],
+      ["manifest", shortId(preview.preview_manifest_sha256)], ["source fingerprints", `pending ${shortId(preview.source_versions?.pending_row_md5)} / overage ${shortId(preview.source_versions?.overtime_row_md5)}`],
+    ].map(([label, value]) => fact(label, value)).join("")}</div><p class="lesson-clearance-final-warning">本动作只建立课时差额清偿事实，不修改原课时、老师工资、既有账单或收款。</p>`;
+    dom.finalSubmit.textContent = `确认清偿${integerLabel(preview.requested_minutes)}分钟`;
+    dom.finalActionNote.textContent = "点击后会立即写入正式清偿记录。";
+    dom.finalSubmit.disabled = false;
+    dom.finalDialog.classList.remove("is-hidden");
+    dom.finalDialog.setAttribute("aria-hidden", "false");
+    setFinalMessage("");
+    dom.finalClose.focus();
+  }
+
+  function openReversalFinalDialog() {
+    let payload;
+    try {
+      payload = state.reversalWriterRequest();
+    } catch (error) {
+      state.selection.reversalError = lessonClearanceErrorMessage(error);
+      renderTabPanel();
+      return;
+    }
+    const preview = state.selection.reversalPreview;
+    dom.finalDialog.dataset.mode = "reversal";
+    dom.finalTitle.textContent = "最终确认：撤销课时差额清偿";
+    dom.finalContent.innerHTML = `<div class="lesson-clearance-final-grid">${[
+      ["原clearance", preview.original_clearance?.clearance_id], ["pending来源", preview.original_clearance?.pending_source_planned_id],
+      ["overage来源", preview.original_clearance?.overtime_source_actual_id], ["恢复分钟", minutesLabel(preview.original_clearance?.allocated_minutes)],
+      ["pending余额", `${integerLabel(preview.current_state?.pending_before_reversal_minutes)} → ${integerLabel(preview.current_state?.pending_after_reversal_minutes)}分钟`], ["overage余额", `${integerLabel(preview.current_state?.overtime_before_reversal_minutes)} → ${integerLabel(preview.current_state?.overtime_after_reversal_minutes)}分钟`],
+      ["downstream dependency", boolLabel(preview.current_state?.affects_active_claim)], ["physical lock", boolLabel(preview.forward?.involves_locked_history)],
+      ["forward", `${boolLabel(preview.forward?.only_forward)} · ${preview.forward?.forward_destination_month || "无"}`], ["reversal request identity", shortId(payload.requestIdentity)],
+      ["reversal manifest", shortId(preview.reversal_manifest_sha256)], ["撤销原因", payload.reason],
+    ].map(([label, value]) => fact(label, value)).join("")}</div><p class="lesson-clearance-final-warning">本动作将建立append-only撤销事实；不会改写原clearance或历史月结。</p>`;
+    dom.finalSubmit.textContent = "确认撤销该清偿";
+    dom.finalActionNote.textContent = "点击后会立即写入正式撤销记录。";
+    dom.finalSubmit.disabled = false;
+    dom.finalDialog.classList.remove("is-hidden");
+    dom.finalDialog.setAttribute("aria-hidden", "false");
+    setFinalMessage("");
+    dom.finalClose.focus();
+  }
+
+  function isNetworkResultUncertain(error) {
+    const raw = `${text(error?.name)} ${text(error?.code)} ${text(error?.message)}`.toLowerCase();
+    return error instanceof TypeError || /network|fetch|timeout|timed out|abort|connection|econn|gateway/.test(raw);
+  }
+
+  async function resolveUncertainResult(requestIdentity, studentId) {
+    setFinalMessage("暂时无法确认清偿结果。系统将先按请求编号查询历史，请勿重复提交。");
+    counters.readers += 1;
+    const history = await api.fetchHistory({ studentId: studentId || null });
+    return (Array.isArray(history) ? history : []).find(
+      (row) => row.request_identity === requestIdentity || row.idempotency_key === requestIdentity,
+    ) || null;
+  }
+
+  async function submitCreate() {
+    if (state.selection.submitting || dom.finalDialog.dataset.mode !== "create") return;
+    let payload;
+    try {
+      payload = state.writerRequest();
+    } catch (error) {
+      setFinalMessage(lessonClearanceErrorMessage(error));
+      return;
+    }
+    state.selection.submitting = true;
+    dom.finalSubmit.disabled = true;
+    dom.finalSubmit.textContent = "正在建立正式清偿记录…";
+    const studentId = state.selection.preview?.pending_source?.student_id;
+    try {
+      counters.createWriters += 1;
+      await api.createClearance(payload);
+      closeFinalDialog(true);
+      await loadData();
+      setMessage("success", "课时清偿已建立；页面已重新读取DB权威余额与历史。");
+    } catch (error) {
+      if (isNetworkResultUncertain(error)) {
+        try {
+          const existing = await resolveUncertainResult(payload.requestIdentity, studentId);
+          closeFinalDialog(true);
+          await loadData();
+          setMessage(existing ? "success" : "error", existing
+            ? "History已确认该request identity成功，系统没有再次调用writer。"
+            : "History未找到该request identity。旧Preview已失效，请重新读取source并Preview；系统没有重试writer。");
+        } catch (historyError) {
+          setFinalMessage(`无法读取History确认结果：${lessonClearanceErrorMessage(historyError)}。请勿重复提交。`);
+        }
+      } else {
+        setFinalMessage(lessonClearanceErrorMessage(error));
+      }
+    } finally {
+      state.selection.submitting = false;
+      if (!dom.finalDialog.classList.contains("is-hidden")) {
+        dom.finalSubmit.disabled = false;
+        dom.finalSubmit.textContent = `确认清偿${integerLabel(state.selection.preview?.requested_minutes)}分钟`;
+      }
+    }
+  }
+
+  async function submitReversal() {
+    if (state.selection.reversalSubmitting || dom.finalDialog.dataset.mode !== "reversal") return;
+    let payload;
+    try {
+      payload = state.reversalWriterRequest();
+    } catch (error) {
+      setFinalMessage(lessonClearanceErrorMessage(error));
+      return;
+    }
+    state.selection.reversalSubmitting = true;
+    dom.finalSubmit.disabled = true;
+    dom.finalSubmit.textContent = "正在建立正式撤销记录…";
+    const original = state.data.history.find((row) => row.clearance_id === payload.clearanceId);
+    try {
+      counters.reversalWriters += 1;
+      await api.reverseClearance(payload);
+      closeFinalDialog(true);
+      await loadData();
+      setMessage("success", "撤销事实已建立；页面已重新读取DB权威余额与历史。");
+    } catch (error) {
+      if (isNetworkResultUncertain(error)) {
+        try {
+          const existing = await resolveUncertainResult(payload.requestIdentity, original?.student_id);
+          closeFinalDialog(true);
+          await loadData();
+          setMessage(existing ? "success" : "error", existing
+            ? "History已确认该reversal request identity成功，系统没有再次调用writer。"
+            : "History未找到该reversal request identity。旧Preview已失效，请重新读取History及Reversal Preview；系统没有重试writer。");
+        } catch (historyError) {
+          setFinalMessage(`无法读取History确认结果：${lessonClearanceErrorMessage(historyError)}。请勿重复提交。`);
+        }
+      } else {
+        setFinalMessage(lessonClearanceErrorMessage(error));
+      }
+    } finally {
+      state.selection.reversalSubmitting = false;
+      if (!dom.finalDialog.classList.contains("is-hidden")) {
+        dom.finalSubmit.disabled = false;
+        dom.finalSubmit.textContent = "确认撤销该清偿";
+      }
+    }
   }
 
   async function requestPreview() {
@@ -457,17 +683,18 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
   }
 
   async function requestReversalPreview(clearanceId) {
-    const requestIdentity = globalThis.crypto?.randomUUID?.() || "";
+    if (!state.beginReversal(clearanceId)) {
+      state.selection.reversalError = "当前角色或记录不符合DB撤销合同。";
+      renderTabPanel();
+      return;
+    }
     try {
       counters.reversalPreviews += 1;
-      state.selection.reversalPreview = await api.previewReversal({
-        requestIdentity,
-        clearanceId,
-        reversalDate: new Date().toISOString().slice(0, 10),
-      });
-      state.selection.reversalError = "";
+      const preview = await api.previewReversal(state.reversalPreviewRequest());
+      state.acceptReversalPreview(preview);
     } catch (error) {
       state.selection.reversalPreview = null;
+      state.selection.reversalBinding = null;
       state.selection.reversalError = lessonClearanceErrorMessage(error);
     }
     renderTabPanel();
@@ -480,6 +707,16 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     dom.dialog?.addEventListener("click", (event) => {
       if (event.target === dom.dialog) closeDialog();
     });
+    dom.finalDialog?.addEventListener("click", (event) => {
+      if (event.target === dom.finalDialog) closeFinalDialog();
+    });
+    dom.finalClose?.addEventListener("click", () => closeFinalDialog());
+    dom.finalCancel?.addEventListener("click", () => closeFinalDialog());
+    dom.finalSubmit?.addEventListener("click", () => {
+      if (dom.finalDialog.dataset.mode === "create") submitCreate();
+      if (dom.finalDialog.dataset.mode === "reversal") submitReversal();
+    });
+    dom.confirmButton?.addEventListener("click", openCreateFinalDialog);
     dom.filterForm?.addEventListener("submit", (event) => {
       event.preventDefault();
       readDraftFilters();
@@ -503,6 +740,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
       const overtimeButton = event.target.closest("[data-select-clearance-overtime]");
       const crossButton = event.target.closest("[data-cross-month-view]");
       const reversalButton = event.target.closest("[data-preview-clearance-reversal]");
+      const prepareReversalButton = event.target.closest("#lessonClearancePrepareReversalButton");
       if (pendingButton) state.selectPending(pendingButton.dataset.selectClearancePending);
       if (overtimeButton) state.selectOvertime(overtimeButton.dataset.selectClearanceOvertime);
       if (crossButton) crossView = crossButton.dataset.crossMonthView;
@@ -510,8 +748,17 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
         requestReversalPreview(reversalButton.dataset.previewClearanceReversal);
         return;
       }
+      if (prepareReversalButton) {
+        openReversalFinalDialog();
+        return;
+      }
       renderTabPanel();
       renderSelection();
+    });
+    dom.tabPanel?.addEventListener("input", (event) => {
+      if (event.target.id === "lessonClearanceReversalReasonInput") {
+        state.selection.reversalReason = event.target.value;
+      }
     });
     dom.selectionPanel?.addEventListener("change", (event) => {
       if (event.target.id === "lessonClearancePendingSelect") state.selectPending(event.target.value);
@@ -536,14 +783,17 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
         syncInvalidatedPreviewDisplay();
       }
     });
-    dom.selectionPanel?.addEventListener("click", (event) => {
-      if (event.target.id === "lessonClearancePreviewButton") requestPreview();
-    });
     dom.previewPanel?.addEventListener("change", (event) => {
       const name = event.target.dataset.clearanceConfirmation;
-      if (name === "crossTeacher") state.selection.crossTeacherConfirmed = event.target.checked;
-      if (name === "crossSubject") state.selection.crossSubjectConfirmed = event.target.checked;
-      if (name === "forward") state.selection.forwardConfirmed = event.target.checked;
+      if (["crossTeacher", "crossSubject", "forward"].includes(name)) {
+        state.setConfirmation(name, event.target.checked);
+        renderSelection();
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!dom.finalDialog?.classList.contains("is-hidden")) closeFinalDialog();
+      else if (!dom.dialog?.classList.contains("is-hidden")) closeDialog();
     });
   }
 
@@ -552,10 +802,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     initialized = true;
     cacheDom();
     bindEvents();
-    if (dom.confirmButton) {
-      dom.confirmButton.disabled = true;
-      dom.confirmButton.replaceWith(dom.confirmButton.cloneNode(true));
-    }
+    if (dom.confirmButton) dom.confirmButton.disabled = true;
   }
 
   return Object.freeze({
