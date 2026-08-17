@@ -16,10 +16,10 @@ assert.match(html, /id="lessonClearanceWorkspaceDialog"/);
 assert.match(html, /当前阶段仅开放预览，不会写入业务数据/);
 assert.match(html, /id="lessonClearanceConfirmButton"[^>]*disabled/);
 assert.match(html, /确认清偿（暂未开放）/);
-assert.match(html, /lesson-clearance\.css\?v=phase2c-d1-clearance-workspace-20260817-1/);
-assert.match(html, /lesson-app\.js\?v=phase2c-d1-clearance-workspace-20260817-1/);
-assert.match(app, /config\.js\?v=phase2c-d1-clearance-workspace-20260817-1/);
-assert.match(app, /lesson-page\.js\?v=phase2c-d1-clearance-workspace-20260817-1/);
+assert.match(html, /lesson-clearance\.css\?v=phase2c-d1-clearance-workspace-20260817-2/);
+assert.match(html, /lesson-app\.js\?v=phase2c-d1-clearance-workspace-20260817-2/);
+assert.match(app, /config\.js\?v=phase2c-d1-clearance-workspace-20260817-2/);
+assert.match(app, /lesson-page\.js\?v=phase2c-d1-clearance-workspace-20260817-2/);
 assert.match(config, /APP_VERSION = "v10\.5\.48"/);
 
 assert.match(page, /lessonClearanceReadApi/);

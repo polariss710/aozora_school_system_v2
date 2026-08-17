@@ -22,7 +22,7 @@ await page.goto(`${baseUrl}/lesson.html`, { waitUntil: "domcontentloaded" });
 
 await page.evaluate(async () => {
   document.documentElement.classList.remove("auth-pending");
-  const { createLessonClearanceWorkspace } = await import("/js/components/lesson-clearance-workspace.js?v=phase2c-d1-clearance-workspace-20260817-1");
+  const { createLessonClearanceWorkspace } = await import("/js/components/lesson-clearance-workspace.js?v=phase2c-d1-clearance-workspace-20260817-2");
   const counters = { readers: 0, previews: 0, reversalPreviews: 0, writers: 0 };
   const pending = [
     {
@@ -115,10 +115,22 @@ assert.match(await page.locator(".lesson-clearance-preview-card").innerText(), /
 await page.click("#lessonClearancePreviewButton");
 const identity2 = await page.locator(".lesson-clearance-preview-actions code").innerText();
 assert.equal(identity2, identity1, "same input reuses request identity");
-await page.fill("#lessonClearanceAllocatedMinutesInput", "30");
-await page.dispatchEvent("#lessonClearanceAllocatedMinutesInput", "change");
+await page.fill("#lessonClearanceBusinessNoteInput", "业务备注变化");
+const noteIdentity = await page.locator(".lesson-clearance-preview-actions code").innerText();
+assert.notEqual(noteIdentity, identity2, "changed business note rotates request identity");
+assert.equal(await page.locator(".lesson-clearance-preview-card").count(), 0, "changed business note hides stale preview immediately");
+await page.locator("#lessonClearanceAllocatedMinutesInput").evaluate((element) => {
+  element.value = "30";
+  element.dispatchEvent(new Event("input", { bubbles: true }));
+});
 const identity3 = await page.locator(".lesson-clearance-preview-actions code").innerText();
-assert.notEqual(identity3, identity2, "changed minutes rotates request identity");
+const minuteTransition = await page.evaluate(() => ({
+  allocatedMinutes: globalThis.__PHASE2C_D1_TEST__.controller.state.selection.allocatedMinutes,
+  businessNote: globalThis.__PHASE2C_D1_TEST__.controller.state.selection.businessNote,
+  requestIdentity: globalThis.__PHASE2C_D1_TEST__.controller.state.selection.requestIdentity,
+  inputValue: document.querySelector("#lessonClearanceAllocatedMinutesInput")?.value,
+}));
+assert.notEqual(identity3, noteIdentity, `changed minutes rotates request identity ${JSON.stringify(minuteTransition)}`);
 assert.equal(await page.locator(".lesson-clearance-preview-card").count(), 0, "changed input invalidates preview");
 
 const beforeReset = await page.evaluate(() => ({

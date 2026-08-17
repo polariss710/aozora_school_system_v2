@@ -1,7 +1,7 @@
 import {
   LESSON_CLEARANCE_DEFAULT_FILTERS,
   LessonClearanceWorkspaceState,
-} from "../utils/lesson-clearance-state.js?v=phase2c-d1-clearance-workspace-20260817-1";
+} from "../utils/lesson-clearance-state.js?v=phase2c-d1-clearance-workspace-20260817-2";
 
 const ERROR_MESSAGES = new Map([
   ["LESSON_CLEARANCE_SCOPE_MISMATCH", "待补与超额必须属于同一学生及业务归属。"],
@@ -435,6 +435,15 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     ].map(([label, value]) => fact(label, value)).join("")}</div>${comparison.same_teacher === false || comparison.same_subject === false ? `<p class="lesson-clearance-guidance">本次清偿跨老师或跨科目。系统允许该业务动作，但需要人工确认选择无误。</p>` : ""}${confirmations.length ? `<div class="lesson-clearance-confirmations">${confirmations.join("")}</div>` : ""}<p class="section-note">writer_revalidation_required=${escapeHtml(boolLabel(preview.writer_revalidation_required))}；reservation_created=${escapeHtml(boolLabel(preview.reservation_created))}。最终按钮始终disabled，本阶段无writer调用路径。</p></section>`;
   }
 
+  function syncInvalidatedPreviewDisplay() {
+    const identity = dom.selectionPanel.querySelector(".lesson-clearance-preview-actions code");
+    const previewButton = dom.selectionPanel.querySelector("#lessonClearancePreviewButton");
+    if (identity) identity.textContent = `request identity：${state.selection.requestIdentity || "选择两条source后生成"}`;
+    if (previewButton) previewButton.textContent = "读取DB权威Preview";
+    dom.selectionPanel.querySelector(".lesson-clearance-error")?.remove();
+    renderPreview();
+  }
+
   async function requestPreview() {
     try {
       const payload = state.previewRequest();
@@ -514,8 +523,18 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
       renderSelection();
     });
     dom.selectionPanel?.addEventListener("input", (event) => {
-      if (event.target.id === "lessonClearanceDeviationNoteInput") state.setPreviewInput("deviationReasonNote", event.target.value);
-      if (event.target.id === "lessonClearanceBusinessNoteInput") state.setPreviewInput("businessNote", event.target.value);
+      if (event.target.id === "lessonClearanceAllocatedMinutesInput") {
+        state.setPreviewInput("allocatedMinutes", event.target.value);
+        syncInvalidatedPreviewDisplay();
+      }
+      if (event.target.id === "lessonClearanceDeviationNoteInput") {
+        state.setPreviewInput("deviationReasonNote", event.target.value);
+        syncInvalidatedPreviewDisplay();
+      }
+      if (event.target.id === "lessonClearanceBusinessNoteInput") {
+        state.setPreviewInput("businessNote", event.target.value);
+        syncInvalidatedPreviewDisplay();
+      }
     });
     dom.selectionPanel?.addEventListener("click", (event) => {
       if (event.target.id === "lessonClearancePreviewButton") requestPreview();
