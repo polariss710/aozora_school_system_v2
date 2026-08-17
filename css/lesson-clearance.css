@@ -1,0 +1,430 @@
+.lesson-clearance-dialog-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1380px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  overflow: hidden;
+  padding: 0;
+}
+
+.lesson-clearance-dialog-header,
+.lesson-clearance-dialog-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 22px;
+  background: #fff;
+}
+
+.lesson-clearance-dialog-header {
+  border-bottom: 1px solid var(--border-color, #dfe3e8);
+}
+
+.lesson-clearance-dialog-header h2,
+.lesson-clearance-filter-card h3,
+.lesson-clearance-preview-section h3 {
+  margin: 0 0 6px;
+}
+
+.lesson-clearance-dialog-header .page-kicker {
+  margin-bottom: 4px;
+}
+
+.lesson-clearance-dialog-body {
+  min-width: 0;
+  overflow: auto;
+  padding: 20px 22px 28px;
+  background: #f6f8fb;
+}
+
+.lesson-clearance-dialog-footer {
+  align-items: center;
+  border-top: 1px solid var(--border-color, #dfe3e8);
+}
+
+.lesson-clearance-dialog-footer p {
+  max-width: 760px;
+  margin: 0;
+  color: #9a5b00;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lesson-clearance-dialog-footer > div {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
+.lesson-clearance-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.lesson-clearance-summary-card {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.lesson-clearance-summary-card span,
+.lesson-clearance-summary-card small {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+}
+
+.lesson-clearance-summary-card strong {
+  display: block;
+  margin: 4px 0 2px;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lesson-clearance-filter-card,
+.lesson-clearance-preview-section {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid #dfe4ec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.lesson-clearance-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 14px;
+}
+
+.lesson-clearance-filter-grid .field {
+  min-width: 0;
+}
+
+.lesson-clearance-checkline {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  border: 1px solid #d5dae1;
+  border-radius: 8px;
+  background: #fafbfc;
+  white-space: nowrap;
+}
+
+.lesson-clearance-filter-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.lesson-clearance-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  margin-top: 18px;
+  border-bottom: 1px solid #dfe4ec;
+}
+
+.lesson-clearance-tabs button {
+  flex: 0 0 auto;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: #667085;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lesson-clearance-tabs button.is-active {
+  border-bottom-color: #3156d3;
+  color: #2547b9;
+}
+
+.lesson-clearance-tab-panel {
+  min-height: 260px;
+  padding-top: 14px;
+}
+
+.lesson-clearance-guidance {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid #b9c8ff;
+  border-radius: 9px;
+  background: #f3f6ff;
+  color: #27449d;
+}
+
+.lesson-clearance-guidance.is-package {
+  border-color: #f1d18a;
+  background: #fff8e8;
+  color: #7a4a00;
+}
+
+.lesson-clearance-card-list {
+  display: grid;
+  gap: 10px;
+}
+
+.lesson-clearance-source-card {
+  overflow: hidden;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.lesson-clearance-source-card[open] {
+  border-color: #aabcf7;
+  box-shadow: 0 7px 20px rgba(34, 63, 145, 0.08);
+}
+
+.lesson-clearance-source-card > summary {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.4fr) repeat(3, minmax(110px, 0.8fr)) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 13px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.lesson-clearance-source-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.lesson-clearance-source-card > summary strong,
+.lesson-clearance-source-card > summary small {
+  display: block;
+}
+
+.lesson-clearance-source-card > summary small {
+  margin-top: 3px;
+  color: #667085;
+}
+
+.lesson-clearance-card-body {
+  padding: 14px;
+  border-top: 1px solid #e9edf3;
+  background: #fbfcfe;
+}
+
+.lesson-clearance-fact-grid,
+.lesson-clearance-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.lesson-clearance-fact {
+  min-width: 0;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e5e9ef;
+}
+
+.lesson-clearance-fact span,
+.lesson-clearance-fact small {
+  display: block;
+  color: #667085;
+  font-size: 11px;
+}
+
+.lesson-clearance-fact strong {
+  display: block;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.lesson-clearance-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.lesson-clearance-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #475467;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.lesson-clearance-pill.is-ok {
+  background: #e9f8f2;
+  color: #087b5a;
+}
+
+.lesson-clearance-pill.is-warning {
+  background: #fff4e5;
+  color: #9a5b00;
+}
+
+.lesson-clearance-pill.is-danger {
+  background: #ffefed;
+  color: #b42318;
+}
+
+.lesson-clearance-empty {
+  padding: 28px 18px;
+  border: 1px dashed #cbd5df;
+  border-radius: 10px;
+  background: #fff;
+  color: #667085;
+  text-align: center;
+}
+
+.lesson-clearance-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.lesson-clearance-selection-grid .field {
+  min-width: 0;
+}
+
+.lesson-clearance-selection-grid .field.is-wide {
+  grid-column: 1 / -1;
+}
+
+.lesson-clearance-selection-summary {
+  padding: 11px 12px;
+  border: 1px solid #dfe4ec;
+  border-radius: 8px;
+  background: #fafbfc;
+  overflow-wrap: anywhere;
+}
+
+.lesson-clearance-preview-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.lesson-clearance-preview-actions code {
+  overflow-wrap: anywhere;
+  color: #475467;
+  font-size: 11px;
+}
+
+.lesson-clearance-preview-card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #9db1f7;
+  border-radius: 10px;
+  background: #f4f6ff;
+}
+
+.lesson-clearance-preview-card h4 {
+  margin: 0 0 10px;
+}
+
+.lesson-clearance-confirmations {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.lesson-clearance-confirmations label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #efc56e;
+  border-radius: 8px;
+  background: #fff8e8;
+}
+
+.lesson-clearance-error {
+  margin-top: 12px;
+  padding: 11px 12px;
+  border: 1px solid #ffc5bf;
+  border-radius: 8px;
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.lesson-clearance-cross-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.lesson-clearance-table-wrap {
+  overflow-x: auto;
+}
+
+.lesson-clearance-table {
+  width: 100%;
+  min-width: 1050px;
+  border-collapse: collapse;
+}
+
+.lesson-clearance-table th,
+.lesson-clearance-table td {
+  padding: 10px;
+  border-bottom: 1px solid #e9edf3;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+}
+
+.lesson-clearance-table th {
+  background: #f8fafc;
+  color: #475467;
+  font-size: 11px;
+}
+
+@media (max-width: 1200px) {
+  .lesson-clearance-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lesson-clearance-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lesson-clearance-source-card > summary { grid-template-columns: minmax(170px, 1.4fr) repeat(2, minmax(110px, .8fr)) auto; }
+  .lesson-clearance-source-card > summary > :nth-child(4) { display: none; }
+}
+
+@media (max-width: 768px) {
+  .lesson-clearance-dialog-panel { width: 100%; max-height: calc(100vh - 16px); }
+  .lesson-clearance-dialog-header, .lesson-clearance-dialog-footer { flex-direction: column; padding: 14px; }
+  .lesson-clearance-dialog-body { padding: 14px; }
+  .lesson-clearance-dialog-footer > div { width: 100%; }
+  .lesson-clearance-dialog-footer .button { flex: 1 1 0; }
+  .lesson-clearance-summary-grid, .lesson-clearance-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lesson-clearance-fact-grid, .lesson-clearance-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lesson-clearance-source-card > summary { grid-template-columns: minmax(0, 1fr) auto; }
+  .lesson-clearance-source-card > summary > :nth-child(2),
+  .lesson-clearance-source-card > summary > :nth-child(3),
+  .lesson-clearance-source-card > summary > :nth-child(4) { display: none; }
+  .lesson-clearance-selection-grid { grid-template-columns: 1fr; }
+  .lesson-clearance-selection-grid .field.is-wide { grid-column: auto; }
+  .lesson-clearance-preview-actions { align-items: stretch; flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  .lesson-clearance-summary-grid,
+  .lesson-clearance-filter-grid,
+  .lesson-clearance-fact-grid,
+  .lesson-clearance-preview-grid { grid-template-columns: 1fr; }
+  .lesson-clearance-filter-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .lesson-clearance-dialog-footer > div { display: grid; grid-template-columns: 1fr; }
+  .lesson-clearance-dialog-footer .button { width: 100%; }
+}

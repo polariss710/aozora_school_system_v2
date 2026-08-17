@@ -4,7 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=makeup-date-hint-removal-20260816-1">
+    <link rel="stylesheet" href="./css/app.css?v=phase2c-d1-clearance-workspace-20260817-1">
+    <link rel="stylesheet" href="./css/lesson-clearance.css?v=phase2c-d1-clearance-workspace-20260817-1">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -197,6 +198,7 @@
               <button class="button" id="openLessonPdfExportButton" type="button">导出学生课时 PDF</button>
               <button class="button" id="openWeeklyScheduleForStudentButton" type="button" disabled>生成本周学生课表</button>
               <button class="button" id="openCrossMonthMakeupDialogButton" type="button">登记待补课完成</button>
+              <button class="button" id="openLessonClearanceWorkspaceButton" type="button">课时余额与清偿</button>
               <button class="button button-primary lesson-create-primary-button" id="openCreatePlannedLessonButton" type="button">新增预定课时</button>
             </div>
           </div>
@@ -244,6 +246,79 @@
           </div>
         </section>
       </main>
+
+      <div class="dialog-backdrop is-hidden" id="lessonClearanceWorkspaceDialog" aria-hidden="true">
+        <section class="dialog-panel app-dialog--xl lesson-clearance-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonClearanceWorkspaceTitle">
+          <header class="lesson-clearance-dialog-header">
+            <div>
+              <p class="page-kicker">人工选择 · DB权威Preview · 写入关闭</p>
+              <h2 id="lessonClearanceWorkspaceTitle">课时余额与清偿</h2>
+              <p class="section-note">查看待补、超额、套餐及历史事实。清偿对象由人工选择，系统只提供FIFO建议。当前阶段仅开放预览，不会写入业务数据。</p>
+            </div>
+            <button class="button" id="lessonClearanceWorkspaceCloseButton" type="button">关闭</button>
+          </header>
+
+          <div class="lesson-clearance-dialog-body">
+            <div id="lessonClearanceWorkspaceMessage" class="message is-hidden" aria-live="polite"></div>
+            <div id="lessonClearanceWorkspaceLoading" class="state-text is-hidden">正在读取DB权威课时余额...</div>
+
+            <section id="lessonClearanceWorkspaceContent" class="is-hidden">
+              <div id="lessonClearanceSummary" class="lesson-clearance-summary-grid" aria-label="课时余额权威摘要"></div>
+
+              <section class="lesson-clearance-filter-card" aria-labelledby="lessonClearanceFilterTitle">
+                <div class="section-heading section-heading-row">
+                  <div>
+                    <h3 id="lessonClearanceFilterTitle">筛选</h3>
+                    <p class="section-note">筛选只控制已返回DB行的显示；重置不读取、不重绘，查询后才应用。</p>
+                  </div>
+                  <span class="readonly-pill">DB权威行</span>
+                </div>
+                <form id="lessonClearanceFilterForm" class="lesson-clearance-filter-grid">
+                  <label class="field"><span>学生</span><select id="lessonClearanceStudentFilter"><option value="">全部学生</option></select></label>
+                  <label class="field"><span>业务归属</span><select id="lessonClearanceEntityFilter"><option value="">全部业务归属</option></select></label>
+                  <label class="field"><span>学生结算月份</span><select id="lessonClearanceMonthFilter"><option value="">全部月份</option></select></label>
+                  <label class="field"><span>状态</span><select id="lessonClearanceStatusFilter"><option value="">全部状态</option><option value="available">可清偿</option><option value="locked">被锁定</option><option value="claimed">有claim</option><option value="blocked">不可用</option></select></label>
+                  <label class="field"><span>证据状态</span><select id="lessonClearanceEvidenceFilter"><option value="">全部证据</option></select></label>
+                  <label class="lesson-clearance-checkline"><input id="lessonClearanceFifoOnlyFilter" type="checkbox"><span>仅看DB排序首选</span></label>
+                  <div class="lesson-clearance-filter-actions">
+                    <button class="button button-primary" type="submit">查询</button>
+                    <button class="button" id="lessonClearanceFilterResetButton" type="button">重置</button>
+                  </div>
+                </form>
+              </section>
+
+              <nav id="lessonClearanceTabList" class="lesson-clearance-tabs" aria-label="课时余额与清偿分区">
+                <button type="button" data-clearance-tab="pending" class="is-active">待补余额</button>
+                <button type="button" data-clearance-tab="overages">可用超额</button>
+                <button type="button" data-clearance-tab="packages">套餐余额</button>
+                <button type="button" data-clearance-tab="history">清偿历史</button>
+                <button type="button" data-clearance-tab="cross-month">跨月补课</button>
+              </nav>
+              <div id="lessonClearanceTabPanel" class="lesson-clearance-tab-panel"></div>
+
+              <section id="lessonClearancePreviewSection" class="lesson-clearance-preview-section is-hidden" aria-labelledby="lessonClearancePreviewTitle">
+                <div class="section-heading section-heading-row">
+                  <div>
+                    <h3 id="lessonClearancePreviewTitle">人工选择与DB权威Preview</h3>
+                    <p class="section-note">FIFO只作建议，不自动选择。改变source、分钟、类型或原因会立即作废旧Preview并更换request identity。</p>
+                  </div>
+                  <span class="readonly-pill">Preview only</span>
+                </div>
+                <div id="lessonClearanceSelectionPanel"></div>
+                <div id="lessonClearancePreviewPanel"></div>
+              </section>
+            </section>
+          </div>
+
+          <footer class="lesson-clearance-dialog-footer">
+            <p>生产试运行阶段暂未开放提交。请先核对DB权威Preview，首笔清偿将在独立授权下执行。</p>
+            <div>
+              <button class="button" id="lessonClearanceFooterCloseButton" type="button">关闭</button>
+              <button class="button button-primary" id="lessonClearanceConfirmButton" type="button" disabled>确认清偿（暂未开放）</button>
+            </div>
+          </footer>
+        </section>
+      </div>
 
       <div class="dialog-backdrop is-hidden" id="lessonPdfExportDialog" aria-hidden="true">
         <section class="dialog-panel reimbursement-reverse-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonPdfExportTitle">
@@ -1092,6 +1167,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=makeup-date-hint-removal-20260816-1"></script>
+    <script type="module" src="./js/lesson-app.js?v=phase2c-d1-clearance-workspace-20260817-1"></script>
   </body>
 </html>
