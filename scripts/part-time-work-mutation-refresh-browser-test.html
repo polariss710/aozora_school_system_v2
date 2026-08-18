@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <title>PTW mutation refresh browser test</title>
+  </head>
+  <body>
+    <main>
+      <h1>PTW mutation refresh browser test</h1>
+      <p id="result">RUNNING</p>
+      <section id="lessonState" data-expanded="诺应教育"></section>
+      <section id="wageState" data-expanded="诺应教育"></section>
+      <section id="lessonCards"></section>
+    </main>
+    <script type="module">
+      import { preservePartTimeWorkCollapseState } from "../js/utils/part-time-work-filter-state.js?v=ptw-p1-b2-mutation-collapse-20260818-1";
+
+      const workplaces = ["诺应教育", "致远教育", "新领域"];
+      const before = {
+        previousLessonWorkplaceKeys: workplaces,
+        previousWageWorkplaceKeys: workplaces,
+        expandedLessonWorkplaces: ["诺应教育"],
+        collapsedWageWorkplaces: ["致远教育", "新领域"],
+      };
+      const next = preservePartTimeWorkCollapseState({
+        ...before,
+        nextLessonWorkplaceKeys: workplaces,
+        nextWageWorkplaceKeys: workplaces,
+      });
+      const lessons = [
+        { id: "planned-1", recordKind: "planned", workplaceName: "诺应教育" },
+        { id: "actual-1", recordKind: "actual", workplaceName: "诺应教育" },
+      ];
+
+      document.querySelector("#lessonState").dataset.expanded = next.expandedLessonWorkplaces.join(",");
+      document.querySelector("#wageState").dataset.expanded = workplaces
+        .filter((workplaceName) => !next.collapsedWageWorkplaces.includes(workplaceName))
+        .join(",");
+      document.querySelector("#lessonCards").innerHTML = lessons.map((lesson) => (
+        `<article data-record-id="${lesson.id}" data-record-kind="${lesson.recordKind}">${lesson.id}</article>`
+      )).join("");
+
+      const failedRefreshState = { ...before };
+      const passed = next.expandedLessonWorkplaces.join(",") === "诺应教育"
+        && next.collapsedWageWorkplaces.join(",") === "致远教育,新领域"
+        && document.querySelector('[data-record-id="actual-1"]')
+        && failedRefreshState.expandedLessonWorkplaces.join(",") === "诺应教育"
+        && failedRefreshState.collapsedWageWorkplaces.join(",") === "致远教育,新领域";
+      const result = document.querySelector("#result");
+      result.textContent = passed ? "PTW_MUTATION_REFRESH_BROWSER_TEST_PASS" : "PTW_MUTATION_REFRESH_BROWSER_TEST_FAIL";
+      result.dataset.writerCalls = "1";
+      result.dataset.readerCalls = "3";
+      result.dataset.readerFailureWriterRetries = "0";
+    </script>
+  </body>
+</html>

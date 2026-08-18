@@ -1,5 +1,10 @@
 const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+export const PART_TIME_WORK_COLLAPSE_POLICIES = Object.freeze({
+  CANONICAL_FROM_FILTERS: "canonical_from_filters",
+  PRESERVE_CURRENT: "preserve_current",
+});
+
 export function isValidPartTimeWorkYearMonth(value) {
   return YEAR_MONTH_PATTERN.test(String(value || ""));
 }
@@ -56,6 +61,38 @@ export function partTimeWorkCollapseStateFromFilters(filters, workplaceOptions =
   return {
     expandedLessonWorkplaces: expandedWorkplace ? [expandedWorkplace] : [],
     collapsedWageWorkplaces: workplaceOptions.filter((option) => option !== expandedWorkplace),
+  };
+}
+
+export function assertPartTimeWorkCollapsePolicy(collapsePolicy) {
+  if (!Object.values(PART_TIME_WORK_COLLAPSE_POLICIES).includes(collapsePolicy)) {
+    throw new Error(`PTW_COLLAPSE_POLICY_INVALID:${String(collapsePolicy || "missing")}`);
+  }
+  return collapsePolicy;
+}
+
+export function preservePartTimeWorkCollapseState({
+  previousLessonWorkplaceKeys = [],
+  previousWageWorkplaceKeys = [],
+  expandedLessonWorkplaces = [],
+  collapsedWageWorkplaces = [],
+  nextLessonWorkplaceKeys = [],
+  nextWageWorkplaceKeys = [],
+} = {}) {
+  const previousLessonKeys = new Set(previousLessonWorkplaceKeys);
+  const previousWageKeys = new Set(previousWageWorkplaceKeys);
+  const expandedLessonKeys = new Set(expandedLessonWorkplaces);
+  const collapsedWageKeys = new Set(collapsedWageWorkplaces);
+  const uniqueNextLessonKeys = Array.from(new Set(nextLessonWorkplaceKeys));
+  const uniqueNextWageKeys = Array.from(new Set(nextWageWorkplaceKeys));
+
+  return {
+    expandedLessonWorkplaces: uniqueNextLessonKeys.filter((workplaceName) => (
+      previousLessonKeys.has(workplaceName) && expandedLessonKeys.has(workplaceName)
+    )),
+    collapsedWageWorkplaces: uniqueNextWageKeys.filter((workplaceName) => (
+      !previousWageKeys.has(workplaceName) || collapsedWageKeys.has(workplaceName)
+    )),
   };
 }
 

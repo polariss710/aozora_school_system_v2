@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=ptw-p1-b1-20260816-1";
+import { APP_VERSION } from "./config.js?v=ptw-p1-b2-mutation-collapse-20260818-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=ptw-p1-b1-20260816-1";
+import { initPartTimeWorkPage } from "./pages/part-time-work-page.js?v=ptw-p1-b2-mutation-collapse-20260818-1";
 
 const globalSessionPromise = requireGlobalSession();
 

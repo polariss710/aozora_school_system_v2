@@ -22,13 +22,16 @@ import {
   updateMonthScopedNavigation,
 } from "../utils/month-filter.js";
 import {
+  PART_TIME_WORK_COLLAPSE_POLICIES,
+  assertPartTimeWorkCollapsePolicy,
   buildPartTimeWorkFiltersUrl,
   isValidPartTimeWorkYearMonth,
   normalizePartTimeWorkFilters,
   partTimeWorkCollapseStateFromFilters,
   partTimeWorkFiltersFromUrl,
+  preservePartTimeWorkCollapseState,
   resolvePartTimeWorkSettlementYearMonth,
-} from "../utils/part-time-work-filter-state.js";
+} from "../utils/part-time-work-filter-state.js?v=ptw-p1-b2-mutation-collapse-20260818-1";
 import { formatCurrency, safeText } from "../utils/format.js";
 
 const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];
@@ -90,6 +93,8 @@ let isSubmitting = false;
 let isIncomeGenerationSubmitting = false;
 const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
+const renderedLessonWorkplaceKeys = new Set(WORKPLACE_OPTIONS);
+const renderedWageWorkplaceKeys = new Set(WORKPLACE_OPTIONS);
 const appliedFilters = {
   yearMonth: "",
   workplaceName: "",
@@ -133,7 +138,7 @@ export async function initPartTimeWorkPage() {
     return;
   }
 
-  await loadPageData({ syncDraftFilters: true });
+  await loadPageDataForQuery();
   if (initialView) {
     scrollToPartTimeWorkView(initialView);
   }
@@ -183,7 +188,7 @@ function bindEvents() {
     event.preventDefault();
     applyDraftFilters();
     syncAppliedFiltersToUrl({ push: true });
-    loadPageData({ syncDraftFilters: true });
+    loadPageDataForQuery();
   });
   dom.workplaceFilter.addEventListener("change", () => {
     clearFieldInvalid(dom.workplaceFilter);
@@ -243,7 +248,24 @@ function bindEvents() {
 
 }
 
-async function loadPageData(options = {}) {
+function loadPageDataForQuery() {
+  return loadPageData({
+    collapsePolicy: PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS,
+    syncDraftFilters: true,
+  });
+}
+
+function refreshPageDataAfterMutation() {
+  return loadPageData({
+    collapsePolicy: PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT,
+    syncDraftFilters: false,
+  });
+}
+
+async function loadPageData(options) {
+  const collapsePolicy = options?.collapsePolicy;
+  const syncDraftFilters = options?.syncDraftFilters === true;
+  assertPartTimeWorkCollapsePolicy(collapsePolicy);
   if (!isLoggedIn()) {
     renderLessons([]);
     renderWageCalculation([], []);
@@ -252,10 +274,17 @@ async function loadPageData(options = {}) {
   }
 
   const filters = readAppliedFilters();
-  applyAppliedFilterCollapseState(filters);
-  updateMonthScopedNavigation(filters.yearMonth);
+  const preservedCollapseState = collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT
+    ? snapshotPartTimeWorkCollapseState()
+    : null;
+  if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS) {
+    applyAppliedFilterCollapseState(filters);
+    updateMonthScopedNavigation(filters.yearMonth);
+  }
   setLoading(true);
-  showMessage("", "");
+  if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS) {
+    showMessage("", "");
+  }
 
   try {
     const [lessonRows, wageLessonRows, settlementRows] = await Promise.all([
@@ -270,22 +299,57 @@ async function loadPageData(options = {}) {
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
     const classDescription = normalizedAppliedClassDescription(filters);
-    if (options.syncDraftFilters) {
+    if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT) {
+      applyPreservedPartTimeWorkCollapseState(preservedCollapseState);
+    }
+    if (syncDraftFilters) {
       syncDraftControlsFromAppliedFilters();
     }
     renderVisibleLessons({ ...filters, classDescription });
     renderWageCalculation(wageLessons, settlements);
   } catch (error) {
-    lessons = [];
-    wageLessons = [];
-    settlements = [];
-    renderClassDescriptionOptions([], "");
-    renderLessons([]);
-    renderWageCalculation([], []);
-    showMessage("error", `私塾打工数据读取失败：${error.message || error}`);
+    if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT) {
+      showMessage("error", "保存已成功，但页面刷新失败。请重新查询确认，不要重复提交。");
+    } else {
+      lessons = [];
+      wageLessons = [];
+      settlements = [];
+      renderClassDescriptionOptions([], "");
+      renderLessons([]);
+      renderWageCalculation([], []);
+      showMessage("error", `私塾打工数据读取失败：${error.message || error}`);
+    }
   } finally {
     setLoading(false);
   }
+}
+
+function snapshotPartTimeWorkCollapseState() {
+  return {
+    previousLessonWorkplaceKeys: [...renderedLessonWorkplaceKeys],
+    previousWageWorkplaceKeys: [...renderedWageWorkplaceKeys],
+    expandedLessonWorkplaces: [...expandedWorkplaces],
+    collapsedWageWorkplaces: [...collapsedWageWorkplaces],
+  };
+}
+
+function applyPreservedPartTimeWorkCollapseState(previousState) {
+  const nextLessonWorkplaceKeys = [...WORKPLACE_OPTIONS];
+  const nextWageWorkplaceKeys = [...WORKPLACE_OPTIONS];
+  const collapseState = preservePartTimeWorkCollapseState({
+    ...previousState,
+    nextLessonWorkplaceKeys,
+    nextWageWorkplaceKeys,
+  });
+  replaceSetContents(expandedWorkplaces, collapseState.expandedLessonWorkplaces);
+  replaceSetContents(collapsedWageWorkplaces, collapseState.collapsedWageWorkplaces);
+  replaceSetContents(renderedLessonWorkplaceKeys, nextLessonWorkplaceKeys);
+  replaceSetContents(renderedWageWorkplaceKeys, nextWageWorkplaceKeys);
+}
+
+function replaceSetContents(targetSet, values) {
+  targetSet.clear();
+  values.forEach((value) => targetSet.add(value));
 }
 
 function readDraftFilters() {
@@ -298,14 +362,10 @@ function readDraftFilters() {
 
 function applyAppliedFilterCollapseState(filters = readAppliedFilters()) {
   const collapseState = partTimeWorkCollapseStateFromFilters(filters, WORKPLACE_OPTIONS);
-  expandedWorkplaces.clear();
-  collapseState.expandedLessonWorkplaces.forEach((workplaceName) => {
-    expandedWorkplaces.add(workplaceName);
-  });
-  collapsedWageWorkplaces.clear();
-  collapseState.collapsedWageWorkplaces.forEach((workplaceName) => {
-    collapsedWageWorkplaces.add(workplaceName);
-  });
+  replaceSetContents(expandedWorkplaces, collapseState.expandedLessonWorkplaces);
+  replaceSetContents(collapsedWageWorkplaces, collapseState.collapsedWageWorkplaces);
+  replaceSetContents(renderedLessonWorkplaceKeys, WORKPLACE_OPTIONS);
+  replaceSetContents(renderedWageWorkplaceKeys, WORKPLACE_OPTIONS);
 }
 
 function applyDraftFilters() {
@@ -366,7 +426,7 @@ async function handleFilterHistoryNavigation() {
   ));
   const view = partTimeWorkViewFromUrl();
   updatePartTimeWorkNavForView(view || "lessons");
-  await loadPageData({ syncDraftFilters: true });
+  await loadPageDataForQuery();
   if (view) {
     scrollToPartTimeWorkView(view);
   }
@@ -914,7 +974,7 @@ async function submitDialog() {
       showMessage("success", "打工课时已更新。");
     }
     closeDialogAfterSubmit();
-    await loadPageData();
+    await refreshPageDataAfterMutation();
   } catch (error) {
     showDialogError(error.message || String(error));
   } finally {
@@ -992,7 +1052,7 @@ async function handleLessonActionClick(event) {
   try {
     await deletePartTimeWorkLesson(lesson.id, { confirmGeneratedActual: hasGeneratedActual });
     showMessage("success", "打工课时已删除。");
-    await loadPageData();
+    await refreshPageDataAfterMutation();
   } catch (error) {
     showMessage("error", `打工课时删除失败：${error.message || error}`);
   }
@@ -1073,7 +1133,7 @@ async function handleSettlementActionClick(event) {
       await handleSettlementExport(settlementId, workplaceName);
       return;
     }
-    await loadPageData();
+    await refreshPageDataAfterMutation();
   } catch (error) {
     showMessage("error", `月度工资结算操作失败：${error.message || error}`);
   }
@@ -1122,7 +1182,7 @@ async function submitIncomeGenerationConfirmDialog() {
     const workplaceName = settlement.workplace_name || "该机构";
     closeIncomeGenerationConfirmDialogAfterSubmit();
     showMessage("success", `${workplaceName} 收入记录已生成。`);
-    await loadPageData();
+    await refreshPageDataAfterMutation();
   } catch (error) {
     showIncomeGenerationConfirmError(`收入记录生成失败：${error.message || error}`);
     showMessage("error", `月度工资结算操作失败：${error.message || error}`);
