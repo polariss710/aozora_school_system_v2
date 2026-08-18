@@ -253,7 +253,8 @@
             <div>
               <p class="page-kicker">人工选择 · 系统核对 · 两层确认</p>
               <h2 id="lessonClearanceWorkspaceTitle">课时余额与清偿</h2>
-              <p class="section-note">查看待补对象、可用超额、套餐余额及清偿历史。系统仅提供“较早产生的余额优先”建议，清偿对象始终由业务人员选择。</p>
+              <p class="section-note">用于使用已登记的超额课时抵扣待补余额，不会生成新的实际课时，也不会新增老师工资；如老师实际又完成了一次补课，请使用“登记待补课完成”。</p>
+              <p class="section-note">清偿对象始终由业务人员人工选择；系统仅提供“较早产生的余额优先”建议，请在最终提交前核对。</p>
             </div>
             <button class="button" id="lessonClearanceWorkspaceCloseButton" type="button">关闭</button>
           </header>
@@ -729,7 +730,8 @@
         <section class="dialog-panel lesson-create-dialog-panel lesson-cross-month-makeup-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="createCrossMonthMakeupActualTitle">
           <div class="section-heading">
             <h2 id="createCrossMonthMakeupActualTitle">登记待补课完成</h2>
-            <p class="section-note">请在补课实际发生月份登记；来源课程可以选择以前月份。补课不新增学生学费。</p>
+            <p class="section-note">仅在老师实际完成补课后登记。系统将生成补课实际课时，并按实际授课月份计算老师工资；如需使用已有超额课时抵扣待补余额，请使用“课时余额与清偿”。</p>
+            <p class="section-note">补课不新增学生学费；请在补课实际发生月份登记，来源课程可以选择以前月份。</p>
           </div>
 
           <div id="createCrossMonthMakeupActualSummary" class="dialog-summary"></div>
@@ -1189,6 +1191,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=phase2c-d2-a3-clearance-completion-20260818-1"></script>
+    <script type="module" src="./js/lesson-app.js?v=lesson-makeup-clearance-copy-20260818-1"></script>
   </body>
 </html>
