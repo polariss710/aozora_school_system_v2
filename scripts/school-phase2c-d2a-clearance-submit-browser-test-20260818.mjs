@@ -19,7 +19,7 @@ await page.goto(`${baseUrl}/lesson.html`, { waitUntil: "domcontentloaded" });
 
 await page.evaluate(async () => {
   document.documentElement.classList.remove("auth-pending");
-  const { createLessonClearanceWorkspace } = await import("/js/components/lesson-clearance-workspace.js?v=phase2c-d2a1-business-note-snapshot-20260818-1");
+  const { createLessonClearanceWorkspace } = await import("/js/components/lesson-clearance-workspace.js?v=phase2c-d2-a2-business-language-20260818-1");
   const test = {
     previewCalls: 0,
     createCalls: 0,
@@ -34,7 +34,7 @@ await page.evaluate(async () => {
     {
       pending_source_planned_id: "10000000-0000-4000-8000-000000000001", student_id: "student-1", student_display_name: "测试学生",
       business_entity_id: "entity-1", business_entity_display_name: "测试业务归属", teacher_id: "teacher-1", teacher_display_name: "老师甲",
-      subject_id: "subject-1", subject_display_name: "EJU数学", source_lesson_date: "2026-08-14", source_year_month: "2026-08",
+      subject_id: "subject-1", subject_display_name: "EJU数学", source_lesson_date: "2026-08-10", operational_display_date: "2026-08-14", operational_display_date_basis: "partial_actual_date", origin_partial_actual_id: "11000000-0000-4000-8000-000000000001", origin_partial_actual_date: "2026-08-14", origin_evidence_status: "unique_valid_partial_actual", operational_display_explanation: "partial_actual_date_authoritative_v1", source_year_month: "2026-08",
       source_status: "pending_makeup", source_origin_type: "planned_pending_makeup", initial_credit_minutes: 120, makeup_consumed_minutes: 0,
       clearance_allocated_minutes: 0, clearance_reversed_minutes: 0, active_claimed_minutes: 0, remaining_minutes: 120,
       currently_allocatable_minutes: 120, unit_price_jpy: 9000, initial_amount_jpy: 18000, remaining_amount_jpy: 18000,
@@ -45,7 +45,7 @@ await page.evaluate(async () => {
     {
       pending_source_planned_id: "10000000-0000-4000-8000-000000000002", student_id: "student-1", student_display_name: "测试学生",
       business_entity_id: "entity-1", business_entity_display_name: "测试业务归属", teacher_id: "teacher-1", teacher_display_name: "老师甲",
-      subject_id: "subject-1", subject_display_name: "EJU数学", source_lesson_date: "2026-08-20", source_year_month: "2026-08",
+      subject_id: "subject-1", subject_display_name: "EJU数学", source_lesson_date: "2026-08-20", operational_display_date: "2026-08-17", operational_display_date_basis: "source_natural_week_start", origin_partial_actual_id: null, origin_partial_actual_date: null, origin_evidence_status: "no_valid_partial_actual", operational_display_explanation: "source_natural_week_start_fallback_v1", source_year_month: "2026-08",
       remaining_minutes: 60, currently_allocatable_minutes: 60, unit_price_jpy: 9000, remaining_amount_jpy: 9000,
       active_claimed: false, is_locked: false, can_be_candidate: true, evidence_status: "current_derived",
       source_updated_at: "2026-08-18T00:00:00Z", source_row_md5: "pending-md5-2", credit_origin_sort_source: "causal_actual_created_at", fifo_rank: 2,
@@ -181,7 +181,9 @@ await page.waitForSelector("#lessonClearanceFinalConfirmDialog:not(.is-hidden)")
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), beforeSafeCreate, "safe prepare never calls writer");
 assert.equal(await page.evaluate(() => document.activeElement?.id), "lessonClearanceFinalConfirmCloseButton", "final dialog receives focus");
 const dialogText = await page.locator("#lessonClearanceFinalConfirmContent").innerText();
-for (const expected of ["测试学生", "测试业务归属", "60分钟", "same teacher", "FIFO推荐对象", "request identity", "manifest", "source fingerprints", "业务说明", "Mock业务负责人核对", "不修改原课时、老师工资、既有账单或收款"]) assert.match(dialogText, new RegExp(expected));
+for (const expected of ["测试学生", "2026-08-14", "老师甲 / EJU数学", "60分钟", "符合建议顺序", "业务说明", "Mock业务负责人核对", "不修改原课时、老师工资、既有账单或收款"]) assert.match(dialogText, new RegExp(expected));
+assert.doesNotMatch(dialogText, /测试业务归属|10000000-0000|20000000-0000|manifest|request identity|fingerprint/);
+assert.equal(await page.locator("#lessonClearanceFinalConfirmDialog .lesson-clearance-system-details").first().evaluate((node) => node.open), false, "system details default collapsed");
 assert.equal(await page.locator(".lesson-clearance-final-note > p").textContent(), "Mock业务负责人核对");
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => document.querySelector("#lessonClearanceFinalConfirmDialog")?.classList.contains("is-hidden"));
@@ -231,7 +233,7 @@ await page.evaluate(() => {
   globalThis.__PHASE2C_D2A_TEST__.controller.state.selection.previewInputSnapshot = null;
 });
 await page.click("#lessonClearanceConfirmButton");
-await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage")?.textContent.includes("业务说明缺失，请重新预览"));
+await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage")?.textContent.includes("业务说明缺失，请重新核对"));
 assert.equal(await page.locator("#lessonClearanceFinalConfirmDialog").getAttribute("aria-hidden"), "true");
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), beforeSafeCreate, "missing snapshot never calls writer");
 
@@ -285,21 +287,21 @@ await prepareCreate();
 await page.evaluate(() => { globalThis.__PHASE2C_D2A_TEST__.test.createBehavior = "uncertain-found"; });
 await page.click("#lessonClearanceConfirmButton");
 await page.click("#lessonClearanceFinalSubmitButton");
-await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage").textContent.includes("没有再次调用writer"));
+await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage").textContent.includes("没有重复提交"));
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), 2, "uncertain result does not retry writer");
 
 await prepareCreate();
 await page.evaluate(() => { globalThis.__PHASE2C_D2A_TEST__.test.createBehavior = "uncertain-missing"; });
 await page.click("#lessonClearanceConfirmButton");
 await page.click("#lessonClearanceFinalSubmitButton");
-await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage").textContent.includes("History未找到"));
+await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage").textContent.includes("尚未找到本次请求"));
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), 3, "missing uncertain result invalidates instead of retrying writer");
 
 await prepareCreate();
 await page.evaluate(() => { globalThis.__PHASE2C_D2A_TEST__.test.createBehavior = "stable-error"; });
 await page.click("#lessonClearanceConfirmButton");
 await page.click("#lessonClearanceFinalSubmitButton");
-await page.waitForFunction(() => document.querySelector("#lessonClearanceFinalConfirmMessage").textContent.includes("待补来源当前余额不足"));
+await page.waitForFunction(() => document.querySelector("#lessonClearanceFinalConfirmMessage").textContent.includes("待补对象当前余额不足"));
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), 4);
 const errorLayout = await page.evaluate(() => ({
   dialogOverflow: document.querySelector("#lessonClearanceFinalConfirmDialog").scrollWidth - document.querySelector("#lessonClearanceFinalConfirmDialog").clientWidth,
@@ -309,10 +311,10 @@ assert.ok(errorLayout.dialogOverflow <= 0 && errorLayout.panelOverflow <= 0, "st
 await page.click("#lessonClearanceFinalConfirmCancelButton");
 
 await prepareCreate("20000000-0000-4000-8000-000000000002");
-const crossIdentity1 = await page.locator(".lesson-clearance-preview-actions code").innerText();
+const crossIdentity1 = await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.controller.state.selection.requestIdentity);
 assert.match(await page.locator(".lesson-clearance-preview-card").innerText(), /确认跨老师/);
 await page.check('[data-clearance-confirmation="crossTeacher"]');
-const crossIdentity2 = await page.locator(".lesson-clearance-preview-actions code").innerText();
+const crossIdentity2 = await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.controller.state.selection.requestIdentity);
 assert.notEqual(crossIdentity2, crossIdentity1, "cross-teacher confirmation invalidates Preview and rotates identity");
 assert.equal(await page.locator("#lessonClearanceConfirmButton").isDisabled(), true);
 await page.check('[data-clearance-confirmation="crossSubject"]');

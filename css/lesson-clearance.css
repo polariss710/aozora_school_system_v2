@@ -155,7 +155,7 @@
 
 .lesson-clearance-filter-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
   gap: 12px;
   align-items: end;
   margin-top: 14px;
@@ -310,6 +310,46 @@
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+.lesson-clearance-system-details {
+  min-width: 0;
+  margin-top: 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.lesson-clearance-system-details > summary {
+  padding: 9px 11px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.lesson-clearance-system-details-body {
+  min-width: 0;
+  padding: 0 11px 11px;
+  overflow-wrap: anywhere;
+}
+
+.lesson-clearance-system-details.is-error {
+  border-color: #ffc5bf;
+  background: #fff8f7;
+}
+
+.lesson-clearance-history-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dfe4ec;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.lesson-clearance-preview-actions > span {
+  color: #667085;
+  font-size: 12px;
 }
 
 .lesson-clearance-pill {

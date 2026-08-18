@@ -1,7 +1,7 @@
 import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 
 export const LESSON_CLEARANCE_READ_RPC_NAMES = Object.freeze({
-  pending: "school_list_lesson_clearance_pending_balances_v2",
+  pending: "school_list_lesson_clearance_pending_balances_v3",
   overages: "school_list_lesson_clearance_available_overages_v2",
   packages: "school_list_student_package_credit_lots_v2",
   crossMonth: "school_list_cross_month_makeup_projection_v2",

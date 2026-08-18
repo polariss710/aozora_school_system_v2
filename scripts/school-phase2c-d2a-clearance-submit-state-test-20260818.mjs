@@ -110,7 +110,7 @@ assert.equal(state.selectPending("P002"), false, "package lot cannot enter ordin
 selectBase(state);
 const identity1 = state.selection.requestIdentity;
 assert.match(identity1, /^[0-9a-f-]{36}$/i);
-assert.match(state.prepareValidationMessage(), /重新预览/);
+assert.match(state.prepareValidationMessage(), /重新核对/);
 const request1 = state.previewRequest();
 const request2 = state.previewRequest();
 assert.equal(request1.requestIdentity, request2.requestIdentity, "same Preview input reuses request identity");
@@ -132,8 +132,8 @@ selectBase(directMutationState);
 assert.equal(acceptStatePreview(directMutationState), true);
 const directMutationIdentity = directMutationState.selection.requestIdentity;
 directMutationState.selection.businessNote = "绕过事件修改的当前表单值";
-assert.match(directMutationState.prepareValidationMessage(), /重新预览/);
-assert.throws(() => directMutationState.writerRequest(), /重新预览/);
+assert.match(directMutationState.prepareValidationMessage(), /重新核对/);
+assert.throws(() => directMutationState.writerRequest(), /重新核对/);
 assert.equal(directMutationState.selection.previewInputSnapshot.businessNote, "状态机测试业务说明");
 assert.equal(directMutationState.selection.previewInputSnapshot.requestIdentity, directMutationIdentity);
 
@@ -141,7 +141,7 @@ const missingNoteSnapshotState = makeState();
 selectBase(missingNoteSnapshotState);
 assert.equal(acceptStatePreview(missingNoteSnapshotState), true);
 missingNoteSnapshotState.selection.previewInputSnapshot = null;
-assert.equal(missingNoteSnapshotState.prepareValidationMessage(), "业务说明缺失，请重新预览");
+assert.equal(missingNoteSnapshotState.prepareValidationMessage(), "业务说明缺失，请重新核对");
 
 const whitespaceState = makeState();
 selectBase(whitespaceState);
@@ -185,13 +185,13 @@ selectBase(fingerprintState);
 assert.equal(acceptStatePreview(fingerprintState, {
   source_versions: { pending_row_md5: "changed", overtime_row_md5: "overage-overage-1" },
 }), false);
-assert.match(fingerprintState.selection.previewError, /来源事实已变化/);
+assert.match(fingerprintState.selection.previewError, /所选对象事实已变化/);
 
 for (const [override, expected] of [
   [{ comparison: { same_student: false, same_business_entity: true, same_unit_price: true } }, /不同学生/],
-  [{ comparison: { same_student: true, same_business_entity: false, same_unit_price: true } }, /不同业务归属/],
+  [{ comparison: { same_student: true, same_business_entity: false, same_unit_price: true } }, /不同业务范围/],
   [{ comparison: { same_student: true, same_business_entity: true, same_unit_price: false } }, /相同单价/],
-  [{ pending_source: { planned_id: "pending-fifo", active_claimed: true } }, /active variance claim/],
+  [{ pending_source: { planned_id: "pending-fifo", active_claimed: true } }, /其他结算或清偿流程占用/],
 ]) {
   const gateState = makeState();
   selectBase(gateState);
@@ -205,7 +205,7 @@ assert.equal(acceptStatePreview(operator, {
   financial: { requires_forward_adjustment: true },
   authorization: { can_execute_for_current_actor: false, blocker_code: "LESSON_CLEARANCE_ADMIN_REQUIRED", blocker_message: "必须由admin处理" },
 }), true);
-assert.match(operator.prepareValidationMessage(), /admin/);
+assert.match(operator.prepareValidationMessage(), /权限/);
 
 const lockedAdmin = makeState("admin");
 selectBase(lockedAdmin, "pending-fifo", "overage-locked");
@@ -213,7 +213,7 @@ assert.equal(acceptStatePreview(lockedAdmin, {
   financial: { requires_forward_adjustment: true },
   authorization: { can_execute_for_current_actor: true, blocker_code: null },
 }), true);
-assert.match(lockedAdmin.prepareValidationMessage(), /locked forward/);
+assert.match(lockedAdmin.prepareValidationMessage(), /锁定月份/);
 lockedAdmin.setConfirmation("forward", true);
 assert.equal(acceptStatePreview(lockedAdmin, {
   financial: { requires_forward_adjustment: true },

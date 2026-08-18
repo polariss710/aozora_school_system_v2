@@ -4,8 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>青空塾 管理系统 v2 / 课时管理</title>
-    <link rel="stylesheet" href="./css/app.css?v=phase2c-d2a1-business-note-snapshot-20260818-1">
-    <link rel="stylesheet" href="./css/lesson-clearance.css?v=phase2c-d2a1-business-note-snapshot-20260818-1">
+    <link rel="stylesheet" href="./css/app.css?v=phase2c-d2-a2-business-language-20260818-1">
+    <link rel="stylesheet" href="./css/lesson-clearance.css?v=phase2c-d2-a2-business-language-20260818-1">
   </head>
   <body class="lesson-page">
     <aside class="app-sidebar" aria-label="主导航侧边栏">
@@ -251,16 +251,16 @@
         <section class="dialog-panel app-dialog--xl lesson-clearance-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="lessonClearanceWorkspaceTitle">
           <header class="lesson-clearance-dialog-header">
             <div>
-              <p class="page-kicker">人工选择 · DB权威Preview · 两层确认</p>
+              <p class="page-kicker">人工选择 · 系统核对 · 两层确认</p>
               <h2 id="lessonClearanceWorkspaceTitle">课时余额与清偿</h2>
-              <p class="section-note">查看待补、超额、套餐及历史事实。清偿对象由人工选择，系统只提供FIFO建议；最终提交前必须再次核对DB权威事实。</p>
+              <p class="section-note">查看待补对象、可用超额、套餐余额及清偿历史。系统仅提供“较早产生的余额优先”建议，清偿对象始终由业务人员选择。</p>
             </div>
             <button class="button" id="lessonClearanceWorkspaceCloseButton" type="button">关闭</button>
           </header>
 
           <div class="lesson-clearance-dialog-body">
             <div id="lessonClearanceWorkspaceMessage" class="message is-hidden" aria-live="polite"></div>
-            <div id="lessonClearanceWorkspaceLoading" class="state-text is-hidden">正在读取DB权威课时余额...</div>
+            <div id="lessonClearanceWorkspaceLoading" class="state-text is-hidden">正在读取课时余额...</div>
 
             <section id="lessonClearanceWorkspaceContent" class="is-hidden">
               <div id="lessonClearanceSummary" class="lesson-clearance-summary-grid" aria-label="课时余额权威摘要"></div>
@@ -269,17 +269,16 @@
                 <div class="section-heading section-heading-row">
                   <div>
                     <h3 id="lessonClearanceFilterTitle">筛选</h3>
-                    <p class="section-note">筛选只控制已返回DB行的显示；重置不读取、不重绘，查询后才应用。</p>
+                    <p class="section-note">筛选只控制系统已返回记录的显示；重置不读取、不重绘，查询后才应用。</p>
                   </div>
-                  <span class="readonly-pill">DB权威行</span>
+                  <span class="readonly-pill">系统已核对</span>
                 </div>
                 <form id="lessonClearanceFilterForm" class="lesson-clearance-filter-grid">
                   <label class="field"><span>学生</span><select id="lessonClearanceStudentFilter"><option value="">全部学生</option></select></label>
-                  <label class="field"><span>业务归属</span><select id="lessonClearanceEntityFilter"><option value="">全部业务归属</option></select></label>
                   <label class="field"><span>学生结算月份</span><select id="lessonClearanceMonthFilter"><option value="">全部月份</option></select></label>
-                  <label class="field"><span>状态</span><select id="lessonClearanceStatusFilter"><option value="">全部状态</option><option value="available">可清偿</option><option value="locked">被锁定</option><option value="claimed">有claim</option><option value="blocked">不可用</option></select></label>
+                  <label class="field"><span>状态</span><select id="lessonClearanceStatusFilter"><option value="">全部状态</option><option value="available">可清偿</option><option value="locked">涉及锁定月份</option><option value="claimed">已被流程占用</option><option value="blocked">不可用</option></select></label>
                   <label class="field"><span>证据状态</span><select id="lessonClearanceEvidenceFilter"><option value="">全部证据</option></select></label>
-                  <label class="lesson-clearance-checkline"><input id="lessonClearanceFifoOnlyFilter" type="checkbox"><span>仅看DB排序首选</span></label>
+                  <label class="lesson-clearance-checkline"><input id="lessonClearanceFifoOnlyFilter" type="checkbox"><span>仅看建议顺序首位</span></label>
                   <div class="lesson-clearance-filter-actions">
                     <button class="button button-primary" type="submit">查询</button>
                     <button class="button" id="lessonClearanceFilterResetButton" type="button">重置</button>
@@ -299,10 +298,10 @@
               <section id="lessonClearancePreviewSection" class="lesson-clearance-preview-section is-hidden" aria-labelledby="lessonClearancePreviewTitle">
                 <div class="section-heading section-heading-row">
                   <div>
-                    <h3 id="lessonClearancePreviewTitle">人工选择与DB权威Preview</h3>
-                    <p class="section-note">FIFO只作建议，不自动选择。改变source、分钟、类型或原因会立即作废旧Preview并更换request identity。</p>
+                    <h3 id="lessonClearancePreviewTitle">人工选择与系统核对</h3>
+                    <p class="section-note">建议顺序不自动选择。改变对象、分钟、日期、原因或业务说明会立即作废旧核对结果。</p>
                   </div>
-                  <span class="readonly-pill">DB Preview绑定</span>
+                  <span class="readonly-pill">已完成系统核对</span>
                 </div>
                 <div id="lessonClearanceSelectionPanel"></div>
                 <div id="lessonClearancePreviewPanel"></div>
@@ -1190,6 +1189,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script type="module" src="./js/lesson-app.js?v=phase2c-d2a1-business-note-snapshot-20260818-1"></script>
+    <script type="module" src="./js/lesson-app.js?v=phase2c-d2-a2-business-language-20260818-1"></script>
   </body>
 </html>

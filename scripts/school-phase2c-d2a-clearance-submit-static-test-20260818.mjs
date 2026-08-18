@@ -11,11 +11,11 @@ const component = read("js/components/lesson-clearance-workspace.js");
 const state = read("js/utils/lesson-clearance-state.js");
 const config = read("js/config.js");
 
-assert.match(config, /APP_VERSION = "v10\.5\.50"/);
+assert.match(config, /APP_VERSION = "v10\.5\.51"/);
 for (const source of [html, app, page, component]) {
   assert.doesNotMatch(source, /phase2c-d1-clearance-workspace-20260817-2/);
 }
-assert.match(html, /phase2c-d2a1-business-note-snapshot-20260818-1/);
+assert.match(html, /phase2c-d2-a2-business-language-20260818-1/);
 assert.match(html, /id="lessonClearanceConfirmButton"[^>]*disabled>核对并准备清偿</);
 assert.match(html, /id="lessonClearanceFinalConfirmDialog"/);
 assert.match(html, /id="lessonClearanceFinalSubmitButton"/);
@@ -33,7 +33,7 @@ assert.doesNotMatch(api + page + component + state + html, /service_role|service
 assert.doesNotMatch(component + state, /localStorage|sessionStorage/);
 
 const readRpcNames = [
-  "school_list_lesson_clearance_pending_balances_v2",
+  "school_list_lesson_clearance_pending_balances_v3",
   "school_list_lesson_clearance_available_overages_v2",
   "school_list_student_package_credit_lots_v2",
   "school_list_cross_month_makeup_projection_v2",
@@ -67,10 +67,10 @@ assert.match(component, /if \(dom\.finalDialog\.dataset\.mode === "create"\) sub
 assert.match(component, /if \(dom\.finalDialog\.dataset\.mode === "reversal"\) submitReversal\(\)/);
 assert.match(component, /state\.selection\.submitting/);
 assert.match(component, /resolveUncertainResult/);
-assert.match(component, /History.*request identity|request identity.*History/si);
+assert.match(component, /清偿历史已确认本次请求成功/);
 assert.match(state, /previewBinding/);
 assert.match(state, /previewInputSnapshot/);
-assert.match(state, /业务说明缺失，请重新预览/);
+assert.match(state, /业务说明缺失，请重新核对/);
 assert.match(state, /return clone\(this\.snapshotRequestFields\(\)\)/);
 assert.match(state, /preview_manifest_sha256/);
 assert.match(state, /pending_row_md5/);
@@ -83,7 +83,9 @@ assert.match(component, /请选择，不自动勾选/);
 assert.match(component, /P002不会进入本区/);
 
 const changed = execFileSync("git", ["diff", "--name-only"], { encoding: "utf8" }).trim().split("\n").filter(Boolean);
-assert.equal(changed.some((path) => path.startsWith("sql/")), false, "no database contract file changed");
+assert.equal(changed.filter((path) => path.startsWith("sql/")).every(
+  (path) => path.includes("school_phase2c_d2_a2_pending_operational_date_reader_v3"),
+), true, "only the approved versioned read-only reader SQL may change");
 
 console.log(JSON.stringify({ changed, readRpcNames, writeRpcNames: ["school_create_lesson_clearance", "school_reverse_lesson_clearance"] }));
 console.log("SCHOOL_PHASE2C_D2A_CLEARANCE_SUBMIT_STATIC_PASS");

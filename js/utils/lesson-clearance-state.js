@@ -6,7 +6,6 @@ const ROLE_CAPABILITIES = Object.freeze({
 
 export const LESSON_CLEARANCE_DEFAULT_FILTERS = Object.freeze({
   studentId: "",
-  businessEntityId: "",
   settlementMonth: "",
   status: "",
   evidenceStatus: "",
@@ -63,6 +62,7 @@ export class LessonClearanceWorkspaceState {
       previewBinding: null,
       previewInputSnapshot: null,
       previewError: "",
+      previewErrorDetail: "",
       crossTeacherConfirmed: false,
       crossSubjectConfirmed: false,
       forwardConfirmed: false,
@@ -148,7 +148,6 @@ export class LessonClearanceWorkspaceState {
     const filters = this.appliedFilters;
     return rows.filter((row) => {
       const studentId = row.student_id || "";
-      const entityId = row.business_entity_id || "";
       const month = kind === "pending"
         ? row.source_year_month
         : kind === "overage"
@@ -160,7 +159,6 @@ export class LessonClearanceWorkspaceState {
               : row.operational_year_month || row.financial_year_month;
       const evidence = row.evidence_status || "";
       if (filters.studentId && studentId !== filters.studentId) return false;
-      if (filters.businessEntityId && entityId !== filters.businessEntityId) return false;
       if (filters.settlementMonth && month !== filters.settlementMonth) return false;
       if (filters.evidenceStatus && evidence !== filters.evidenceStatus) return false;
       if (filters.status && !this.matchesStatus(row, filters.status, kind)) return false;
@@ -181,7 +179,7 @@ export class LessonClearanceWorkspaceState {
 
   shouldOpenRow(row, kind) {
     const filters = this.appliedFilters;
-    if (filters.studentId || filters.businessEntityId || filters.settlementMonth || filters.status || filters.evidenceStatus) {
+    if (filters.studentId || filters.settlementMonth || filters.status || filters.evidenceStatus) {
       return true;
     }
     if (filters.fifoOnly) {
@@ -250,6 +248,7 @@ export class LessonClearanceWorkspaceState {
     this.selection.previewBinding = null;
     this.selection.previewInputSnapshot = null;
     this.selection.previewError = "";
+    this.selection.previewErrorDetail = "";
     if (!preserveConfirmations) {
       this.selection.crossTeacherConfirmed = false;
       this.selection.crossSubjectConfirmed = false;
@@ -290,13 +289,19 @@ export class LessonClearanceWorkspaceState {
     if (!this.capabilities().preview) return "当前角色只能查看余额，不能进入清偿预览。";
     const pending = this.selectedPending();
     const overage = this.selectedOverage();
-    if (!pending || !overage) return "请分别人工选择一条待补来源和一条可用超额。";
+    if (!pending || !overage) return "请选择一个待补对象和一条可用超额。";
+    if (pending.student_id !== overage.student_id) {
+      return "待补对象与可用超额属于不同学生，当前不能合并清偿。";
+    }
+    if (pending.business_entity_id !== overage.business_entity_id) {
+      return "该学生存在不同业务范围的课时余额，当前不能合并清偿，请分别处理。";
+    }
     const minutes = Number(this.selection.allocatedMinutes);
-    if (!Number.isInteger(minutes) || minutes <= 0) return "请输入大于0的整数分钟；最终可用余额由DB Preview校验。";
+    if (!Number.isInteger(minutes) || minutes <= 0) return "请输入大于0的整数分钟；最终可用余额由系统核对。";
     if (!this.selection.operationDate) return "请选择清偿日期。";
     if (!this.selection.businessNote.trim()) return "请填写业务说明。";
     if (Number(pending.fifo_rank) !== 1 && !this.selection.deviationReasonCode) {
-      return "未采用FIFO建议时必须选择偏离原因。";
+      return "未采用系统建议顺序时必须选择偏离原因。";
     }
     if (this.selection.deviationReasonCode === "other" && !this.selection.deviationReasonNote.trim()) {
       return "偏离原因选择“其他”时必须填写说明。";
@@ -332,14 +337,16 @@ export class LessonClearanceWorkspaceState {
       this.selection.preview = null;
       this.selection.previewBinding = null;
       this.selection.previewInputSnapshot = null;
-      this.selection.previewError = "业务说明缺失，请重新预览";
+      this.selection.previewError = "业务说明缺失，请重新核对";
+      this.selection.previewErrorDetail = "";
       return false;
     }
     if (!preview || !inputMatches || !fingerprintsMatch || !preview.preview_manifest_sha256) {
       this.selection.preview = null;
       this.selection.previewBinding = null;
       this.selection.previewInputSnapshot = null;
-      this.selection.previewError = "来源事实已变化，请重新预览。系统不会使用旧预览提交。";
+      this.selection.previewError = "所选对象事实已变化，请重新核对。系统不会使用旧结果提交。";
+      this.selection.previewErrorDetail = "";
       return false;
     }
     this.selection.preview = preview;
@@ -373,14 +380,16 @@ export class LessonClearanceWorkspaceState {
       forward: preview.financial?.requires_forward_adjustment === true,
     };
     this.selection.previewError = "";
+    this.selection.previewErrorDetail = "";
     return true;
   }
 
-  rejectPreview(error) {
+  rejectPreview(error, technicalDetail = "") {
     this.selection.preview = null;
     this.selection.previewBinding = null;
     this.selection.previewInputSnapshot = null;
-    this.selection.previewError = error?.message || "课时清偿Preview读取失败，请重试。";
+    this.selection.previewError = error?.message || "课时清偿核对失败，请重新读取余额。";
+    this.selection.previewErrorDetail = technicalDetail;
   }
 
   snapshotRequestFields(snapshot = this.selection.previewInputSnapshot) {
@@ -405,7 +414,7 @@ export class LessonClearanceWorkspaceState {
     const binding = this.selection.previewBinding;
     const snapshot = this.selection.previewInputSnapshot;
     if (preview && (!snapshot || !snapshot.businessNote)) {
-      return "业务说明缺失，请重新预览";
+      return "业务说明缺失，请重新核对";
     }
     const snapshotRequest = this.snapshotRequestFields(snapshot);
     const snapshotRequestKey = snapshotRequest ? JSON.stringify(snapshotRequest) : "";
@@ -415,23 +424,23 @@ export class LessonClearanceWorkspaceState {
       || binding.manifest !== snapshot.manifest
       || preview.request_identity !== snapshot.requestIdentity
       || preview.preview_manifest_sha256 !== snapshot.manifest) {
-      return "来源事实已变化，请重新预览。系统不会使用旧预览提交。";
+      return "所选对象事实已变化，请重新核对。系统不会使用旧结果提交。";
     }
     if (preview.writer_revalidation_required !== true || preview.reservation_created !== false) {
-      return "Preview合同不完整，不能准备提交。";
+      return "系统核对结果不完整，不能准备提交。";
     }
     if (preview.authorization?.can_execute_for_current_actor !== true) {
-      return preview.authorization?.blocker_message || preview.authorization?.blocker_code || "DB角色合同不允许当前操作。";
+      return "当前账号权限不允许执行该操作。";
     }
-    if (preview.comparison?.same_student === false) return "待补与超额属于不同学生，DB已拒绝提交。";
-    if (preview.comparison?.same_business_entity === false) return "待补与超额属于不同业务归属，DB已拒绝提交。";
-    if (preview.comparison?.same_unit_price === false) return "V2只允许相同单价来源，DB已拒绝异价提交。";
-    if (preview.pending_source?.active_claimed || preview.overtime_source?.active_claimed) return "来源存在active variance claim，不能提交。";
-    if (preview.fifo?.deviation_required && preview.fifo?.deviation_reason_valid !== true) return "FIFO偏离原因未通过DB校验。";
+    if (preview.comparison?.same_student === false) return "待补对象与可用超额属于不同学生，系统已阻止提交。";
+    if (preview.comparison?.same_business_entity === false) return "该学生存在不同业务范围的课时余额，当前不能合并清偿，请分别处理。";
+    if (preview.comparison?.same_unit_price === false) return "当前只允许清偿相同单价的课时余额。";
+    if (preview.pending_source?.active_claimed || preview.overtime_source?.active_claimed) return "所选课时余额已被其他结算或清偿流程占用。";
+    if (preview.fifo?.deviation_required && preview.fifo?.deviation_reason_valid !== true) return "偏离系统建议顺序的原因未通过核对。";
     if (this.selection.requiredConfirmations.crossTeacher && !this.selection.crossTeacherConfirmed) return "请确认本次清偿跨老师。";
     if (this.selection.requiredConfirmations.crossSubject && !this.selection.crossSubjectConfirmed) return "请确认本次清偿跨科目。";
-    if (this.selection.requiredConfirmations.forward && !this.selection.forwardConfirmed) return "请确认locked forward处理。";
-    if (this.selection.requiredConfirmations.forward && !this.capabilities().locked) return "当前角色不能处理locked forward，必须由active admin执行。";
+    if (this.selection.requiredConfirmations.forward && !this.selection.forwardConfirmed) return "请确认涉及锁定月份的后续调整。";
+    if (this.selection.requiredConfirmations.forward && !this.capabilities().locked) return "当前角色不能处理锁定月份的后续调整，必须由管理员执行。";
     return "";
   }
 
@@ -475,7 +484,7 @@ export class LessonClearanceWorkspaceState {
       this.selection.reversalPreview = null;
       this.selection.reversalBinding = null;
       this.selection.reversalError = preview?.authorization?.blocker_message
-        || "该清偿已失效、已撤销或不符合当前DB撤销合同。";
+        || "该清偿已失效、已撤销或不符合当前撤销条件。";
       return false;
     }
     this.selection.reversalPreview = preview;
@@ -494,7 +503,7 @@ export class LessonClearanceWorkspaceState {
     if (!this.capabilities().reverse || !preview || !binding
       || binding.requestIdentity !== this.selection.reversalRequestIdentity
       || binding.clearanceId !== this.selection.reversalClearanceId) {
-      throw new Error("请先取得最新DB Reversal Preview。系统不会使用旧预览撤销。");
+      throw new Error("请先取得最新撤销核对结果。系统不会使用旧结果撤销。");
     }
     if (!this.selection.reversalReason.trim()) throw new Error("请填写撤销原因。");
     return {
