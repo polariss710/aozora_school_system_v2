@@ -51,6 +51,7 @@ function selectBase(state, pendingId = "pending-fifo", overtimeId = "overage-1")
   assert.equal(state.selectPending(pendingId), true);
   assert.equal(state.selectOvertime(overtimeId), true);
   state.setPreviewInput("allocatedMinutes", "60");
+  state.setPreviewInput("businessNote", "状态机测试业务说明");
 }
 
 function previewFor(state, overrides = {}) {
@@ -91,6 +92,11 @@ function previewFor(state, overrides = {}) {
   };
 }
 
+function acceptStatePreview(state, overrides = {}) {
+  const request = state.previewRequest();
+  return state.acceptPreview(previewFor(state, overrides), request);
+}
+
 assert.equal(lessonClearanceCapabilities("admin").create, true);
 assert.equal(lessonClearanceCapabilities("admin").reverse, true);
 assert.equal(lessonClearanceCapabilities("operator").create, true);
@@ -108,13 +114,48 @@ assert.match(state.prepareValidationMessage(), /重新预览/);
 const request1 = state.previewRequest();
 const request2 = state.previewRequest();
 assert.equal(request1.requestIdentity, request2.requestIdentity, "same Preview input reuses request identity");
-assert.equal(state.acceptPreview(previewFor(state)), true);
+assert.equal(state.acceptPreview(previewFor(state), request1), true);
 assert.equal(state.prepareValidationMessage(), "");
 assert.equal(state.writerRequest().requestIdentity, identity1);
+assert.equal(state.selection.previewInputSnapshot.businessNote, request1.businessNote);
+assert.equal(state.selection.previewInputSnapshot.requestIdentity, request1.requestIdentity);
+assert.equal(state.selection.previewInputSnapshot.manifest, "manifest-0123456789");
+assert.equal(state.writerRequest().businessNote, request1.businessNote, "writer payload reads the Preview input snapshot");
 
 state.setPreviewInput("businessNote", "改变业务备注");
 assert.equal(state.selection.preview, null);
+assert.equal(state.selection.previewInputSnapshot, null);
 assert.notEqual(state.selection.requestIdentity, identity1);
+
+const directMutationState = makeState();
+selectBase(directMutationState);
+assert.equal(acceptStatePreview(directMutationState), true);
+const directMutationIdentity = directMutationState.selection.requestIdentity;
+directMutationState.selection.businessNote = "绕过事件修改的当前表单值";
+assert.match(directMutationState.prepareValidationMessage(), /重新预览/);
+assert.throws(() => directMutationState.writerRequest(), /重新预览/);
+assert.equal(directMutationState.selection.previewInputSnapshot.businessNote, "状态机测试业务说明");
+assert.equal(directMutationState.selection.previewInputSnapshot.requestIdentity, directMutationIdentity);
+
+const missingNoteSnapshotState = makeState();
+selectBase(missingNoteSnapshotState);
+assert.equal(acceptStatePreview(missingNoteSnapshotState), true);
+missingNoteSnapshotState.selection.previewInputSnapshot = null;
+assert.equal(missingNoteSnapshotState.prepareValidationMessage(), "业务说明缺失，请重新预览");
+
+const whitespaceState = makeState();
+selectBase(whitespaceState);
+whitespaceState.setPreviewInput("businessNote", "  第一行业务说明\n第二行业务说明  ");
+const whitespaceRequest = whitespaceState.previewRequest();
+assert.equal(whitespaceRequest.businessNote, "第一行业务说明\n第二行业务说明");
+assert.equal(whitespaceState.acceptPreview(previewFor(whitespaceState), whitespaceRequest), true);
+assert.equal(whitespaceState.selection.previewInputSnapshot.businessNote, whitespaceRequest.businessNote);
+assert.equal(whitespaceState.writerRequest().businessNote, whitespaceRequest.businessNote);
+
+const blankNoteState = makeState();
+selectBase(blankNoteState);
+blankNoteState.setPreviewInput("businessNote", "  \n  ");
+assert.equal(blankNoteState.previewValidationMessage(), "请填写业务说明。");
 
 state.selectPending("pending-other");
 assert.match(state.previewValidationMessage(), /偏离原因/);
@@ -125,25 +166,25 @@ assert.equal(state.previewValidationMessage(), "");
 
 const crossState = makeState();
 selectBase(crossState);
-assert.equal(crossState.acceptPreview(previewFor(crossState, {
+assert.equal(acceptStatePreview(crossState, {
   comparison: { same_student: true, same_business_entity: true, same_unit_price: true, same_teacher: false, same_subject: false },
-})), true);
+}), true);
 assert.match(crossState.prepareValidationMessage(), /跨老师/);
 const crossIdentity1 = crossState.selection.requestIdentity;
 crossState.setConfirmation("crossTeacher", true);
 assert.equal(crossState.selection.preview, null);
 assert.notEqual(crossState.selection.requestIdentity, crossIdentity1);
 crossState.setConfirmation("crossSubject", true);
-assert.equal(crossState.acceptPreview(previewFor(crossState, {
+assert.equal(acceptStatePreview(crossState, {
   comparison: { same_student: true, same_business_entity: true, same_unit_price: true, same_teacher: false, same_subject: false },
-})), true);
+}), true);
 assert.equal(crossState.prepareValidationMessage(), "");
 
 const fingerprintState = makeState();
 selectBase(fingerprintState);
-assert.equal(fingerprintState.acceptPreview(previewFor(fingerprintState, {
+assert.equal(acceptStatePreview(fingerprintState, {
   source_versions: { pending_row_md5: "changed", overtime_row_md5: "overage-overage-1" },
-})), false);
+}), false);
 assert.match(fingerprintState.selection.previewError, /来源事实已变化/);
 
 for (const [override, expected] of [
@@ -154,30 +195,30 @@ for (const [override, expected] of [
 ]) {
   const gateState = makeState();
   selectBase(gateState);
-  assert.equal(gateState.acceptPreview(previewFor(gateState, override)), true);
+  assert.equal(acceptStatePreview(gateState, override), true);
   assert.match(gateState.prepareValidationMessage(), expected);
 }
 
 const operator = makeState("operator");
 selectBase(operator, "pending-fifo", "overage-locked");
-assert.equal(operator.acceptPreview(previewFor(operator, {
+assert.equal(acceptStatePreview(operator, {
   financial: { requires_forward_adjustment: true },
   authorization: { can_execute_for_current_actor: false, blocker_code: "LESSON_CLEARANCE_ADMIN_REQUIRED", blocker_message: "必须由admin处理" },
-})), true);
+}), true);
 assert.match(operator.prepareValidationMessage(), /admin/);
 
 const lockedAdmin = makeState("admin");
 selectBase(lockedAdmin, "pending-fifo", "overage-locked");
-assert.equal(lockedAdmin.acceptPreview(previewFor(lockedAdmin, {
+assert.equal(acceptStatePreview(lockedAdmin, {
   financial: { requires_forward_adjustment: true },
   authorization: { can_execute_for_current_actor: true, blocker_code: null },
-})), true);
+}), true);
 assert.match(lockedAdmin.prepareValidationMessage(), /locked forward/);
 lockedAdmin.setConfirmation("forward", true);
-assert.equal(lockedAdmin.acceptPreview(previewFor(lockedAdmin, {
+assert.equal(acceptStatePreview(lockedAdmin, {
   financial: { requires_forward_adjustment: true },
   authorization: { can_execute_for_current_actor: true, blocker_code: null },
-})), true);
+}), true);
 assert.equal(lockedAdmin.prepareValidationMessage(), "");
 
 const readOnly = makeState("read_only");

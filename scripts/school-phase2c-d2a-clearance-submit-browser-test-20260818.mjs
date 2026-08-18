@@ -19,8 +19,9 @@ await page.goto(`${baseUrl}/lesson.html`, { waitUntil: "domcontentloaded" });
 
 await page.evaluate(async () => {
   document.documentElement.classList.remove("auth-pending");
-  const { createLessonClearanceWorkspace } = await import("/js/components/lesson-clearance-workspace.js?v=phase2c-d2a-clearance-submit-20260818-1");
+  const { createLessonClearanceWorkspace } = await import("/js/components/lesson-clearance-workspace.js?v=phase2c-d2a1-business-note-snapshot-20260818-1");
   const test = {
+    previewCalls: 0,
     createCalls: 0,
     reversalCalls: 0,
     lastCreate: null,
@@ -89,6 +90,8 @@ await page.evaluate(async () => {
     fetchDashboardSummary: async () => ({ pending_source_count: 2, pending_remaining_minutes: 180, overage_source_count: 2, available_overtime_minutes: 120, package_lot_count: 1, package_remaining_minutes: 1200, history_count: test.history.length }),
     fetchHistory: async () => { test.historyReads += 1; return clone(test.history); },
     previewClearance: async (input) => {
+      test.previewCalls += 1;
+      test.lastPreview = clone(input);
       const pendingRow = pending.find((row) => row.pending_source_planned_id === input.pendingSourcePlannedId);
       const overageRow = overages.find((row) => row.overtime_source_actual_id === input.overtimeSourceActualId);
       const sameTeacher = pendingRow.teacher_id === overageRow.teacher_id;
@@ -142,12 +145,15 @@ const openWorkspace = async () => {
   await page.click("#openLessonClearanceWorkspaceButton");
   await page.waitForSelector("#lessonClearanceWorkspaceContent:not(.is-hidden)");
 };
-const prepareCreate = async (overageId = "20000000-0000-4000-8000-000000000001") => {
+const prepareCreate = async (
+  overageId = "20000000-0000-4000-8000-000000000001",
+  businessNote = "Mock业务负责人核对",
+) => {
   await page.selectOption("#lessonClearancePendingSelect", "10000000-0000-4000-8000-000000000001");
   await page.selectOption("#lessonClearanceOverageSelect", overageId);
   await page.fill("#lessonClearanceAllocatedMinutesInput", "60");
   await page.dispatchEvent("#lessonClearanceAllocatedMinutesInput", "change");
-  await page.fill("#lessonClearanceBusinessNoteInput", "Mock业务负责人核对");
+  await page.fill("#lessonClearanceBusinessNoteInput", businessNote);
   await page.locator("#lessonClearancePreviewButton").evaluate((button) => button.click());
   try {
     await page.waitForSelector(".lesson-clearance-preview-card", { timeout: 3000 });
@@ -175,12 +181,75 @@ await page.waitForSelector("#lessonClearanceFinalConfirmDialog:not(.is-hidden)")
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), beforeSafeCreate, "safe prepare never calls writer");
 assert.equal(await page.evaluate(() => document.activeElement?.id), "lessonClearanceFinalConfirmCloseButton", "final dialog receives focus");
 const dialogText = await page.locator("#lessonClearanceFinalConfirmContent").innerText();
-for (const expected of ["测试学生", "测试业务归属", "60分钟", "same teacher", "FIFO推荐对象", "request identity", "manifest", "source fingerprints", "不修改原课时、老师工资、既有账单或收款"]) assert.match(dialogText, new RegExp(expected));
+for (const expected of ["测试学生", "测试业务归属", "60分钟", "same teacher", "FIFO推荐对象", "request identity", "manifest", "source fingerprints", "业务说明", "Mock业务负责人核对", "不修改原课时、老师工资、既有账单或收款"]) assert.match(dialogText, new RegExp(expected));
+assert.equal(await page.locator(".lesson-clearance-final-note > p").textContent(), "Mock业务负责人核对");
 await page.keyboard.press("Escape");
 await page.waitForFunction(() => document.querySelector("#lessonClearanceFinalConfirmDialog")?.classList.contains("is-hidden"));
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), beforeSafeCreate, "Escape closes safe dialog without writer");
+
+const firstBinding = await page.evaluate(() => {
+  const selection = globalThis.__PHASE2C_D2A_TEST__.controller.state.selection;
+  return { identity: selection.requestIdentity, manifest: selection.previewInputSnapshot.manifest };
+});
+await page.fill("#lessonClearanceBusinessNoteInput", "重新Preview后的业务说明");
+await page.waitForFunction(() => document.querySelector("#lessonClearanceConfirmButton")?.disabled === true);
+const invalidated = await page.evaluate(() => {
+  const selection = globalThis.__PHASE2C_D2A_TEST__.controller.state.selection;
+  return { identity: selection.requestIdentity, preview: selection.preview, snapshot: selection.previewInputSnapshot };
+});
+assert.notEqual(invalidated.identity, firstBinding.identity, "business note change rotates request identity");
+assert.equal(invalidated.preview, null, "business note change invalidates Preview");
+assert.equal(invalidated.snapshot, null, "business note change removes Preview input snapshot");
+assert.equal(await page.locator("#lessonClearanceFinalConfirmDialog").getAttribute("aria-hidden"), "true");
+await page.locator("#lessonClearancePreviewButton").evaluate((button) => button.click());
+try {
+  await page.waitForSelector(".lesson-clearance-preview-card", { timeout: 3000 });
+} catch (error) {
+  const diagnostic = await page.evaluate(() => ({
+    selection: structuredClone(globalThis.__PHASE2C_D2A_TEST__.controller.state.selection),
+    previewCalls: globalThis.__PHASE2C_D2A_TEST__.test.previewCalls,
+    lastPreview: structuredClone(globalThis.__PHASE2C_D2A_TEST__.test.lastPreview),
+    selectionText: document.querySelector("#lessonClearanceSelectionPanel")?.innerText,
+    previewText: document.querySelector("#lessonClearancePreviewPanel")?.innerText,
+    workspaceMessage: document.querySelector("#lessonClearanceWorkspaceMessage")?.innerText,
+  }));
+  throw new Error(`Re-Preview did not render: ${JSON.stringify(diagnostic)}; ${error.message}`);
+}
+const rebound = await page.evaluate(() => {
+  const selection = globalThis.__PHASE2C_D2A_TEST__.controller.state.selection;
+  return { identity: selection.requestIdentity, manifest: selection.previewInputSnapshot.manifest, note: selection.previewInputSnapshot.businessNote };
+});
+assert.notEqual(rebound.identity, firstBinding.identity, "re-Preview uses new request identity");
+assert.notEqual(rebound.manifest, firstBinding.manifest, "re-Preview uses new manifest");
+assert.equal(rebound.note, "重新Preview后的业务说明");
 await page.click("#lessonClearanceConfirmButton");
 await page.waitForSelector("#lessonClearanceFinalConfirmDialog:not(.is-hidden)");
+assert.equal(await page.locator(".lesson-clearance-final-note > p").textContent(), "重新Preview后的业务说明");
+await page.click("#lessonClearanceFinalConfirmCloseButton");
+
+await page.evaluate(() => {
+  globalThis.__PHASE2C_D2A_TEST__.controller.state.selection.previewInputSnapshot = null;
+});
+await page.click("#lessonClearanceConfirmButton");
+await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceMessage")?.textContent.includes("业务说明缺失，请重新预览"));
+assert.equal(await page.locator("#lessonClearanceFinalConfirmDialog").getAttribute("aria-hidden"), "true");
+assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), beforeSafeCreate, "missing snapshot never calls writer");
+
+const injectionNote = `第一行<script>globalThis.__INJECTED__=true</script>\n第二行 <b>粗体</b> "引号" '单引号'`;
+await prepareCreate("20000000-0000-4000-8000-000000000001", injectionNote);
+await page.click("#lessonClearanceConfirmButton");
+await page.waitForSelector("#lessonClearanceFinalConfirmDialog:not(.is-hidden)");
+assert.equal(await page.locator(".lesson-clearance-final-note > p").textContent(), injectionNote, "HTML-like business note renders as exact text");
+assert.equal(await page.locator(".lesson-clearance-final-note script").count(), 0, "business note never creates script nodes");
+assert.equal(await page.locator(".lesson-clearance-final-note b").count(), 0, "business note never creates HTML nodes");
+assert.equal(await page.evaluate(() => globalThis.__INJECTED__ === true), false, "business note script text never executes");
+await page.click("#lessonClearanceFinalConfirmCloseButton");
+
+const longBusinessNote = `同一自然周课时差额清偿：${"这是一段用于验证中文长说明自动换行且不会拉伸网格或按钮区的审计文字。".repeat(8)}\n第二行继续验证换行。`;
+await prepareCreate("20000000-0000-4000-8000-000000000001", longBusinessNote);
+await page.click("#lessonClearanceConfirmButton");
+await page.waitForSelector("#lessonClearanceFinalConfirmDialog:not(.is-hidden)");
+assert.equal(await page.locator(".lesson-clearance-final-note > p").textContent(), longBusinessNote);
 
 const layoutMeasurements = [];
 for (const width of [1440, 1024, 768, 390]) {
@@ -190,10 +259,14 @@ for (const width of [1440, 1024, 768, 390]) {
     dialogOverflow: document.querySelector("#lessonClearanceFinalConfirmDialog").scrollWidth - document.querySelector("#lessonClearanceFinalConfirmDialog").clientWidth,
     panelOverflow: document.querySelector(".lesson-clearance-final-dialog-panel").scrollWidth - document.querySelector(".lesson-clearance-final-dialog-panel").clientWidth,
     bodyScrollable: document.querySelector(".lesson-clearance-final-dialog-body").scrollHeight >= document.querySelector(".lesson-clearance-final-dialog-body").clientHeight,
+    noteOverflow: document.querySelector(".lesson-clearance-final-note").scrollWidth - document.querySelector(".lesson-clearance-final-note").clientWidth,
+    footerVisible: Boolean(document.querySelector(".lesson-clearance-final-dialog-panel footer")?.getClientRects().length),
   }));
   assert.ok(measurement.documentOverflow <= 0, `${width}px document overflow`);
   assert.ok(measurement.dialogOverflow <= 0, `${width}px dialog overflow`);
   assert.ok(measurement.panelOverflow <= 0, `${width}px panel overflow`);
+  assert.ok(measurement.noteOverflow <= 0, `${width}px business note overflow`);
+  assert.equal(measurement.footerVisible, true, `${width}px dialog footer remains rendered`);
   layoutMeasurements.push({ width, ...measurement });
 }
 
@@ -206,6 +279,7 @@ await page.evaluate(() => {
 await page.waitForFunction(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls === 1);
 await page.waitForFunction(() => document.querySelector("#lessonClearanceFinalConfirmDialog")?.classList.contains("is-hidden"));
 assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.createCalls), 1, "double click produces one mock writer call");
+assert.equal(await page.evaluate(() => globalThis.__PHASE2C_D2A_TEST__.test.lastCreate.businessNote), longBusinessNote, "mock writer receives the bound Preview snapshot note");
 
 await prepareCreate();
 await page.evaluate(() => { globalThis.__PHASE2C_D2A_TEST__.test.createBehavior = "uncertain-found"; });

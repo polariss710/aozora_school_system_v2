@@ -11,11 +11,11 @@ const component = read("js/components/lesson-clearance-workspace.js");
 const state = read("js/utils/lesson-clearance-state.js");
 const config = read("js/config.js");
 
-assert.match(config, /APP_VERSION = "v10\.5\.49"/);
+assert.match(config, /APP_VERSION = "v10\.5\.50"/);
 for (const source of [html, app, page, component]) {
   assert.doesNotMatch(source, /phase2c-d1-clearance-workspace-20260817-2/);
 }
-assert.match(html, /phase2c-d2a-clearance-submit-20260818-1/);
+assert.match(html, /phase2c-d2a1-business-note-snapshot-20260818-1/);
 assert.match(html, /id="lessonClearanceConfirmButton"[^>]*disabled>核对并准备清偿</);
 assert.match(html, /id="lessonClearanceFinalConfirmDialog"/);
 assert.match(html, /id="lessonClearanceFinalSubmitButton"/);
@@ -23,6 +23,9 @@ assert.match(html, /点击后会立即写入正式清偿记录/);
 assert.match(component, /本动作只建立课时差额清偿事实，不修改原课时、老师工资、既有账单或收款/);
 assert.match(component, /确认清偿\$\{integerLabel\(preview\.requested_minutes\)\}分钟/);
 assert.match(component, /确认撤销该清偿/);
+assert.match(component, /businessNoteValue\.textContent = inputSnapshot\.businessNote/);
+assert.match(component, /businessNoteLabel\.textContent = "业务说明"/);
+assert.doesNotMatch(component, /\$\{inputSnapshot\.businessNote\}/);
 
 assert.doesNotMatch(page + component + state + html, /\.rpc\s*\(/);
 assert.doesNotMatch(page + component + state + html, /\.from\s*\([^)]*\)\s*\.\s*(insert|update|delete|upsert)\s*\(/);
@@ -66,6 +69,9 @@ assert.match(component, /state\.selection\.submitting/);
 assert.match(component, /resolveUncertainResult/);
 assert.match(component, /History.*request identity|request identity.*History/si);
 assert.match(state, /previewBinding/);
+assert.match(state, /previewInputSnapshot/);
+assert.match(state, /业务说明缺失，请重新预览/);
+assert.match(state, /return clone\(this\.snapshotRequestFields\(\)\)/);
 assert.match(state, /preview_manifest_sha256/);
 assert.match(state, /pending_row_md5/);
 assert.match(state, /overtime_row_md5/);

@@ -1,7 +1,7 @@
 import {
   LESSON_CLEARANCE_DEFAULT_FILTERS,
   LessonClearanceWorkspaceState,
-} from "../utils/lesson-clearance-state.js?v=phase2c-d2a-clearance-submit-20260818-1";
+} from "../utils/lesson-clearance-state.js?v=phase2c-d2a1-business-note-snapshot-20260818-1";
 
 const ERROR_MESSAGES = new Map([
   ["LESSON_CLEARANCE_SCOPE_MISMATCH", "待补与超额必须属于同一学生及业务归属。"],
@@ -483,6 +483,9 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
   }
 
   function syncInvalidatedPreviewDisplay() {
+    if (dom.finalDialog?.dataset.mode === "create" && !dom.finalDialog.classList.contains("is-hidden")) {
+      closeFinalDialog(true);
+    }
     const identity = dom.selectionPanel.querySelector(".lesson-clearance-preview-actions code");
     const previewButton = dom.selectionPanel.querySelector("#lessonClearancePreviewButton");
     if (identity) identity.textContent = `request identity：${state.selection.requestIdentity || "选择两条source后生成"}`;
@@ -517,6 +520,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     const comparison = preview.comparison || {};
     const fifo = preview.fifo || {};
     const financial = preview.financial || {};
+    const inputSnapshot = state.selection.previewInputSnapshot;
     dom.finalDialog.dataset.mode = "create";
     dom.finalTitle.textContent = "最终确认：建立课时差额清偿";
     dom.finalContent.innerHTML = `<div class="lesson-clearance-final-grid">${[
@@ -529,9 +533,17 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
       ["人工选择对象", `${shortId(fifo.selected_pending_planned_id)} · ${fifo.selected_pending_planned_id || pending.planned_id}`], ["偏离FIFO", boolLabel(fifo.deviation_required)],
       ["偏离原因", `${fifo.deviation_reason_code || "无"}${fifo.deviation_reason_note ? ` · ${fifo.deviation_reason_note}` : ""}`], ["locked状态", `pending ${boolLabel(pending.source_locked)} / overage ${boolLabel(overage.source_locked)}`],
       ["lock证据", `${pending.lock_evidence || "无"} / ${overage.lock_evidence || "无"}`], ["forward adjustment", `${boolLabel(financial.requires_forward_adjustment)} · ${financial.forward_adjustment_direction || "无"} · ${moneyLabel(financial.forward_adjustment_amount_jpy)}`],
-      ["来源月 / 目标月", `${pending.student_settlement_month || "-"} / ${overage.student_settlement_month || "-"} → ${financial.forward_destination_month || "无"}`], ["request identity", shortId(preview.request_identity)],
-      ["manifest", shortId(preview.preview_manifest_sha256)], ["source fingerprints", `pending ${shortId(preview.source_versions?.pending_row_md5)} / overage ${shortId(preview.source_versions?.overtime_row_md5)}`],
+      ["来源月 / 目标月", `${pending.student_settlement_month || "-"} / ${overage.student_settlement_month || "-"} → ${financial.forward_destination_month || "无"}`], ["request identity", shortId(inputSnapshot.requestIdentity)],
+      ["manifest", shortId(inputSnapshot.manifest)], ["source fingerprints", `pending ${shortId(preview.source_versions?.pending_row_md5)} / overage ${shortId(preview.source_versions?.overtime_row_md5)}`],
     ].map(([label, value]) => fact(label, value)).join("")}</div><p class="lesson-clearance-final-warning">本动作只建立课时差额清偿事实，不修改原课时、老师工资、既有账单或收款。</p>`;
+    const businessNote = document.createElement("div");
+    businessNote.className = "lesson-clearance-final-note";
+    const businessNoteLabel = document.createElement("span");
+    businessNoteLabel.textContent = "业务说明";
+    const businessNoteValue = document.createElement("p");
+    businessNoteValue.textContent = inputSnapshot.businessNote;
+    businessNote.append(businessNoteLabel, businessNoteValue);
+    dom.finalContent.querySelector(".lesson-clearance-final-grid")?.after(businessNote);
     dom.finalSubmit.textContent = `确认清偿${integerLabel(preview.requested_minutes)}分钟`;
     dom.finalActionNote.textContent = "点击后会立即写入正式清偿记录。";
     dom.finalSubmit.disabled = false;
@@ -675,7 +687,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
       const payload = state.previewRequest();
       counters.previews += 1;
       const preview = await api.previewClearance(payload);
-      state.acceptPreview(preview);
+      state.acceptPreview(preview, payload);
     } catch (error) {
       state.rejectPreview(new Error(lessonClearanceErrorMessage(error)));
     }

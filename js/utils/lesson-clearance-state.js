@@ -61,6 +61,7 @@ export class LessonClearanceWorkspaceState {
       requestIdentity: "",
       preview: null,
       previewBinding: null,
+      previewInputSnapshot: null,
       previewError: "",
       crossTeacherConfirmed: false,
       crossSubjectConfirmed: false,
@@ -247,6 +248,7 @@ export class LessonClearanceWorkspaceState {
   invalidatePreview(regenerateIdentity = false, preserveConfirmations = false) {
     this.selection.preview = null;
     this.selection.previewBinding = null;
+    this.selection.previewInputSnapshot = null;
     this.selection.previewError = "";
     if (!preserveConfirmations) {
       this.selection.crossTeacherConfirmed = false;
@@ -292,6 +294,7 @@ export class LessonClearanceWorkspaceState {
     const minutes = Number(this.selection.allocatedMinutes);
     if (!Number.isInteger(minutes) || minutes <= 0) return "请输入大于0的整数分钟；最终可用余额由DB Preview校验。";
     if (!this.selection.operationDate) return "请选择清偿日期。";
+    if (!this.selection.businessNote.trim()) return "请填写业务说明。";
     if (Number(pending.fifo_rank) !== 1 && !this.selection.deviationReasonCode) {
       return "未采用FIFO建议时必须选择偏离原因。";
     }
@@ -308,28 +311,58 @@ export class LessonClearanceWorkspaceState {
     return this.previewRequestFields();
   }
 
-  acceptPreview(preview) {
+  acceptPreview(preview, sentRequest) {
     const pending = this.selectedPending();
     const overage = this.selectedOverage();
     const sourceVersions = preview?.source_versions || {};
-    const inputMatches = preview?.request_identity === this.selection.requestIdentity
-      && preview?.clearance_type === this.selection.clearanceType
-      && Number(preview?.requested_minutes) === Number(this.selection.allocatedMinutes)
-      && preview?.operation_date === this.selection.operationDate
-      && preview?.pending_source?.planned_id === this.selection.pendingId
-      && preview?.overtime_source?.actual_id === this.selection.overtimeId;
+    const request = sentRequest && typeof sentRequest === "object" ? clone(sentRequest) : null;
+    const requestKey = request ? JSON.stringify(request) : "";
+    const currentRequestKey = this.requestKey();
+    const inputMatches = requestKey === currentRequestKey
+      && preview?.request_identity === request?.requestIdentity
+      && preview?.clearance_type === request?.clearanceType
+      && Number(preview?.requested_minutes) === Number(request?.allocatedMinutes)
+      && preview?.operation_date === request?.operationDate
+      && preview?.pending_source?.planned_id === request?.pendingSourcePlannedId
+      && preview?.overtime_source?.actual_id === request?.overtimeSourceActualId;
     const fingerprintsMatch = Boolean(sourceVersions.pending_row_md5 && sourceVersions.overtime_row_md5)
       && sourceVersions.pending_row_md5 === pending?.source_row_md5
       && sourceVersions.overtime_row_md5 === overage?.source_row_md5;
+    if (!request?.businessNote) {
+      this.selection.preview = null;
+      this.selection.previewBinding = null;
+      this.selection.previewInputSnapshot = null;
+      this.selection.previewError = "业务说明缺失，请重新预览";
+      return false;
+    }
     if (!preview || !inputMatches || !fingerprintsMatch || !preview.preview_manifest_sha256) {
       this.selection.preview = null;
       this.selection.previewBinding = null;
+      this.selection.previewInputSnapshot = null;
       this.selection.previewError = "来源事实已变化，请重新预览。系统不会使用旧预览提交。";
       return false;
     }
     this.selection.preview = preview;
+    this.selection.previewInputSnapshot = Object.freeze({
+      requestIdentity: request.requestIdentity,
+      manifest: preview.preview_manifest_sha256,
+      clearanceType: request.clearanceType,
+      pendingSourcePlannedId: request.pendingSourcePlannedId,
+      overtimeSourceActualId: request.overtimeSourceActualId,
+      allocatedMinutes: request.allocatedMinutes,
+      operationDate: request.operationDate,
+      deviationReasonCode: request.deviationReasonCode,
+      deviationReasonNote: request.deviationReasonNote,
+      businessNote: request.businessNote,
+      administrativeFinancialTreatment: request.administrativeFinancialTreatment,
+      confirmations: Object.freeze({
+        crossTeacher: this.selection.crossTeacherConfirmed,
+        crossSubject: this.selection.crossSubjectConfirmed,
+        forward: this.selection.forwardConfirmed,
+      }),
+    });
     this.selection.previewBinding = {
-      requestKey: this.requestKey(),
+      requestKey,
       manifest: preview.preview_manifest_sha256,
       pendingFingerprint: sourceVersions.pending_row_md5,
       overtimeFingerprint: sourceVersions.overtime_row_md5,
@@ -346,14 +379,42 @@ export class LessonClearanceWorkspaceState {
   rejectPreview(error) {
     this.selection.preview = null;
     this.selection.previewBinding = null;
+    this.selection.previewInputSnapshot = null;
     this.selection.previewError = error?.message || "课时清偿Preview读取失败，请重试。";
+  }
+
+  snapshotRequestFields(snapshot = this.selection.previewInputSnapshot) {
+    if (!snapshot) return null;
+    return {
+      requestIdentity: snapshot.requestIdentity,
+      clearanceType: snapshot.clearanceType,
+      pendingSourcePlannedId: snapshot.pendingSourcePlannedId,
+      overtimeSourceActualId: snapshot.overtimeSourceActualId,
+      allocatedMinutes: snapshot.allocatedMinutes,
+      operationDate: snapshot.operationDate,
+      deviationReasonCode: snapshot.deviationReasonCode,
+      deviationReasonNote: snapshot.deviationReasonNote,
+      businessNote: snapshot.businessNote,
+      administrativeFinancialTreatment: snapshot.administrativeFinancialTreatment,
+    };
   }
 
   prepareValidationMessage() {
     if (!this.capabilities().create) return "当前角色不能提交课时清偿。";
     const preview = this.selection.preview;
     const binding = this.selection.previewBinding;
-    if (!preview || !binding || binding.requestKey !== this.requestKey()) {
+    const snapshot = this.selection.previewInputSnapshot;
+    if (preview && (!snapshot || !snapshot.businessNote)) {
+      return "业务说明缺失，请重新预览";
+    }
+    const snapshotRequest = this.snapshotRequestFields(snapshot);
+    const snapshotRequestKey = snapshotRequest ? JSON.stringify(snapshotRequest) : "";
+    if (!preview || !binding || !snapshot
+      || binding.requestKey !== snapshotRequestKey
+      || binding.requestKey !== this.requestKey()
+      || binding.manifest !== snapshot.manifest
+      || preview.request_identity !== snapshot.requestIdentity
+      || preview.preview_manifest_sha256 !== snapshot.manifest) {
       return "来源事实已变化，请重新预览。系统不会使用旧预览提交。";
     }
     if (preview.writer_revalidation_required !== true || preview.reservation_created !== false) {
@@ -377,7 +438,7 @@ export class LessonClearanceWorkspaceState {
   writerRequest() {
     const validation = this.prepareValidationMessage();
     if (validation) throw new Error(validation);
-    return this.previewRequestFields();
+    return clone(this.snapshotRequestFields());
   }
 
   beginReversal(clearanceId) {

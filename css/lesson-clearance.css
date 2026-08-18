@@ -39,6 +39,33 @@
   font-weight: 800;
 }
 
+.lesson-clearance-final-note {
+  min-width: 0;
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.lesson-clearance-final-note > span {
+  display: block;
+  margin-bottom: 6px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lesson-clearance-final-note > p {
+  min-width: 0;
+  margin: 0;
+  color: #101828;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .lesson-clearance-dialog-header,
 .lesson-clearance-dialog-footer {
   display: flex;
