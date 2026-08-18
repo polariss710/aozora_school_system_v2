@@ -1,7 +1,7 @@
 import {
   LESSON_CLEARANCE_DEFAULT_FILTERS,
   LessonClearanceWorkspaceState,
-} from "../utils/lesson-clearance-state.js?v=phase2c-d2-a2-business-language-20260818-1";
+} from "../utils/lesson-clearance-state.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
 
 const ERROR_MESSAGES = new Map([
   ["LESSON_CLEARANCE_SCOPE_MISMATCH", "待补对象与可用超额不属于同一学生或业务范围，当前不能合并清偿。"],
@@ -102,7 +102,7 @@ function empty(message) {
   return `<div class="lesson-clearance-empty">${escapeHtml(message)}</div>`;
 }
 
-export function createLessonClearanceWorkspace({ api, getRole }) {
+export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, onCreateRefreshFailure }) {
   const state = new LessonClearanceWorkspaceState({ role: getRole?.() || "" });
   const dom = {};
   let initialized = false;
@@ -171,7 +171,8 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     loadData();
   }
 
-  function closeDialog() {
+  function closeDialog(force = false) {
+    if (!force && (state.selection.submitting || state.selection.reversalSubmitting)) return;
     loadRequestId += 1;
     state.clearSelection();
     state.data = state.emptyData();
@@ -183,7 +184,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     dom.previewPanel.replaceChildren();
     setMessage("", "");
     setLoading(false);
-    closeFinalDialog();
+    closeFinalDialog(true);
   }
 
   async function loadData() {
@@ -479,7 +480,7 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     const overage = state.selectedOverage();
     const needsReason = pending && Number(pending.fifo_rank) !== 1;
     const selectionAudit = [["请求编号", state.selection.requestIdentity || "选择两项后生成"], ["待补对象编号", pending?.pending_source_planned_id || "未选择"], ["超额记录编号", overage?.overtime_source_actual_id || "未选择"], ["待补业务范围编号", pending?.business_entity_id || "未选择"], ["超额业务范围编号", overage?.business_entity_id || "未选择"]].map(([label, value]) => fact(label, value)).join("");
-    dom.selectionPanel.innerHTML = `<div class="lesson-clearance-selection-grid"><label class="field"><span>选择待补对象</span><select id="lessonClearancePendingSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.pendingPayload?.items || [], "pending")}</select></label><label class="field"><span>选择可用超额</span><select id="lessonClearanceOverageSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.overagePayload?.items || [], "overage")}</select></label><label class="field"><span>本次清偿分钟（人工输入）</span><input id="lessonClearanceAllocatedMinutesInput" type="number" min="1" step="1" value="${escapeHtml(state.selection.allocatedMinutes)}" placeholder="系统核对时校验余额"></label><label class="field"><span>清偿日期</span><input id="lessonClearanceOperationDateInput" type="date" value="${escapeHtml(state.selection.operationDate)}"></label>${needsReason ? `<label class="field"><span>偏离建议顺序原因</span><select id="lessonClearanceDeviationReasonSelect"><option value="">请选择</option><option value="teacher_subject_match" ${state.selection.deviationReasonCode === "teacher_subject_match" ? "selected" : ""}>业务指定老师/科目</option><option value="customer_agreement" ${state.selection.deviationReasonCode === "customer_agreement" ? "selected" : ""}>客户约定</option><option value="other" ${state.selection.deviationReasonCode === "other" ? "selected" : ""}>其他</option></select></label>` : ""}${needsReason && state.selection.deviationReasonCode === "other" ? `<label class="field"><span>其他原因说明</span><textarea id="lessonClearanceDeviationNoteInput">${escapeHtml(state.selection.deviationReasonNote)}</textarea></label>` : ""}<label class="field is-wide"><span>业务说明</span><textarea id="lessonClearanceBusinessNoteInput">${escapeHtml(state.selection.businessNote)}</textarea></label><div class="lesson-clearance-selection-summary"><strong>待补对象</strong><br>${pending ? `${escapeHtml(pending.student_display_name)}｜${dateLabel(pending.operational_display_date)}｜${escapeHtml(pending.teacher_display_name || "老师不可用")}｜${escapeHtml(pending.subject_display_name || "科目不可用")}｜建议顺序${integerLabel(pending.fifo_rank)}` : "未选择"}</div><div class="lesson-clearance-selection-summary"><strong>可用超额</strong><br>${overage ? `${escapeHtml(overage.student_display_name)}｜${dateLabel(overage.actual_lesson_date)}｜${escapeHtml(overage.teacher_display_name || "老师不可用")}｜${escapeHtml(overage.subject_display_name || "科目不可用")}｜建议顺序${integerLabel(overage.display_rank)}` : "未选择"}</div></div><div class="lesson-clearance-preview-actions"><span>改变对象、分钟、日期或说明后，需要重新核对。</span><button class="button button-primary" id="lessonClearancePreviewButton" type="button">${state.selection.preview ? "重新核对" : "核对清偿结果"}</button></div>${systemDetails(`<div class="lesson-clearance-fact-grid">${selectionAudit}</div>`)}${state.selection.previewError ? `<div class="lesson-clearance-error">${escapeHtml(state.selection.previewError)}</div>${state.selection.previewErrorDetail ? systemDetails(fact("原始错误信息", state.selection.previewErrorDetail), "is-error") : ""}` : ""}`;
+    dom.selectionPanel.innerHTML = `<div class="lesson-clearance-selection-grid"><label class="field" for="lessonClearancePendingSelect"><span>选择待补对象 <b class="required-mark">必填</b></span><select id="lessonClearancePendingSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.pendingPayload?.items || [], "pending")}</select></label><label class="field" for="lessonClearanceOverageSelect"><span>选择可用超额 <b class="required-mark">必填</b></span><select id="lessonClearanceOverageSelect"><option value="">请选择，不自动勾选</option>${selectionOptions(state.data.overagePayload?.items || [], "overage")}</select></label><label class="field" for="lessonClearanceAllocatedMinutesInput"><span>本次清偿分钟 <b class="required-mark">必填</b></span><input id="lessonClearanceAllocatedMinutesInput" type="number" min="1" step="1" value="${escapeHtml(state.selection.allocatedMinutes)}" placeholder="系统核对时校验余额"></label><label class="field" for="lessonClearanceOperationDateInput"><span>清偿日期 <b class="required-mark">必填</b></span><input id="lessonClearanceOperationDateInput" type="date" value="${escapeHtml(state.selection.operationDate)}"></label>${needsReason ? `<label class="field"><span>偏离建议顺序原因</span><select id="lessonClearanceDeviationReasonSelect"><option value="">请选择</option><option value="teacher_subject_match" ${state.selection.deviationReasonCode === "teacher_subject_match" ? "selected" : ""}>业务指定老师/科目</option><option value="customer_agreement" ${state.selection.deviationReasonCode === "customer_agreement" ? "selected" : ""}>客户约定</option><option value="other" ${state.selection.deviationReasonCode === "other" ? "selected" : ""}>其他</option></select></label>` : ""}${needsReason && state.selection.deviationReasonCode === "other" ? `<label class="field"><span>其他原因说明</span><textarea id="lessonClearanceDeviationNoteInput">${escapeHtml(state.selection.deviationReasonNote)}</textarea></label>` : ""}<label class="field is-wide" for="lessonClearanceBusinessNoteInput"><span>业务说明 <b class="required-mark">必填</b></span><textarea id="lessonClearanceBusinessNoteInput">${escapeHtml(state.selection.businessNote)}</textarea></label><div class="lesson-clearance-selection-summary"><strong>待补对象</strong><br>${pending ? `${escapeHtml(pending.student_display_name)}｜${dateLabel(pending.operational_display_date)}｜${escapeHtml(pending.teacher_display_name || "老师不可用")}｜${escapeHtml(pending.subject_display_name || "科目不可用")}｜建议顺序${integerLabel(pending.fifo_rank)}` : "未选择"}</div><div class="lesson-clearance-selection-summary"><strong>可用超额</strong><br>${overage ? `${escapeHtml(overage.student_display_name)}｜${dateLabel(overage.actual_lesson_date)}｜${escapeHtml(overage.teacher_display_name || "老师不可用")}｜${escapeHtml(overage.subject_display_name || "科目不可用")}｜建议顺序${integerLabel(overage.display_rank)}` : "未选择"}</div></div><div class="lesson-clearance-preview-actions"><span>改变对象、分钟、日期或说明后，需要重新核对。</span><button class="button button-primary" id="lessonClearancePreviewButton" type="button">${state.selection.preview ? "重新核对" : "核对清偿结果"}</button></div>${systemDetails(`<div class="lesson-clearance-fact-grid">${selectionAudit}</div>`)}${state.selection.previewError ? `<div class="lesson-clearance-error">${escapeHtml(state.selection.previewError)}</div>${state.selection.previewErrorDetail ? systemDetails(fact("原始错误信息", state.selection.previewErrorDetail), "is-error") : ""}` : ""}`;
     const previewButton = dom.selectionPanel.querySelector("#lessonClearancePreviewButton");
     if (previewButton) previewButton.addEventListener("click", requestPreview);
     renderPreview();
@@ -658,13 +659,57 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     return error instanceof TypeError || /network|fetch|timeout|timed out|abort|connection|econn|gateway/.test(raw);
   }
 
-  async function resolveUncertainResult(requestIdentity, studentId) {
-    setFinalMessage("暂时无法确认清偿结果。系统将先按请求编号查询历史，请勿重复提交。");
+  function normalizeCreateResult(result) {
+    if (Array.isArray(result)) return result.length === 1 ? result[0] : null;
+    return result && typeof result === "object" ? result : null;
+  }
+
+  async function resolveUncertainResult(requestIdentity, studentId, expectedClearanceId = null) {
+    setFinalMessage("清偿结果正在确认，请勿重复提交。");
     counters.readers += 1;
     const history = await api.fetchHistory({ studentId: studentId || null });
-    return (Array.isArray(history) ? history : []).find(
+    const matchingIdentity = (Array.isArray(history) ? history : []).filter(
       (row) => row.request_identity === requestIdentity || row.idempotency_key === requestIdentity,
-    ) || null;
+    );
+    if (matchingIdentity.length !== 1) return null;
+    return state.historyMatchesCreateSnapshot(matchingIdentity[0], expectedClearanceId)
+      ? matchingIdentity[0]
+      : null;
+  }
+
+  async function completeCreateSuccess(payload, result, historyRow = null) {
+    const completion = Object.freeze({
+      allocatedMinutes: Number(payload.allocatedMinutes),
+      requestIdentity: payload.requestIdentity,
+      clearanceId: result?.clearance_id || historyRow?.clearance_id || null,
+      previewManifest: state.selection.previewInputSnapshot?.manifest || null,
+      inputManifest: historyRow?.input_manifest_sha256 || null,
+    });
+    state.selection.submitting = false;
+    closeFinalDialog(true);
+    closeDialog(true);
+    try {
+      await onCreateSuccess?.(completion);
+    } catch (refreshError) {
+      onCreateRefreshFailure?.(completion, refreshError);
+    }
+  }
+
+  function stopForUnconfirmedResult(message = "清偿结果正在确认，请勿重复提交。") {
+    state.selection.submitting = true;
+    dom.finalSubmit.disabled = true;
+    dom.finalSubmit.textContent = "正在确认清偿结果…";
+    setFinalMessage(message);
+  }
+
+  function handleCreateRejection(error) {
+    const message = lessonClearanceErrorMessage(error);
+    const detail = lessonClearanceErrorTechnicalDetail(error);
+    state.selection.submitting = false;
+    state.rejectCreate(message, detail);
+    closeFinalDialog(true);
+    setMessage("error", message);
+    renderSelection();
   }
 
   async function submitCreate() {
@@ -682,30 +727,35 @@ export function createLessonClearanceWorkspace({ api, getRole }) {
     const studentId = state.selection.preview?.pending_source?.student_id;
     try {
       counters.createWriters += 1;
-      await api.createClearance(payload);
-      closeFinalDialog(true);
-      await loadData();
-      setMessage("success", "课时清偿已建立；页面已重新读取余额与清偿历史。");
+      const result = normalizeCreateResult(await api.createClearance(payload));
+      if (!state.createResultMatchesSnapshot(result)) {
+        stopForUnconfirmedResult();
+        const existing = await resolveUncertainResult(payload.requestIdentity, studentId, result?.clearance_id || null);
+        if (existing) await completeCreateSuccess(payload, result, existing);
+        return;
+      }
+      if (result.idempotent_replay === true) {
+        const existing = await resolveUncertainResult(payload.requestIdentity, studentId, result.clearance_id);
+        if (!existing) {
+          stopForUnconfirmedResult("系统无法确认幂等结果与当前核对一致，请勿重复提交。");
+          return;
+        }
+        await completeCreateSuccess(payload, result, existing);
+        return;
+      }
+      await completeCreateSuccess(payload, result);
     } catch (error) {
       if (isNetworkResultUncertain(error)) {
         try {
+          stopForUnconfirmedResult();
           const existing = await resolveUncertainResult(payload.requestIdentity, studentId);
-          closeFinalDialog(true);
-          await loadData();
-          setMessage(existing ? "success" : "error", existing
-            ? "清偿历史已确认本次请求成功，系统没有重复提交。"
-            : "清偿历史中尚未找到本次请求。旧核对结果已失效，请重新读取余额并核对；系统没有重复提交。");
-        } catch (historyError) {
-          setFinalMessage(`无法读取清偿历史确认结果：${lessonClearanceErrorMessage(historyError)}。请勿重复提交。`);
+          if (existing) await completeCreateSuccess(payload, null, existing);
+          else stopForUnconfirmedResult();
+        } catch (_historyError) {
+          stopForUnconfirmedResult();
         }
       } else {
-        setFinalMessage(lessonClearanceErrorMessage(error));
-      }
-    } finally {
-      state.selection.submitting = false;
-      if (!dom.finalDialog.classList.contains("is-hidden")) {
-        dom.finalSubmit.disabled = false;
-        dom.finalSubmit.textContent = `确认清偿${integerLabel(state.selection.preview?.requested_minutes)}分钟`;
+        handleCreateRejection(error);
       }
     }
   }

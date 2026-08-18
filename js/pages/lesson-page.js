@@ -26,11 +26,11 @@ import {
   importPlannedLessonRecordsBatch,
 } from "../api/lesson-api.js?v=lesson-filter-single-row-20260807-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
-import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=phase2c-d2-a2-business-language-20260818-1";
+import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=lesson-time-grid-frontend-20260810-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
-import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=phase2c-d2-a2-business-language-20260818-1";
+import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -367,6 +367,8 @@ export function initLessonPage() {
   lessonClearanceWorkspace = createLessonClearanceWorkspace({
     api: lessonClearanceApi,
     getRole: () => getCurrentAuthContext()?.membership?.role || "",
+    onCreateSuccess: refreshAfterLessonClearanceCreate,
+    onCreateRefreshFailure: handleLessonClearanceRefreshFailure,
   });
   lessonClearanceWorkspace.init();
   setupLessonEditController();
@@ -3165,6 +3167,17 @@ function readCreateCrossMonthMakeupActualPayload() {
 
 async function refreshAfterCreateCrossMonthMakeupActual(_createdLesson, previousFilters = null) {
   await refreshLessonMonthPreservingFilters(previousFilters?.month, previousFilters);
+}
+
+async function refreshAfterLessonClearanceCreate({ allocatedMinutes }) {
+  const filters = readFilters();
+  if (!filters?.month) throw new Error("清偿成功后的课时筛选状态不可用");
+  await refreshLessonMonthPreservingFilters(filters.month, filters);
+  showMessage("success", `课时差额清偿成功：${allocatedMinutes}分钟。`);
+}
+
+function handleLessonClearanceRefreshFailure() {
+  showMessage("error", "清偿已成功，但页面刷新失败，请重新查询。");
 }
 
 async function refreshLessonMonthPreservingFilters(targetMonth, previousFilters = null) {

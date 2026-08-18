@@ -11,11 +11,11 @@ const component = read("js/components/lesson-clearance-workspace.js");
 const state = read("js/utils/lesson-clearance-state.js");
 const config = read("js/config.js");
 
-assert.match(config, /APP_VERSION = "v10\.5\.51"/);
+assert.match(config, /APP_VERSION = "v10\.5\.52"/);
 for (const source of [html, app, page, component]) {
   assert.doesNotMatch(source, /phase2c-d1-clearance-workspace-20260817-2/);
 }
-assert.match(html, /phase2c-d2-a2-business-language-20260818-1/);
+assert.match(html, /phase2c-d2-a3-clearance-completion-20260818-1/);
 assert.match(html, /id="lessonClearanceConfirmButton"[^>]*disabled>核对并准备清偿</);
 assert.match(html, /id="lessonClearanceFinalConfirmDialog"/);
 assert.match(html, /id="lessonClearanceFinalSubmitButton"/);
@@ -67,7 +67,7 @@ assert.match(component, /if \(dom\.finalDialog\.dataset\.mode === "create"\) sub
 assert.match(component, /if \(dom\.finalDialog\.dataset\.mode === "reversal"\) submitReversal\(\)/);
 assert.match(component, /state\.selection\.submitting/);
 assert.match(component, /resolveUncertainResult/);
-assert.match(component, /清偿历史已确认本次请求成功/);
+assert.match(component, /清偿结果正在确认，请勿重复提交/);
 assert.match(state, /previewBinding/);
 assert.match(state, /previewInputSnapshot/);
 assert.match(state, /业务说明缺失，请重新核对/);

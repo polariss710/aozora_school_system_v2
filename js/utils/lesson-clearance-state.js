@@ -450,6 +450,49 @@ export class LessonClearanceWorkspaceState {
     return clone(this.snapshotRequestFields());
   }
 
+  createResultMatchesSnapshot(result) {
+    const preview = this.selection.preview;
+    const snapshot = this.selection.previewInputSnapshot;
+    if (!result || !preview || !snapshot) return false;
+    return typeof result.clearance_id === "string"
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(result.clearance_id)
+      && typeof result.idempotent_replay === "boolean"
+      && Number(result.pending_remaining_minutes) === Number(preview.pending_source?.after_remaining_minutes)
+      && Number(result.overtime_remaining_minutes) === Number(preview.overtime_source?.after_available_minutes)
+      && result.requires_forward_adjustment === preview.financial?.requires_forward_adjustment
+      && result.recommended_pending_source_id === preview.fifo?.recommended_pending_planned_id
+      && result.deviated_from_recommendation === preview.fifo?.deviation_required;
+  }
+
+  historyMatchesCreateSnapshot(row, expectedClearanceId = null) {
+    const snapshot = this.selection.previewInputSnapshot;
+    const binding = this.selection.previewBinding;
+    const preview = this.selection.preview;
+    if (!row || !snapshot || !binding || !preview) return false;
+    const previewBindingMatches = binding.manifest === snapshot.manifest
+      && preview.preview_manifest_sha256 === snapshot.manifest
+      && preview.request_identity === snapshot.requestIdentity;
+    const persistedManifest = String(row.input_manifest_sha256 || "");
+    return previewBindingMatches
+      && (!expectedClearanceId || row.clearance_id === expectedClearanceId)
+      && (row.request_identity === snapshot.requestIdentity || row.idempotency_key === snapshot.requestIdentity)
+      && row.pending_source_planned_id === snapshot.pendingSourcePlannedId
+      && row.overtime_source_actual_id === snapshot.overtimeSourceActualId
+      && Number(row.allocated_minutes) === Number(snapshot.allocatedMinutes)
+      && row.operation_date === snapshot.operationDate
+      && row.clearance_type === snapshot.clearanceType
+      && row.business_note === snapshot.businessNote
+      && row.is_effective === true
+      && row.is_reversed !== true
+      && /^[0-9a-f]{64}$/.test(persistedManifest);
+  }
+
+  rejectCreate(message, technicalDetail = "") {
+    this.invalidatePreview(true);
+    this.selection.previewError = message || "课时清偿未建立，请重新核对。";
+    this.selection.previewErrorDetail = technicalDetail;
+  }
+
   beginReversal(clearanceId) {
     if (!this.capabilities().reverse) return false;
     const row = this.data.history.find((item) => item.clearance_id === clearanceId && item.can_reverse === true);
