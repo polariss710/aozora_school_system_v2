@@ -1,6 +1,6 @@
 # v2 System Map
 
-Status date: 2026-06-28
+Status date: 2026-08-19
 
 Completion view: see `docs/module-status.md` for module-by-module completion, writable surfaces, readonly/preview surfaces, guards, limits, and backlog priority. For a visual static overview, open `docs/module-status-dashboard.html` locally.
 
@@ -23,6 +23,7 @@ Reference baseline:
 - Teacher wage settlement user flow is snapshot-based: actual lessons -> confirm matching student monthly settlements are `locked` -> generate teacher wage settlement snapshot -> generate `school_expense_records` from that snapshot -> submit Cash payment confirmation from expense detail. Legacy `school_payment_requests` are retained for historical audit only and no longer create new Cash requests. The underlying table/status names remain `school_teacher_wage_locks`, `locked_at`, and `status = locked`, but the UI treats them as generated wage snapshots rather than a separate user operation.
 - Student monthly settlements become downstream-locked once any same-student/month actual lesson is referenced by a non-void teacher wage snapshot. Settlement unlock, relock, and draft adjustment RPCs must reject active wage snapshots, any teacher_wage payment request, paid teacher_wage expenses, and account transactions; void wage snapshots are not permanent blockers.
 - Profit analysis is read-only and uses effective income/expense records for operating profit. Reimbursement, account adjustment, account transfer, and payment-request state changes are audit references unless they materialize as effective income/expense.
+- School expense Cash history now also has an append-only `school_expense_cash_attempts` audit model. Phase 3C1 backfilled 24 existing immediate-account attempts and keeps `school_expense_records` as the unchanged current-flow latest-state authority. The new table has no page/API/Edge reader or writer yet; `cash_fixed_credit_card_route_enabled` remains DB-blocked and fixed attempts remain zero.
 
 ## Module Map
 

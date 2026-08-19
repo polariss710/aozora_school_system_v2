@@ -98,10 +98,10 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 支出记录
 
-- 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。Canonical 老师工资支出链路已接入：`school_expense_records` 承接 `source_type = teacher_wage`、工资来源 id、收款人快照和 Cash linkage 状态字段；支出详情页可提交统一 Cash 支付确认。已同步到 Cash 或存在待确认 Cash 请求的支出记录不能走普通编辑/撤销；后续修正需单独设计冲正/调整。
-- 最近关键更新: 2026-06-16 7 条旧 pending `teacher_wage` payment request 已迁移为 7 条 pending `teacher_wage` expense records，合计 `492,012 JPY`，未创建 Cash request / transaction。2026-06-15 新增支出记录老师工资承接阶段：专用 RPC 从 locked teacher wage snapshot 生成一条 pending `teacher_wage` expense record，普通支出新增仍拒绝手动创建 `teacher_wage`。同日已实现 `school_expense_records` -> Cash payment request 最小链路：`request-cash-expense-confirmation` 只创建 Cash pending request，Cash approve/reject 后由 `sync-cash-request-result` 回写支出记录。
+- 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。Canonical 老师工资支出链路已接入：`school_expense_records` 承接 `source_type = teacher_wage`、工资来源 id、收款人快照和 Cash linkage latest-state字段；支出详情页可提交统一 Cash 支付确认。Phase 3C1新增`school_expense_cash_attempts`逐-attempt审计模型，但现有页面/API/Edge和writer尚未读取或写入该表。已同步到 Cash 或存在待确认 Cash 请求的支出记录不能走普通编辑/撤销；后续修正需单独设计冲正/调整。
+- 最近关键更新: 2026-08-19将24条现有结构化expense Cash链确定性回填为16 approved_immediate、6 submitted、2 rejected的immediate-account attempts，fixed attempts为0；新增DB Gate `cash_fixed_credit_card_route_enabled=blocked`及唯一性、route/status、不可变、DELETE、RLS/ACL保护，现有expense latest-state/RPC/Edge/page不变。此前2026-06-16 7 条旧 pending `teacher_wage` payment request 已迁移为 7 条 pending `teacher_wage` expense records，合计 `492,012 JPY`；2026-06-15实现 `school_expense_records` -> Cash payment request 最小链路。
 - 当前限制 / hard stop: ordinary reversal/edit 不得用于 teacher_wage expenses、来源支付请求生成的支出、已撤销支出、已报销支出或已进入报销链路的支出。编辑必须有且只有一条匹配原始 `expense_adjust` 账户流水，且该流水仍是账户最新流水；已出账支出暂不允许更换付款账户，需撤销后重新新增。Teacher_wage expense 不得加 ordinary attachment metadata；已报销 expense 必须先反转报销才能反转支出。不得删除 expense records、attachments、payment requests 或 original transactions。
-- 下一步: Supabase Storage 文件上传/下载/预览/替换/删除和 OCR 另开 storage/security phase；继续验证 canonical expense -> Cash approve/reject 的真实业务流程时必须使用 `school_expense_records`。
+- 下一步: Phase 3C2如获独立批准，可设计attempt创建/状态推进的窄writer、reader与现有latest-state原子兼容合同；fixed route、Gate enable、callback双写和funding仍不得自动开放。Supabase Storage 文件上传/下载/预览/替换/删除和 OCR另开storage/security phase。
 
 ## 报销管理
 
