@@ -224,7 +224,7 @@ export async function fetchOpenMakeupSourceLessons({ fromMonth, toMonth, targetM
     return [];
   }
 
-  const { data, error } = await supabase.rpc("school_list_open_lesson_credit_sources", {
+  const { data, error } = await supabase.rpc("school_list_open_lesson_credit_sources_v2", {
     p_from_month: normalizedFrom,
     p_to_month: normalizedTo,
     p_target_month: normalizedTarget,

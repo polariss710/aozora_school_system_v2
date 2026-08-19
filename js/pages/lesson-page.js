@@ -24,7 +24,7 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=lesson-filter-single-row-20260807-1";
+} from "../api/lesson-api.js?v=makeup-source-origin-v2-20260820-1";
 import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
 import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
@@ -72,6 +72,10 @@ import {
   canShowPlannedCancellationAction,
   isActiveLessonCancellationActor,
 } from "../utils/lesson-cancellation-capability.js?v=lesson-cancel-auth-context-20260812-1";
+import {
+  formatMakeupSourceOriginDisplay,
+  getMakeupSourceOriginDisplay,
+} from "../utils/makeup-source-origin-display.js?v=makeup-source-origin-v2-20260820-1";
 
 const DEFAULT_FILTERS = {
   weekStart: "",
@@ -2981,17 +2985,21 @@ async function loadCrossMonthMakeupSourceCandidates() {
 function renderCrossMonthMakeupSourceOptions() {
   const options = ['<option value="">请选择待补课来源</option>'];
   for (const lesson of crossMonthMakeupSourceLessons) {
+    const originDisplay = getMakeupSourceOriginDisplay(lesson);
     const label = [
       lesson.authoritative_student_month,
-      formatDateOnly(lesson.lesson_date),
-      formatTimeRange(lesson.start_time, lesson.end_time),
+      formatMakeupSourceOriginDisplay(originDisplay, {
+        formatDate: formatDateOnly,
+        formatTimeRange,
+      }),
       nameById(students, lesson.student_id, studentName),
       nameById(teachers, lesson.teacher_id, teacherName),
       nameById(subjects, lesson.subject_id, subjectName),
       `剩余 ${displayInputNumber(lesson.remaining_hours)} 小时`,
       shortId(lesson.id),
     ].filter((value) => safeText(value) && value !== "-").join(" / ");
-    options.push(`<option value="${escapeAttribute(lesson.id)}">${escapeHtml(label)}</option>`);
+    const disabled = originDisplay.selectable ? "" : " disabled";
+    options.push(`<option value="${escapeAttribute(lesson.id)}"${disabled}>${escapeHtml(label)}</option>`);
   }
   dom.crossMonthMakeupSourceSelect.innerHTML = options.join("");
   dom.crossMonthMakeupSourceCount.textContent = `${crossMonthMakeupSourceLessons.length} 条可选来源`;
@@ -3000,6 +3008,17 @@ function renderCrossMonthMakeupSourceOptions() {
 function handleCrossMonthMakeupSourceSelectionChange() {
   const sourceId = dom.crossMonthMakeupSourceSelect.value;
   currentCrossMonthMakeupSourceLesson = crossMonthMakeupSourceLessons.find((lesson) => lesson.id === sourceId) || null;
+  if (currentCrossMonthMakeupSourceLesson
+      && !getMakeupSourceOriginDisplay(currentCrossMonthMakeupSourceLesson).selectable) {
+    currentCrossMonthMakeupSourceLesson = null;
+    dom.crossMonthMakeupSourceSelect.value = "";
+    renderCreateCrossMonthMakeupActualSummary();
+    showCreateCrossMonthMakeupActualError(
+      "来源日期需核对，当前来源不能用于登记待补课完成。",
+      ["sourceLesson"]
+    );
+    return;
+  }
   if (currentCrossMonthMakeupSourceLesson) {
     fillCreateCrossMonthMakeupActualFromSource(currentCrossMonthMakeupSourceLesson);
   }
@@ -3039,10 +3058,14 @@ function renderCreateCrossMonthMakeupActualSummary() {
   `).join("");
 
   const source = currentCrossMonthMakeupSourceLesson;
+  const originDisplay = getMakeupSourceOriginDisplay(source || {});
   dom.createCrossMonthMakeupActualSourceSummary.classList.toggle("is-hidden", !source);
   dom.createCrossMonthMakeupActualSourceSummary.innerHTML = source ? [
     ["来源收费归属月", formatMonth(source.authoritative_student_month)],
-    ["来源日期", formatDateOnly(source.lesson_date)],
+    ["来源课次", formatMakeupSourceOriginDisplay(originDisplay, {
+      formatDate: formatDateOnly,
+      formatTimeRange,
+    })],
     ["来源剩余时长", `${displayInputNumber(source.remaining_hours)} 小时`],
     ["学生", nameById(students, source.student_id, studentName)],
     ["老师", nameById(teachers, source.teacher_id, teacherName)],

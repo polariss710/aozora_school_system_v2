@@ -27,10 +27,10 @@ assert.doesNotMatch(clearanceHeader, /UUID|manifest|request identity|request_ide
 assert.match(html, /id="createCrossMonthMakeupActualSubmitButton"[^>]*>登记待补课完成</);
 assert.match(html, /id="lessonClearanceConfirmButton"/);
 
-assert.match(html, /lesson-app\.js\?v=lesson-makeup-clearance-copy-20260818-1/);
-assert.match(app, /config\.js\?v=lesson-makeup-clearance-copy-20260818-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.54"/);
-assert.equal(sha256(lessonApi), "5fcdc6235c6472b0b2f63df3efa922714665ea1448493527ae84ddfe207cd75b");
+assert.match(html, /lesson-app\.js\?v=makeup-source-origin-v2-20260820-1/);
+assert.match(app, /config\.js\?v=makeup-source-origin-v2-20260820-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.55"/);
+assert.equal(sha256(lessonApi), "cf0ea1a26f5ddfa80eb3e522c6a2f3a847ab34981563129b7152bcaf2d0276c7");
 assert.equal(sha256(clearanceApi), "259b79fe2273d6fed19707542af806d65380a7b81ea9a92fe2af81741b73a149");
 
 console.log("LESSON_MAKEUP_CLEARANCE_COPY_STATIC_TEST_PASS");

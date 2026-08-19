@@ -103,9 +103,9 @@ assert.match(writerSql, /actual_minutes, teacher_settlement_month/);
 
 assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 assert.match(lessonHtml, /<body class="lesson-page">/);
-assert.match(lessonHtml, /app\.css\?v=makeup-date-hint-removal-20260816-1/);
-assert.match(lessonHtml, /lesson-app\.js\?v=makeup-date-hint-removal-20260816-1/);
-assert.match(lessonApp, /lesson-page\.js\?v=makeup-date-hint-removal-20260816-1/);
+assert.match(lessonHtml, /app\.css\?v=phase2c-d2-a3-clearance-completion-20260818-1/);
+assert.match(lessonHtml, /lesson-app\.js\?v=makeup-source-origin-v2-20260820-1/);
+assert.match(lessonApp, /lesson-page\.js\?v=makeup-source-origin-v2-20260820-1/);
 assert.match(appCss, /\.lesson-page \.dialog-backdrop\s*\{\s*z-index:\s*1700;/);
 
 console.log("School V2 cancellation hardening UI/API/static contract: PASS");

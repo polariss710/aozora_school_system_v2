@@ -16,7 +16,7 @@ const writer = fs.readFileSync(
 );
 
 const guidance = "补课完成日期必须属于当前页面月份。若补课实际发生在其他月份，请先切换到实际发生月份，再在‘来源月份’中选择原待补课程所在月份。";
-assert.match(html, /请在补课实际发生月份登记；来源课程可以选择以前月份。/);
+assert.match(html, /请在补课实际发生月份登记，来源课程可以选择以前月份。/);
 assert.doesNotMatch(html, /<small[^>]*>补课完成日期必须属于当前页面月份。<\/small>/);
 assert.equal((html.match(/补课完成日期必须属于当前页面月份。/g) || []).length, 0);
 assert.doesNotMatch(fs.readFileSync("lesson-detail.html", "utf8"), /补课完成日期必须属于当前页面月份。/);
@@ -52,8 +52,8 @@ assert.match(writer, /DELETE FROM public\.school_lesson_records/);
 assert.match(writer, /public\.school_create_lesson_credit_makeup_actual\(/);
 assert.match(writer, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon, authenticated, service_role/i);
 assert.match(writer, /GRANT EXECUTE ON FUNCTION[\s\S]*TO service_role/i);
-assert.match(html, /makeup-date-hint-removal-20260816-1/);
-assert.match(app, /makeup-date-hint-removal-20260816-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.46"/);
+assert.match(html, /makeup-source-origin-v2-20260820-1/);
+assert.match(app, /makeup-source-origin-v2-20260820-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.55"/);
 
 console.log("makeup actual correction static checks passed");
