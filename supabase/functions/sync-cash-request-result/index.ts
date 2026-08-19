@@ -6,6 +6,7 @@
 // create Cash transactions, or create School ledger side effects.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildSchoolExpenseCashEvidence } from "../_shared/expense-cash-attempt-v2.js";
 
 type RequestBody = {
   cash_request_id?: string;
@@ -23,11 +24,15 @@ type CashRequestRow = {
   transaction_type: string;
   currency: string;
   amount: number | string;
+  account_id: string;
+  transacted_at: string;
   status: string;
   approved_at: string | null;
   rejected_at: string | null;
   rejected_reason: string | null;
   created_transaction_id: string | null;
+  idempotency_key: string;
+  payload_snapshot: Record<string, unknown>;
 };
 
 const corsHeaders = {
@@ -215,11 +220,15 @@ Deno.serve(async (request: Request): Promise<Response> => {
             "transaction_type",
             "currency",
             "amount",
+            "account_id",
+            "transacted_at",
             "status",
             "approved_at",
             "rejected_at",
             "rejected_reason",
             "created_transaction_id",
+            "idempotency_key",
+            "payload_snapshot",
           ].join(","),
         )
         .eq("id", cashRequestId)
@@ -300,14 +309,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     if (action === "approved") {
       const rpcName = isExpense
-        ? "school_mark_cash_expense_confirmed"
+        ? "school_mark_cash_expense_confirmed_v2"
         : "school_mark_cash_income_confirmed";
       const rpcPayload = isExpense
         ? {
-          p_expense_record_id: cashRequest.external_reference_id,
-          p_cash_request_id: cashRequest.id,
+          ...buildSchoolExpenseCashEvidence(cashRequest),
           p_cash_transaction_id: cashRequest.created_transaction_id,
           p_confirmed_at: cashRequest.approved_at,
+          p_recovery_source: "sync-cash-request-result-v2",
         }
         : {
           p_event_id: cashRequest.external_event_id,
@@ -348,14 +357,14 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const rpcName = isExpense
-      ? "school_mark_cash_expense_rejected"
+      ? "school_mark_cash_expense_rejected_v2"
       : "school_mark_cash_income_rejected";
     const rpcPayload = isExpense
       ? {
-        p_expense_record_id: cashRequest.external_reference_id,
-        p_cash_request_id: cashRequest.id,
+        ...buildSchoolExpenseCashEvidence(cashRequest),
         p_rejected_reason: cashRequest.rejected_reason,
         p_rejected_at: cashRequest.rejected_at,
+        p_recovery_source: "sync-cash-request-result-v2",
       }
       : {
         p_event_id: cashRequest.external_event_id,

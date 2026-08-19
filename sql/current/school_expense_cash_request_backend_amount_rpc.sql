@@ -58,6 +58,17 @@ declare
   v_computed_amount numeric;
   v_reuse_pending boolean := false;
 begin
+  if exists (
+    select 1
+    from public.school_feature_gates g
+    where g.feature_key = 'cash_expense_attempt_writer_v2_enabled'
+      and g.state = 'enabled'
+  ) then
+    raise exception using
+      errcode = '55000',
+      message = 'SCHOOL_EXPENSE_CASH_LEGACY_RPC_DISABLED';
+  end if;
+
   if p_expense_record_id is null then
     raise exception 'expense_record_id is required.';
   end if;

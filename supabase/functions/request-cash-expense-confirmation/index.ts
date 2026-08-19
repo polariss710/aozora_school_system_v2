@@ -6,6 +6,10 @@
 // create Cash transactions, or mutate legacy school_payment_requests.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  buildCashCreateRpcPayload,
+  buildSchoolExpenseCashEvidence,
+} from "../_shared/expense-cash-attempt-v2.js";
 
 type RequestBody = {
   expense_record_id?: string;
@@ -69,9 +73,33 @@ type SchoolExpenseRequestRow = {
   cash_account_id: string;
   cash_account_name_snapshot: string;
   cash_account_type_snapshot: string | null;
+  actual_payment_date: string;
   cash_request_id: string | null;
   cash_request_status: string | null;
+  attempt_id: string;
+  attempt_status: string;
+  attempt_version: number;
+  request_payload_fingerprint: string;
+  cash_description: string;
+  cash_payload_snapshot: Record<string, unknown>;
   message: string;
+};
+
+type CashRequestEvidenceRow = {
+  id: string;
+  external_source: string;
+  external_event_id: string;
+  external_reference_type: string;
+  external_reference_id: string;
+  request_type: string;
+  transaction_type: string;
+  currency: string;
+  amount: number | string;
+  account_id: string;
+  transacted_at: string;
+  status: string;
+  idempotency_key: string;
+  payload_snapshot: Record<string, unknown>;
 };
 
 type CashRequestResult = {
@@ -281,21 +309,6 @@ async function listEligibleAccounts(
   return (data || []) as CashAccountRow[];
 }
 
-function expenseCategoryLabel(category: string | null | undefined): string {
-  if (!category) return "支出";
-  return EXPENSE_CATEGORY_LABELS[category] ?? category;
-}
-
-function buildCashExpenseDescription(expense: ExpenseRow, paymentCurrency: string, paymentAmount: number): string {
-  const parts = [
-    expenseCategoryLabel(expense.expense_category),
-    expense.payee_name_snapshot,
-    expense.year_month,
-    `${paymentAmount.toLocaleString("ja-JP")} ${paymentCurrency}`,
-  ].filter(Boolean);
-  return parts.join(" / ");
-}
-
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -351,6 +364,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
     const exchangeRate = optionalPositiveNumber(body.exchange_rate, "exchange_rate");
     const roundingMode = optionalText(body.rounding_mode);
     const requestedPaymentDate = optionalDate(body.actual_payment_date, "actual_payment_date");
+    if (!requestedPaymentDate) {
+      return jsonResponse(
+        { ok: false, message: "actual_payment_date is required" },
+        400,
+      );
+    }
     const note = optionalText(body.note);
 
     const { data: expenseData, error: expenseError } = await schoolClient
@@ -432,17 +451,23 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const { data: schoolRequestData, error: schoolRequestError } =
-      await schoolClient.rpc("school_request_cash_expense_payment_confirmation", {
+      await schoolClient.rpc("school_request_cash_expense_payment_confirmation_v2", {
         p_expense_record_id: expenseRecordId,
         p_cash_user_id: cashAccount.user_id,
         p_cash_account_id: cashAccount.id,
         p_cash_account_name_snapshot: cashAccount.name ?? cashAccount.id,
+        p_actual_payment_date: requestedPaymentDate,
         p_cash_account_type_snapshot: cashAccount.account_type ?? null,
         p_payment_amount: actualPaymentAmount,
         p_payment_currency: actualPaymentCurrency,
         p_note: note,
         p_exchange_rate: actualPaymentCurrency === originalCurrency ? 1 : exchangeRate,
         p_payment_rounding_mode: actualPaymentAmount === null ? roundingMode : null,
+        p_external_source: CASH_EXTERNAL_SOURCE,
+        p_external_reference_type: CASH_REFERENCE_TYPE,
+        p_external_reference_id: expenseRecordId,
+        p_request_type: CASH_REQUEST_TYPE,
+        p_transaction_type: CASH_TRANSACTION_TYPE,
       });
 
     if (schoolRequestError) {
@@ -461,7 +486,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         | SchoolExpenseRequestRow[]
         | SchoolExpenseRequestRow
         | null,
-      "school_request_cash_expense_payment_confirmation",
+      "school_request_cash_expense_payment_confirmation_v2",
     );
 
     if (schoolRequest.request_type !== CASH_REQUEST_TYPE) {
@@ -471,47 +496,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    const cashDescription = buildCashExpenseDescription(
-      expense,
-      schoolRequest.payment_currency,
-      Number(schoolRequest.payment_amount),
-    );
-    const actualPaymentDate = requestedPaymentDate ?? schoolRequest.expense_date;
-    const cashPayload = {
-      external_source: CASH_EXTERNAL_SOURCE,
-      external_event_id: schoolRequest.request_event_id,
-      external_reference_type: CASH_REFERENCE_TYPE,
-      external_reference_id: schoolRequest.expense_id,
-      request_type: schoolRequest.request_type,
-      transaction_type: CASH_TRANSACTION_TYPE,
-      expense_record_id: schoolRequest.expense_id,
-      expense_date: schoolRequest.expense_date,
-      actual_payment_date: actualPaymentDate,
-      year_month: schoolRequest.year_month,
-      expense_category: schoolRequest.expense_category,
-      expense_category_label: expenseCategoryLabel(schoolRequest.expense_category),
-      source_type: schoolRequest.source_type,
-      source_id: schoolRequest.source_id,
-      payee_name_snapshot: schoolRequest.payee_name_snapshot,
-      description: schoolRequest.description,
-      original_currency: schoolRequest.original_currency,
-      original_amount: Number(schoolRequest.original_amount),
-      original_amount_jpy: schoolRequest.original_amount_jpy === null
-        ? null
-        : Number(schoolRequest.original_amount_jpy),
-      original_amount_cny: schoolRequest.original_amount_cny === null
-        ? null
-        : Number(schoolRequest.original_amount_cny),
-      actual_payment_amount: Number(schoolRequest.payment_amount),
-      actual_payment_currency: schoolRequest.payment_currency,
-      account_id: schoolRequest.cash_account_id,
-      cash_account_name_snapshot: schoolRequest.cash_account_name_snapshot,
-      cash_account_type_snapshot: schoolRequest.cash_account_type_snapshot,
-      attempt_no: schoolRequest.attempt_no,
-      school_expense_status: schoolRequest.expense_status,
-      school_message: schoolRequest.message,
-      note,
-    };
+    const cashCreatePayload = buildCashCreateRpcPayload(schoolRequest);
 
     if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
       return jsonResponse(
@@ -521,23 +506,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     const { data: cashRequestData, error: cashRequestError } =
-      await cashClient.rpc("home_create_external_transaction_request", {
-        p_user_id: schoolRequest.cash_user_id,
-        p_account_id: schoolRequest.cash_account_id,
-        p_external_source: CASH_EXTERNAL_SOURCE,
-        p_external_event_id: schoolRequest.request_event_id,
-        p_external_reference_type: CASH_REFERENCE_TYPE,
-        p_external_reference_id: schoolRequest.expense_id,
-        p_request_type: schoolRequest.request_type,
-        p_transaction_type: CASH_TRANSACTION_TYPE,
-        p_transacted_at: actualPaymentDate,
-        p_amount: Number(schoolRequest.payment_amount),
-        p_idempotency_key: schoolRequest.idempotency_key,
-        p_description: cashDescription,
-        p_note: note ?? "",
-        p_payload_snapshot: cashPayload,
-        p_currency: schoolRequest.payment_currency,
-      });
+      await cashClient.rpc("home_create_external_transaction_request", cashCreatePayload);
 
     if (cashRequestError) {
       return jsonResponse(
@@ -580,12 +549,36 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
+    const { data: cashEvidenceData, error: cashEvidenceError } = await cashClient
+      .from("home_external_transaction_requests")
+      .select([
+        "id", "external_source", "external_event_id", "external_reference_type",
+        "external_reference_id", "request_type", "transaction_type", "currency",
+        "amount", "account_id", "transacted_at", "status", "idempotency_key",
+        "payload_snapshot",
+      ].join(","))
+      .eq("id", cashRequest.request_id)
+      .single();
+
+    if (cashEvidenceError || !cashEvidenceData) {
+      return jsonResponse(
+        {
+          ok: false,
+          expense_id: schoolRequest.expense_id,
+          request_event_id: schoolRequest.request_event_id,
+          cash_request_id: cashRequest.request_id,
+          message: "Cash request was created but complete evidence lookup failed",
+          details: cashEvidenceError?.message ?? null,
+        },
+        502,
+      );
+    }
+
+    const submittedEvidence = buildSchoolExpenseCashEvidence(
+      cashEvidenceData as CashRequestEvidenceRow,
+    );
     const { data: submittedData, error: submittedError } =
-      await schoolClient.rpc("school_mark_cash_expense_request_submitted", {
-        p_expense_record_id: schoolRequest.expense_id,
-        p_cash_request_id: cashRequest.request_id,
-        p_cash_request_status: cashRequest.status ?? "pending",
-      });
+      await schoolClient.rpc("school_mark_cash_expense_request_submitted_v2", submittedEvidence);
 
     if (submittedError) {
       return jsonResponse(
@@ -625,7 +618,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           message: string;
         }
         | null,
-      "school_mark_cash_expense_request_submitted",
+      "school_mark_cash_expense_request_submitted_v2",
     );
 
     return jsonResponse({

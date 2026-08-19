@@ -98,10 +98,10 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 支出记录
 
-- 当前状态: V1 可用。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata 已可用。Canonical 老师工资支出链路已接入：`school_expense_records` 承接 `source_type = teacher_wage`、工资来源 id、收款人快照和 Cash linkage latest-state字段；支出详情页可提交统一 Cash 支付确认。Phase 3C1新增`school_expense_cash_attempts`逐-attempt审计模型，但现有页面/API/Edge和writer尚未读取或写入该表。已同步到 Cash 或存在待确认 Cash 请求的支出记录不能走普通编辑/撤销；后续修正需单独设计冲正/调整。
-- 最近关键更新: 2026-08-19将24条现有结构化expense Cash链确定性回填为16 approved_immediate、6 submitted、2 rejected的immediate-account attempts，fixed attempts为0；新增DB Gate `cash_fixed_credit_card_route_enabled=blocked`及唯一性、route/status、不可变、DELETE、RLS/ACL保护，现有expense latest-state/RPC/Edge/page不变。此前2026-06-16 7 条旧 pending `teacher_wage` payment request 已迁移为 7 条 pending `teacher_wage` expense records，合计 `492,012 JPY`；2026-06-15实现 `school_expense_records` -> Cash payment request 最小链路。
+- 当前状态: V1页面可用，Cash即时账户提交后端已升级为Phase 3C2-R V2。支出列表/详情、ordinary paid expense create/edit/reverse、ordinary non-teacher-wage expense attachment metadata继续可用；canonical老师工资支出通过`school_expense_records`提交Cash。request Edge只使用DB V2 prepare返回的规范金额、币种、账户、实际支付日、event/idempotency及payload；Cash创建后和sync callback均回传完整结构化证据，由School V2 wrapper原子推进`school_expense_cash_attempts`并同步expense latest-state镜像。已同步到Cash或存在待确认Cash请求的支出记录不能走普通编辑/撤销；后续修正需单独设计冲正/调整。
+- 最近关键更新: 2026-08-19 Phase 3C2-R为attempt增加实际支付金额/币种、DB生成payload指纹与回调恢复审计，24条历史记录确定性回填且原状态/身份不变；新增V2 prepare/submitted/approved/rejected和owner-only转换helper，支持幂等、冲突检测、并发锁及完整证据prepared callback恢复。request Edge v5、sync Edge v9已部署，`cash_expense_attempt_writer_v2_enabled=enabled`，旧四个expense Cash签名fail closed；fixed Gate仍blocked、fixed attempt 0。此前Phase 3C1回填16 approved_immediate、6 submitted、2 rejected；2026-06-16的7条旧pending teacher_wage payment request已迁移为7条pending teacher_wage expense records，合计`492,012 JPY`。
 - 当前限制 / hard stop: ordinary reversal/edit 不得用于 teacher_wage expenses、来源支付请求生成的支出、已撤销支出、已报销支出或已进入报销链路的支出。编辑必须有且只有一条匹配原始 `expense_adjust` 账户流水，且该流水仍是账户最新流水；已出账支出暂不允许更换付款账户，需撤销后重新新增。Teacher_wage expense 不得加 ordinary attachment metadata；已报销 expense 必须先反转报销才能反转支出。不得删除 expense records、attachments、payment requests 或 original transactions。
-- 下一步: Phase 3C2如获独立批准，可设计attempt创建/状态推进的窄writer、reader与现有latest-state原子兼容合同；fixed route、Gate enable、callback双写和funding仍不得自动开放。Supabase Storage 文件上传/下载/预览/替换/删除和 OCR另开storage/security phase。
+- 下一步: Phase 3C3只能在独立授权下设计School fixed credit-card请求入口；必须继续保持fixed Gate默认blocked，不复用即时账户wrapper绕过card/projection/funding合同。attempt reader/page展示、correction/funding及latest-state兼容镜像退出也均需独立阶段。Supabase Storage文件上传/下载/预览/替换/删除和OCR另开storage/security phase。
 
 ## 报销管理
 
