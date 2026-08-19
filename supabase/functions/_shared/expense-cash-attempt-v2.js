@@ -74,6 +74,48 @@ export function buildCashCreateRpcPayload(prepared) {
   };
 }
 
+export function buildCashFixedCreateRpcPayload(prepared) {
+  if (!prepared || typeof prepared !== "object") {
+    throw new Error("School fixed prepare V2 returned no canonical payload");
+  }
+  if (!prepared.cash_payload_snapshot || typeof prepared.cash_payload_snapshot !== "object") {
+    throw new Error("School fixed prepare V2 returned no cash_payload_snapshot");
+  }
+  const fingerprint = requiredFingerprint(prepared.request_payload_fingerprint);
+  if (prepared.payment_route !== "fixed_credit_card") {
+    throw new Error("School fixed prepare V2 returned the wrong payment_route");
+  }
+  if (prepared.cash_payload_snapshot.school_attempt_payload_fingerprint !== fingerprint) {
+    throw new Error("School fixed prepare V2 payload fingerprint mismatch");
+  }
+
+  return {
+    p_user_id: requiredUuid(prepared.cash_user_id, "cash_user_id"),
+    p_external_source: "aozora_school",
+    p_external_event_id: requiredUuid(prepared.request_event_id, "request_event_id"),
+    p_external_reference_type: "school_expense_records",
+    p_external_reference_id: requiredUuid(prepared.expense_id, "expense_id"),
+    p_request_type: "expense_paid",
+    p_transaction_type: "expense",
+    p_card_instrument_id: requiredUuid(prepared.card_instrument_id, "card_instrument_id"),
+    p_charge_date: requiredDate(prepared.charge_date, "charge_date"),
+    p_suggested_fixed_month: requiredDate(
+      prepared.suggested_fixed_month,
+      "suggested_fixed_month",
+    ),
+    p_target_fixed_month: requiredDate(prepared.target_fixed_month, "target_fixed_month"),
+    p_funding_date: requiredDate(prepared.funding_date, "funding_date"),
+    p_amount: requiredAmount(prepared.settlement_amount, "settlement_amount"),
+    p_currency: requiredText(prepared.settlement_currency, "settlement_currency").toUpperCase(),
+    p_idempotency_key: requiredText(prepared.idempotency_key, "idempotency_key"),
+    p_description: requiredText(prepared.cash_description, "cash_description"),
+    p_note: typeof prepared.cash_payload_snapshot.note === "string"
+      ? prepared.cash_payload_snapshot.note
+      : "",
+    p_payload_snapshot: prepared.cash_payload_snapshot,
+  };
+}
+
 export function buildSchoolExpenseCashEvidence(cashRequest) {
   if (!cashRequest || typeof cashRequest !== "object") {
     throw new Error("Cash request evidence is required");
@@ -81,6 +123,13 @@ export function buildSchoolExpenseCashEvidence(cashRequest) {
   const snapshot = cashRequest.payload_snapshot;
   if (!snapshot || typeof snapshot !== "object") {
     throw new Error("Cash request payload_snapshot is required");
+  }
+  if (
+    cashRequest.payment_route !== undefined &&
+    cashRequest.payment_route !== null &&
+    cashRequest.payment_route !== "immediate_account"
+  ) {
+    throw new Error("Immediate School Cash evidence has the wrong payment_route");
   }
 
   return {
@@ -101,5 +150,72 @@ export function buildSchoolExpenseCashEvidence(cashRequest) {
     p_request_payload_fingerprint: requiredFingerprint(
       snapshot.school_attempt_payload_fingerprint,
     ),
+  };
+}
+
+export function buildSchoolExpenseFixedCashEvidence(cashRequest) {
+  if (!cashRequest || typeof cashRequest !== "object") {
+    throw new Error("Cash fixed request evidence is required");
+  }
+  const snapshot = cashRequest.payload_snapshot;
+  if (!snapshot || typeof snapshot !== "object") {
+    throw new Error("Cash fixed request payload_snapshot is required");
+  }
+  if (cashRequest.payment_route !== "fixed_credit_card") {
+    throw new Error("Cash fixed request evidence has the wrong payment_route");
+  }
+  if (cashRequest.account_id !== null || cashRequest.funding_account_id !== null) {
+    throw new Error("Cash fixed request must not contain an account or funding account");
+  }
+
+  const fundingDate = requiredDate(snapshot.funding_date, "funding_date");
+  if (snapshot.card_instrument_id !== cashRequest.card_instrument_id) {
+    throw new Error("Cash fixed request card snapshot mismatch");
+  }
+  if (snapshot.charge_date !== cashRequest.charge_date) {
+    throw new Error("Cash fixed request charge-date snapshot mismatch");
+  }
+  if (snapshot.suggested_fixed_month !== cashRequest.suggested_fixed_month) {
+    throw new Error("Cash fixed request suggested-month snapshot mismatch");
+  }
+  if (snapshot.target_fixed_month !== cashRequest.target_fixed_month) {
+    throw new Error("Cash fixed request target-month snapshot mismatch");
+  }
+
+  return {
+    p_expense_record_id: requiredUuid(cashRequest.external_reference_id, "external_reference_id"),
+    p_cash_request_id: requiredUuid(cashRequest.id, "cash_request_id"),
+    p_cash_request_status: requiredText(cashRequest.status, "cash_request_status"),
+    p_payment_route: "fixed_credit_card",
+    p_external_source: requiredText(cashRequest.external_source, "external_source"),
+    p_request_event_id: requiredUuid(cashRequest.external_event_id, "external_event_id"),
+    p_idempotency_key: requiredText(cashRequest.idempotency_key, "idempotency_key"),
+    p_external_reference_type: requiredText(
+      cashRequest.external_reference_type,
+      "external_reference_type",
+    ),
+    p_external_reference_id: requiredUuid(
+      cashRequest.external_reference_id,
+      "external_reference_id",
+    ),
+    p_request_type: requiredText(cashRequest.request_type, "request_type"),
+    p_transaction_type: requiredText(cashRequest.transaction_type, "transaction_type"),
+    p_settlement_amount: requiredAmount(cashRequest.amount, "amount"),
+    p_settlement_currency: requiredText(cashRequest.currency, "currency").toUpperCase(),
+    p_card_instrument_id: requiredUuid(cashRequest.card_instrument_id, "card_instrument_id"),
+    p_charge_date: requiredDate(cashRequest.charge_date, "charge_date"),
+    p_suggested_fixed_month: requiredDate(
+      cashRequest.suggested_fixed_month,
+      "suggested_fixed_month",
+    ),
+    p_target_fixed_month: requiredDate(cashRequest.target_fixed_month, "target_fixed_month"),
+    p_funding_date: fundingDate,
+    p_account_id: null,
+    p_funding_account_id: null,
+    p_request_payload_fingerprint: requiredFingerprint(
+      snapshot.school_attempt_payload_fingerprint,
+    ),
+    p_cash_transaction_id: cashRequest.created_transaction_id ?? null,
+    p_fixed_projection_id: cashRequest.fixed_projection_id ?? null,
   };
 }

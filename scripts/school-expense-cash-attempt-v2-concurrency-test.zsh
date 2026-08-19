@@ -32,6 +32,10 @@ TABLE_ARGS=(
   --table=public.school_expense_records
   --table=public.school_expense_cash_attempts
 )
+# The production table has a generated fingerprint column, so its immutable
+# helper must exist before the table pre-data is restored into the local clone.
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off \
+  -f sql/current/school_expense_cash_attempt_v2_fingerprint_helper_20260819.sql >/dev/null
 pg_dump "$SCHOOL_SUPABASE_DB_URL" --section=pre-data --no-owner --no-privileges "${TABLE_ARGS[@]}" \
   | psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off >/dev/null
 pg_dump "$SCHOOL_SUPABASE_DB_URL" --section=data --data-only --column-inserts --no-owner --no-privileges "${TABLE_ARGS[@]}" \
@@ -60,7 +64,8 @@ $constraint$;
 SQL
 
 psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off \
-  -f sql/current/school_expense_cash_attempt_v2_deploy_20260819.sql >/dev/null
+  -f sql/current/school_expense_cash_attempt_v2_rpcs_20260819.sql \
+  -f sql/current/school_expense_cash_request_backend_amount_rpc.sql >/dev/null
 psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off <<'SQL' >/dev/null
 update public.school_feature_gates set state='enabled' where feature_key='cash_expense_attempt_writer_v2_enabled';
 
@@ -177,3 +182,62 @@ begin
 end;
 \$verify\$;
 select 'PHASE3C2R_APPROVED_REJECTED_RACE_PASS';"
+
+# Install the exact Phase 3C3-B School core into the same isolated clone and
+# prove fixed prepare/submitted/rejected serialization with two connections.
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off \
+  -c 'begin' -f sql/current/school_expense_cash_fixed_entry_phase3c3b_20260819.sql -c 'commit' >/dev/null
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off <<'SQL' >/dev/null
+update public.school_feature_gates set state='enabled'
+where feature_key in ('cash_expense_attempt_writer_v2_enabled','cash_fixed_credit_card_route_enabled');
+
+insert into public.school_expense_records
+select (jsonb_populate_record(
+  null::public.school_expense_records,
+  to_jsonb(e) || jsonb_build_object(
+    'id','c33c0000-0000-4000-8000-000000000101',
+    'expense_date','2099-09-01','year_month','2099-09','status','pending',
+    'description','codex-test phase3c3b fixed concurrency',
+    'currency','JPY','amount',6300,'amount_jpy',6300,'amount_cny',null,
+    'source_type','manual_cash','source_id',null,'account_id',null,'payment_method',null,
+    'cash_request_id',null,'cash_request_status',null,'cash_transaction_id',null,
+    'cash_requested_at',null,'cash_synced_at',null,'cash_error_message',null,
+    'cash_request_event_id',null,'cash_request_attempt_no',0,'cash_payment_amount',null,
+    'cash_payment_currency',null,'cash_payment_note',null,'reversed_at',null,
+    'cash_creation_event_id','c33c0000-0000-4000-8000-000000000111',
+    'created_by_user_id','c33c0000-0000-4000-8000-000000000001'
+  )
+)).*
+from public.school_expense_records e where e.source_type='manual_cash' limit 1;
+SQL
+
+FIXED_PREPARE_SQL="select attempt_id,attempt_no from public.school_request_cash_fixed_expense_payment_confirmation_v2('c33c0000-0000-4000-8000-000000000101','8596a708-d99f-4264-8f8c-5b89af9254b6','9b27347e-2dce-4caf-bac0-67f053ef6c3b','2099-09-09','2099-09-01','2099-09-01','2099-09-25','local fixed concurrency');"
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off -c "begin; $FIXED_PREPARE_SQL select pg_sleep(2); commit;" >"$TASK_TMPDIR/fixed-prepare-a.log" 2>&1 &
+SESSION_A=$!
+sleep 0.25
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off -c "$FIXED_PREPARE_SQL" >"$TASK_TMPDIR/fixed-prepare-b.log" 2>&1 &
+SESSION_B=$!
+wait $SESSION_A
+wait $SESSION_B
+
+FIXED_SUBMITTED_SQL="select attempt_status,attempt_version,idempotent from public.school_mark_cash_fixed_expense_request_submitted_v2('c33c0000-0000-4000-8000-000000000101','c33c0000-0000-4000-8000-000000000401','pending','fixed_credit_card','aozora_school',(select request_event_id from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101'),(select idempotency_key from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101'),'school_expense_records','c33c0000-0000-4000-8000-000000000101','expense_paid','expense',6300,'JPY','9b27347e-2dce-4caf-bac0-67f053ef6c3b','2099-09-09','2099-09-01','2099-09-01','2099-09-25',null,null,(select request_payload_fingerprint from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101'),null,null);"
+FIXED_REJECTED_SQL="select attempt_status,attempt_version,idempotent from public.school_mark_cash_fixed_expense_rejected_v2('c33c0000-0000-4000-8000-000000000101','c33c0000-0000-4000-8000-000000000401','rejected','fixed_credit_card','aozora_school',(select request_event_id from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101'),(select idempotency_key from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101'),'school_expense_records','c33c0000-0000-4000-8000-000000000101','expense_paid','expense',6300,'JPY','9b27347e-2dce-4caf-bac0-67f053ef6c3b','2099-09-09','2099-09-01','2099-09-01','2099-09-25',null,null,(select request_payload_fingerprint from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101'),null,null,'local fixed rejected','2099-09-10 00:00:00+00');"
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off -c "begin; $FIXED_SUBMITTED_SQL select pg_sleep(2); commit;" >"$TASK_TMPDIR/fixed-submitted-a.log" 2>&1 &
+SESSION_A=$!
+sleep 0.25
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off -c "$FIXED_REJECTED_SQL" >"$TASK_TMPDIR/fixed-rejected-b.log" 2>&1 &
+SESSION_B=$!
+wait $SESSION_A
+wait $SESSION_B
+
+psql "$LOCAL_DB_URL" -X -v ON_ERROR_STOP=1 -P pager=off -Atc "
+do \$verify\$
+begin
+  if (select count(*) from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101')<>1
+     or not exists(select 1 from public.school_expense_cash_attempts where expense_id='c33c0000-0000-4000-8000-000000000101' and payment_route='fixed_credit_card' and attempt_status='rejected' and version=3 and cash_funding_account_id is null)
+     or not exists(select 1 from public.school_expense_records where id='c33c0000-0000-4000-8000-000000000101' and status='pending' and cash_request_status='rejected') then
+    raise exception 'PHASE3C3B_FIXED_LOCAL_CONCURRENCY_STATE_INVALID';
+  end if;
+end;
+\$verify\$;
+select 'PHASE3C3B_FIXED_LOCAL_TWO_SESSION_CONCURRENCY_PASS';"

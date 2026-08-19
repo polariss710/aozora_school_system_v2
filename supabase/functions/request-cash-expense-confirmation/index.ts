@@ -8,11 +8,16 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildCashCreateRpcPayload,
+  buildCashFixedCreateRpcPayload,
   buildSchoolExpenseCashEvidence,
+  buildSchoolExpenseFixedCashEvidence,
 } from "../_shared/expense-cash-attempt-v2.js";
 
 type RequestBody = {
   expense_record_id?: string;
+  payment_route?: string;
+  card_instrument_id?: string;
+  charge_date?: string;
   cash_account_id?: string;
   actual_payment_amount?: number | string;
   actual_payment_currency?: string;
@@ -20,6 +25,45 @@ type RequestBody = {
   exchange_rate?: number | string | null;
   rounding_mode?: string | null;
   note?: string | null;
+};
+
+type HomeFixedScheduleRow = {
+  cash_user_id: string;
+  card_instrument_id: string;
+  settlement_currency: string;
+  cutoff_day: number;
+  cutoff_inclusive: boolean;
+  suggested_fixed_month: string;
+  target_fixed_month: string;
+  funding_date: string;
+  route_enabled: boolean;
+};
+
+type SchoolFixedExpenseRequestRow = {
+  expense_id: string;
+  request_event_id: string;
+  attempt_no: number;
+  idempotency_key: string;
+  request_type: string;
+  payment_route: string;
+  expense_status: string;
+  settlement_amount: number | string;
+  settlement_currency: string;
+  cash_user_id: string;
+  card_instrument_id: string;
+  charge_date: string;
+  suggested_fixed_month: string;
+  target_fixed_month: string;
+  funding_date: string;
+  cash_request_id: string | null;
+  cash_request_status: string | null;
+  attempt_id: string;
+  attempt_status: string;
+  attempt_version: number;
+  request_payload_fingerprint: string;
+  cash_description: string;
+  cash_payload_snapshot: Record<string, unknown>;
+  message: string;
 };
 
 type CashAccountRow = {
@@ -100,6 +144,14 @@ type CashRequestEvidenceRow = {
   status: string;
   idempotency_key: string;
   payload_snapshot: Record<string, unknown>;
+  payment_route?: string;
+  card_instrument_id?: string | null;
+  charge_date?: string | null;
+  suggested_fixed_month?: string | null;
+  target_fixed_month?: string | null;
+  funding_account_id?: string | null;
+  fixed_projection_id?: string | null;
+  created_transaction_id?: string | null;
 };
 
 type CashRequestResult = {
@@ -355,6 +407,227 @@ Deno.serve(async (request: Request): Promise<Response> => {
     );
 
     const expenseRecordId = requireUuid(body.expense_record_id, "expense_record_id");
+    const paymentRoute = optionalText(body.payment_route) ?? "immediate_account";
+    if (!["immediate_account", "fixed_credit_card"].includes(paymentRoute)) {
+      return jsonResponse(
+        { ok: false, message: "payment_route must be immediate_account or fixed_credit_card" },
+        400,
+      );
+    }
+
+    if (paymentRoute === "fixed_credit_card") {
+      const cardInstrumentId = requireUuid(
+        body.card_instrument_id,
+        "card_instrument_id",
+      );
+      const chargeDate = optionalDate(body.charge_date, "charge_date");
+      if (!chargeDate) {
+        return jsonResponse({ ok: false, message: "charge_date is required" }, 400);
+      }
+
+      const { data: scheduleData, error: scheduleError } = await cashClient.rpc(
+        "home_get_school_fixed_card_schedule",
+        {
+          p_card_instrument_id: cardInstrumentId,
+          p_charge_date: chargeDate,
+        },
+      );
+      if (scheduleError) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "HOME_FIXED_CARD_SCHEDULE_FAILED",
+            message: "Cash fixed-card schedule lookup failed",
+            details: scheduleError.message,
+          },
+          400,
+        );
+      }
+      const schedule = unwrapSingleRow<HomeFixedScheduleRow>(
+        scheduleData as HomeFixedScheduleRow[] | HomeFixedScheduleRow | null,
+        "home_get_school_fixed_card_schedule",
+      );
+      if (!schedule.route_enabled) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "HOME_FIXED_CARD_ROUTE_DISABLED",
+            message: "School fixed credit-card route is disabled.",
+          },
+          409,
+        );
+      }
+
+      if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
+        return jsonResponse(
+          { ok: false, code: "P0G1_ACTIVE_ADMIN_REQUIRED", message: "管理员权限已失效，未创建固定支付attempt。" },
+          403,
+        );
+      }
+
+      const { data: fixedPrepareData, error: fixedPrepareError } =
+        await schoolClient.rpc(
+          "school_request_cash_fixed_expense_payment_confirmation_v2",
+          {
+            p_expense_record_id: expenseRecordId,
+            p_cash_user_id: schedule.cash_user_id,
+            p_card_instrument_id: schedule.card_instrument_id,
+            p_charge_date: chargeDate,
+            p_suggested_fixed_month: schedule.suggested_fixed_month,
+            p_target_fixed_month: schedule.target_fixed_month,
+            p_funding_date: schedule.funding_date,
+            p_note: optionalText(body.note),
+            p_external_source: CASH_EXTERNAL_SOURCE,
+            p_external_reference_type: CASH_REFERENCE_TYPE,
+            p_external_reference_id: expenseRecordId,
+            p_request_type: CASH_REQUEST_TYPE,
+            p_transaction_type: CASH_TRANSACTION_TYPE,
+          },
+        );
+      if (fixedPrepareError) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: fixedPrepareError.message.includes(
+                "SCHOOL_CASH_FIXED_CREDIT_CARD_ROUTE_DISABLED"
+              )
+              ? "SCHOOL_CASH_FIXED_CREDIT_CARD_ROUTE_DISABLED"
+              : "SCHOOL_FIXED_PREPARE_FAILED",
+            message: "School fixed Cash expense preparation failed",
+            details: fixedPrepareError.message,
+          },
+          400,
+        );
+      }
+      const fixedPrepare = unwrapSingleRow<SchoolFixedExpenseRequestRow>(
+        fixedPrepareData as
+          | SchoolFixedExpenseRequestRow[]
+          | SchoolFixedExpenseRequestRow
+          | null,
+        "school_request_cash_fixed_expense_payment_confirmation_v2",
+      );
+      const fixedCreatePayload = buildCashFixedCreateRpcPayload(fixedPrepare);
+
+      if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
+        return jsonResponse(
+          { ok: false, code: "P0G1_ACTIVE_ADMIN_REQUIRED", message: "管理员权限已失效，未创建 Cash fixed request。" },
+          403,
+        );
+      }
+
+      const { data: fixedRequestData, error: fixedRequestError } =
+        await cashClient.rpc(
+          "home_create_external_fixed_transaction_request",
+          fixedCreatePayload,
+        );
+      if (fixedRequestError) {
+        return jsonResponse(
+          {
+            ok: false,
+            expense_id: fixedPrepare.expense_id,
+            request_event_id: fixedPrepare.request_event_id,
+            message: "Cash fixed pending request creation failed",
+            details: fixedRequestError.message,
+          },
+          502,
+        );
+      }
+      const fixedRequest = fixedRequestData as CashRequestResult;
+      if (!fixedRequest?.ok || !fixedRequest.request_id) {
+        return jsonResponse(
+          {
+            ok: false,
+            expense_id: fixedPrepare.expense_id,
+            request_event_id: fixedPrepare.request_event_id,
+            message: fixedRequest?.message ?? "Cash fixed pending request was not created",
+            cash_status: fixedRequest?.status ?? null,
+          },
+          409,
+        );
+      }
+      if (fixedRequest.status !== "pending") {
+        return jsonResponse(
+          {
+            ok: false,
+            expense_id: fixedPrepare.expense_id,
+            request_event_id: fixedPrepare.request_event_id,
+            cash_request_id: fixedRequest.request_id,
+            cash_request_status: fixedRequest.status ?? null,
+            message: "Cash fixed request already exists but is not pending",
+          },
+          409,
+        );
+      }
+
+      const { data: fixedEvidenceData, error: fixedEvidenceError } =
+        await cashClient
+          .from("home_external_transaction_requests")
+          .select([
+            "id", "external_source", "external_event_id", "external_reference_type",
+            "external_reference_id", "request_type", "transaction_type", "currency",
+            "amount", "account_id", "transacted_at", "status", "idempotency_key",
+            "payload_snapshot", "payment_route", "card_instrument_id", "charge_date",
+            "suggested_fixed_month", "target_fixed_month", "funding_account_id",
+            "fixed_projection_id", "created_transaction_id",
+          ].join(","))
+          .eq("id", fixedRequest.request_id)
+          .single();
+      if (fixedEvidenceError || !fixedEvidenceData) {
+        return jsonResponse(
+          {
+            ok: false,
+            expense_id: fixedPrepare.expense_id,
+            request_event_id: fixedPrepare.request_event_id,
+            cash_request_id: fixedRequest.request_id,
+            message: "Cash fixed request was created but complete evidence lookup failed",
+            details: fixedEvidenceError?.message ?? null,
+          },
+          502,
+        );
+      }
+
+      const fixedSubmittedEvidence = buildSchoolExpenseFixedCashEvidence(
+        fixedEvidenceData as CashRequestEvidenceRow,
+      );
+      const { data: fixedSubmittedData, error: fixedSubmittedError } =
+        await schoolClient.rpc(
+          "school_mark_cash_fixed_expense_request_submitted_v2",
+          fixedSubmittedEvidence,
+        );
+      if (fixedSubmittedError) {
+        return jsonResponse(
+          {
+            ok: false,
+            expense_id: fixedPrepare.expense_id,
+            request_event_id: fixedPrepare.request_event_id,
+            cash_request_id: fixedRequest.request_id,
+            message: "Cash fixed request was created but School submitted writeback failed",
+            details: fixedSubmittedError.message,
+          },
+          502,
+        );
+      }
+      const fixedSubmitted = unwrapSingleRow<Record<string, unknown>>(
+        fixedSubmittedData as Record<string, unknown>[] | Record<string, unknown> | null,
+        "school_mark_cash_fixed_expense_request_submitted_v2",
+      );
+
+      return jsonResponse({
+        ok: true,
+        payment_route: "fixed_credit_card",
+        expense_id: fixedPrepare.expense_id,
+        request_event_id: fixedPrepare.request_event_id,
+        cash_request_id: fixedRequest.request_id,
+        status: fixedSubmitted.expense_status,
+        cash_request_status: fixedSubmitted.cash_request_status,
+        currency: fixedPrepare.settlement_currency,
+        amount: Number(fixedPrepare.settlement_amount),
+        attempt_no: fixedPrepare.attempt_no,
+        cash_inserted: fixedRequest.inserted ?? null,
+        message: fixedSubmitted.message,
+      });
+    }
+
     const cashAccountId = requireUuid(body.cash_account_id, "cash_account_id");
     const actualPaymentAmount = optionalPositiveNumber(
       body.actual_payment_amount,

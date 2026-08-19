@@ -6,7 +6,10 @@
 // create Cash transactions, or create School ledger side effects.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { buildSchoolExpenseCashEvidence } from "../_shared/expense-cash-attempt-v2.js";
+import {
+  buildSchoolExpenseCashEvidence,
+  buildSchoolExpenseFixedCashEvidence,
+} from "../_shared/expense-cash-attempt-v2.js";
 
 type RequestBody = {
   cash_request_id?: string;
@@ -24,7 +27,7 @@ type CashRequestRow = {
   transaction_type: string;
   currency: string;
   amount: number | string;
-  account_id: string;
+  account_id: string | null;
   transacted_at: string;
   status: string;
   approved_at: string | null;
@@ -33,6 +36,13 @@ type CashRequestRow = {
   created_transaction_id: string | null;
   idempotency_key: string;
   payload_snapshot: Record<string, unknown>;
+  payment_route: string;
+  card_instrument_id: string | null;
+  charge_date: string | null;
+  suggested_fixed_month: string | null;
+  target_fixed_month: string | null;
+  funding_account_id: string | null;
+  fixed_projection_id: string | null;
 };
 
 const corsHeaders = {
@@ -132,6 +142,16 @@ function isExpenseRequest(cashRequest: CashRequestRow): boolean {
   );
 }
 
+function isImmediateExpenseRequest(cashRequest: CashRequestRow): boolean {
+  return isExpenseRequest(cashRequest) &&
+    cashRequest.payment_route === "immediate_account";
+}
+
+function isFixedExpenseRequest(cashRequest: CashRequestRow): boolean {
+  return isExpenseRequest(cashRequest) &&
+    cashRequest.payment_route === "fixed_credit_card";
+}
+
 function isLegacyDirectRequest(cashRequest: CashRequestRow): boolean {
   return (
     cashRequest.external_source === EXTERNAL_SOURCE &&
@@ -229,6 +249,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
             "created_transaction_id",
             "idempotency_key",
             "payload_snapshot",
+            "payment_route",
+            "card_instrument_id",
+            "charge_date",
+            "suggested_fixed_month",
+            "target_fixed_month",
+            "funding_account_id",
+            "fixed_projection_id",
           ].join(","),
         )
         .eq("id", cashRequestId)
@@ -267,6 +294,8 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     const isIncome = isIncomeRequest(cashRequest);
     const isExpense = isExpenseRequest(cashRequest);
+    const isImmediateExpense = isImmediateExpenseRequest(cashRequest);
+    const isFixedExpense = isFixedExpenseRequest(cashRequest);
     const isLegacyDirect = isLegacyDirectRequest(cashRequest);
 
     if (isLegacyDirect) {
@@ -293,6 +322,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
+    if (isFixedExpense && action === "approved") {
+      return jsonResponse(
+        {
+          ok: false,
+          code: "HOME_FIXED_REQUEST_APPROVAL_REQUIRES_FIXED_WRITER",
+          alert: true,
+          cash_request_id: cashRequest.id,
+          cash_request_status: cashRequest.status,
+          message:
+            "Fixed credit-card approval is not available before Phase 3D; immediate approved writeback was not called.",
+        },
+        409,
+      );
+    }
+
     if (action === "approved" && !cashRequest.created_transaction_id) {
       return jsonResponse(
         { ok: false, message: "Approved Cash request has no created transaction" },
@@ -308,10 +352,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     if (action === "approved") {
-      const rpcName = isExpense
+      const rpcName = isImmediateExpense
         ? "school_mark_cash_expense_confirmed_v2"
         : "school_mark_cash_income_confirmed";
-      const rpcPayload = isExpense
+      const rpcPayload = isImmediateExpense
         ? {
           ...buildSchoolExpenseCashEvidence(cashRequest),
           p_cash_transaction_id: cashRequest.created_transaction_id,
@@ -356,10 +400,18 @@ Deno.serve(async (request: Request): Promise<Response> => {
       });
     }
 
-    const rpcName = isExpense
+    const rpcName = isFixedExpense
+      ? "school_mark_cash_fixed_expense_rejected_v2"
+      : isImmediateExpense
       ? "school_mark_cash_expense_rejected_v2"
       : "school_mark_cash_income_rejected";
-    const rpcPayload = isExpense
+    const rpcPayload = isFixedExpense
+      ? {
+        ...buildSchoolExpenseFixedCashEvidence(cashRequest),
+        p_rejected_reason: cashRequest.rejected_reason,
+        p_rejected_at: cashRequest.rejected_at,
+      }
+      : isImmediateExpense
       ? {
         ...buildSchoolExpenseCashEvidence(cashRequest),
         p_rejected_reason: cashRequest.rejected_reason,
