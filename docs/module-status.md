@@ -27,7 +27,7 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 | 老师工资支付 | Legacy 只读；旧 `school_payment_requests` 直连 Cash 已禁用 | 历史 paid/reversed/void 保留只读；新支付从支出记录处理 |
 | 账户管理 | V1 可用 + first-stage family account isolation + account filter simplified; `吴个人结算账户人民币` and historical `吴个人结算账户日元` School-side financial chain cleaned | Account scope/household owner expansion and family ledger records require separate guarded phases |
 | 收入记录 | V1 可用 + canonical income -> Cash flow 已通过真实 part_time_work 和 rollback smoke；Cash synced / pending 记录普通编辑撤销保护已补齐 | Future work: reversal/adjustment design, scheduling, broader income module integrations, and personal external teaching income implementation |
-| 支出记录 | V1 可用 + expense -> Cash + teacher_wage canonical route 已接入并通过 rollback smoke；Cash synced / pending 记录普通编辑撤销保护已补齐 | 7 条 2026-05 teacher_wage pending 支出后续从支出记录详情页提交 Cash 支付确认 |
+| 支出记录 | V1页面与即时账户路径稳定；Phase 3D fixed approved callback/projection基础已部署但双Gate关闭，生产fixed事实仍为0 | 另行授权后再开放Gate并验证真实fixed请求；本阶段不加页面入口 |
 | 报销管理 | V1 可用 | Partial/edit requires separate guarded design |
 | 学生/老师/科目/业务归属管理 | V1 可用 | Keep master-data writes narrow; delete/merge deferred |
 | 工资规则 | V1 可用 | Keep future-lock config; generic matching rules need explicit semantics |
@@ -98,10 +98,10 @@ Visual dashboard: open `docs/module-status-dashboard.html` locally for a card-ba
 
 ## 支出记录
 
-- 当前状态: V1页面可用，Cash即时账户提交后端保持Phase 3C2-R V2；Phase 3C3-B已部署独立fixed attempt/request入口基础但Gate关闭、页面无入口。fixed分支只接受home DB返回的card schedule，School DB冻结identity/fingerprint，home只创建pending request，School只记录submitted/rejected；不选择资金账户，不创建projection/item/transaction。支出列表/详情、ordinary paid expense create/edit/reverse及即时账户行为不变。
-- 最近关键更新: 2026-08-19 Phase 3C3-B部署fixed fingerprint、route/status/NULL账户约束、fixed prepare/submitted/rejected wrapper及Edge fixed分支；request Edge v6、sync v10 ACTIVE。完整ROLLBACK、即时账户全回归、双连接并发及故障恢复通过，历史24条attempt和53条expense指纹不变；fixed Gate blocked、fixed attempt/request/projection/item/cycle 0。此前Phase 3C2-R即时账户合同继续有效。
+- 当前状态: V1页面可用，Cash即时账户提交后端保持Phase 3C2-R V2；Phase 3D已部署fixed approval/projection及School callback基础但Gate关闭、页面无入口。home批准时原子创建unpaid School fixed item和projection，不创建transaction/余额/funding；School只依据完整typed evidence原子写attempt `approved_fixed`及expense paid/approved。支出列表/详情、ordinary paid expense create/edit/reverse及即时账户行为不变。
+- 最近关键更新: 2026-08-19 Phase 3D部署home dedicated approve/evidence和School service-only approved callback；`sync-cash-request-result` v11 ACTIVE/JWT false，request Edge仍v6。完整ROLLBACK、强制失败、ACL、幂等和双连接approve竞争通过，历史24条attempt和53条expense指纹不变；fixed Gate blocked、fixed attempt/request/projection/item/cycle 0。
 - 当前限制 / hard stop: ordinary reversal/edit 不得用于 teacher_wage expenses、来源支付请求生成的支出、已撤销支出、已报销支出或已进入报销链路的支出。编辑必须有且只有一条匹配原始 `expense_adjust` 账户流水，且该流水仍是账户最新流水；已出账支出暂不允许更换付款账户，需撤销后重新新增。Teacher_wage expense 不得加 ordinary attachment metadata；已报销 expense 必须先反转报销才能反转支出。不得删除 expense records、attachments、payment requests 或 original transactions。
-- 下一步: Phase 3D只能在独立授权下设计fixed approval/projection/item writer；在此之前必须保持School Gate blocked及card flag false。statement、funding/allocation、correction、attempt reader/page展示和latest-state兼容镜像退出均需独立阶段。
+- 下一步: fixed真实入口和Gate开放必须另行授权；statement、funding/allocation、correction、attempt reader/page展示和latest-state兼容镜像退出均需独立阶段。
 
 ## 报销管理
 

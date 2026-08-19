@@ -172,6 +172,64 @@ assert.throws(
   /charge-date snapshot mismatch/,
 );
 
+const approvedFixedRequest = {
+  ...fixedCashRequest,
+  status: "approved",
+  fixed_projection_id: "c3300000-0000-4000-8000-000000000601",
+};
+const fixedApprovalEvidence = {
+  request_id: approvedFixedRequest.id,
+  request_status: "approved",
+  payment_route: "fixed_credit_card",
+  external_event_id: approvedFixedRequest.external_event_id,
+  external_reference_id: approvedFixedRequest.external_reference_id,
+  idempotency_key: approvedFixedRequest.idempotency_key,
+  card_instrument_id: approvedFixedRequest.card_instrument_id,
+  charge_date: approvedFixedRequest.charge_date,
+  suggested_fixed_month: approvedFixedRequest.suggested_fixed_month,
+  target_fixed_month: approvedFixedRequest.target_fixed_month,
+  original_amount: approvedFixedRequest.amount,
+  original_currency: "JPY",
+  created_transaction_id: null,
+  fixed_projection_id: approvedFixedRequest.fixed_projection_id,
+  projection_status: "projected",
+  projection_version: 1,
+  funding_status: "unfunded",
+  funding_payment_channel_id: "c3300000-0000-4000-8000-000000000701",
+  funding_transaction_id: null,
+  fixed_item_id: "c3300000-0000-4000-8000-000000000801",
+  fixed_item_template_id: null,
+  fixed_item_scope: "school",
+  fixed_item_currency: "JPY",
+  fixed_item_direction: "expense",
+  fixed_item_amount: approvedFixedRequest.amount,
+  fixed_item_month_key: "2099-02",
+  fixed_item_due_date: "2099-02-25",
+  fixed_item_payment_group: "邮局卡",
+  fixed_item_status: "unpaid",
+  fixed_item_account_id: null,
+  fixed_item_linked_jpy_transaction_id: null,
+  fixed_item_linked_cny_transaction_id: null,
+  approved_by: "c3300000-0000-4000-8000-000000000901",
+  approved_at: "2099-01-12T00:00:00+00:00",
+};
+const approvedFixedEvidence = shared.buildSchoolExpenseFixedApprovedEvidence(
+  approvedFixedRequest,
+  fixedApprovalEvidence,
+);
+assert.equal(approvedFixedEvidence.p_fixed_projection_id, approvedFixedRequest.fixed_projection_id);
+assert.equal(approvedFixedEvidence.p_fixed_item_id, fixedApprovalEvidence.fixed_item_id);
+assert.equal(approvedFixedEvidence.p_fixed_item_scope, "school");
+assert.equal(approvedFixedEvidence.p_cash_transaction_id, null);
+assert.equal(approvedFixedEvidence.p_projection_funding_transaction_id, null);
+assert.throws(
+  () => shared.buildSchoolExpenseFixedApprovedEvidence(
+    approvedFixedRequest,
+    { ...fixedApprovalEvidence, fixed_projection_id: "c3300000-0000-4000-8000-000000000999" },
+  ),
+  /fixed_projection_id/,
+);
+
 // Mock the main recovery: the same DB identity reaches the same Cash idempotency
 // key, a failed School submitted writeback is retried, and no second identity exists.
 const attempts = new Map();
@@ -249,14 +307,16 @@ assert.ok(
   "home schedule must be read before School fixed prepare",
 );
 assert.match(syncSource, /school_mark_cash_fixed_expense_rejected_v2/);
-assert.match(syncSource, /HOME_FIXED_REQUEST_APPROVAL_REQUIRES_FIXED_WRITER/);
-assert.doesNotMatch(
-  syncSource.match(/if \(isFixedExpense && action === "approved"\)[\s\S]*?\n    \}/)?.[0] ?? "",
-  /school_mark_cash_expense_confirmed_v2/,
-);
+assert.match(syncSource, /home_get_external_fixed_approval_evidence/);
+assert.match(syncSource, /school_mark_cash_fixed_expense_approved_v2/);
+assert.match(syncSource, /HOME_FIXED_APPROVAL_EVIDENCE_INCOMPLETE/);
+const fixedApprovedBranch =
+  syncSource.match(/if \(action === "approved" && isFixedExpense\)[\s\S]*?\n    \}\n\n    if \(action === "approved"\)/)?.[0] ?? "";
+assert.doesNotMatch(fixedApprovedBranch, /school_mark_cash_expense_confirmed_v2/);
+assert.doesNotMatch(fixedApprovedBranch, /created_transaction_id\s*\?\?/);
 for (const field of ["account_id", "transacted_at", "idempotency_key", "payload_snapshot"]) {
   assert.match(syncSource, new RegExp(`"${field}"`));
 }
 assert.match(syncSource, /p_recovery_source:\s*"sync-cash-request-result-v2"/);
 
-console.log("PHASE3C3B_EDGE_MOCK_TEST_PASS");
+console.log("PHASE3D_EDGE_MOCK_TEST_PASS");

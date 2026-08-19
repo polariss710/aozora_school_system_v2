@@ -8,6 +8,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   buildSchoolExpenseCashEvidence,
+  buildSchoolExpenseFixedApprovedEvidence,
   buildSchoolExpenseFixedCashEvidence,
 } from "../_shared/expense-cash-attempt-v2.js";
 
@@ -322,22 +323,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    if (isFixedExpense && action === "approved") {
-      return jsonResponse(
-        {
-          ok: false,
-          code: "HOME_FIXED_REQUEST_APPROVAL_REQUIRES_FIXED_WRITER",
-          alert: true,
-          cash_request_id: cashRequest.id,
-          cash_request_status: cashRequest.status,
-          message:
-            "Fixed credit-card approval is not available before Phase 3D; immediate approved writeback was not called.",
-        },
-        409,
-      );
-    }
-
-    if (action === "approved" && !cashRequest.created_transaction_id) {
+    if (action === "approved" && !isFixedExpense && !cashRequest.created_transaction_id) {
       return jsonResponse(
         { ok: false, message: "Approved Cash request has no created transaction" },
         409,
@@ -349,6 +335,66 @@ Deno.serve(async (request: Request): Promise<Response> => {
         { ok: false, message: "Rejected Cash request must not have a created transaction" },
         409,
       );
+    }
+
+    if (action === "approved" && isFixedExpense) {
+      const { data: approvalEvidenceData, error: approvalEvidenceError } =
+        await cashClient.rpc("home_get_external_fixed_approval_evidence", {
+          p_request_id: cashRequest.id,
+        });
+
+      if (approvalEvidenceError || !approvalEvidenceData) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "HOME_FIXED_APPROVAL_EVIDENCE_INCOMPLETE",
+            alert: true,
+            cash_request_id: cashRequest.id,
+            action,
+            message: "Cash fixed approval evidence lookup failed",
+            details: approvalEvidenceError?.message ?? null,
+          },
+          502,
+        );
+      }
+
+      const rpcName = "school_mark_cash_fixed_expense_approved_v2";
+      const rpcPayload = buildSchoolExpenseFixedApprovedEvidence(
+        cashRequest,
+        approvalEvidenceData as Record<string, unknown>,
+      );
+      const { data: schoolData, error: schoolError } =
+        await schoolClient.rpc(rpcName, rpcPayload);
+
+      if (schoolError) {
+        return jsonResponse(
+          {
+            ok: false,
+            cash_request_id: cashRequest.id,
+            action,
+            message: "School fixed approved writeback failed",
+            details: schoolError.message,
+          },
+          502,
+        );
+      }
+
+      const schoolResult = unwrapSingleRow<Record<string, unknown>>(
+        schoolData as Record<string, unknown>[] | Record<string, unknown> | null,
+        rpcName,
+      );
+
+      return jsonResponse({
+        ok: true,
+        action,
+        reference_type: cashRequest.external_reference_type,
+        cash_request_id: cashRequest.id,
+        cash_request_status: cashRequest.status,
+        cash_transaction_id: null,
+        fixed_projection_id: approvalEvidenceData.fixed_projection_id ?? null,
+        fixed_item_id: approvalEvidenceData.fixed_item_id ?? null,
+        school: schoolResult,
+      });
     }
 
     if (action === "approved") {

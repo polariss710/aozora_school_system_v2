@@ -219,3 +219,120 @@ export function buildSchoolExpenseFixedCashEvidence(cashRequest) {
     p_fixed_projection_id: cashRequest.fixed_projection_id ?? null,
   };
 }
+
+export function buildSchoolExpenseFixedApprovedEvidence(cashRequest, approvalEvidence) {
+  const base = buildSchoolExpenseFixedCashEvidence(cashRequest);
+  if (!approvalEvidence || typeof approvalEvidence !== "object") {
+    throw new Error("Cash fixed approval evidence is required");
+  }
+
+  const exact = (field, requestValue, evidenceValue) => {
+    if (requestValue !== evidenceValue) {
+      throw new Error(`Cash fixed approval evidence mismatch: ${field}`);
+    }
+    return evidenceValue;
+  };
+  const requiredNullableUuid = (value, field) => {
+    if (value === null) return null;
+    return requiredUuid(value, field);
+  };
+  const requiredInteger = (value, field) => {
+    const parsed = typeof value === "number" ? value : Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      throw new Error(`Cash fixed approval evidence has invalid ${field}`);
+    }
+    return parsed;
+  };
+
+  exact("request_id", cashRequest.id, approvalEvidence.request_id);
+  exact("request_status", cashRequest.status, approvalEvidence.request_status);
+  exact("payment_route", cashRequest.payment_route, approvalEvidence.payment_route);
+  exact("external_event_id", cashRequest.external_event_id, approvalEvidence.external_event_id);
+  exact("external_reference_id", cashRequest.external_reference_id, approvalEvidence.external_reference_id);
+  exact("idempotency_key", cashRequest.idempotency_key, approvalEvidence.idempotency_key);
+  exact("card_instrument_id", cashRequest.card_instrument_id, approvalEvidence.card_instrument_id);
+  exact("charge_date", cashRequest.charge_date, approvalEvidence.charge_date);
+  exact("suggested_fixed_month", cashRequest.suggested_fixed_month, approvalEvidence.suggested_fixed_month);
+  exact("target_fixed_month", cashRequest.target_fixed_month, approvalEvidence.target_fixed_month);
+  exact("created_transaction_id", cashRequest.created_transaction_id, approvalEvidence.created_transaction_id);
+  exact("fixed_projection_id", cashRequest.fixed_projection_id, approvalEvidence.fixed_projection_id);
+
+  return {
+    ...base,
+    p_original_amount: requiredAmount(approvalEvidence.original_amount, "original_amount"),
+    p_original_currency: requiredText(approvalEvidence.original_currency, "original_currency").toUpperCase(),
+    p_cash_transaction_id: requiredNullableUuid(
+      approvalEvidence.created_transaction_id,
+      "created_transaction_id",
+    ),
+    p_fixed_projection_id: requiredUuid(
+      approvalEvidence.fixed_projection_id,
+      "fixed_projection_id",
+    ),
+    p_projection_status: requiredText(
+      approvalEvidence.projection_status,
+      "projection_status",
+    ),
+    p_projection_version: requiredInteger(
+      approvalEvidence.projection_version,
+      "projection_version",
+    ),
+    p_projection_funding_status: requiredText(
+      approvalEvidence.funding_status,
+      "funding_status",
+    ),
+    p_projection_funding_channel_id: requiredUuid(
+      approvalEvidence.funding_payment_channel_id,
+      "funding_payment_channel_id",
+    ),
+    p_projection_funding_transaction_id: requiredNullableUuid(
+      approvalEvidence.funding_transaction_id,
+      "funding_transaction_id",
+    ),
+    p_fixed_item_id: requiredUuid(approvalEvidence.fixed_item_id, "fixed_item_id"),
+    p_fixed_item_template_id: requiredNullableUuid(
+      approvalEvidence.fixed_item_template_id,
+      "fixed_item_template_id",
+    ),
+    p_fixed_item_scope: requiredText(approvalEvidence.fixed_item_scope, "fixed_item_scope"),
+    p_fixed_item_currency: requiredText(
+      approvalEvidence.fixed_item_currency,
+      "fixed_item_currency",
+    ).toUpperCase(),
+    p_fixed_item_direction: requiredText(
+      approvalEvidence.fixed_item_direction,
+      "fixed_item_direction",
+    ),
+    p_fixed_item_amount: requiredAmount(approvalEvidence.fixed_item_amount, "fixed_item_amount"),
+    p_fixed_item_month_key: requiredText(
+      approvalEvidence.fixed_item_month_key,
+      "fixed_item_month_key",
+    ),
+    p_fixed_item_due_date: requiredDate(
+      approvalEvidence.fixed_item_due_date,
+      "fixed_item_due_date",
+    ),
+    p_fixed_item_payment_group: requiredText(
+      approvalEvidence.fixed_item_payment_group,
+      "fixed_item_payment_group",
+    ),
+    p_fixed_item_status: requiredText(
+      approvalEvidence.fixed_item_status,
+      "fixed_item_status",
+    ),
+    p_fixed_item_account_id: requiredNullableUuid(
+      approvalEvidence.fixed_item_account_id,
+      "fixed_item_account_id",
+    ),
+    p_fixed_item_linked_jpy_transaction_id: requiredNullableUuid(
+      approvalEvidence.fixed_item_linked_jpy_transaction_id,
+      "fixed_item_linked_jpy_transaction_id",
+    ),
+    p_fixed_item_linked_cny_transaction_id: requiredNullableUuid(
+      approvalEvidence.fixed_item_linked_cny_transaction_id,
+      "fixed_item_linked_cny_transaction_id",
+    ),
+    p_approved_actor: requiredUuid(approvalEvidence.approved_by, "approved_by"),
+    p_approved_at: requiredText(approvalEvidence.approved_at, "approved_at"),
+  };
+}
