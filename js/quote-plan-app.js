@@ -1,4 +1,4 @@
-import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
+import { APP_VERSION } from "./config.js?v=print-session-bar-privacy-20260821-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
 import { initQuotePlanPage } from "./pages/quote-plan-page.js?v=v10.3.64-quote-print-total-summary";
 
