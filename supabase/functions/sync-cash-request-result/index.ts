@@ -10,6 +10,7 @@ import {
   buildSchoolExpenseCashEvidence,
   buildSchoolExpenseFixedApprovedEvidence,
   buildSchoolExpenseFixedCashEvidence,
+  inspectSchoolExpenseCashFingerprint,
 } from "../_shared/expense-cash-attempt-v2.js";
 
 type RequestBody = {
@@ -45,6 +46,38 @@ type CashRequestRow = {
   funding_account_id: string | null;
   fixed_projection_id: string | null;
 };
+
+type CashTransactionRow = {
+  id: string;
+  user_id: string;
+  currency: string;
+  transaction_type: string;
+  account_id: string;
+  transacted_at: string;
+  amount: number | string;
+  external_source: string;
+  external_source_id: string;
+  external_event_type: string;
+  external_idempotency_key: string;
+  external_reference_type: string;
+  external_reference_id: string;
+  created_by_external: boolean;
+  accounting_scope: string;
+};
+
+class SyncEvidenceError extends Error {
+  code: string;
+  status: number;
+  details: string | null;
+
+  constructor(code: string, message: string, status = 409, details: string | null = null) {
+    super(message);
+    this.name = "SyncEvidenceError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -166,6 +199,192 @@ function isLegacyDirectRequest(cashRequest: CashRequestRow): boolean {
       ].includes(cashRequest.request_type)
     )
   );
+}
+
+function resolverErrorCode(message: string | undefined): string {
+  const knownCodes = [
+    "HISTORICAL_FALLBACK_NOT_ELIGIBLE",
+    "HOME_REQUEST_EVIDENCE_CONFLICT",
+    "HOME_TRANSACTION_MISSING",
+    "HOME_TRANSACTION_EVIDENCE_CONFLICT",
+    "HOME_TRANSACTION_REJECTED_CONFLICT",
+    "FINGERPRINT_RECOMPUTE_CONFLICT",
+    "ACTION_STATUS_CONFLICT",
+    "TERMINAL_CONFLICT",
+    "SCHOOL_EXPENSE_ATTEMPT_LINK_CONFLICT",
+    "SCHOOL_EXPENSE_CASH_ATTEMPT_IDENTITY_AMBIGUOUS",
+    "SCHOOL_EXPENSE_TERMINAL_STATE_CONFLICT",
+  ];
+  return knownCodes.find((code) => message?.includes(code)) ??
+    "HISTORICAL_FALLBACK_NOT_ELIGIBLE";
+}
+
+async function readUniqueImmediateTransactionEvidence(
+  cashClient: ReturnType<typeof createClient>,
+  cashRequest: CashRequestRow,
+  callbackAction: "approved" | "rejected",
+): Promise<CashTransactionRow | null> {
+  const filters = [
+    cashRequest.created_transaction_id
+      ? `id.eq.${cashRequest.created_transaction_id}`
+      : null,
+    `external_source_id.eq.${cashRequest.external_event_id}`,
+    `external_idempotency_key.eq.${cashRequest.idempotency_key}`,
+    `and(external_reference_type.eq.${cashRequest.external_reference_type},external_reference_id.eq.${cashRequest.external_reference_id})`,
+  ].filter(Boolean).join(",");
+
+  const transactionColumns = [
+    "id",
+    "user_id",
+    "currency",
+    "transaction_type",
+    "account_id",
+    "transacted_at",
+    "amount",
+    "external_source",
+    "external_source_id",
+    "external_event_type",
+    "external_idempotency_key",
+    "external_reference_type",
+    "external_reference_id",
+    "created_by_external",
+    "accounting_scope",
+  ].join(",");
+  const lookups = await Promise.all(
+    ["home_jpy_transactions", "home_cny_transactions"].map(async (tableName) => {
+      const { data, error } = await cashClient
+        .from(tableName)
+        .select(transactionColumns)
+        .or(filters);
+      if (error) {
+        throw new SyncEvidenceError(
+          "HOME_TRANSACTION_LOOKUP_FAILED",
+          `Cash transaction evidence lookup failed for ${tableName}`,
+          502,
+          error.message,
+        );
+      }
+      return (data ?? []) as CashTransactionRow[];
+    }),
+  );
+
+  const rows = lookups.flat();
+  if (callbackAction === "rejected") {
+    if (rows.length > 1) {
+      throw new SyncEvidenceError(
+        "HOME_TRANSACTION_AMBIGUOUS",
+        "Rejected Cash request matched multiple transactions",
+      );
+    }
+    if (rows.length === 1) {
+      throw new SyncEvidenceError(
+        "HOME_TRANSACTION_EVIDENCE_CONFLICT",
+        "Rejected Cash request must not have a transaction",
+      );
+    }
+    return null;
+  }
+
+  if (rows.length === 0) {
+    throw new SyncEvidenceError(
+      "HOME_TRANSACTION_MISSING",
+      "Approved Cash request transaction evidence is missing",
+    );
+  }
+  if (rows.length !== 1) {
+    throw new SyncEvidenceError(
+      "HOME_TRANSACTION_AMBIGUOUS",
+      "Approved Cash request transaction evidence is ambiguous",
+    );
+  }
+  return rows[0];
+}
+
+async function buildImmediateExpenseCallbackEvidence(
+  cashClient: ReturnType<typeof createClient>,
+  schoolClient: ReturnType<typeof createClient>,
+  cashRequest: CashRequestRow,
+  callbackAction: "approved" | "rejected",
+): Promise<Record<string, unknown>> {
+  const fingerprintState = inspectSchoolExpenseCashFingerprint(cashRequest);
+  if (fingerprintState.state === "present") {
+    return buildSchoolExpenseCashEvidence(cashRequest);
+  }
+
+  const transaction = await readUniqueImmediateTransactionEvidence(
+    cashClient,
+    cashRequest,
+    callbackAction,
+  );
+  const snapshot = cashRequest.payload_snapshot;
+  const resolverName = "school_resolve_historical_expense_cash_attempt_fingerprint_v1";
+  const { data, error } = await schoolClient.rpc(resolverName, {
+    p_expense_record_id: cashRequest.external_reference_id,
+    p_cash_request_id: cashRequest.id,
+    p_home_request_user_id: cashRequest.user_id,
+    p_home_request_status: cashRequest.status,
+    p_home_approved_at: cashRequest.approved_at,
+    p_home_rejected_at: cashRequest.rejected_at,
+    p_external_source: cashRequest.external_source,
+    p_request_event_id: cashRequest.external_event_id,
+    p_idempotency_key: cashRequest.idempotency_key,
+    p_external_reference_type: cashRequest.external_reference_type,
+    p_external_reference_id: cashRequest.external_reference_id,
+    p_request_type: cashRequest.request_type,
+    p_transaction_type: cashRequest.transaction_type,
+    p_payment_route: cashRequest.payment_route,
+    p_attempt_no: snapshot.attempt_no,
+    p_original_amount: snapshot.original_amount,
+    p_original_currency: snapshot.original_currency,
+    p_payment_amount: cashRequest.amount,
+    p_payment_currency: cashRequest.currency,
+    p_cash_account_id: cashRequest.account_id,
+    p_charge_date: cashRequest.transacted_at,
+    p_cash_transaction_id: cashRequest.created_transaction_id,
+    p_home_transaction_id: transaction?.id ?? null,
+    p_home_transaction_user_id: transaction?.user_id ?? null,
+    p_home_transaction_type: transaction?.transaction_type ?? null,
+    p_home_transaction_amount: transaction?.amount ?? null,
+    p_home_transaction_currency: transaction?.currency ?? null,
+    p_home_transaction_account_id: transaction?.account_id ?? null,
+    p_home_transaction_date: transaction?.transacted_at ?? null,
+    p_home_transaction_scope: transaction?.accounting_scope ?? null,
+    p_home_transaction_external_source: transaction?.external_source ?? null,
+    p_home_transaction_event_id: transaction?.external_source_id ?? null,
+    p_home_transaction_event_type: transaction?.external_event_type ?? null,
+    p_home_transaction_reference_type: transaction?.external_reference_type ?? null,
+    p_home_transaction_reference_id: transaction?.external_reference_id ?? null,
+    p_home_transaction_idempotency_key: transaction?.external_idempotency_key ?? null,
+    p_home_transaction_created_by_external: transaction?.created_by_external ?? null,
+  });
+
+  if (error) {
+    const code = resolverErrorCode(error.message);
+    throw new SyncEvidenceError(
+      code,
+      "Historical School Cash evidence resolution failed",
+      409,
+      error.message,
+    );
+  }
+
+  const resolved = unwrapSingleRow<Record<string, unknown>>(
+    data as Record<string, unknown>[] | Record<string, unknown> | null,
+    resolverName,
+  );
+  if (
+    resolved.resolved_expense_id !== cashRequest.external_reference_id ||
+    typeof resolved.resolved_attempt_id !== "string"
+  ) {
+    throw new SyncEvidenceError(
+      "HISTORICAL_FALLBACK_NOT_ELIGIBLE",
+      "Historical resolver returned conflicting School identity",
+    );
+  }
+
+  return buildSchoolExpenseCashEvidence(cashRequest, {
+    resolvedHistoricalFingerprint: resolved.resolved_request_payload_fingerprint,
+  });
 }
 
 Deno.serve(async (request: Request): Promise<Response> => {
@@ -293,6 +512,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
+    const callbackAction = cashRequest.status === "approved"
+      ? "approved"
+      : "rejected";
+
     const isIncome = isIncomeRequest(cashRequest);
     const isExpense = isExpenseRequest(cashRequest);
     const isImmediateExpense = isImmediateExpenseRequest(cashRequest);
@@ -304,7 +527,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         {
           ok: false,
           legacy: true,
-          action,
+          action: callbackAction,
           reference_type: cashRequest.external_reference_type,
           request_type: cashRequest.request_type,
           cash_request_id: cashRequest.id,
@@ -323,21 +546,34 @@ Deno.serve(async (request: Request): Promise<Response> => {
       );
     }
 
-    if (action === "approved" && !isFixedExpense && !cashRequest.created_transaction_id) {
+    if (
+      callbackAction === "approved" &&
+      !isFixedExpense &&
+      !cashRequest.created_transaction_id
+    ) {
       return jsonResponse(
         { ok: false, message: "Approved Cash request has no created transaction" },
         409,
       );
     }
 
-    if (action === "rejected" && cashRequest.created_transaction_id) {
+    if (callbackAction === "rejected" && cashRequest.created_transaction_id) {
       return jsonResponse(
         { ok: false, message: "Rejected Cash request must not have a created transaction" },
         409,
       );
     }
 
-    if (action === "approved" && isFixedExpense) {
+    const immediateExpenseEvidence = isImmediateExpense
+      ? await buildImmediateExpenseCallbackEvidence(
+        cashClient,
+        schoolClient,
+        cashRequest,
+        callbackAction,
+      )
+      : null;
+
+    if (callbackAction === "approved" && isFixedExpense) {
       const { data: approvalEvidenceData, error: approvalEvidenceError } =
         await cashClient.rpc("home_get_external_fixed_approval_evidence", {
           p_request_id: cashRequest.id,
@@ -350,7 +586,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
             code: "HOME_FIXED_APPROVAL_EVIDENCE_INCOMPLETE",
             alert: true,
             cash_request_id: cashRequest.id,
-            action,
+            action: callbackAction,
             message: "Cash fixed approval evidence lookup failed",
             details: approvalEvidenceError?.message ?? null,
           },
@@ -371,7 +607,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           {
             ok: false,
             cash_request_id: cashRequest.id,
-            action,
+            action: callbackAction,
             message: "School fixed approved writeback failed",
             details: schoolError.message,
           },
@@ -386,7 +622,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       return jsonResponse({
         ok: true,
-        action,
+        action: callbackAction,
         reference_type: cashRequest.external_reference_type,
         cash_request_id: cashRequest.id,
         cash_request_status: cashRequest.status,
@@ -397,13 +633,13 @@ Deno.serve(async (request: Request): Promise<Response> => {
       });
     }
 
-    if (action === "approved") {
+    if (callbackAction === "approved") {
       const rpcName = isImmediateExpense
         ? "school_mark_cash_expense_confirmed_v2"
         : "school_mark_cash_income_confirmed";
       const rpcPayload = isImmediateExpense
         ? {
-          ...buildSchoolExpenseCashEvidence(cashRequest),
+          ...immediateExpenseEvidence,
           p_cash_transaction_id: cashRequest.created_transaction_id,
           p_confirmed_at: cashRequest.approved_at,
           p_recovery_source: "sync-cash-request-result-v2",
@@ -422,7 +658,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
           {
             ok: false,
             cash_request_id: cashRequest.id,
-            action,
+            action: callbackAction,
             message: "School confirmed writeback failed",
             details: schoolError.message,
           },
@@ -437,7 +673,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       return jsonResponse({
         ok: true,
-        action,
+        action: callbackAction,
         reference_type: cashRequest.external_reference_type,
         cash_request_id: cashRequest.id,
         cash_request_status: cashRequest.status,
@@ -459,7 +695,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
       }
       : isImmediateExpense
       ? {
-        ...buildSchoolExpenseCashEvidence(cashRequest),
+        ...immediateExpenseEvidence,
         p_rejected_reason: cashRequest.rejected_reason,
         p_rejected_at: cashRequest.rejected_at,
         p_recovery_source: "sync-cash-request-result-v2",
@@ -478,7 +714,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
         {
           ok: false,
           cash_request_id: cashRequest.id,
-          action,
+          action: callbackAction,
           message: "School rejected writeback failed",
           details: schoolError.message,
         },
@@ -493,13 +729,24 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
     return jsonResponse({
       ok: true,
-      action,
+      action: callbackAction,
       reference_type: cashRequest.external_reference_type,
       cash_request_id: cashRequest.id,
       cash_request_status: cashRequest.status,
       school: schoolResult,
     });
   } catch (error) {
+    if (error instanceof SyncEvidenceError) {
+      return jsonResponse(
+        {
+          ok: false,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        },
+        error.status,
+      );
+    }
     const message = error instanceof Error ? error.message : "Unknown error";
     return jsonResponse({ ok: false, message }, 500);
   }

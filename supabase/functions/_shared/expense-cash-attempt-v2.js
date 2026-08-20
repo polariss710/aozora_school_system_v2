@@ -41,6 +41,28 @@ function requiredFingerprint(value) {
   return text;
 }
 
+export function inspectSchoolExpenseCashFingerprint(cashRequest) {
+  if (!cashRequest || typeof cashRequest !== "object") {
+    throw new Error("Cash request evidence is required");
+  }
+  const snapshot = cashRequest.payload_snapshot;
+  if (!snapshot || typeof snapshot !== "object") {
+    throw new Error("Cash request payload_snapshot is required");
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(
+    snapshot,
+    "school_attempt_payload_fingerprint",
+  )) {
+    return { state: "missing" };
+  }
+
+  return {
+    state: "present",
+    fingerprint: requiredFingerprint(snapshot.school_attempt_payload_fingerprint),
+  };
+}
+
 export function buildCashCreateRpcPayload(prepared) {
   if (!prepared || typeof prepared !== "object") {
     throw new Error("School prepare V2 returned no canonical payload");
@@ -116,7 +138,7 @@ export function buildCashFixedCreateRpcPayload(prepared) {
   };
 }
 
-export function buildSchoolExpenseCashEvidence(cashRequest) {
+export function buildSchoolExpenseCashEvidence(cashRequest, options = {}) {
   if (!cashRequest || typeof cashRequest !== "object") {
     throw new Error("Cash request evidence is required");
   }
@@ -130,6 +152,24 @@ export function buildSchoolExpenseCashEvidence(cashRequest) {
     cashRequest.payment_route !== "immediate_account"
   ) {
     throw new Error("Immediate School Cash evidence has the wrong payment_route");
+  }
+
+  const fingerprintState = inspectSchoolExpenseCashFingerprint(cashRequest);
+  const hasHistoricalFingerprint = Object.prototype.hasOwnProperty.call(
+    options,
+    "resolvedHistoricalFingerprint",
+  );
+  let fingerprint;
+  if (fingerprintState.state === "present") {
+    if (hasHistoricalFingerprint) {
+      throw new Error("Native School Cash V2 fingerprint cannot be overridden");
+    }
+    fingerprint = fingerprintState.fingerprint;
+  } else {
+    if (!hasHistoricalFingerprint) {
+      throw new Error("SCHOOL_EXPENSE_CASH_NATIVE_FINGERPRINT_MISSING");
+    }
+    fingerprint = requiredFingerprint(options.resolvedHistoricalFingerprint);
   }
 
   return {
@@ -147,9 +187,7 @@ export function buildSchoolExpenseCashEvidence(cashRequest) {
     p_payment_currency: requiredText(cashRequest.currency, "currency").toUpperCase(),
     p_cash_account_id: requiredUuid(cashRequest.account_id, "account_id"),
     p_charge_date: requiredDate(cashRequest.transacted_at, "transacted_at"),
-    p_request_payload_fingerprint: requiredFingerprint(
-      snapshot.school_attempt_payload_fingerprint,
-    ),
+    p_request_payload_fingerprint: fingerprint,
   };
 }
 

@@ -71,9 +71,60 @@ assert.deepEqual(evidence, {
   p_request_payload_fingerprint: prepared.request_payload_fingerprint,
 });
 
+assert.deepEqual(shared.inspectSchoolExpenseCashFingerprint(cashRequest), {
+  state: "present",
+  fingerprint: prepared.request_payload_fingerprint,
+});
+assert.deepEqual(
+  shared.inspectSchoolExpenseCashFingerprint({ ...cashRequest, payload_snapshot: {} }),
+  { state: "missing" },
+);
 assert.throws(
   () => shared.buildSchoolExpenseCashEvidence({ ...cashRequest, payload_snapshot: {} }),
-  /request_payload_fingerprint/,
+  /SCHOOL_EXPENSE_CASH_NATIVE_FINGERPRINT_MISSING/,
+);
+for (const invalidFingerprint of ["", "a".repeat(63), "g".repeat(64), null]) {
+  assert.throws(
+    () => shared.buildSchoolExpenseCashEvidence({
+      ...cashRequest,
+      payload_snapshot: {
+        school_attempt_payload_fingerprint: invalidFingerprint,
+      },
+    }),
+    /request_payload_fingerprint/,
+  );
+}
+const historicalEvidence = shared.buildSchoolExpenseCashEvidence(
+  { ...cashRequest, payload_snapshot: {} },
+  { resolvedHistoricalFingerprint: "d".repeat(64) },
+);
+assert.equal(historicalEvidence.p_request_payload_fingerprint, "d".repeat(64));
+assert.throws(
+  () => shared.buildSchoolExpenseCashEvidence(cashRequest, {
+    resolvedHistoricalFingerprint: "d".repeat(64),
+  }),
+  /cannot be overridden/,
+);
+
+const cnyNativeRequest = {
+  ...cashRequest,
+  currency: "CNY",
+  amount: "456.78",
+};
+assert.equal(
+  shared.buildSchoolExpenseCashEvidence(cnyNativeRequest).p_payment_currency,
+  "CNY",
+);
+const ordinaryImmediateRequest = {
+  ...cashRequest,
+  payload_snapshot: {
+    school_attempt_payload_fingerprint: "e".repeat(64),
+  },
+};
+assert.equal(
+  shared.buildSchoolExpenseCashEvidence(ordinaryImmediateRequest)
+    .p_request_payload_fingerprint,
+  "e".repeat(64),
 );
 assert.throws(
   () => shared.buildCashCreateRpcPayload({
@@ -318,5 +369,207 @@ for (const field of ["account_id", "transacted_at", "idempotency_key", "payload_
   assert.match(syncSource, new RegExp(`"${field}"`));
 }
 assert.match(syncSource, /p_recovery_source:\s*"sync-cash-request-result-v2"/);
+assert.match(syncSource, /school_resolve_historical_expense_cash_attempt_fingerprint_v1/);
+assert.match(syncSource, /inspectSchoolExpenseCashFingerprint/);
+assert.match(syncSource, /HOME_TRANSACTION_MISSING/);
+assert.match(syncSource, /HOME_TRANSACTION_AMBIGUOUS/);
+assert.match(syncSource, /\.or\(filters\)/);
+assert.doesNotMatch(syncSource, /\.limit\(1\)/);
+assert.doesNotMatch(syncSource, /home_approve_external_transaction_request/);
+assert.doesNotMatch(syncSource, /home_reject_external_transaction_request/);
+assert.doesNotMatch(syncSource, /home_create_external_transaction_request/);
+assert.doesNotMatch(syncSource, /home_create_(?:jpy|cny)_transaction/);
+assert.doesNotMatch(syncSource, /crypto\.subtle|createHash|sha256|sha-256/i);
 
-console.log("PHASE3D_EDGE_MOCK_TEST_PASS");
+const resolverCallCount = (syncSource.match(
+  /school_resolve_historical_expense_cash_attempt_fingerprint_v1/g,
+) || []).length;
+assert.equal(resolverCallCount, 1, "historical resolver is called only by the immediate helper");
+const immediateHelper = syncSource.match(
+  /async function buildImmediateExpenseCallbackEvidence[\s\S]*?\n}\n\nDeno\.serve/,
+)?.[0] ?? "";
+assert.match(immediateHelper, /inspectSchoolExpenseCashFingerprint/);
+assert.match(immediateHelper, /school_resolve_historical_expense_cash_attempt_fingerprint_v1/);
+assert.doesNotMatch(immediateHelper, /fixed_credit_card|school_mark_cash_income/);
+
+function mockHistoricalSync(state, request, transactionRows) {
+  const fingerprintState = shared.inspectSchoolExpenseCashFingerprint(request);
+  if (fingerprintState.state === "present") {
+    state.nativeCallbacks += 1;
+    return { mode: "native", fingerprint: fingerprintState.fingerprint };
+  }
+  if (
+    request.external_reference_type !== "school_expense_records" ||
+    request.request_type !== "expense_paid" ||
+    request.transaction_type !== "expense" ||
+    request.payment_route !== "immediate_account"
+  ) {
+    throw new Error("HISTORICAL_FALLBACK_FORBIDDEN");
+  }
+  if (request.status === "approved" && transactionRows.length === 0) {
+    throw new Error("HOME_TRANSACTION_MISSING");
+  }
+  if (transactionRows.length > 1) {
+    throw new Error("HOME_TRANSACTION_AMBIGUOUS");
+  }
+  if (request.status === "rejected" && transactionRows.length !== 0) {
+    throw new Error("HOME_TRANSACTION_EVIDENCE_CONFLICT");
+  }
+
+  const attempt = state.attempt;
+  const eligible =
+    (attempt.status === "submitted" && attempt.version === 1) ||
+    (["approved_immediate", "rejected"].includes(attempt.status) &&
+      [1, 2].includes(attempt.version));
+  if (!eligible || attempt.callbackRecoveredFromPrepared) {
+    throw new Error("HISTORICAL_FALLBACK_NOT_ELIGIBLE");
+  }
+  if (
+    (request.status === "approved" && attempt.status === "rejected") ||
+    (request.status === "rejected" && attempt.status === "approved_immediate")
+  ) {
+    throw new Error("TERMINAL_CONFLICT");
+  }
+
+  state.resolverCalls += 1;
+  const resolvedFingerprint = attempt.fingerprint;
+  const callbackEvidence = shared.buildSchoolExpenseCashEvidence(request, {
+    resolvedHistoricalFingerprint: resolvedFingerprint,
+  });
+  state.callbackCalls += 1;
+  if (attempt.status === "submitted") {
+    attempt.status = request.status === "approved" ? "approved_immediate" : "rejected";
+    attempt.version += 1;
+    return { mode: "historical", idempotent: false, callbackEvidence };
+  }
+  return { mode: "historical", idempotent: true, callbackEvidence };
+}
+
+const historicalApprovedRequest = {
+  ...cashRequest,
+  status: "approved",
+  payment_route: "immediate_account",
+  currency: "CNY",
+  payload_snapshot: {
+    attempt_no: 1,
+    original_amount: 31500,
+    original_currency: "JPY",
+  },
+};
+const approvedSyncState = {
+  attempt: {
+    status: "submitted",
+    version: 1,
+    fingerprint: "f".repeat(64),
+    callbackRecoveredFromPrepared: false,
+  },
+  resolverCalls: 0,
+  callbackCalls: 0,
+  nativeCallbacks: 0,
+  homeWriterCalls: 0,
+  homeTransactionCount: 1,
+};
+const uniqueTransaction = [{ id: "c3200000-0000-4000-8000-000000000601" }];
+const firstHistoricalApproved = mockHistoricalSync(
+  approvedSyncState,
+  historicalApprovedRequest,
+  uniqueTransaction,
+);
+assert.equal(firstHistoricalApproved.idempotent, false);
+assert.equal(approvedSyncState.attempt.status, "approved_immediate");
+assert.equal(approvedSyncState.attempt.version, 2);
+const replayHistoricalApproved = mockHistoricalSync(
+  approvedSyncState,
+  historicalApprovedRequest,
+  uniqueTransaction,
+);
+assert.equal(replayHistoricalApproved.idempotent, true);
+assert.equal(approvedSyncState.attempt.version, 2);
+assert.equal(approvedSyncState.homeTransactionCount, 1);
+assert.equal(approvedSyncState.homeWriterCalls, 0);
+
+const historicalRejectedRequest = {
+  ...historicalApprovedRequest,
+  status: "rejected",
+  created_transaction_id: null,
+};
+const rejectedSyncState = {
+  attempt: {
+    status: "submitted",
+    version: 1,
+    fingerprint: "1".repeat(64),
+    callbackRecoveredFromPrepared: false,
+  },
+  resolverCalls: 0,
+  callbackCalls: 0,
+  nativeCallbacks: 0,
+  homeWriterCalls: 0,
+  homeTransactionCount: 0,
+};
+assert.equal(
+  mockHistoricalSync(rejectedSyncState, historicalRejectedRequest, []).idempotent,
+  false,
+);
+assert.equal(rejectedSyncState.attempt.status, "rejected");
+assert.equal(rejectedSyncState.attempt.version, 2);
+assert.equal(
+  mockHistoricalSync(rejectedSyncState, historicalRejectedRequest, []).idempotent,
+  true,
+);
+assert.equal(rejectedSyncState.attempt.version, 2);
+
+assert.throws(
+  () => mockHistoricalSync(
+    { ...approvedSyncState, attempt: { ...approvedSyncState.attempt } },
+    historicalApprovedRequest,
+    [],
+  ),
+  /HOME_TRANSACTION_MISSING/,
+);
+assert.throws(
+  () => mockHistoricalSync(
+    { ...approvedSyncState, attempt: { ...approvedSyncState.attempt } },
+    historicalApprovedRequest,
+    [uniqueTransaction[0], { id: "duplicate" }],
+  ),
+  /HOME_TRANSACTION_AMBIGUOUS/,
+);
+assert.throws(
+  () => mockHistoricalSync(
+    { ...rejectedSyncState, attempt: { ...rejectedSyncState.attempt } },
+    historicalRejectedRequest,
+    uniqueTransaction,
+  ),
+  /HOME_TRANSACTION_EVIDENCE_CONFLICT/,
+);
+
+for (const request of [
+  { ...historicalApprovedRequest, payment_route: "fixed_credit_card" },
+  {
+    ...historicalApprovedRequest,
+    external_reference_type: "school_income_records",
+    request_type: "income_received",
+    transaction_type: "income",
+  },
+]) {
+  assert.throws(
+    () => mockHistoricalSync(
+      { ...approvedSyncState, attempt: { ...approvedSyncState.attempt } },
+      request,
+      uniqueTransaction,
+    ),
+    /HISTORICAL_FALLBACK_FORBIDDEN/,
+  );
+}
+
+const nativeState = {
+  attempt: { status: "submitted", version: 2 },
+  resolverCalls: 0,
+  callbackCalls: 0,
+  nativeCallbacks: 0,
+};
+assert.equal(mockHistoricalSync(nativeState, cnyNativeRequest, []).mode, "native");
+assert.equal(nativeState.resolverCalls, 0);
+assert.equal(nativeState.nativeCallbacks, 1);
+
+console.log("P0_HISTORICAL_RESOLVER_EDGE_MOCK_TEST_PASS");
