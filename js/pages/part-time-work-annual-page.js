@@ -10,7 +10,10 @@ const MIN_FISCAL_YEAR = PAYMENT_MONTH_FILTER_YEAR_RANGE.start;
 const MAX_FISCAL_YEAR = PAYMENT_MONTH_FILTER_YEAR_RANGE.end;
 const TERMINAL_INCOME_STATUSES = new Set(["cancelled", "voided", "rejected", "cash_rejected", "reversed"]);
 const CASH_CONFIRMED_STATUSES = new Set(["approved", "received", "settled", "synced", "historical_confirmed"]);
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 const dom = {};
+let appliedFiscalYear = null;
+let annualRequestSequence = 0;
 
 export async function initPartTimeWorkAnnualPage() {
   cacheDom();
@@ -53,14 +56,17 @@ function bindEvents() {
     updateYearUrl(selectedFiscalYear());
   });
 
-  dom.resetButton?.addEventListener("click", () => {
+  dom.resetButton.addEventListener("click", () => {
     setYearFilterValue(currentFiscalYear());
-    loadAnnualSummary();
+    updateYearUrl(selectedFiscalYear());
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
 }
 
 async function loadAnnualSummary() {
   const fiscalYear = selectedFiscalYear();
+  const requestId = ++annualRequestSequence;
   setYearFilterValue(fiscalYear);
 
   if (!isLoggedIn()) {
@@ -75,13 +81,25 @@ async function loadAnnualSummary() {
 
   try {
     const summary = await fetchPartTimeWorkAnnualSummary(fiscalYear);
+    if (requestId !== annualRequestSequence) return;
+    appliedFiscalYear = fiscalYear;
     renderAnnualSummary(summary, fiscalYear);
   } catch (error) {
+    if (requestId !== annualRequestSequence) return;
+    appliedFiscalYear = null;
     renderAnnualSummary({ months: [], settlements: [], incomeRecords: [] }, fiscalYear);
     showMessage("error", `年度汇总读取失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (requestId === annualRequestSequence) setLoading(false);
   }
+}
+
+function clearQueryResults() {
+  annualRequestSequence += 1;
+  appliedFiscalYear = null;
+  if (dom.summaryTitle) dom.summaryTitle.textContent = "";
+  if (dom.summaryContainer) dom.summaryContainer.innerHTML = "";
+  setLoading(false);
 }
 
 function renderAnnualSummary(summary, fiscalYear) {

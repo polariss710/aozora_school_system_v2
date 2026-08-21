@@ -67,9 +67,9 @@ assert.equal(readerCalls, 3);
 assert.equal(writerCalls, 0);
 
 assert.match(html, /app\.css\?v=income-create-student-scope-layout-20260813-1/);
-assert.match(html, /income-app\.js\?v=income-create-student-scope-layout-20260813-1/);
-assert.match(app, /config\.js\?v=income-create-student-scope-layout-20260813-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.43"/);
+assert.match(html, /income-app\.js\?v=filter-contract-b3-20260822-1/);
+assert.match(app, /config\.js\?v=filter-contract-b3-20260822-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.59"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);

@@ -44,6 +44,7 @@ const DEFAULT_FILTERS = {
   accountId: "",
   currency: "",
 };
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const EXPENSE_STATUS_LABELS = {
   pending: "待支付",
@@ -155,6 +156,7 @@ let appliedFilters = { month: "", ...DEFAULT_FILTERS };
 let topStudentCandidateRequestSequence = 0;
 let activeTopStudentCandidateRequestId = 0;
 let isExpenseQuerying = false;
+let expenseQueryRequestSequence = 0;
 
 export async function initExpensePage() {
   cacheDom();
@@ -245,7 +247,17 @@ function bindEvents() {
   });
   dom.includeInactiveCheckbox.addEventListener("change", handleDraftCandidateScopeChange);
 
-  dom.resetButton.addEventListener("click", resetAndQueryFilters);
+  dom.resetButton.addEventListener("click", () => {
+    topStudentCandidateRequestSequence += 1;
+    activeTopStudentCandidateRequestId = 0;
+    const defaults = { month: currentYearMonth(), ...DEFAULT_FILTERS };
+    draftFilters = { ...defaults };
+    setDefaultFilters(draftFilters);
+    syncExpenseQuery(draftFilters);
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
+    void refreshDraftStudentCandidates();
+  });
 
   dom.openCreateExpenseButton.addEventListener("click", openCreateExpenseDialog);
   dom.openBatchCashExpenseButton.addEventListener("click", () => {
@@ -318,10 +330,14 @@ function setDefaultFilters(overrides = null) {
 }
 
 async function loadInitialData() {
+  const requestId = ++expenseQueryRequestSequence;
+  isExpenseQuerying = true;
+  setExpenseQuerying(true);
   setFilterStatus("query", "正在查询支出记录…");
 
   try {
     const lookups = await fetchExpenseLookups();
+    if (requestId !== expenseQueryRequestSequence) return;
     businessEntities = lookups.businessEntities;
     requirePrimarySchoolBusinessEntityId(businessEntities);
     accounts = lookups.accounts;
@@ -336,6 +352,7 @@ async function loadInitialData() {
         selectedStudentId: filters.studentId || null,
       }),
     ]);
+    if (requestId !== expenseQueryRequestSequence) return;
     applyExpenseMonthSnapshot(expenseSnapshot);
     topStudentCandidates = candidateRows;
     topStudentCandidateKey = studentCandidateKey(filters);
@@ -348,6 +365,7 @@ async function loadInitialData() {
     applyCurrentFilters(appliedFilters);
     setFilterStatus("idle");
   } catch (error) {
+    if (requestId !== expenseQueryRequestSequence) return;
     businessEntities = [];
     accounts = [];
     teachers = [];
@@ -362,6 +380,11 @@ async function loadInitialData() {
     renderDataOptions([]);
     renderExpenseRecords([]);
     setFilterStatus("error", `读取支出记录数据失败：${error.message || error}`);
+  } finally {
+    if (requestId === expenseQueryRequestSequence) {
+      isExpenseQuerying = false;
+      setExpenseQuerying(false);
+    }
   }
 }
 
@@ -427,7 +450,8 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
     return;
   }
 
-  const previousAppliedFilters = { ...appliedFilters };
+  const previousAppliedFilters = appliedFilters ? { ...appliedFilters } : null;
+  const requestId = ++expenseQueryRequestSequence;
   const shouldRefreshCandidates = forceCandidateRefresh
     || studentCandidateKey(nextAppliedFilters) !== topStudentCandidateKey;
   const candidateRequestId = shouldRefreshCandidates
@@ -451,6 +475,7 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
         })
         : Promise.resolve(null),
     ]);
+    if (requestId !== expenseQueryRequestSequence) return;
 
     if (candidateRows && candidateRequestId === topStudentCandidateRequestSequence) {
       topStudentCandidates = candidateRows;
@@ -468,6 +493,7 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
     updateMonthScopedNavigation(appliedFilters.month);
     applyCurrentFilters(appliedFilters);
   } catch (error) {
+    if (requestId !== expenseQueryRequestSequence) return;
     appliedFilters = previousAppliedFilters;
     setFilterStatus("error", `读取支出记录失败：${error.message || error}`);
     return;
@@ -475,9 +501,13 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
     if (candidateRequestId === topStudentCandidateRequestSequence) {
       activeTopStudentCandidateRequestId = 0;
     }
-    isExpenseQuerying = false;
-    setExpenseQuerying(false);
+    if (requestId === expenseQueryRequestSequence) {
+      isExpenseQuerying = false;
+      setExpenseQuerying(false);
+    }
   }
+
+  if (requestId !== expenseQueryRequestSequence) return;
 
   if (activeTopStudentCandidateRequestId) {
     setFilterStatus("candidate", "正在更新学生候选…");
@@ -486,17 +516,21 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
   }
 }
 
-async function resetAndQueryFilters() {
-  if (isExpenseQuerying) {
-    return;
-  }
-
-  topStudentCandidateRequestSequence += 1;
-  activeTopStudentCandidateRequestId = 0;
-  const defaults = { month: currentYearMonth(), ...DEFAULT_FILTERS };
-  draftFilters = { ...defaults };
-  setDefaultFilters(draftFilters);
-  await queryDraftFilters({ forceCandidateRefresh: true });
+function clearQueryResults() {
+  expenseQueryRequestSequence += 1;
+  appliedFilters = null;
+  expenseRecords = [];
+  paymentRequestsByExpenseId = new Map();
+  attachmentCountsByExpenseId = new Map();
+  loadedMonth = "";
+  renderedExpenseRows = [];
+  selectedExpenseIds = new Set();
+  if (!isBatchCashSubmitting) closeBatchCashExpenseDialog();
+  renderDataOptions([]);
+  renderExpenseRecords([]);
+  isExpenseQuerying = false;
+  setExpenseQuerying(false);
+  setFilterStatus("idle");
 }
 
 async function fetchExpenseMonthSnapshot(month) {
@@ -1018,7 +1052,7 @@ function updateCreateExpenseMode() {
 }
 
 async function refreshCurrentExpenseList() {
-  const filters = { ...appliedFilters };
+  const filters = { ...(appliedFilters || draftFilters) };
   await loadExpenseMonth(filters.month);
   restoreFilterSelections(filters);
   draftFilters = { ...filters };
@@ -2252,7 +2286,6 @@ function setFilterStatus(state, text = "") {
 
 function setExpenseQuerying(isQuerying) {
   dom.queryButton.disabled = isQuerying;
-  dom.resetButton.disabled = isQuerying;
 }
 
 function showMessage(type, text) {

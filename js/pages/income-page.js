@@ -56,6 +56,7 @@ const DEFAULT_FILTERS = {
   incomeCategory: "",
   currency: "",
 };
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const INCOME_STATUS_LABELS = {
   pending: "待确认",
@@ -126,6 +127,7 @@ let appliedFilters = { month: "", ...DEFAULT_FILTERS };
 let topStudentCandidateRequestSequence = 0;
 let activeTopStudentCandidateRequestId = 0;
 let isIncomeQuerying = false;
+let incomeQueryRequestSequence = 0;
 let createStudentCandidates = [];
 let tuitionBillStudentCandidates = [];
 let createStudentCandidateRequestId = 0;
@@ -246,7 +248,17 @@ function bindEvents() {
   });
   dom.includeInactiveCheckbox.addEventListener("change", handleDraftCandidateScopeChange);
 
-  dom.resetButton.addEventListener("click", resetAndQueryFilters);
+  dom.resetButton.addEventListener("click", () => {
+    topStudentCandidateRequestSequence += 1;
+    activeTopStudentCandidateRequestId = 0;
+    const defaults = { month: currentYearMonth(), ...DEFAULT_FILTERS };
+    draftFilters = { ...defaults };
+    setDefaultFilters(draftFilters);
+    syncIncomeQuery(draftFilters);
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
+    void refreshDraftStudentCandidates();
+  });
 
   dom.openCreateIncomeButton.addEventListener("click", openCreateIncomeDialog);
   dom.openGenerateTuitionBillButton.addEventListener("click", openGenerateTuitionBillDialog);
@@ -347,6 +359,9 @@ function setDefaultFilters(overrides = null) {
 }
 
 async function loadInitialData() {
+  const requestId = ++incomeQueryRequestSequence;
+  isIncomeQuerying = true;
+  setIncomeQuerying(true);
   setFilterStatus("query", "正在查询收入记录…");
 
   try {
@@ -355,6 +370,7 @@ async function loadInitialData() {
       fetchLessonTeachers(),
       fetchLessonSubjects(),
     ]);
+    if (requestId !== incomeQueryRequestSequence) return;
     students = lookups.students;
     businessEntities = lookups.businessEntities;
     requirePrimarySchoolBusinessEntityId(businessEntities);
@@ -370,6 +386,7 @@ async function loadInitialData() {
         selectedStudentId: filters.studentId || null,
       }),
     ]);
+    if (requestId !== incomeQueryRequestSequence) return;
     incomeRecords = incomeRows;
     loadedMonth = filters.month;
     topStudentCandidates = candidateRows;
@@ -384,6 +401,7 @@ async function loadInitialData() {
     applyCurrentFilters(appliedFilters);
     setFilterStatus("idle");
   } catch (error) {
+    if (requestId !== incomeQueryRequestSequence) return;
     students = [];
     businessEntities = [];
     accounts = [];
@@ -399,6 +417,11 @@ async function loadInitialData() {
     renderDataOptions([]);
     renderIncomeRecords([]);
     setFilterStatus("error", `读取收入记录数据失败：${error.message || error}`);
+  } finally {
+    if (requestId === incomeQueryRequestSequence) {
+      isIncomeQuerying = false;
+      setIncomeQuerying(false);
+    }
   }
 }
 
@@ -464,7 +487,8 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
     return;
   }
 
-  const previousAppliedFilters = { ...appliedFilters };
+  const previousAppliedFilters = appliedFilters ? { ...appliedFilters } : null;
+  const requestId = ++incomeQueryRequestSequence;
   const shouldRefreshCandidates = forceCandidateRefresh
     || studentCandidateKey(nextAppliedFilters) !== topStudentCandidateKey;
   const candidateRequestId = shouldRefreshCandidates
@@ -488,6 +512,7 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
         })
         : Promise.resolve(null),
     ]);
+    if (requestId !== incomeQueryRequestSequence) return;
 
     if (candidateRows && candidateRequestId === topStudentCandidateRequestSequence) {
       topStudentCandidates = candidateRows;
@@ -507,6 +532,7 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
     updateMonthScopedNavigation(appliedFilters.month);
     applyCurrentFilters(appliedFilters);
   } catch (error) {
+    if (requestId !== incomeQueryRequestSequence) return;
     appliedFilters = previousAppliedFilters;
     setFilterStatus("error", `读取收入记录失败：${error.message || error}`);
     return;
@@ -514,9 +540,13 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
     if (candidateRequestId === topStudentCandidateRequestSequence) {
       activeTopStudentCandidateRequestId = 0;
     }
-    isIncomeQuerying = false;
-    setIncomeQuerying(false);
+    if (requestId === incomeQueryRequestSequence) {
+      isIncomeQuerying = false;
+      setIncomeQuerying(false);
+    }
   }
+
+  if (requestId !== incomeQueryRequestSequence) return;
 
   if (activeTopStudentCandidateRequestId) {
     setFilterStatus("candidate", "正在更新学生候选…");
@@ -525,18 +555,20 @@ async function queryDraftFilters({ forceCandidateRefresh = false } = {}) {
   }
 }
 
-async function resetAndQueryFilters() {
-  if (isIncomeQuerying) {
-    return;
-  }
-
+function clearQueryResults() {
+  incomeQueryRequestSequence += 1;
   clearTuitionBillPreview();
-  topStudentCandidateRequestSequence += 1;
-  activeTopStudentCandidateRequestId = 0;
-  const defaults = { month: currentYearMonth(), ...DEFAULT_FILTERS };
-  draftFilters = { ...defaults };
-  setDefaultFilters(draftFilters);
-  await queryDraftFilters({ forceCandidateRefresh: true });
+  appliedFilters = null;
+  incomeRecords = [];
+  loadedMonth = "";
+  renderedIncomeRows = [];
+  selectedIncomeIds = new Set();
+  if (!isBatchCashSubmitting) closeBatchCashIncomeDialog();
+  renderDataOptions([]);
+  renderIncomeRecords([]);
+  isIncomeQuerying = false;
+  setIncomeQuerying(false);
+  setFilterStatus("idle");
 }
 
 async function loadIncomeMonth(month) {
@@ -2043,7 +2075,7 @@ async function confirmGenerateTuitionBill() {
       throw new Error("R2_F_B_IDEMPOTENCY_CONFLICT_OR_INCOMPLETE: 返回结果与当前预览不一致");
     }
 
-    const currentFilters = { ...appliedFilters };
+    const currentFilters = { ...(appliedFilters || draftFilters) };
     tuitionBillGenerationState.endSubmission({ consumePreview: true });
     setTuitionBillSubmitting(false);
     closeGenerateTuitionBillConfirmation();
@@ -2315,7 +2347,7 @@ function readCreateIncomePayload() {
 }
 
 async function refreshCurrentIncomeList() {
-  const filters = { ...appliedFilters };
+  const filters = { ...(appliedFilters || draftFilters) };
   if (!filters) {
     return;
   }
@@ -2923,7 +2955,6 @@ function setFilterStatus(state, text = "") {
 
 function setIncomeQuerying(isQuerying) {
   dom.queryButton.disabled = isQuerying;
-  dom.resetButton.disabled = isQuerying;
 }
 
 function showMessage(type, text) {

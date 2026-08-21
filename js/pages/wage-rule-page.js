@@ -24,6 +24,7 @@ const DEFAULT_FILTERS = {
   subjectId: "",
   activeState: "",
 };
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const RETIRED_WAGE_RULE_FILTER_PARAMS = [
   "teacherDepartment",
@@ -80,6 +81,7 @@ let appliedFilters = { ...DEFAULT_FILTERS };
 let candidateRequestSequence = 0;
 let activeCandidateRequestId = 0;
 let isRuleQuerying = false;
+let ruleQueryRequestSequence = 0;
 
 export function initWageRulePage() {
   cacheDom();
@@ -159,7 +161,16 @@ function bindEvents() {
   dom.keywordInput.addEventListener("input", updateDraftFiltersFromControls);
   dom.includeInactiveCheckbox.addEventListener("change", handleDraftCandidateScopeChange);
 
-  dom.resetButton.addEventListener("click", resetAndQueryFilters);
+  dom.resetButton.addEventListener("click", () => {
+    candidateRequestSequence += 1;
+    activeCandidateRequestId = 0;
+    draftFilters = { ...DEFAULT_FILTERS };
+    restoreFilterSelections(draftFilters);
+    syncCandidateUrl(draftFilters);
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
+    void refreshDraftStudentCandidates();
+  });
 
   dom.createButton.addEventListener("click", openCreateDialog);
   dom.createCancelButton.addEventListener("click", closeCreateDialog);
@@ -214,6 +225,8 @@ function bindEvents() {
 
 async function loadWageRuleData() {
   const filters = { ...draftFilters };
+  const requestId = ++ruleQueryRequestSequence;
+  isRuleQuerying = true;
   setFilterStatus("query", "正在查询工资规则…");
 
   try {
@@ -226,6 +239,7 @@ async function loadWageRuleData() {
       }),
       fetchWageRuleCurrentStudentCandidates(),
     ]);
+    if (requestId !== ruleQueryRequestSequence) return;
 
     teachers = lookupRows.teachers;
     filterStudentCandidates = filterCandidates;
@@ -235,6 +249,7 @@ async function loadWageRuleData() {
     businessEntities = lookupRows.businessEntities;
     requirePrimarySchoolBusinessEntityId(businessEntities);
     wageRules = sortWageRules(ruleRows);
+    appliedFilters = { ...filters };
 
     renderFilterOptions(filters.studentId);
     restoreFilterSelections(filters);
@@ -242,6 +257,8 @@ async function loadWageRuleData() {
     syncCandidateUrl(appliedFilters);
     renderWageRules(filterWageRules(wageRules, appliedFilters));
   } catch (error) {
+    if (requestId !== ruleQueryRequestSequence) return;
+    isRuleQuerying = false;
     teachers = [];
     students = [];
     filterStudentCandidates = [];
@@ -256,7 +273,10 @@ async function loadWageRuleData() {
     return;
   }
 
-  setFilterStatus("idle");
+  if (requestId === ruleQueryRequestSequence) {
+    isRuleQuerying = false;
+    setFilterStatus("idle");
+  }
 }
 
 function updateDraftFiltersFromControls() {
@@ -309,24 +329,29 @@ async function refreshDraftStudentCandidates() {
 async function queryDraftFilters() {
   updateDraftFiltersFromControls();
   const nextAppliedFilters = { ...draftFilters };
-  const previousAppliedFilters = { ...appliedFilters };
+  const previousAppliedFilters = appliedFilters ? { ...appliedFilters } : null;
   appliedFilters = nextAppliedFilters;
   syncCandidateUrl(appliedFilters);
+  const requestId = ++ruleQueryRequestSequence;
   isRuleQuerying = true;
   setFilterStatus("query", "正在查询工资规则…");
 
   try {
     const ruleRows = await fetchWageRules();
+    if (requestId !== ruleQueryRequestSequence) return;
     wageRules = sortWageRules(ruleRows);
     renderWageRules(filterWageRules(wageRules, appliedFilters));
   } catch (error) {
+    if (requestId !== ruleQueryRequestSequence) return;
     appliedFilters = previousAppliedFilters;
     syncCandidateUrl(appliedFilters);
     setFilterStatus("error", `读取老师工资规则失败：${error.message || error}`);
     return;
   } finally {
-    isRuleQuerying = false;
+    if (requestId === ruleQueryRequestSequence) isRuleQuerying = false;
   }
+
+  if (requestId !== ruleQueryRequestSequence) return;
 
   if (activeCandidateRequestId) {
     setFilterStatus("candidate", "正在更新学生候选…");
@@ -335,13 +360,15 @@ async function queryDraftFilters() {
   }
 }
 
-async function resetAndQueryFilters() {
-  candidateRequestSequence += 1;
-  activeCandidateRequestId = 0;
-  draftFilters = { ...DEFAULT_FILTERS };
-  restoreFilterSelections(draftFilters);
-  await refreshDraftStudentCandidates();
-  await queryDraftFilters();
+function clearQueryResults() {
+  ruleQueryRequestSequence += 1;
+  appliedFilters = null;
+  wageRules = [];
+  isRuleQuerying = false;
+  if (!isEditSubmitting) closeEditDialog({ force: true });
+  if (!isActiveStateSubmitting) closeActiveStateDialog({ force: true });
+  renderWageRules([]);
+  setFilterStatus("idle");
 }
 
 function readFiltersFromControls() {

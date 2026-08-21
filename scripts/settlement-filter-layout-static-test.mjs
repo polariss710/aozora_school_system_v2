@@ -7,7 +7,7 @@ const page = readFileSync("js/pages/settlement-page.js", "utf8");
 const app = readFileSync("js/settlement-app.js", "utf8");
 const config = readFileSync("js/config.js", "utf8");
 const cssCacheKey = "student-settlement-registered-variance-preview-20260816-1";
-const runtimeCacheKey = "student-settlement-registered-variance-preview-20260816-1";
+const runtimeCacheKey = "filter-contract-b3-20260822-1";
 
 const filterForm = html.match(/<form id="settlementFilterForm"[\s\S]*?<\/form>/)?.[0] || "";
 const studentField = filterForm.match(/<div class="field student-month-candidate-field settlement-student-filter-field">[\s\S]*?<\/div>/)?.[0] || "";
@@ -48,7 +48,7 @@ assert.match(page, /row\.student_id !== filters\.studentId/);
 assert.match(html, new RegExp(`app\\.css\\?v=${cssCacheKey}`));
 assert.match(html, new RegExp(`settlement-app\\.js\\?v=${runtimeCacheKey}`));
 assert.match(app, new RegExp(`config\\.js\\?v=${runtimeCacheKey}`));
-assert.match(config, /APP_VERSION = "v10\.5\.47"/);
+assert.match(config, /APP_VERSION = "v10\.5\.59"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = readFileSync(`js/pages/${pageFile}`, "utf8");

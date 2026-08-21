@@ -14,7 +14,8 @@ const filterMarkup = html.match(/<form id="wageRuleFilterForm"[\s\S]*?<\/form>/)
 const defaultFilters = page.match(/const DEFAULT_FILTERS = \{[\s\S]*?\n\};/)?.[0] || "";
 const filterFunction = page.match(/function filterWageRules\([\s\S]*?\n\}/)?.[0] || "";
 const candidateRefreshFunction = page.match(/async function refreshDraftStudentCandidates\(\) \{[\s\S]*?\n\}\n\nasync function queryDraftFilters/)?.[0] || "";
-const queryFunction = page.match(/async function queryDraftFilters\(\) \{[\s\S]*?\n\}\n\nasync function resetAndQueryFilters/)?.[0] || "";
+const queryFunction = page.match(/async function queryDraftFilters\(\) \{[\s\S]*?\n\}\n\nfunction clearQueryResults/)?.[0] || "";
+const clearFunction = page.match(/function clearQueryResults\(\) \{[\s\S]*?\n\}\n\nfunction readFiltersFromControls/)?.[0] || "";
 
 for (const id of [
   "wageRuleTeacherSelect",
@@ -62,6 +63,10 @@ assert.equal((queryFunction.match(/fetchWageRules\(\)/g) || []).length, 1, "quer
 assert.match(queryFunction, /appliedFilters = nextAppliedFilters/);
 assert.match(queryFunction, /syncCandidateUrl\(appliedFilters\)/);
 assert.match(queryFunction, /renderWageRules\(filterWageRules\(wageRules, appliedFilters\)\)/);
+assert.match(page, /resetButton\.addEventListener\("click", \(\) => \{[\s\S]*clearQueryResults\(\)[\s\S]*refreshDraftStudentCandidates\(\)/);
+assert.doesNotMatch(clearFunction, /fetchWageRules|queryDraftFilters/);
+assert.match(clearFunction, /appliedFilters = null/);
+assert.match(clearFunction, /renderWageRules\(\[\]\)/);
 assert.doesNotMatch(page, /wageRuleLoadingState|refreshFilterCandidatesAndApply|applyCurrentFilters/);
 
 assert.match(html, /<th>老师分类<\/th>/);
@@ -101,9 +106,9 @@ assert.match(css, /@media \(max-width: 1799px\)[\s\S]*?\.wage-rule-filter-panel 
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.wage-rule-filter-panel \.wage-rule-filter-grid[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-rule-|\.wage-filter-panel[^\n{]*\.wage-rule-/);
 
-assert.match(html, /wage-rule-explicit-filter-20260808-1/);
-assert.match(app, /wage-rule-explicit-filter-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.30"/);
+assert.match(html, /filter-contract-b3-20260822-1/);
+assert.match(app, /filter-contract-b3-20260822-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.59"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

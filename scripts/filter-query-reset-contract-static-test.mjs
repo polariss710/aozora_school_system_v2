@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 const B1_CACHE_KEY = "filter-contract-b1-20260822-1";
 const B2_CACHE_KEY = "filter-contract-b2-20260822-1";
+const B3_CACHE_KEY = "filter-contract-b3-20260822-1";
 
 const pages = [
   {
@@ -184,6 +185,133 @@ const pages = [
     writers: ["createAccountProfile", "updateAccountProfile", "createAccountTransfer", "createAccountAdjustment"],
     cacheKey: B2_CACHE_KEY,
   },
+  {
+    id: "settlement",
+    label: "学生月度结算",
+    html: "settlement.html",
+    app: "js/settlement-app.js",
+    page: "js/pages/settlement-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(defaults\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /queryRequestSequence \+= 1/,
+      /appliedFilters = null/,
+      /settlements = \[\]/,
+      /closeAdjustmentDialog\(true\)/,
+      /renderSettlements\(\[\]\)/,
+      /setLoading\(false\)/,
+    ],
+    queryFunction: "runQuery",
+    queryPatterns: [/fetchStudentSettlements\(/, /appliedFilters = \{ \.\.\.filters \}/, /renderWithFilters\(appliedFilters\)/],
+    auxiliaryReaders: ["fetchSettlementStudents", "fetchStudentMonthCandidates"],
+    mainResultReaders: ["fetchStudentSettlements", "runQuery"],
+    writers: ["saveStudentSettlementDraftOnline"],
+    cacheKey: B3_CACHE_KEY,
+  },
+  {
+    id: "wage-rule",
+    label: "工资规则",
+    html: "wage-rule.html",
+    app: "js/wage-rule-app.js",
+    page: "js/pages/wage-rule-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /restoreFilterSelections\(draftFilters\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /ruleQueryRequestSequence \+= 1/,
+      /appliedFilters = null/,
+      /wageRules = \[\]/,
+      /closeEditDialog\(\{ force: true \}\)/,
+      /closeActiveStateDialog\(\{ force: true \}\)/,
+      /renderWageRules\(\[\]\)/,
+    ],
+    queryFunction: "queryDraftFilters",
+    queryPatterns: [/fetchWageRules\(\)/, /appliedFilters = nextAppliedFilters/, /renderWageRules\(/, /requestId !== ruleQueryRequestSequence/],
+    auxiliaryReaders: ["fetchWageRuleCurrentStudentCandidates", "refreshDraftStudentCandidates"],
+    mainResultReaders: ["fetchWageRules", "queryDraftFilters"],
+    writers: ["createWageRuleConfig", "updateWageRuleConfig", "setWageRuleActiveState"],
+    cacheKey: B3_CACHE_KEY,
+  },
+  {
+    id: "income",
+    label: "收入记录",
+    html: "income.html",
+    app: "js/income-app.js",
+    page: "js/pages/income-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(draftFilters\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /incomeQueryRequestSequence \+= 1/,
+      /appliedFilters = null/,
+      /incomeRecords = \[\]/,
+      /selectedIncomeIds = new Set\(\)/,
+      /closeBatchCashIncomeDialog\(\)/,
+      /renderIncomeRecords\(\[\]\)/,
+      /setIncomeQuerying\(false\)/,
+    ],
+    queryFunction: "queryDraftFilters",
+    queryPatterns: [/fetchIncomeRecords\(/, /appliedFilters = \{ \.\.\.nextAppliedFilters \}/, /applyCurrentFilters\(appliedFilters\)/, /requestId !== incomeQueryRequestSequence/],
+    auxiliaryReaders: ["fetchStudentMonthCandidates", "refreshDraftStudentCandidates"],
+    mainResultReaders: ["fetchIncomeRecords", "queryDraftFilters", "loadIncomeMonth"],
+    writers: ["createIncomeRecord", "createPendingCashIncomeRecord", "requestCashIncomeConfirmationForRecord", "generateStudentTuitionBillAtomic"],
+    cacheKey: B3_CACHE_KEY,
+  },
+  {
+    id: "expense",
+    label: "支出记录",
+    html: "expense.html",
+    app: "js/expense-app.js",
+    page: "js/pages/expense-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(draftFilters\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /expenseQueryRequestSequence \+= 1/,
+      /appliedFilters = null/,
+      /expenseRecords = \[\]/,
+      /paymentRequestsByExpenseId = new Map\(\)/,
+      /attachmentCountsByExpenseId = new Map\(\)/,
+      /selectedExpenseIds = new Set\(\)/,
+      /closeBatchCashExpenseDialog\(\)/,
+      /renderExpenseRecords\(\[\]\)/,
+    ],
+    queryFunction: "queryDraftFilters",
+    queryPatterns: [/fetchExpenseMonthSnapshot\(/, /appliedFilters = \{ \.\.\.nextAppliedFilters \}/, /applyCurrentFilters\(appliedFilters\)/, /requestId !== expenseQueryRequestSequence/],
+    auxiliaryReaders: ["fetchStudentMonthCandidates", "refreshDraftStudentCandidates"],
+    mainResultReaders: ["fetchExpenseRecords", "fetchExpenseMonthSnapshot", "queryDraftFilters", "loadExpenseMonth"],
+    writers: ["createExpenseRecord", "createPendingCashExpenseRecord", "requestCashExpenseConfirmation"],
+    cacheKey: B3_CACHE_KEY,
+  },
+  {
+    id: "part-time-work-annual",
+    label: "外部授课年度汇总",
+    html: "part-time-work-annual.html",
+    app: "js/part-time-work-annual-app.js",
+    page: "js/pages/part-time-work-annual-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setYearFilterValue\(currentFiscalYear\(\)\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /annualRequestSequence \+= 1/,
+      /appliedFiscalYear = null/,
+      /summaryTitle\.textContent = ""/,
+      /summaryContainer\.innerHTML = ""/,
+      /setLoading\(false\)/,
+    ],
+    queryFunction: "loadAnnualSummary",
+    queryPatterns: [/fetchPartTimeWorkAnnualSummary\(fiscalYear\)/, /appliedFiscalYear = fiscalYear/, /renderAnnualSummary\(summary, fiscalYear\)/, /requestId !== annualRequestSequence/],
+    auxiliaryReaders: [],
+    mainResultReaders: ["fetchPartTimeWorkAnnualSummary", "loadAnnualSummary"],
+    writers: [],
+    cacheKey: B3_CACHE_KEY,
+  },
 ];
 
 function read(path) {
@@ -327,10 +455,35 @@ assert.match(accountAppTypeHandler[1], /markQueryPending\(\)/);
 assert.doesNotMatch(accountAppTypeHandler[1], /(?:loadAccountData|renderAccounts|renderTransactions)\(/);
 assert.doesNotMatch(accountAppTypeHandler[1], /fetch(?:Accounts|BusinessEntitiesForAccounts|AccountTransactions)\(/);
 
+const settlementSource = read("js/pages/settlement-page.js");
+assert.doesNotMatch(settlementSource, /dom\.(?:yearFilter|monthFilter|studentSelect|statusSelect|keywordInput)\??\.addEventListener\("(?:change|input)"[\s\S]{0,180}(?:runQuery|applyQuery|renderWithFilters|renderSettlements)\(/);
+
+const wageRuleSource = read("js/pages/wage-rule-page.js");
+assert.doesNotMatch(wageRuleSource, /dom\.(?:teacherSelect|studentSelect|subjectSelect|activeSelect|keywordInput)\.addEventListener\("(?:change|input)"[\s\S]{0,180}(?:queryDraftFilters|renderWageRules)\(/);
+
+const incomeSource = read("js/pages/income-page.js");
+assert.doesNotMatch(incomeSource, /dom\.(?:yearFilter|monthFilter|studentSelect|accountSelect|categorySelect|currencySelect)\.addEventListener\("change"[\s\S]{0,180}(?:queryDraftFilters|applyCurrentFilters|renderIncomeRecords)\(/);
+
+const expenseSource = read("js/pages/expense-page.js");
+assert.doesNotMatch(expenseSource, /dom\.(?:yearFilter|monthFilter|studentSelect|teacherSelect|accountSelect|currencySelect)\.addEventListener\("change"[\s\S]{0,180}(?:queryDraftFilters|applyCurrentFilters|renderExpenseRecords)\(/);
+
+const annualSource = read("js/pages/part-time-work-annual-page.js");
+const annualChangeHandler = annualSource.match(/dom\.yearFilter\?\.addEventListener\("change", \(\) => \{([\s\S]*?)\n  \}\);/);
+assert.ok(annualChangeHandler, "外部授课年度汇总: year change handler missing");
+assert.match(annualChangeHandler[1], /updateYearUrl\(selectedFiscalYear\(\)\)/);
+assert.doesNotMatch(annualChangeHandler[1], /(?:loadAnnualSummary|fetchPartTimeWorkAnnualSummary|renderAnnualSummary)\(/);
+
 const migrationCounts = {
-  htmlPages: { applicable: 18, compliant: 8, deprecatedLegacyException: 1, pendingMigration: 9, notApplicable: 0 },
-  routeViews: { applicable: 19, compliant: 8, deprecatedLegacyException: 1, pendingMigration: 10, notApplicable: 0 },
+  htmlPages: { applicable: 18, compliant: 13, deprecatedLegacyException: 1, pendingMigration: 4, notApplicable: 0 },
+  routeViews: { applicable: 19, compliant: 13, deprecatedLegacyException: 1, pendingMigration: 5, notApplicable: 0 },
 };
+const pendingMigrations = [
+  "part-time-work-lesson",
+  "part-time-work-settlement",
+  "weekly-timetable-image",
+  "classroom-scheduling",
+  "weekly-lesson-pending",
+];
 const legacyExceptions = [
   {
     id: "legacy-wage-payment",
@@ -343,19 +496,20 @@ const legacyExceptions = [
 ];
 assert.deepEqual(migrationCounts.htmlPages, {
   applicable: 18,
-  compliant: 8,
+  compliant: 13,
   deprecatedLegacyException: 1,
-  pendingMigration: 9,
+  pendingMigration: 4,
   notApplicable: 0,
 });
 assert.deepEqual(migrationCounts.routeViews, {
   applicable: 19,
-  compliant: 8,
+  compliant: 13,
   deprecatedLegacyException: 1,
-  pendingMigration: 10,
+  pendingMigration: 5,
   notApplicable: 0,
 });
 assert.equal(legacyExceptions.length, 1);
+assert.equal(pendingMigrations.length, 5);
 assert.equal(legacyExceptions[0].status, "deprecated_legacy_exception");
 assert.equal(legacyExceptions[0].reason, "V3 removal");
 assert.equal(legacyExceptions[0].contract, "V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。");
@@ -363,7 +517,7 @@ assert.doesNotThrow(() => read(legacyExceptions[0].html));
 assert.doesNotThrow(() => read(legacyExceptions[0].page));
 
 const config = read("js/config.js");
-assert.match(config, /APP_VERSION = "v10\.5\.58"/);
+assert.match(config, /APP_VERSION = "v10\.5\.59"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);
@@ -374,6 +528,6 @@ for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".
 console.log(
   "FILTER_QUERY_RESET_CONTRACT_STATIC_TEST_PASS",
   "classifications=compliant,pending_migration,deprecated_legacy_exception,not_applicable",
-  "html=18/8/1/9/0",
-  "route_views=19/8/1/10/0"
+  "html=18/13/1/4/0",
+  "route_views=19/13/1/5/0"
 );

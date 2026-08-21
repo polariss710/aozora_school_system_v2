@@ -11,8 +11,8 @@ const config = read("js/config.js");
 const filterMarkup = html.match(/<form id="expenseFilterForm"[\s\S]*?<\/form>/)?.[0] || "";
 const bindEvents = page.match(/function bindEvents\(\) \{[\s\S]*?\n\}/)?.[0] || "";
 const candidateRefresh = page.match(/async function refreshDraftStudentCandidates\(\) \{[\s\S]*?\n\}\n\nasync function queryDraftFilters/)?.[0] || "";
-const queryFunction = page.match(/async function queryDraftFilters\([\s\S]*?\n\}\n\nasync function resetAndQueryFilters/)?.[0] || "";
-const resetFunction = page.match(/async function resetAndQueryFilters\(\) \{[\s\S]*?\n\}\n\nasync function fetchExpenseMonthSnapshot/)?.[0] || "";
+const queryFunction = page.match(/async function queryDraftFilters\([\s\S]*?\n\}\n\nfunction clearQueryResults/)?.[0] || "";
+const clearFunction = page.match(/function clearQueryResults\(\) \{[\s\S]*?\n\}(?=\n\nasync function fetchExpenseMonthSnapshot)/)?.[0] || "";
 const snapshotFunction = page.match(/async function fetchExpenseMonthSnapshot\(month\) \{[\s\S]*?\n\}/)?.[0] || "";
 
 for (const id of [
@@ -40,7 +40,7 @@ assert.match(bindEvents, /dom\.filterForm\.addEventListener\("submit",[\s\S]*que
 assert.match(bindEvents, /dom\.yearFilter,[\s\S]*dom\.monthFilter,[\s\S]*dom\.studentSelect,[\s\S]*dom\.teacherSelect,[\s\S]*dom\.accountSelect,[\s\S]*dom\.currencySelect,[\s\S]*field\.addEventListener\("change", updateDraftFiltersFromControls\)/);
 assert.doesNotMatch(bindEvents, /(?:yearFilter|monthFilter|studentSelect|teacherSelect|accountSelect|currencySelect)\.addEventListener\("change",\s*(?:queryDraftFilters|applyQuery)/);
 assert.match(bindEvents, /includeInactiveCheckbox\.addEventListener\("change", handleDraftCandidateScopeChange\)/);
-assert.match(bindEvents, /resetButton\.addEventListener\("click", resetAndQueryFilters\)/);
+assert.match(bindEvents, /resetButton\.addEventListener\("click", \(\) => \{[\s\S]*clearQueryResults\(\)[\s\S]*refreshDraftStudentCandidates\(\)/);
 
 assert.match(candidateRefresh, /fetchStudentMonthCandidates\(\{/);
 assert.match(candidateRefresh, /requestId !== topStudentCandidateRequestSequence/);
@@ -53,8 +53,11 @@ assert.match(queryFunction, /syncExpenseQuery\(appliedFilters\)/);
 assert.match(queryFunction, /applyCurrentFilters\(appliedFilters\)/);
 assert.match(queryFunction, /if \(!hasSupabaseConfig\(\) \|\| isExpenseQuerying\)/);
 assert.match(queryFunction, /setExpenseQuerying\(true\)/);
-assert.match(resetFunction, /forceCandidateRefresh: true/);
-assert.match(resetFunction, /topStudentCandidateRequestSequence \+= 1/);
+assert.match(clearFunction, /expenseQueryRequestSequence \+= 1/);
+assert.match(clearFunction, /appliedFilters = null/);
+assert.match(clearFunction, /selectedExpenseIds = new Set\(\)/);
+assert.match(clearFunction, /renderExpenseRecords\(\[\]\)/);
+assert.doesNotMatch(clearFunction, /fetchExpenseRecords|fetchExpenseMonthSnapshot|queryDraftFilters|loadExpenseMonth/);
 assert.doesNotMatch(page, /function applyQuery|setLoading\(|showMessage\("info", "正在加载支出记录/);
 
 assert.match(css, /\.expense-filter-panel \.expense-filter-grid\s*\{[\s\S]*?196px[\s\S]*?300px[\s\S]*?176px[\s\S]*?300px[\s\S]*?300px[\s\S]*?300px[\s\S]*?minmax\(0, 1fr\)[\s\S]*?auto[\s\S]*?140px/);
@@ -68,9 +71,9 @@ assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.expense-filter-panel \.e
 assert.doesNotMatch(css, /\.income-filter-panel[^\n{]*\.expense-filter-|\.wage-filter-panel[^\n{]*\.expense-filter-|\.settlement-filter-panel[^\n{]*\.expense-filter-/);
 
 assert.match(api, /export async function fetchExpenseRecords\(month\)/);
-assert.match(html, /expense-filter-explicit-query-20260808-1/);
-assert.match(app, /expense-filter-explicit-query-20260808-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.26"/);
+assert.match(html, /filter-contract-b3-20260822-1/);
+assert.match(app, /filter-contract-b3-20260822-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.59"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 assert.doesNotMatch(filterMarkup, /业务归属|个人名义|business_entity_id/);
 

@@ -1,8 +1,8 @@
-import { APP_VERSION } from "./config.js?v=student-settlement-registered-variance-preview-20260816-1";
+import { APP_VERSION } from "./config.js?v=filter-contract-b3-20260822-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=student-settlement-registered-variance-preview-20260816-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=filter-contract-b3-20260822-1";
 
-const SETTLEMENT_PAGE_VERSION = "student-settlement-registered-variance-preview-20260816-1";
+const SETTLEMENT_PAGE_VERSION = "filter-contract-b3-20260822-1";
 
 const globalSessionPromise = requireGlobalSession();
 

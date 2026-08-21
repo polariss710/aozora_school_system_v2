@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=income-create-student-scope-layout-20260813-1";
+import { APP_VERSION } from "./config.js?v=filter-contract-b3-20260822-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initIncomePage } from "./pages/income-page.js?v=income-filter-explicit-query-20260808-1";
+import { initIncomePage } from "./pages/income-page.js?v=filter-contract-b3-20260822-1";
 
 const globalSessionPromise = requireGlobalSession();
 

@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-22 全局顶部筛选栏 P0 合同 Phase B3 已完成实现：学生月度结算、工资规则、收入记录、支出记录、外部授课年度汇总的 reset 均恢复默认 draft、清除 applied 状态与主结果/计数/汇总/选择/结果依赖上下文，显示精确等待查询文案，不调用主 reader、缓存主结果或 writer；必要的学生候选刷新继续作为 auxiliary reader。五页主请求均由页面局部 generation 防护，reset 会使旧请求失效并立即结束 loading，显式 Query 才恢复默认结果。年度汇总修改仅位于独立 annual 页面链，未触及 PTW 授课记录/结算共享视图；收入、支出、结算、工资规则 writer 合同保持不变。Phase B3 后 HTML 页面为合规13、Legacy例外1、待迁移4；路由视图为合规13、例外1、待迁移5。生产版本提升为 `v10.5.59`，cache-buster 为 `filter-contract-b3-20260822-1`。本阶段未修改 DB/RPC/Edge/权限或业务数据，生产 writer 验收禁止执行。
+
 - 2026-08-22 全局顶部筛选栏 P0 合同 Phase B2 已完成实现：学生管理、老师管理、账户管理的 reset 现恢复默认 draft 后清空主列表、计数、选择/弹窗上下文与结果依赖操作状态，显示精确等待查询文案，且通过请求序号阻止 reset 后旧异步 reader 回填；账户页应用类型 change 只更新草稿候选并提示等待查询，不再调用主 reader 或缓存重绘，其他顶部 change 同样不应用新结果。显式查询和 writer 成功后的既有业务刷新仍保留。Legacy 工资支付登记为 `deprecated legacy exception / V3 removal`：V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。Phase B2 后 HTML 页面为合规8、Legacy例外1、待迁移9；路由视图为合规8、例外1、待迁移10。生产版本提升为 `v10.5.58`。本阶段未修改 Legacy 文件、DB/RPC/Edge/权限或业务数据，生产 writer 验收禁止执行。
 
 - 2026-08-22 全局顶部筛选栏 P0 合同 Phase B1 已完成实现：以课时管理为未改动正向基准，科目管理、老师工资结算、报销管理和利润分析的 reset 均恢复默认控件后清空主结果、统计/计数、选择及结果依赖操作状态，显示精确等待查询文案，且不调用主结果 reader 或缓存重绘；利润页年月/币种 change 也只失效清空，显式查询继续复用既有缓存/reader。新增参数化合同测试骨架并按 auxiliaryReader/mainResultReader/writer 分层，生产版本提升为 `v10.5.57`。完整合同见 `docs/filter-query-reset-contract.md`；其他适用页面仍待后续批次迁移。本阶段未修改 DB/RPC/Edge/权限或业务数据，生产 writer 验收禁止执行。

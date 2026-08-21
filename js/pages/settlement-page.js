@@ -52,6 +52,7 @@ const DEFAULT_FILTERS = {
   status: "",
   keyword: "",
 };
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",
@@ -147,8 +148,11 @@ function bindEvents() {
     applyQuery();
   });
   dom.resetButton.addEventListener("click", () => {
-    setDefaultFilters();
-    applyQuery();
+    const defaults = { month: currentYearMonth(), ...DEFAULT_FILTERS };
+    setDefaultFilters(defaults);
+    syncSettlementQuery(defaults);
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
 
   dom.tableBody.addEventListener("click", (event) => {
@@ -277,6 +281,16 @@ async function runQuery(filters, { updateUrl, initial = false }) {
   } finally {
     if (requestSequence === queryRequestSequence) setLoading(false);
   }
+}
+
+function clearQueryResults() {
+  queryRequestSequence += 1;
+  appliedFilters = null;
+  settlements = [];
+  if (!isAdjustmentSubmitting) closeAdjustmentDialog(true);
+  renderStatusOptions([]);
+  renderSettlements([]);
+  setLoading(false);
 }
 
 function renderWithFilters(filters) {
