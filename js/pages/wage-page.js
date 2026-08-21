@@ -38,6 +38,7 @@ const DEFAULT_FILTERS = {
 };
 
 const RETIRED_WAGE_FILTER_PARAMS = ["settlementType", "settlement_type"];
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const WAGE_STATUS_LABELS = {
   locked: "已生成快照",
@@ -154,7 +155,10 @@ function bindEvents() {
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
-    applyQuery();
+    const filters = readFilters();
+    if (filters) updateUrlFromFilters(filters);
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
 
   dom.openGenerateDialogButton?.addEventListener("click", openGenerateDialog);
@@ -271,6 +275,7 @@ async function applyQuery() {
   }
 
   applyCurrentFilters(filters);
+  showMessage("success", "老师工资筛选结果已更新。");
 }
 
 function openGenerateDialog() {
@@ -391,6 +396,35 @@ function applyCurrentFilters(filters = activeFilters) {
   updateMonthScopedNavigation(filters.month);
   renderWageLocks(filterWageLocks(wageLocks, filters));
   renderWageCandidates(filterWageCandidateLessons(wageCandidateLessons, filters));
+  updateQueryResultActionControls();
+}
+
+function clearQueryResults() {
+  activeFilters = null;
+  renderedWageLockRows = [];
+  selectedWageLockIds.clear();
+  closeGenerateDialog(true);
+
+  dom.wageCount.textContent = "0 条";
+  dom.tableBody.innerHTML = "";
+  dom.emptyState.textContent = "";
+  dom.emptyState.classList.add("is-hidden");
+
+  dom.candidateCount.textContent = "0 条";
+  dom.candidateSummary.innerHTML = "";
+  dom.candidateTableBody.innerHTML = "";
+  dom.candidateEmptyState.classList.add("is-hidden");
+  dom.candidateSection.classList.add("is-hidden");
+
+  updatePaymentRequestBatchControls();
+  updateQueryResultActionControls();
+}
+
+function updateQueryResultActionControls() {
+  const disabled = !activeFilters || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
+  if (dom.exportMonthlySummaryButton) dom.exportMonthlySummaryButton.disabled = disabled;
+  if (dom.exportDutyReportBatchButton) dom.exportDutyReportBatchButton.disabled = disabled;
+  if (dom.openGenerateDialogButton) dom.openGenerateDialogButton.disabled = disabled;
 }
 
 function readFilters() {
@@ -1654,14 +1688,14 @@ function buildWageFilterParams(filters) {
 
 function setMonthlyExportSubmitting(isSubmitting) {
   if (dom.exportMonthlySummaryButton) {
-    dom.exportMonthlySummaryButton.disabled = isSubmitting;
+    dom.exportMonthlySummaryButton.disabled = !activeFilters || isSubmitting;
     dom.exportMonthlySummaryButton.textContent = isSubmitting ? "导出中..." : "月度汇总导出";
   }
   if (dom.exportDutyReportBatchButton) {
-    dom.exportDutyReportBatchButton.disabled = isSubmitting || isDutyReportExportSubmitting;
+    dom.exportDutyReportBatchButton.disabled = !activeFilters || isSubmitting || isDutyReportExportSubmitting;
   }
   if (dom.openGenerateDialogButton) {
-    dom.openGenerateDialogButton.disabled = isSubmitting || isDutyReportExportSubmitting;
+    dom.openGenerateDialogButton.disabled = !activeFilters || isSubmitting || isDutyReportExportSubmitting;
   }
   updatePaymentRequestBatchControls();
 }
@@ -1669,14 +1703,14 @@ function setMonthlyExportSubmitting(isSubmitting) {
 function setDutyReportExportSubmitting(isSubmitting) {
   isDutyReportExportSubmitting = isSubmitting;
   if (dom.exportDutyReportBatchButton) {
-    dom.exportDutyReportBatchButton.disabled = isSubmitting;
+    dom.exportDutyReportBatchButton.disabled = !activeFilters || isSubmitting;
     dom.exportDutyReportBatchButton.textContent = isSubmitting ? "导出中..." : "批量导出勤务申报表";
   }
   if (dom.exportMonthlySummaryButton) {
-    dom.exportMonthlySummaryButton.disabled = isSubmitting;
+    dom.exportMonthlySummaryButton.disabled = !activeFilters || isSubmitting;
   }
   if (dom.openGenerateDialogButton) {
-    dom.openGenerateDialogButton.disabled = isSubmitting;
+    dom.openGenerateDialogButton.disabled = !activeFilters || isSubmitting;
   }
   updatePaymentRequestBatchControls();
 }
@@ -2049,7 +2083,7 @@ function buildWageEmptyStateText(rows) {
 function setGenerateSubmitting(isSubmitting) {
   dom.generateSubmitButton.disabled = isSubmitting;
   dom.generateCancelButton.disabled = isSubmitting;
-  dom.openGenerateDialogButton.disabled = isSubmitting;
+  dom.openGenerateDialogButton.disabled = !activeFilters || isSubmitting;
   dom.generateSubmitButton.textContent = isSubmitting ? "生成中..." : "确认生成";
 }
 
@@ -2091,10 +2125,10 @@ function renderDialogSummaryRow(label, value) {
 function setLoading(isLoading) {
   dom.loadingState.classList.toggle("is-hidden", !isLoading);
   if (dom.exportMonthlySummaryButton) {
-    dom.exportMonthlySummaryButton.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
+    dom.exportMonthlySummaryButton.disabled = !activeFilters || isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
   }
   if (dom.exportDutyReportBatchButton) {
-    dom.exportDutyReportBatchButton.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
+    dom.exportDutyReportBatchButton.disabled = !activeFilters || isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;
   }
   if (dom.openBatchPaymentRequestButton) {
     dom.openBatchPaymentRequestButton.disabled = isLoading || isPaymentRequestSubmitting || isDutyReportExportSubmitting;

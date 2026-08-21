@@ -49,6 +49,7 @@ const CREATE_REIMBURSEMENT_FIELD_IDS = [
   "fromAccount",
   "toAccount",
 ];
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const dom = {};
 let businessEntities = [];
@@ -130,7 +131,8 @@ function bindEvents() {
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
-    applyQuery();
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
 
   dom.openCreateReimbursementButton.addEventListener("click", openCreateReimbursementDialog);
@@ -231,6 +233,16 @@ async function applyQuery() {
   }
 
   applyCurrentFilters();
+  showMessage("success", "报销筛选结果已更新。");
+}
+
+function clearQueryResults() {
+  renderCandidateExpenses([]);
+  renderReimbursements([]);
+  candidateExpenses = [];
+  selectedExpenseIds = new Set();
+  renderCreateCandidateRows([]);
+  updateCreateSummary();
 }
 
 async function loadReimbursementMonth(month) {

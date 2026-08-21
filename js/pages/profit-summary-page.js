@@ -12,6 +12,10 @@ import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
 
 const dom = {};
 let pageData = null;
+let resultRequestId = 0;
+
+const FILTER_PENDING_MESSAGE = "筛选条件已变化；点击“查询”后刷新结果。";
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const REQUIRED_DOM_SELECTORS = {
   messageArea: "#profitSummaryMessageArea",
@@ -62,17 +66,18 @@ function bindEvents() {
     event.preventDefault();
     loadProfitSummary();
   });
-  dom.currencySelect.addEventListener("change", () => {
-    if (pageData) renderSummary(pageData, readFilters());
+  [dom.yearFilter, dom.monthFilter, dom.currencySelect].forEach((control) => {
+    control.addEventListener("change", () => invalidateQueryResults(FILTER_PENDING_MESSAGE));
   });
   dom.resetButton.addEventListener("click", () => {
     setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
     dom.currencySelect.value = "";
-    loadProfitSummary();
+    invalidateQueryResults(FILTER_RESET_MESSAGE);
   });
 }
 
 async function loadProfitSummary() {
+  const requestId = ++resultRequestId;
   const filters = readFilters();
   if (!filters.month) {
     showMessage("error", "请选择有效月份。");
@@ -82,16 +87,27 @@ async function loadProfitSummary() {
   setLoading(true);
   showMessage("info", "正在加载学校整体利润分析数据...");
   try {
-    pageData = await fetchProfitSummaryPageData(filters);
+    const nextPageData = await fetchProfitSummaryPageData(filters);
+    if (requestId !== resultRequestId) return;
+    pageData = nextPageData;
     renderSummary(pageData, filters);
     showMessage("success", "学校整体利润分析数据已加载。");
   } catch (error) {
+    if (requestId !== resultRequestId) return;
     pageData = null;
     renderEmptyState();
     showMessage("error", `读取利润分析数据失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (requestId === resultRequestId) setLoading(false);
   }
+}
+
+function invalidateQueryResults(message) {
+  resultRequestId += 1;
+  pageData = null;
+  renderEmptyState();
+  setLoading(false);
+  showMessage("info", message);
 }
 
 function readFilters() {

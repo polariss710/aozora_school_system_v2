@@ -14,6 +14,7 @@ const EDITABLE_STATUS_OPTIONS = ["active", "inactive"];
 const PRIMARY_CATEGORY_OPTIONS = ["班课", "VIP"];
 const SECONDARY_CATEGORY_OPTIONS = ["学部进学", "大学院进学", "资格考对策", "特殊课程"];
 const CREATE_FIELD_IDS = ["name", "status", "primaryCategory", "category", "sortOrder"];
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const dom = {};
 let allSubjects = [];
@@ -77,11 +78,13 @@ function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
     applyCurrentFilters();
+    showMessage("success", "科目筛选结果已更新。");
   });
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
-    applyCurrentFilters();
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
 
   dom.createButton.addEventListener("click", openCreateDialog);
@@ -177,6 +180,10 @@ function applyCurrentFilters() {
   const filters = readFilters();
   restoreFilterSelections(filters);
   renderSubjects(filterSubjects(allSubjects, filters));
+}
+
+function clearQueryResults() {
+  renderSubjects([]);
 }
 
 function readFilters() {

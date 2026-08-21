@@ -24,7 +24,7 @@ assert.doesNotMatch(page, /学生结算完成 \/ 未完成/);
 assert.doesNotMatch(page, /studentSettlementStatus|studentSettlementMatchedBusiness/);
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 assert.match(html, /<th>工资前置<\/th>/);
-assert.match(html, /wage-duty-report-summary-20260809-1/);
+assert.match(html, /filter-contract-b1-20260822-1/);
 assert.match(html, /wage-effective-prerequisite-stable-loading-20260809-1/);
 assert.match(css, /\.wage-list-panel #wageLoadingState\.is-hidden\s*\{[\s\S]*display:\s*block !important;[\s\S]*visibility:\s*hidden/);
 
