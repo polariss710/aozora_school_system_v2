@@ -38,11 +38,14 @@ const TEACHER_FIELD_IDS = [
   "defaultSubject",
   "status",
 ];
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const dom = {};
 let businessEntities = [];
 let subjects = [];
 let teachers = [];
+let activeFilters = null;
+let resultRequestId = 0;
 let editingTeacher = null;
 let isEditSubmitting = false;
 let isCreateSubmitting = false;
@@ -118,7 +121,8 @@ function bindEvents() {
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
-    loadTeacherData();
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
 
   dom.createButton.addEventListener("click", openCreateDialog);
@@ -180,6 +184,7 @@ async function loadTeacherData() {
   }
 
   const filters = readFilters();
+  const requestId = ++resultRequestId;
   setLoading(true);
   showMessage("info", "正在加载老师管理数据...");
 
@@ -190,6 +195,7 @@ async function loadTeacherData() {
       fetchBusinessEntitiesForTeachers(),
       fetchSubjectsForTeachers(),
     ]);
+    if (requestId !== resultRequestId) return;
 
     businessEntities = businessEntityRows;
     requirePrimarySchoolBusinessEntityId(businessEntities);
@@ -198,19 +204,31 @@ async function loadTeacherData() {
     renderDepartmentOptions(filterRows);
     restoreFilterSelections(filters);
     teachers = teacherRows;
+    activeFilters = { ...filters };
     renderTeachers(filterTeachersByKeyword(teacherRows, filters.keyword));
     showMessage("success", "老师管理数据已加载。");
   } catch (error) {
+    if (requestId !== resultRequestId) return;
     businessEntities = [];
     subjects = [];
     teachers = [];
+    activeFilters = null;
     renderStatusOptions([]);
     renderDepartmentOptions([]);
     renderTeachers([]);
     showMessage("error", `读取老师管理数据失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (requestId === resultRequestId) setLoading(false);
   }
+}
+
+function clearQueryResults() {
+  resultRequestId += 1;
+  activeFilters = null;
+  teachers = [];
+  if (!isEditSubmitting) closeEditDialog({ force: true });
+  renderTeachers([]);
+  setLoading(false);
 }
 
 function readFilters() {

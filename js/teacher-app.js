@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
+import { APP_VERSION } from "./config.js?v=filter-contract-b2-20260822-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initTeacherPage } from "./pages/teacher-page.js?v=be-ui-20260806-1";
+import { initTeacherPage } from "./pages/teacher-page.js?v=filter-contract-b2-20260822-1";
 
 const globalSessionPromise = requireGlobalSession();
 

@@ -1,6 +1,6 @@
 # 顶部筛选栏 Query / Reset 合同
 
-本合同适用于 School V2 页面顶部、以“查询”显式应用筛选的结果型筛选栏。`lesson.html`（课时管理）是当前唯一正向基准；页面将按批次迁移，未列入已完成批次的页面不得据此宣称已修复。
+本合同适用于 School V2 页面顶部、以“查询”显式应用筛选的结果型筛选栏。`lesson.html`（课时管理）是未改动正向基准；页面按批次迁移，未列入已完成批次的页面不得据此宣称已修复。
 
 ## 状态所有权
 
@@ -29,4 +29,14 @@
 
 - 正向基准：课时管理（生产行为保持不变）。
 - Phase B1 已统一：科目管理、老师工资结算、报销管理、利润分析。
-- 其他适用页面仍按后续批次迁移；在各自批次完成并验收前，仍视为未统一。
+- Phase B2 已统一：学生管理、老师管理、账户管理。
+- deprecated legacy exception：Legacy 工资支付（`index.html` / `js/pages/payment-page.js`），理由为 `V3 removal`。正式处置合同为：V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。
+- 其他适用页面仍为 `pending migration`；在各自批次完成并验收前，仍视为未统一。
+- `not applicable` 仅用于确实没有本合同所定义顶部结果筛选栏的页面，不得与 `pending migration` 或 deprecated legacy exception 混用。
+
+截至 Phase B2 的统计：
+
+| 口径 | 适用总数 | compliant | deprecated legacy exception | pending migration | not applicable |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| HTML 页面 | 18 | 8 | 1 | 9 | 0 |
+| 路由视图（`part-time-work.html` 拆为两个视图） | 19 | 8 | 1 | 10 | 0 |

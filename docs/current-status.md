@@ -1,5 +1,7 @@
 # Current Status
 
+- 2026-08-22 全局顶部筛选栏 P0 合同 Phase B2 已完成实现：学生管理、老师管理、账户管理的 reset 现恢复默认 draft 后清空主列表、计数、选择/弹窗上下文与结果依赖操作状态，显示精确等待查询文案，且通过请求序号阻止 reset 后旧异步 reader 回填；账户页应用类型 change 只更新草稿候选并提示等待查询，不再调用主 reader 或缓存重绘，其他顶部 change 同样不应用新结果。显式查询和 writer 成功后的既有业务刷新仍保留。Legacy 工资支付登记为 `deprecated legacy exception / V3 removal`：V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。Phase B2 后 HTML 页面为合规8、Legacy例外1、待迁移9；路由视图为合规8、例外1、待迁移10。生产版本提升为 `v10.5.58`。本阶段未修改 Legacy 文件、DB/RPC/Edge/权限或业务数据，生产 writer 验收禁止执行。
+
 - 2026-08-22 全局顶部筛选栏 P0 合同 Phase B1 已完成实现：以课时管理为未改动正向基准，科目管理、老师工资结算、报销管理和利润分析的 reset 均恢复默认控件后清空主结果、统计/计数、选择及结果依赖操作状态，显示精确等待查询文案，且不调用主结果 reader 或缓存重绘；利润页年月/币种 change 也只失效清空，显式查询继续复用既有缓存/reader。新增参数化合同测试骨架并按 auxiliaryReader/mainResultReader/writer 分层，生产版本提升为 `v10.5.57`。完整合同见 `docs/filter-query-reset-contract.md`；其他适用页面仍待后续批次迁移。本阶段未修改 DB/RPC/Edge/权限或业务数据，生产 writer 验收禁止执行。
 
 - 2026-08-21 契约书、报价单/课程计划和学费收据的打印登录信息泄露已修复并上线：公共`@media print`隐藏清单精确加入`#globalSessionBar`的`display:none !important`，屏幕`.global-session-bar`、`requireGlobalSession()`、active membership/角色/跳转/token refresh/fail-closed及三条`window.print()`业务链均未改。三页`app.css`、app模块及config缓存键统一为`print-session-bar-privacy-20260821-1`，生产版本`v10.5.56`。契约2页、两月报价2页、既有Cash确认学费收据1页均为A4，文本层逐页无登录邮箱、管理员/操作员/只读和“退出”，Poppler逐页视觉确认正文/表格/汇总/签名完整且无浮层、圆角框、阴影、裁切或分页漂移；开启Chrome页眉页脚的报价对照只出现时间、URL和页码，仍无session内容。实现`0767630/acc376d`，Pages runs `32405073963/32405317240`成功；PDF/PNG/脚本和本地server已清理，School DB仅1条SELECT、RPC/DB写入0，Cash/Home/Edge/P0及21个既有untracked文件不变。详见`docs/school-v2-print-session-bar-privacy-fix-20260821.md`。

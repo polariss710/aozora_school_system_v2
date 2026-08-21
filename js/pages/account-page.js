@@ -26,6 +26,8 @@ const DEFAULT_FILTERS = {
   accountId: "",
   currency: "",
 };
+const FILTER_PENDING_MESSAGE = "筛选条件已变化；点击“查询”后刷新结果。";
+const FILTER_RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 
 const TRANSACTION_TYPE_LABELS = {
   account_adjustment: "账户调整",
@@ -91,6 +93,8 @@ const dom = {};
 let accounts = [];
 let businessEntities = [];
 let transactions = [];
+let activeFilters = null;
+let resultRequestId = 0;
 let editingAccount = null;
 let isAccountCreateSubmitting = false;
 let isAccountProfileSubmitting = false;
@@ -103,6 +107,7 @@ export function initAccountPage() {
   populateMonthSelect(dom.monthFilter);
   setDefaultFilters();
   bindEvents();
+  updateQueryResultActionControls();
 
   if (!hasSupabaseConfig()) {
     showMessage(
@@ -191,11 +196,17 @@ function bindEvents() {
 
   dom.resetButton.addEventListener("click", () => {
     setDefaultFilters();
-    loadAccountData();
+    refreshAccountFilterOptionsForDraft();
+    clearQueryResults();
+    showMessage("info", FILTER_RESET_MESSAGE);
   });
   dom.appTypeSelect.addEventListener("change", () => {
     dom.accountSelect.value = "";
-    loadAccountData();
+    refreshAccountFilterOptionsForDraft();
+    markQueryPending();
+  });
+  [dom.yearFilter, dom.monthFilter, dom.accountSelect, dom.currencySelect].forEach((control) => {
+    control.addEventListener("change", markQueryPending);
   });
 
   dom.openAccountCreateButton.addEventListener("click", openAccountCreateDialog);
@@ -337,6 +348,7 @@ async function loadAccountData() {
     return;
   }
 
+  const requestId = ++resultRequestId;
   setLoading(true);
   showMessage("info", "正在加载账户管理数据...");
 
@@ -346,6 +358,7 @@ async function loadAccountData() {
       fetchBusinessEntitiesForAccounts(),
       fetchAccountTransactions(filters),
     ]);
+    if (requestId !== resultRequestId) return;
 
     accounts = accountRows;
     businessEntities = businessEntityRows;
@@ -354,20 +367,60 @@ async function loadAccountData() {
 
     renderAccountOptions(filterAccountsForOptionSelect(accounts, filters));
     restoreFilterSelections(filters);
+    activeFilters = { ...filters };
     renderAccounts(filterAccountsForDisplay(accounts, filters));
     renderTransactions(transactions);
+    updateQueryResultActionControls();
     showMessage("success", "账户管理数据已加载。");
   } catch (error) {
+    if (requestId !== resultRequestId) return;
     accounts = [];
     businessEntities = [];
     transactions = [];
+    activeFilters = null;
     renderAccountOptions([]);
     renderAccounts([]);
     renderTransactions([]);
+    updateQueryResultActionControls();
     showMessage("error", `读取账户管理数据失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (requestId === resultRequestId) setLoading(false);
   }
+}
+
+function markQueryPending() {
+  showMessage("info", FILTER_PENDING_MESSAGE);
+}
+
+function refreshAccountFilterOptionsForDraft() {
+  const filters = readFilters();
+  if (!filters) return;
+  renderAccountOptions(filterAccountsForOptionSelect(accounts, filters));
+  dom.accountSelect.value = "";
+}
+
+function clearQueryResults() {
+  resultRequestId += 1;
+  activeFilters = null;
+  transactions = [];
+
+  if (!isAccountProfileSubmitting) closeAccountProfileDialog({ force: true });
+  if (!isTransferSubmitting) closeAccountTransferDialog();
+  if (!isAdjustmentSubmitting) closeAccountAdjustmentDialog();
+  dom.accountTransferFromAccountSelect.value = "";
+  dom.accountTransferToAccountSelect.value = "";
+  dom.accountAdjustmentAccountSelect.value = "";
+
+  renderAccounts([]);
+  renderTransactions([]);
+  setLoading(false);
+  updateQueryResultActionControls();
+}
+
+function updateQueryResultActionControls() {
+  const disabled = !activeFilters;
+  dom.openAccountTransferButton.disabled = disabled;
+  dom.openAccountAdjustmentButton.disabled = disabled;
 }
 
 function readFilters() {

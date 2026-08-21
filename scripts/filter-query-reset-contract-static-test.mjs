@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
 const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
-const CACHE_KEY = "filter-contract-b1-20260822-1";
+const B1_CACHE_KEY = "filter-contract-b1-20260822-1";
+const B2_CACHE_KEY = "filter-contract-b2-20260822-1";
 
 const pages = [
   {
@@ -21,7 +22,7 @@ const pages = [
     auxiliaryReaders: ["fetchStudentMonthCandidates", "refreshTopStudentCandidatesFromControls"],
     mainResultReaders: ["fetchLessonRecords", "loadLessonMonth"],
     writers: ["createPlannedLessonRecord", "generatePlannedLessonsBatch"],
-    cacheKeyRequired: false,
+    cacheKey: null,
   },
   {
     id: "subject",
@@ -39,7 +40,7 @@ const pages = [
     auxiliaryReaders: [],
     mainResultReaders: ["fetchSubjects", "loadSubjectData"],
     writers: ["createSubjectProfile", "updateSubjectProfile"],
-    cacheKeyRequired: true,
+    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "wage",
@@ -63,7 +64,7 @@ const pages = [
     auxiliaryReaders: ["fetchWageStudentMonthCandidates", "fetchWageTeachers", "fetchWageSubjects"],
     mainResultReaders: ["fetchWageLocks", "fetchWageCandidateLessons", "loadWageMonth"],
     writers: ["generateTeacherMonthlyWage", "createTeacherWageExpenseRecord"],
-    cacheKeyRequired: true,
+    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "reimbursement",
@@ -86,7 +87,7 @@ const pages = [
     auxiliaryReaders: ["fetchReimbursementLookups"],
     mainResultReaders: ["fetchReimbursementRecords", "fetchReimbursementCandidateExpenses", "loadReimbursementMonth"],
     writers: ["createReimbursementRecord"],
-    cacheKeyRequired: true,
+    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "profit",
@@ -104,7 +105,84 @@ const pages = [
     auxiliaryReaders: [],
     mainResultReaders: ["fetchProfitSummaryPageData", "loadProfitSummary"],
     writers: [],
-    cacheKeyRequired: true,
+    cacheKey: B1_CACHE_KEY,
+  },
+  {
+    id: "student",
+    label: "学生管理",
+    html: "student.html",
+    app: "js/student-app.js",
+    page: "js/pages/student-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /activeFilters = null/,
+      /students = \[\]/,
+      /closeEditDialog\(\{ force: true \}\)/,
+      /closeStatusTransitionDialog\(\{ force: true \}\)/,
+      /closeStatusHistoryDialog\(\)/,
+      /closeStatusCorrectionDialog\(\{ force: true \}\)/,
+      /renderStudents\(\[\]\)/,
+    ],
+    queryFunction: "loadStudentData",
+    queryPatterns: [/fetchStudents\(filters\)/, /fetchStudentStatusManagement\(\)/, /activeFilters = \{ \.\.\.filters \}/, /renderStudents\(/],
+    auxiliaryReaders: ["fetchStudentFilterOptions", "fetchBusinessEntitiesForStudents"],
+    mainResultReaders: ["fetchStudents", "fetchStudentStatusManagement", "loadStudentData"],
+    writers: ["createStudentProfile", "updateStudentProfile", "transitionStudentStatus", "correctStudentStatusEvent"],
+    cacheKey: B2_CACHE_KEY,
+  },
+  {
+    id: "teacher",
+    label: "老师管理",
+    html: "teacher.html",
+    app: "js/teacher-app.js",
+    page: "js/pages/teacher-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [/activeFilters = null/, /teachers = \[\]/, /closeEditDialog\(\{ force: true \}\)/, /renderTeachers\(\[\]\)/],
+    queryFunction: "loadTeacherData",
+    queryPatterns: [/fetchTeachers\(filters\)/, /activeFilters = \{ \.\.\.filters \}/, /renderTeachers\(/],
+    auxiliaryReaders: ["fetchTeacherFilterOptions", "fetchBusinessEntitiesForTeachers", "fetchSubjectsForTeachers"],
+    mainResultReaders: ["fetchTeachers", "loadTeacherData"],
+    writers: ["createTeacherProfile", "updateTeacherProfile"],
+    cacheKey: B2_CACHE_KEY,
+  },
+  {
+    id: "account",
+    label: "账户管理",
+    html: "account.html",
+    app: "js/account-app.js",
+    page: "js/pages/account-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /activeFilters = null/,
+      /transactions = \[\]/,
+      /renderAccounts\(\[\]\)/,
+      /renderTransactions\(\[\]\)/,
+      /accountTransferFromAccountSelect\.value = ""/,
+      /accountTransferToAccountSelect\.value = ""/,
+      /accountAdjustmentAccountSelect\.value = ""/,
+      /updateQueryResultActionControls\(\)/,
+    ],
+    queryFunction: "loadAccountData",
+    queryPatterns: [
+      /fetchAccounts\(\)/,
+      /fetchAccountTransactions\(filters\)/,
+      /activeFilters = \{ \.\.\.filters \}/,
+      /renderAccounts\(/,
+      /renderTransactions\(/,
+    ],
+    auxiliaryReaders: ["fetchBusinessEntitiesForAccounts"],
+    mainResultReaders: ["fetchAccounts", "fetchAccountTransactions", "loadAccountData"],
+    writers: ["createAccountProfile", "updateAccountProfile", "createAccountTransfer", "createAccountAdjustment"],
+    cacheKey: B2_CACHE_KEY,
   },
 ];
 
@@ -198,9 +276,9 @@ for (const page of pages) {
     `${page.label}: reader classifications overlap`
   );
 
-  if (page.cacheKeyRequired) {
-    assert.ok(html.includes(CACHE_KEY), `${page.label}: HTML cache key missing`);
-    assert.ok(app.includes(CACHE_KEY), `${page.label}: app cache key missing`);
+  if (page.cacheKey) {
+    assert.ok(html.includes(page.cacheKey), `${page.label}: HTML cache key missing`);
+    assert.ok(app.includes(page.cacheKey), `${page.label}: app cache key missing`);
   }
 
   const state = new ContractState(page.id === "lesson" || page.id === "profit");
@@ -235,8 +313,57 @@ assert.doesNotMatch(wageSource, /dom\.(?:yearFilter|monthFilter|teacherSelect|st
 const reimbursementSource = read("js/pages/reimbursement-page.js");
 assert.doesNotMatch(reimbursementSource, /dom\.(?:yearFilter|monthFilter|fromAccountSelect|toAccountSelect|currencySelect|statusSelect|hasItemsSelect|hasTransactionsSelect|keywordInput)\.addEventListener\("(?:change|input)"[\s\S]{0,160}(?:applyQuery|applyCurrentFilters|renderReimbursements|renderCandidateExpenses)\(/);
 
+const studentSource = read("js/pages/student-page.js");
+assert.doesNotMatch(studentSource, /dom\.(?:keywordInput|statusSelect|courseTrackSelect|activeSelect)\.addEventListener\("(?:change|input)"[\s\S]{0,160}(?:loadStudentData|renderStudents)\(/);
+
+const teacherSource = read("js/pages/teacher-page.js");
+assert.doesNotMatch(teacherSource, /dom\.(?:keywordInput|statusSelect|departmentSelect)\.addEventListener\("(?:change|input)"[\s\S]{0,160}(?:loadTeacherData|renderTeachers)\(/);
+
+const accountSource = read("js/pages/account-page.js");
+const accountAppTypeHandler = accountSource.match(/dom\.appTypeSelect\.addEventListener\("change", \(\) => \{([\s\S]*?)\n  \}\);/);
+assert.ok(accountAppTypeHandler, "账户管理: appType change handler missing");
+assert.match(accountAppTypeHandler[1], /refreshAccountFilterOptionsForDraft\(\)/);
+assert.match(accountAppTypeHandler[1], /markQueryPending\(\)/);
+assert.doesNotMatch(accountAppTypeHandler[1], /(?:loadAccountData|renderAccounts|renderTransactions)\(/);
+assert.doesNotMatch(accountAppTypeHandler[1], /fetch(?:Accounts|BusinessEntitiesForAccounts|AccountTransactions)\(/);
+
+const migrationCounts = {
+  htmlPages: { applicable: 18, compliant: 8, deprecatedLegacyException: 1, pendingMigration: 9, notApplicable: 0 },
+  routeViews: { applicable: 19, compliant: 8, deprecatedLegacyException: 1, pendingMigration: 10, notApplicable: 0 },
+};
+const legacyExceptions = [
+  {
+    id: "legacy-wage-payment",
+    html: "index.html",
+    page: "js/pages/payment-page.js",
+    status: "deprecated_legacy_exception",
+    reason: "V3 removal",
+    contract: "V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。",
+  },
+];
+assert.deepEqual(migrationCounts.htmlPages, {
+  applicable: 18,
+  compliant: 8,
+  deprecatedLegacyException: 1,
+  pendingMigration: 9,
+  notApplicable: 0,
+});
+assert.deepEqual(migrationCounts.routeViews, {
+  applicable: 19,
+  compliant: 8,
+  deprecatedLegacyException: 1,
+  pendingMigration: 10,
+  notApplicable: 0,
+});
+assert.equal(legacyExceptions.length, 1);
+assert.equal(legacyExceptions[0].status, "deprecated_legacy_exception");
+assert.equal(legacyExceptions[0].reason, "V3 removal");
+assert.equal(legacyExceptions[0].contract, "V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。");
+assert.doesNotThrow(() => read(legacyExceptions[0].html));
+assert.doesNotThrow(() => read(legacyExceptions[0].page));
+
 const config = read("js/config.js");
-assert.match(config, /APP_VERSION = "v10\.5\.57"/);
+assert.match(config, /APP_VERSION = "v10\.5\.58"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);
@@ -244,4 +371,9 @@ for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".
   assert.doesNotMatch(source, /\.from\s*\([^)]*\)\s*\.\s*(?:insert|update|delete|upsert)\s*\(/, `page-layer DML regression: ${pageFile}`);
 }
 
-console.log("FILTER_QUERY_RESET_CONTRACT_STATIC_TEST_PASS");
+console.log(
+  "FILTER_QUERY_RESET_CONTRACT_STATIC_TEST_PASS",
+  "classifications=compliant,pending_migration,deprecated_legacy_exception,not_applicable",
+  "html=18/8/1/9/0",
+  "route_views=19/8/1/10/0"
+);
