@@ -52,7 +52,7 @@ assert.match(page, /<td><span class="status-badge status-neutral">\$\{escapeHtml
 
 assert.match(html, /filter-contract-b1-20260822-1/);
 assert.match(app, /filter-contract-b1-20260822-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.59"/);
+assert.match(config, /APP_VERSION = "v10\.5\.60"/);
 assert.doesNotMatch(page, /(?:yearFilter|monthFilter|includeInactiveCheckbox).*addEventListener\("change"/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-|\.lesson-filter-panel[^\n{]*\.wage-/);
 

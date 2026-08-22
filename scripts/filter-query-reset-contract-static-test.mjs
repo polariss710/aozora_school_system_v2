@@ -5,6 +5,7 @@ const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果
 const B1_CACHE_KEY = "filter-contract-b1-20260822-1";
 const B2_CACHE_KEY = "filter-contract-b2-20260822-1";
 const B3_CACHE_KEY = "filter-contract-b3-20260822-1";
+const B4_CACHE_KEY = "filter-contract-b4-20260822-1";
 
 const pages = [
   {
@@ -312,6 +313,50 @@ const pages = [
     writers: [],
     cacheKey: B3_CACHE_KEY,
   },
+  {
+    id: "part-time-work",
+    label: "PTW授课记录与授课结算共享视图",
+    html: "part-time-work.html",
+    app: "js/part-time-work-app.js",
+    page: "js/pages/part-time-work-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /normalizePartTimeWorkFilters\(\{\}, currentYearMonth\(\), WORKPLACE_OPTIONS\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /pageDataRequestSequence \+= 1/,
+      /appliedFilters = null/,
+      /lessons = \[\]/,
+      /wageLessons = \[\]/,
+      /settlements = \[\]/,
+      /editingLesson = null/,
+      /pendingIncomeGenerationSettlement = null/,
+      /lessonColumns\.innerHTML = ""/,
+      /wageCalculationContainer\.innerHTML = ""/,
+      /setLoading\(false\)/,
+    ],
+    queryFunction: "loadPageData",
+    queryPatterns: [
+      /const requestId = \+\+pageDataRequestSequence/,
+      /fetchPartTimeWorkLessons\(/,
+      /fetchPartTimeWorkMonthlySettlements\(/,
+      /renderVisibleLessons\(/,
+      /renderWageCalculation\(/,
+      /requestId !== pageDataRequestSequence/,
+    ],
+    auxiliaryReaders: [],
+    mainResultReaders: ["fetchPartTimeWorkLessons", "fetchPartTimeWorkMonthlySettlements", "loadPageData"],
+    writers: [
+      "createPartTimeWorkPlannedLesson",
+      "updatePartTimeWorkLesson",
+      "generatePartTimeWorkActualFromPlanned",
+      "deletePartTimeWorkLesson",
+      "lockPartTimeWorkMonthlySettlement",
+      "unlockPartTimeWorkMonthlySettlement",
+      "createPartTimeWorkIncomeRequest",
+    ],
+    cacheKey: B4_CACHE_KEY,
+  },
 ];
 
 function read(path) {
@@ -474,12 +519,10 @@ assert.match(annualChangeHandler[1], /updateYearUrl\(selectedFiscalYear\(\)\)/);
 assert.doesNotMatch(annualChangeHandler[1], /(?:loadAnnualSummary|fetchPartTimeWorkAnnualSummary|renderAnnualSummary)\(/);
 
 const migrationCounts = {
-  htmlPages: { applicable: 18, compliant: 13, deprecatedLegacyException: 1, pendingMigration: 4, notApplicable: 0 },
-  routeViews: { applicable: 19, compliant: 13, deprecatedLegacyException: 1, pendingMigration: 5, notApplicable: 0 },
+  htmlPages: { applicable: 18, compliant: 14, deprecatedLegacyException: 1, pendingMigration: 3, notApplicable: 0 },
+  routeViews: { applicable: 19, compliant: 15, deprecatedLegacyException: 1, pendingMigration: 3, notApplicable: 0 },
 };
 const pendingMigrations = [
-  "part-time-work-lesson",
-  "part-time-work-settlement",
   "weekly-timetable-image",
   "classroom-scheduling",
   "weekly-lesson-pending",
@@ -496,20 +539,20 @@ const legacyExceptions = [
 ];
 assert.deepEqual(migrationCounts.htmlPages, {
   applicable: 18,
-  compliant: 13,
+  compliant: 14,
   deprecatedLegacyException: 1,
-  pendingMigration: 4,
+  pendingMigration: 3,
   notApplicable: 0,
 });
 assert.deepEqual(migrationCounts.routeViews, {
   applicable: 19,
-  compliant: 13,
+  compliant: 15,
   deprecatedLegacyException: 1,
-  pendingMigration: 5,
+  pendingMigration: 3,
   notApplicable: 0,
 });
 assert.equal(legacyExceptions.length, 1);
-assert.equal(pendingMigrations.length, 5);
+assert.equal(pendingMigrations.length, 3);
 assert.equal(legacyExceptions[0].status, "deprecated_legacy_exception");
 assert.equal(legacyExceptions[0].reason, "V3 removal");
 assert.equal(legacyExceptions[0].contract, "V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。");
@@ -517,7 +560,7 @@ assert.doesNotThrow(() => read(legacyExceptions[0].html));
 assert.doesNotThrow(() => read(legacyExceptions[0].page));
 
 const config = read("js/config.js");
-assert.match(config, /APP_VERSION = "v10\.5\.59"/);
+assert.match(config, /APP_VERSION = "v10\.5\.60"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);
@@ -528,6 +571,6 @@ for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".
 console.log(
   "FILTER_QUERY_RESET_CONTRACT_STATIC_TEST_PASS",
   "classifications=compliant,pending_migration,deprecated_legacy_exception,not_applicable",
-  "html=18/13/1/4/0",
-  "route_views=19/13/1/5/0"
+  "html=18/14/1/3/0",
+  "route_views=19/15/1/3/0"
 );

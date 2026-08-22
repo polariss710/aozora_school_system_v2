@@ -31,13 +31,21 @@
 - Phase B1 已统一：科目管理、老师工资结算、报销管理、利润分析。
 - Phase B2 已统一：学生管理、老师管理、账户管理。
 - Phase B3 已统一：学生月度结算、工资规则、收入记录、支出记录、外部授课年度汇总。
+- Phase B4 已统一：PTW 授课记录（`part-time-work.html?view=lessons`）与授课结算（`part-time-work.html?view=settlement`）共享视图。两者共用 `lessons`、`wageLessons`、`settlements` 和一次三-reader 请求生命周期；reset 同时失效请求、清空两侧缓存/DOM/结果上下文，保留 `view` 与两套独立折叠 Set。显式 Query 重新使用保存的 display state，writer 成功后的保留折叠刷新仍是独立业务动作。
 - deprecated legacy exception：Legacy 工资支付（`index.html` / `js/pages/payment-page.js`），理由为 `V3 removal`。正式处置合同为：V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。
-- `pending migration`：PTW 授课记录、PTW 月度结算、周课表图片、教室排课、本周待处理课时；前两项共用一个 HTML 路由，因此为 4 个 HTML 页面 / 5 个路由视图。
+- `pending migration`：周课表图片、教室排班、本周课时待处理。
 - `not applicable` 仅用于确实没有本合同所定义顶部结果筛选栏的页面，不得与 `pending migration` 或 deprecated legacy exception 混用。
 
-截至 Phase B3 的统计：
+截至 Phase B4 的统计：
 
 | 口径 | 适用总数 | compliant | deprecated legacy exception | pending migration | not applicable |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| HTML 页面 | 18 | 13 | 1 | 4 | 0 |
-| 路由视图（`part-time-work.html` 拆为两个视图） | 19 | 13 | 1 | 5 | 0 |
+| HTML 页面 | 18 | 14 | 1 | 3 | 0 |
+| 路由视图（`part-time-work.html` 拆为两个视图） | 19 | 15 | 1 | 3 | 0 |
+
+## PTW Phase B4 URL 与历史合同
+
+- 旧 PTW 专项合同刻意规定 reset 的 reader/render/URL effect 都为 0，并保留旧主 DOM、旧 applied URL 与短提示；这些保护已由 Phase B4 撤销，历史提交仍保留审计证据。
+- PTW 正常查询 URL 表示 applied filters；reset 是例外的明确等待态：以 `history.replaceState()` 写入默认 draft 年月、删除旧 `workplace_name` / `class_description`，保留当前 `view`，同时将 `appliedFilters` 设为 `null` 并清空双视图结果。URL 改变不触发 reader，也不产生 document navigation。
+- 显式 Query 会把当前 draft 设为 applied、以 `pushState()` 同步 URL 并读取两次授课记录和一次月结结果；同页 `popstate` 按 URL 恢复并查询，整页手动刷新按首次加载合同查询。因此 reset 后页面本身保持空结果，浏览器历史恢复或手动刷新则是可解释的新读取，不会复用旧缓存。
+- `fetchPartTimeWorkLessons`（筛选记录及整月工资记录）和 `fetchPartTimeWorkMonthlySettlements` 是主 reader；顶部筛选无 auxiliary reader。`fetchPartTimeWorkSettlementExport` 是用户显式导出的结果依赖 reader，不属于顶部 auxiliary reader。创建/修改/生成/删除授课记录、锁定/解锁结算和生成收入记录均为 writer，reset 不调用它们。

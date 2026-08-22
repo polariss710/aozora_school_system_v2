@@ -73,7 +73,7 @@ assert.doesNotMatch(css, /\.income-filter-panel[^\n{]*\.expense-filter-|\.wage-f
 assert.match(api, /export async function fetchExpenseRecords\(month\)/);
 assert.match(html, /filter-contract-b3-20260822-1/);
 assert.match(app, /filter-contract-b3-20260822-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.59"/);
+assert.match(config, /APP_VERSION = "v10\.5\.60"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 assert.doesNotMatch(filterMarkup, /业务归属|个人名义|business_entity_id/);
 

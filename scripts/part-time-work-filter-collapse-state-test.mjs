@@ -40,11 +40,16 @@ assert.deepEqual(
 
 const resetHandler = page.match(/dom\.resetButton\.addEventListener\("click", \(\) => \{([\s\S]*?)\n  \}\);/)?.[1] || "";
 const loadHandler = page.match(/async function loadPageData\(options\) \{([\s\S]*?)\n\}/)?.[1] || "";
-const queryLoadHandler = page.match(/function loadPageDataForQuery\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
+const queryLoadHandler = page.match(/function loadPageDataForQuery\([^)]*\) \{([\s\S]*?)\n\}/)?.[1] || "";
 const mutationRefreshHandler = page.match(/function refreshPageDataAfterMutation\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
 const collapseHandler = page.match(/function applyAppliedFilterCollapseState\([\s\S]*?\n\}/)?.[0] || "";
+const clearHandler = page.match(/function clearQueryResults\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
+const submitHandler = page.match(/dom\.filterForm\.addEventListener\("submit", \(event\) => \{([\s\S]*?)\n  \}\);/)?.[1] || "";
 
 assert.match(queryLoadHandler, /CANONICAL_FROM_FILTERS/);
+assert.match(queryLoadHandler, /PRESERVE_CURRENT/);
+assert.match(queryLoadHandler, /preserveCollapseState/);
+assert.match(submitHandler, /loadPageDataForQuery\(\{ preserveCollapseState: true \}\)/);
 assert.match(mutationRefreshHandler, /PRESERVE_CURRENT/);
 assert.match(loadHandler, /assertPartTimeWorkCollapsePolicy\(collapsePolicy\)/);
 assert.match(loadHandler, /collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES\.CANONICAL_FROM_FILTERS/);
@@ -52,8 +57,10 @@ assert.match(loadHandler, /collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES\.
 assert.match(collapseHandler, /replaceSetContents\(expandedWorkplaces/);
 assert.match(collapseHandler, /replaceSetContents\(collapsedWageWorkplaces/);
 assert.doesNotMatch(page, /expandSelectedWorkplace/);
+assert.match(resetHandler, /clearQueryResults\(\)/);
 assert.doesNotMatch(resetHandler, /applyAppliedFilterCollapseState|expandedWorkplaces|collapsedWageWorkplaces|loadPageData|loadPageDataForQuery|refreshPageDataAfterMutation|renderVisibleLessons|renderWageCalculation/);
-assert.match(resetHandler, /showMessage\("success", "已重置筛选条件"\)/);
+assert.doesNotMatch(clearHandler, /expandedWorkplaces|collapsedWageWorkplaces|renderedLessonWorkplaceKeys|renderedWageWorkplaceKeys/);
+assert.match(resetHandler, /showMessage\("success", "已重置筛选条件；点击“查询”后刷新结果。"\)/);
 assert.equal([...page.matchAll(/\bloadPageData\(/g)].length, 3, "raw loadPageData is limited to its definition and two semantic wrappers");
 
 assert.equal(

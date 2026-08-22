@@ -31,7 +31,7 @@ import {
   partTimeWorkFiltersFromUrl,
   preservePartTimeWorkCollapseState,
   resolvePartTimeWorkSettlementYearMonth,
-} from "../utils/part-time-work-filter-state.js?v=ptw-p1-b2-mutation-collapse-20260818-1";
+} from "../utils/part-time-work-filter-state.js?v=filter-contract-b4-20260822-1";
 import { formatCurrency, safeText } from "../utils/format.js";
 
 const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];
@@ -95,11 +95,8 @@ const expandedWorkplaces = new Set();
 const collapsedWageWorkplaces = new Set(WORKPLACE_OPTIONS);
 const renderedLessonWorkplaceKeys = new Set(WORKPLACE_OPTIONS);
 const renderedWageWorkplaceKeys = new Set(WORKPLACE_OPTIONS);
-const appliedFilters = {
-  yearMonth: "",
-  workplaceName: "",
-  classDescription: "",
-};
+let appliedFilters = null;
+let pageDataRequestSequence = 0;
 
 export async function initPartTimeWorkPage() {
   const initialView = partTimeWorkViewFromUrl();
@@ -187,8 +184,8 @@ function bindEvents() {
   dom.filterForm.addEventListener("submit", (event) => {
     event.preventDefault();
     applyDraftFilters();
-    syncAppliedFiltersToUrl({ push: true });
-    loadPageDataForQuery();
+    syncFiltersToUrl(readAppliedFilters(), { push: true });
+    loadPageDataForQuery({ preserveCollapseState: true });
   });
   dom.workplaceFilter.addEventListener("change", () => {
     clearFieldInvalid(dom.workplaceFilter);
@@ -197,12 +194,15 @@ function bindEvents() {
   });
 
   dom.resetButton.addEventListener("click", () => {
-    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, currentYearMonth());
+    const defaultFilters = normalizePartTimeWorkFilters({}, currentYearMonth(), WORKPLACE_OPTIONS);
+    setYearMonthSelectValue(dom.yearFilter, dom.monthFilter, defaultFilters.yearMonth);
     dom.workplaceFilter.value = "";
     dom.classDescriptionFilter.value = "";
-    renderClassDescriptionOptions(wageLessons, "", "");
+    renderClassDescriptionOptions([], "", "");
     clearFilterInvalidFields();
-    showMessage("success", "已重置筛选条件");
+    syncFiltersToUrl(defaultFilters);
+    clearQueryResults();
+    showMessage("success", "已重置筛选条件；点击“查询”后刷新结果。");
   });
 
   dom.classDescriptionFilter.addEventListener("change", () => {
@@ -248,9 +248,12 @@ function bindEvents() {
 
 }
 
-function loadPageDataForQuery() {
+function loadPageDataForQuery({ preserveCollapseState = false } = {}) {
   return loadPageData({
-    collapsePolicy: PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS,
+    collapsePolicy: preserveCollapseState
+      ? PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT
+      : PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS,
+    isMutationRefresh: false,
     syncDraftFilters: true,
   });
 }
@@ -258,12 +261,14 @@ function loadPageDataForQuery() {
 function refreshPageDataAfterMutation() {
   return loadPageData({
     collapsePolicy: PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT,
+    isMutationRefresh: true,
     syncDraftFilters: false,
   });
 }
 
 async function loadPageData(options) {
   const collapsePolicy = options?.collapsePolicy;
+  const isMutationRefresh = options?.isMutationRefresh === true;
   const syncDraftFilters = options?.syncDraftFilters === true;
   assertPartTimeWorkCollapsePolicy(collapsePolicy);
   if (!isLoggedIn()) {
@@ -274,15 +279,24 @@ async function loadPageData(options) {
   }
 
   const filters = readAppliedFilters();
+  if (!filters) {
+    if (isMutationRefresh) {
+      showMessage("error", "保存已成功，但页面刷新失败。请重新查询确认，不要重复提交。");
+    }
+    return;
+  }
+  const requestId = ++pageDataRequestSequence;
   const preservedCollapseState = collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT
     ? snapshotPartTimeWorkCollapseState()
     : null;
   if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS) {
     applyAppliedFilterCollapseState(filters);
+  }
+  if (!isMutationRefresh) {
     updateMonthScopedNavigation(filters.yearMonth);
   }
   setLoading(true);
-  if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.CANONICAL_FROM_FILTERS) {
+  if (!isMutationRefresh) {
     showMessage("", "");
   }
 
@@ -295,11 +309,14 @@ async function loadPageData(options) {
       fetchPartTimeWorkLessons({ yearMonth: filters.yearMonth }),
       fetchPartTimeWorkMonthlySettlements({ yearMonth: filters.yearMonth }),
     ]);
+    if (requestId !== pageDataRequestSequence) {
+      return;
+    }
     lessons = lessonRows || [];
     wageLessons = wageLessonRows || [];
     settlements = settlementRows || [];
     const classDescription = normalizedAppliedClassDescription(filters);
-    if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT) {
+    if (isMutationRefresh) {
       applyPreservedPartTimeWorkCollapseState(preservedCollapseState);
     }
     if (syncDraftFilters) {
@@ -308,7 +325,10 @@ async function loadPageData(options) {
     renderVisibleLessons({ ...filters, classDescription });
     renderWageCalculation(wageLessons, settlements);
   } catch (error) {
-    if (collapsePolicy === PART_TIME_WORK_COLLAPSE_POLICIES.PRESERVE_CURRENT) {
+    if (requestId !== pageDataRequestSequence) {
+      return;
+    }
+    if (isMutationRefresh) {
       showMessage("error", "保存已成功，但页面刷新失败。请重新查询确认，不要重复提交。");
     } else {
       lessons = [];
@@ -320,8 +340,30 @@ async function loadPageData(options) {
       showMessage("error", `私塾打工数据读取失败：${error.message || error}`);
     }
   } finally {
-    setLoading(false);
+    if (requestId === pageDataRequestSequence) {
+      setLoading(false);
+    }
   }
+}
+
+function clearQueryResults() {
+  pageDataRequestSequence += 1;
+  appliedFilters = null;
+  lessons = [];
+  wageLessons = [];
+  settlements = [];
+  editingLesson = null;
+  pendingIncomeGenerationSettlement = null;
+  if (!isSubmitting) {
+    closeDialog();
+  }
+  if (!isIncomeGenerationSubmitting) {
+    closeIncomeGenerationConfirmDialog();
+  }
+  dom.lessonColumns.innerHTML = "";
+  dom.wageCalculationContainer.innerHTML = "";
+  dom.emptyState.classList.add("is-hidden");
+  setLoading(false);
 }
 
 function snapshotPartTimeWorkCollapseState() {
@@ -378,17 +420,11 @@ function applyDraftFilters() {
 }
 
 function setAppliedFilters(filters) {
-  appliedFilters.yearMonth = filters.yearMonth;
-  appliedFilters.workplaceName = filters.workplaceName;
-  appliedFilters.classDescription = filters.classDescription;
+  appliedFilters = { ...filters };
 }
 
 function readAppliedFilters() {
-  return {
-    yearMonth: appliedFilters.yearMonth,
-    workplaceName: appliedFilters.workplaceName,
-    classDescription: appliedFilters.classDescription,
-  };
+  return appliedFilters ? { ...appliedFilters } : null;
 }
 
 function syncDraftControlsFromAppliedFilters() {
@@ -401,8 +437,8 @@ function syncDraftControlsFromAppliedFilters() {
   );
 }
 
-function syncAppliedFiltersToUrl({ push = false } = {}) {
-  const url = buildPartTimeWorkFiltersUrl(window.location.href, readAppliedFilters());
+function syncFiltersToUrl(filters, { push = false } = {}) {
+  const url = buildPartTimeWorkFiltersUrl(window.location.href, filters);
   const currentUrl = new URL(window.location.href);
   if (url.href === currentUrl.href) {
     return;
@@ -410,7 +446,7 @@ function syncAppliedFiltersToUrl({ push = false } = {}) {
   const currentState = window.history.state && typeof window.history.state === "object"
     ? window.history.state
     : {};
-  const nextState = { ...currentState, partTimeWorkFilters: readAppliedFilters() };
+  const nextState = { ...currentState, partTimeWorkFilters: { ...filters } };
   if (push) {
     window.history.pushState(nextState, "", url);
   } else {
@@ -426,7 +462,7 @@ async function handleFilterHistoryNavigation() {
   ));
   const view = partTimeWorkViewFromUrl();
   updatePartTimeWorkNavForView(view || "lessons");
-  await loadPageDataForQuery();
+  await loadPageDataForQuery({ preserveCollapseState: true });
   if (view) {
     scrollToPartTimeWorkView(view);
   }

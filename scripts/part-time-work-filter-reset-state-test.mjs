@@ -23,53 +23,125 @@ assert.equal(
 
 const resetHandler = page.match(/dom\.resetButton\.addEventListener\("click", \(\) => \{([\s\S]*?)\n  \}\);/)?.[1] || "";
 const submitHandler = page.match(/dom\.filterForm\.addEventListener\("submit", \(event\) => \{([\s\S]*?)\n  \}\);/)?.[1] || "";
+const clearHandler = page.match(/function clearQueryResults\(\) \{([\s\S]*?)\n\}/)?.[1] || "";
+const loadHandler = page.match(/async function loadPageData\(options\) \{([\s\S]*?)\n\}/)?.[1] || "";
 assert.match(resetHandler, /currentYearMonth\(\)/);
-assert.match(resetHandler, /showMessage\("success", "已重置筛选条件"\)/);
-assert.doesNotMatch(resetHandler, /applyDraftFilters|loadPageData|syncAppliedFiltersToUrl|renderVisibleLessons|renderWageCalculation/);
+assert.match(resetHandler, /syncFiltersToUrl\(defaultFilters\)/);
+assert.match(resetHandler, /clearQueryResults\(\)/);
+assert.match(resetHandler, /showMessage\("success", "已重置筛选条件；点击“查询”后刷新结果。"\)/);
+assert.doesNotMatch(resetHandler, /applyDraftFilters|loadPageData|renderVisibleLessons|renderWageCalculation/);
 assert.match(submitHandler, /applyDraftFilters\(\)/);
-assert.match(submitHandler, /syncAppliedFiltersToUrl\(\{ push: true \}\)/);
+assert.match(submitHandler, /syncFiltersToUrl\(readAppliedFilters\(\), \{ push: true \}\)/);
 assert.match(submitHandler, /loadPageData/);
 assert.doesNotMatch(page, /yearFilter\.addEventListener\("change",\s*updateMonthNavigationFromCurrentSelection/);
 assert.doesNotMatch(page, /monthFilter\.addEventListener\("change",\s*updateMonthNavigationFromCurrentSelection/);
 assert.match(page, /window\.addEventListener\("popstate", handleFilterHistoryNavigation\)/);
 
-const effects = { reader: 0, lessonRender: 0, wageRender: 0, url: 0, writer: 0 };
-let applied = { yearMonth: "2026-07", workplaceName: "致远教育", classDescription: "大学院升学指导" };
-let draft = { ...applied };
-const lessonDom = "<section>2026-07 lessons</section>";
-const wageDom = "<section>2026-07 wages</section>";
-const initialLessonHash = hash(lessonDom);
-const initialWageHash = hash(wageDom);
+for (const pattern of [
+  /pageDataRequestSequence \+= 1/,
+  /appliedFilters = null/,
+  /lessons = \[\]/,
+  /wageLessons = \[\]/,
+  /settlements = \[\]/,
+  /editingLesson = null/,
+  /pendingIncomeGenerationSettlement = null/,
+  /lessonColumns\.innerHTML = ""/,
+  /wageCalculationContainer\.innerHTML = ""/,
+  /setLoading\(false\)/,
+]) {
+  assert.match(clearHandler, pattern);
+}
+assert.doesNotMatch(clearHandler, /expandedWorkplaces|collapsedWageWorkplaces|loadPageData|fetchPartTimeWork|history\.|location\.|\.click\(/);
+assert.match(loadHandler, /const requestId = \+\+pageDataRequestSequence/);
+assert.match(loadHandler, /requestId !== pageDataRequestSequence/);
+assert.match(loadHandler, /requestId === pageDataRequestSequence/);
 
-draft = { yearMonth: "2026-08", workplaceName: "诺应教育", classDescription: "EJU文数" };
-assert.deepEqual(applied, { yearMonth: "2026-07", workplaceName: "致远教育", classDescription: "大学院升学指导" });
-assert.deepEqual(effects, { reader: 0, lessonRender: 0, wageRender: 0, url: 0, writer: 0 });
+function makeState(view) {
+  return {
+    view,
+    draft: { yearMonth: "2026-07", workplaceName: "致远教育", classDescription: "大学院升学指导" },
+    applied: { yearMonth: "2026-07", workplaceName: "致远教育", classDescription: "大学院升学指导" },
+    lessonCache: [{ id: "lesson-old" }],
+    wageLessonCache: [{ id: "wage-old" }],
+    settlementCache: [{ id: "settlement-old" }],
+    lessonDom: "<section>old lessons</section>",
+    settlementDom: "<section>old settlement</section>",
+    selection: "lesson-old",
+    resultContext: "settlement-old",
+    loading: true,
+    expandedLessonWorkplaces: ["致远教育"],
+    collapsedWageWorkplaces: ["诺应教育", "新领域"],
+    requestSequence: 4,
+    reader: 0,
+    writer: 0,
+    navigation: 0,
+    url: `https://school.example/part-time-work.html?view=${view}&year=2026&month=07&workplace_name=%E8%87%B4%E8%BF%9C%E6%95%99%E8%82%B2&class_description=%E5%A4%A7%E5%AD%A6%E9%99%A2%E5%8D%87%E5%AD%A6%E6%8C%87%E5%AF%BC`,
+    message: "ready",
+  };
+}
 
-applied = normalizePartTimeWorkFilters(draft, "2026-08", workplaces);
-effects.reader += 3;
-effects.lessonRender += 1;
-effects.wageRender += 1;
-effects.url += 1;
-assert.deepEqual(applied, draft);
-assert.deepEqual(effects, { reader: 3, lessonRender: 1, wageRender: 1, url: 1, writer: 0 });
+function resetState(state) {
+  const defaultFilters = normalizePartTimeWorkFilters({}, "2026-08", workplaces);
+  state.draft = defaultFilters;
+  state.applied = null;
+  state.lessonCache = [];
+  state.wageLessonCache = [];
+  state.settlementCache = [];
+  state.lessonDom = "";
+  state.settlementDom = "";
+  state.selection = null;
+  state.resultContext = null;
+  state.loading = false;
+  state.requestSequence += 1;
+  state.url = buildPartTimeWorkFiltersUrl(state.url, defaultFilters).href;
+  state.message = "已重置筛选条件；点击“查询”后刷新结果。";
+}
 
-const effectsBeforeReset = { ...effects };
-const urlBeforeReset = "https://school.example/part-time-work.html?view=settlement&year=2026&month=08&workplace_name=%E8%AF%BA%E5%BA%94%E6%95%99%E8%82%B2&class_description=EJU%E6%96%87%E6%95%B0";
-const historyStateBeforeReset = { retained: true, partTimeWorkFilters: { ...applied } };
-draft = { yearMonth: "2026-08", workplaceName: "", classDescription: "" };
-assert.deepEqual(effects, effectsBeforeReset);
-assert.equal(hash(lessonDom), initialLessonHash);
-assert.equal(hash(wageDom), initialWageHash);
-assert.equal(urlBeforeReset, urlBeforeReset);
-assert.deepEqual(historyStateBeforeReset, { retained: true, partTimeWorkFilters: applied });
-assert.equal(applied.yearMonth, "2026-08");
+for (const view of ["lessons", "settlement"]) {
+  const state = makeState(view);
+  const lessonCollapse = [...state.expandedLessonWorkplaces];
+  const wageCollapse = [...state.collapsedWageWorkplaces];
+  const staleRequestId = state.requestSequence;
+  resetState(state);
+  resetState(state);
+  assert.deepEqual(state.draft, { yearMonth: "2026-08", workplaceName: "", classDescription: "" });
+  assert.equal(state.applied, null);
+  assert.deepEqual(state.lessonCache, []);
+  assert.deepEqual(state.wageLessonCache, []);
+  assert.deepEqual(state.settlementCache, []);
+  assert.equal(state.lessonDom, "");
+  assert.equal(state.settlementDom, "");
+  assert.equal(state.selection, null);
+  assert.equal(state.resultContext, null);
+  assert.equal(state.loading, false);
+  assert.equal(new URL(state.url).searchParams.get("view"), view);
+  assert.equal(new URL(state.url).searchParams.get("year"), "2026");
+  assert.equal(new URL(state.url).searchParams.get("month"), "08");
+  assert.equal(new URL(state.url).searchParams.has("workplace_name"), false);
+  assert.equal(new URL(state.url).searchParams.has("class_description"), false);
+  assert.deepEqual(state.expandedLessonWorkplaces, lessonCollapse);
+  assert.deepEqual(state.collapsedWageWorkplaces, wageCollapse);
+  assert.equal(state.reader, 0);
+  assert.equal(state.writer, 0);
+  assert.equal(state.navigation, 0);
+  assert.equal(state.message, "已重置筛选条件；点击“查询”后刷新结果。");
 
-applied = normalizePartTimeWorkFilters(draft, "2026-08", workplaces);
-effects.reader += 3;
-effects.lessonRender += 1;
-effects.wageRender += 1;
-effects.url += 1;
-assert.deepEqual(applied, { yearMonth: "2026-08", workplaceName: "", classDescription: "" });
+  if (staleRequestId === state.requestSequence) {
+    state.lessonDom = "<section>stale lessons</section>";
+    state.settlementDom = "<section>stale settlement</section>";
+  }
+  assert.equal(state.lessonDom, "", `${view}: stale lessons must not repaint`);
+  assert.equal(state.settlementDom, "", `${view}: stale settlement must not repaint`);
+
+  state.applied = { ...state.draft };
+  state.requestSequence += 1;
+  state.reader += 3;
+  state.lessonDom = "<section>fresh lessons</section>";
+  state.settlementDom = "<section>fresh settlement</section>";
+  assert.equal(state.reader, 3);
+  assert.match(state.lessonDom, /fresh/);
+  assert.match(state.settlementDom, /fresh/);
+}
 
 const cold = partTimeWorkFiltersFromUrl(
   "?view=settlement&year=2026&month=07&workplace_name=%E8%87%B4%E8%BF%9C%E6%95%99%E8%82%B2&class_description=%E5%A4%A7%E5%AD%A6%E9%99%A2%E5%8D%87%E5%AD%A6%E6%8C%87%E5%AF%BC",
@@ -112,6 +184,6 @@ assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.part-time-work-filter-pa
 assert.match(html, /<meta name="viewport" content="width=device-width, initial-scale=1">/);
 assert.doesNotMatch(page, /\.rpc\s*\(/);
 assert.doesNotMatch(page, /\.from\s*\([^)]*\)\s*\.\s*(?:insert|update|delete|upsert)\s*\(/);
-assert.equal(effects.writer, 0);
+assert.doesNotMatch(resetHandler, /createPartTimeWork|updatePartTimeWork|generatePartTimeWork|deletePartTimeWork|lockPartTimeWork|unlockPartTimeWork/);
 
 console.log("PTW_P1_B_FILTER_RESET_STATE_TEST_PASS");

@@ -122,7 +122,7 @@ assert.doesNotMatch(page, /supabase\s*\.|\.rpc\s*\(/);
 
 assert.match(css, /\.settlement-registered-variance-card\s*\{[\s\S]*?min-width:\s*0/);
 assert.match(css, /overflow-wrap:\s*anywhere/);
-assert.match(config, /v10\.5\.59/);
+assert.match(config, /v10\.5\.60/);
 assert.match(html, /student-settlement-registered-variance-preview-20260816-1/);
 assert.match(app, /filter-contract-b3-20260822-1/);
 
