@@ -2,7 +2,9 @@ import { fetchLessonStudentsByIds, fetchWeeklyLessonOperations } from "../api/le
 import { safeText } from "../utils/format.js";
 
 const dom = {};
-let students = [];
+const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
+const PENDING_MESSAGE = "筛选条件已变更；点击“查询”后刷新结果。";
+const state = { students: [], rows: [], appliedFilters: null, requestSequence: 0 };
 
 export function initWeeklyLessonDashboardPage() {
   cacheDom();
@@ -17,6 +19,8 @@ function cacheDom() {
   dom.weekStart = document.querySelector("#weeklyLessonDashboardWeekStart");
   dom.previous = document.querySelector("#weeklyLessonDashboardPrevious");
   dom.next = document.querySelector("#weeklyLessonDashboardNext");
+  dom.loadButton = document.querySelector("#weeklyLessonDashboardLoadButton");
+  dom.resetButton = document.querySelector("#weeklyLessonDashboardResetButton");
   dom.rows = document.querySelector("#weeklyLessonDashboardRows");
   dom.empty = document.querySelector("#weeklyLessonDashboardEmpty");
   dom.loading = document.querySelector("#weeklyLessonDashboardLoading");
@@ -27,8 +31,15 @@ function cacheDom() {
 
 function bindEvents() {
   dom.form?.addEventListener("submit", (event) => { event.preventDefault(); loadDashboard(); });
+  dom.weekStart?.addEventListener("change", handleDraftWeekChange);
   dom.previous?.addEventListener("click", () => shiftWeek(-7));
   dom.next?.addEventListener("click", () => shiftWeek(7));
+  dom.resetButton.addEventListener("click", () => {
+    setDefaultFilters();
+    clearQueryResults();
+    syncDraftUrl();
+    showMessage("info", RESET_MESSAGE);
+  });
 }
 
 function setWeekFromQueryOrToday() {
@@ -37,20 +48,42 @@ function setWeekFromQueryOrToday() {
   dom.weekStart.value = dateValue(monday(date));
 }
 
-function shiftWeek(days) { const date = new Date(`${dom.weekStart.value}T00:00:00`); date.setDate(date.getDate() + days); dom.weekStart.value = dateValue(monday(date)); loadDashboard(); }
+function setDefaultFilters() { dom.weekStart.value = dateValue(monday(new Date())); }
+function shiftWeek(days) { const date = new Date(`${dom.weekStart.value}T00:00:00`); date.setDate(date.getDate() + days); dom.weekStart.value = dateValue(monday(date)); handleDraftWeekChange(); }
+function handleDraftWeekChange() {
+  const normalizedWeek = dateValue(monday(new Date(`${dom.weekStart.value}T00:00:00`)));
+  if (!normalizedWeek) return;
+  dom.weekStart.value = normalizedWeek;
+  clearQueryResults();
+  syncDraftUrl();
+  showMessage("info", PENDING_MESSAGE);
+}
 
 async function loadDashboard() {
   const weekStart = dateValue(monday(new Date(`${dom.weekStart.value}T00:00:00`)));
   if (!weekStart) return;
   dom.weekStart.value = weekStart;
+  const requestId = ++state.requestSequence;
   setLoading(true); hideMessage();
   try {
     const rows = await fetchWeeklyLessonOperations(weekStart);
-    students = await fetchLessonStudentsByIds(rows.map((row) => row.student_id));
+    if (requestId !== state.requestSequence) return;
+    const students = await fetchLessonStudentsByIds(rows.map((row) => row.student_id));
+    if (requestId !== state.requestSequence) return;
+    state.rows = rows || [];
+    state.students = students || [];
+    state.appliedFilters = { weekStart };
     renderRows(rows);
     syncUrl(weekStart);
-  } catch (error) { renderRows([]); showMessage("error", `读取本周课时失败：${error.message || error}`); }
-  finally { setLoading(false); }
+  } catch (error) {
+    if (requestId !== state.requestSequence) return;
+    state.rows = [];
+    state.students = [];
+    state.appliedFilters = null;
+    renderRows([]);
+    showMessage("error", `读取本周课时失败：${error.message || error}`);
+  }
+  finally { if (requestId === state.requestSequence) setLoading(false); }
 }
 
 function renderRows(rows) {
@@ -65,7 +98,7 @@ function renderRows(rows) {
   dom.creditHours.textContent = displayHours(totals.credit);
   dom.empty.classList.toggle("is-hidden", values.length > 0);
   dom.rows.innerHTML = values.map((row) => {
-    const student = students.find((item) => item.id === row.student_id);
+    const student = state.students.find((item) => item.id === row.student_id);
     const name = safeText(student?.display_name || student?.name) || "未设置学生";
     const unregistered = number(row.overdue_unregistered_count) + number(row.upcoming_unregistered_count);
     const params = new URLSearchParams({ year: dom.weekStart.value.slice(0, 4), month: dom.weekStart.value.slice(5, 7), week_start: dom.weekStart.value, student_id: row.student_id || "" });
@@ -78,7 +111,20 @@ function displayHours(value) { return `${number(value).toLocaleString("zh-CN", {
 function monday(date) { if (Number.isNaN(date?.getTime())) return new Date(); const result = new Date(date); result.setHours(0, 0, 0, 0); result.setDate(result.getDate() - ((result.getDay() + 6) % 7)); return result; }
 function dateValue(date) { if (!date || Number.isNaN(date.getTime())) return ""; return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`; }
 function syncUrl(weekStart) { const params = new URLSearchParams({ week_start: weekStart }); window.history?.replaceState?.(null, "", `${window.location.pathname}?${params.toString()}`); }
-function setLoading(value) { dom.loading.classList.toggle("is-hidden", !value); }
+function syncDraftUrl() { if (dom.weekStart.value) syncUrl(dom.weekStart.value); }
+function clearQueryResults() {
+  state.requestSequence += 1;
+  state.appliedFilters = null;
+  state.students = [];
+  state.rows = [];
+  dom.plannedHours.textContent = "-";
+  dom.unregisteredCount.textContent = "-";
+  dom.creditHours.textContent = "-";
+  dom.rows.innerHTML = "";
+  dom.empty.classList.remove("is-hidden");
+  setLoading(false);
+}
+function setLoading(value) { dom.loadButton.disabled = value; dom.loading.classList.toggle("is-hidden", !value); }
 function showMessage(type, text) { dom.message.className = `message message-${type}`; dom.message.textContent = text; }
 function hideMessage() { dom.message.className = "message is-hidden"; dom.message.textContent = ""; }
 function escapeHtml(value) { return safeText(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\"/g, "&quot;").replace(/'/g, "&#39;"); }

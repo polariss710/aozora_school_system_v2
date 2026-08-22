@@ -6,6 +6,7 @@ const shared = read("js/api/student-status-api.js");
 const lessonApi = read("js/api/lesson-api.js");
 const weeklyPage = read("js/pages/weekly-schedule-image-page.js");
 const weeklyHtml = read("weekly-schedule-image.html");
+const weeklyApp = read("js/weekly-schedule-image-app.js");
 const wageApi = read("js/api/wage-api.js");
 const wagePage = read("js/pages/wage-page.js");
 const wageRuleApi = read("js/api/wage-rule-api.js");
@@ -13,7 +14,11 @@ const wageRulePage = read("js/pages/wage-rule-page.js");
 const wageRuleDetail = read("js/pages/wage-rule-detail-page.js");
 const wageRuleHtml = read("wage-rule.html");
 const classroom = read("js/pages/classroom-schedule-page.js");
+const classroomHtml = read("classroom-schedule.html");
+const classroomApp = read("js/classroom-schedule-app.js");
 const weeklyOperations = read("js/pages/weekly-lesson-dashboard-page.js");
+const weeklyOperationsHtml = read("weekly-lesson-dashboard.html");
+const weeklyOperationsApp = read("js/weekly-lesson-dashboard-app.js");
 const readerCore = read("sql/current/school_student_status_phase_b4_remaining_current_month_reader_core_20260807.sql");
 
 assert.match(shared, /school_list_student_range_candidates_v1/);
@@ -30,6 +35,28 @@ assert.match(weeklyPage, /writeStudentCandidateQuery/);
 assert.match(weeklyPage, /params\.set\("week_start"/);
 assert.match(weeklyHtml, /id="weeklyScheduleIncludeInactiveCheckbox"/);
 assert.doesNotMatch(weeklyPage, /fetchLessonStudents\(\)/);
+
+for (const [html, app, page] of [
+  [weeklyHtml, weeklyApp, weeklyPage],
+  [classroomHtml, classroomApp, classroom],
+  [weeklyOperationsHtml, weeklyOperationsApp, weeklyOperations],
+]) {
+  assert.match(html, /type="button">重置<\/button>/);
+  assert.match(html, /filter-contract-b5-20260822-1/);
+  assert.match(app, /filter-contract-b5-20260822-1/);
+  assert.match(page, /已重置筛选条件；点击“查询”后刷新结果。/);
+  assert.match(page, /(?:mainRequestSequence|requestSequence)/);
+  assert.match(page, /appliedFilters/);
+}
+
+assert.match(weeklyPage, /function clearQueryResults\(\)[\s\S]*state\.schedules = \[\][\s\S]*renderSchedules\(\)/);
+assert.match(weeklyPage, /function refreshStudentCandidates[\s\S]*fetchStudentRangeCandidates/);
+assert.match(classroom, /dom\.venueSelect\?\.addEventListener\("change", handleDraftFilterChange\)/);
+assert.doesNotMatch(classroom, /dom\.venueSelect\?\.addEventListener\("change", applyVenueFilter\)/);
+assert.match(classroom, /function clearQueryResults\(\)[\s\S]*state\.rows = \[\][\s\S]*resetRenderedSchedule\(\)/);
+assert.match(weeklyOperations, /function shiftWeek\(days\).*handleDraftWeekChange\(\); \}/);
+assert.doesNotMatch(weeklyOperations, /function shiftWeek\(days\).*loadDashboard\(\)/);
+assert.match(weeklyOperations, /function clearQueryResults\(\)[\s\S]*dom\.plannedHours\.textContent = "-"/);
 
 assert.match(readerCore, /statement_timestamp\(\) at time zone 'Asia\/Tokyo'/);
 assert.match(readerCore, /school_list_student_month_candidates_v1/);
@@ -93,5 +120,5 @@ for (const source of [weeklyPage, wageRulePage, wageRuleDetail, classroom, weekl
   assert.doesNotMatch(source, /service[_-]?role/i);
 }
 
-assert.match(read("js/config.js"), /APP_VERSION = "v10\.5\.\d+"/);
+assert.match(read("js/config.js"), /APP_VERSION = "v10\.5\.61"/);
 console.log("STUDENT_STATUS_PHASE_B4_REMAINING_STATIC_TEST_PASS");

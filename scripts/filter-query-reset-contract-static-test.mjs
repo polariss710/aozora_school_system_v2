@@ -6,6 +6,7 @@ const B1_CACHE_KEY = "filter-contract-b1-20260822-1";
 const B2_CACHE_KEY = "filter-contract-b2-20260822-1";
 const B3_CACHE_KEY = "filter-contract-b3-20260822-1";
 const B4_CACHE_KEY = "filter-contract-b4-20260822-1";
+const B5_CACHE_KEY = "filter-contract-b5-20260822-1";
 
 const pages = [
   {
@@ -357,6 +358,108 @@ const pages = [
     ],
     cacheKey: B4_CACHE_KEY,
   },
+  {
+    id: "weekly-schedule-image",
+    label: "周课表图片",
+    html: "weekly-schedule-image.html",
+    app: "js/weekly-schedule-image-app.js",
+    page: "js/pages/weekly-schedule-image-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /state\.mainRequestSequence \+= 1/,
+      /state\.candidateRequestSequence \+= 1/,
+      /state\.appliedFilters = null/,
+      /state\.students = \[\]/,
+      /state\.schedules = \[\]/,
+      /renderSchedules\(\)/,
+      /setLoading\(false\)/,
+    ],
+    queryFunction: "loadSchedules",
+    queryPatterns: [
+      /const requestId = \+\+state\.mainRequestSequence/,
+      /fetchLessonRecords\(month\)/,
+      /fetchLessonStudentsByIds\(/,
+      /state\.appliedFilters = \{/,
+      /renderSchedules\(\)/,
+      /requestId !== state\.mainRequestSequence/,
+    ],
+    auxiliaryReaders: ["fetchStudentRangeCandidates", "refreshStudentCandidates"],
+    mainResultReaders: ["fetchLessonTeachers", "fetchLessonSubjects", "fetchLessonRecords", "fetchLessonStudentsByIds", "loadSchedules"],
+    writers: [],
+    queryButtonPattern: /type="submit">生成预览<\/button>/,
+    cacheKey: B5_CACHE_KEY,
+  },
+  {
+    id: "classroom-schedule",
+    label: "教室排班",
+    html: "classroom-schedule.html",
+    app: "js/classroom-schedule-app.js",
+    page: "js/pages/classroom-schedule-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /state\.requestSequence \+= 1/,
+      /state\.appliedFilters = null/,
+      /state\.students = \[\]/,
+      /state\.rows = \[\]/,
+      /resetRenderedSchedule\(\)/,
+      /setLoading\(false\)/,
+    ],
+    queryFunction: "loadSchedule",
+    queryPatterns: [
+      /const requestId = \+\+state\.requestSequence/,
+      /fetchLessonRecords/,
+      /fetchLessonStudentsByIds\(/,
+      /filters\.venue = renderVenueOptions\(filters\.venue\)/,
+      /state\.appliedFilters = filters/,
+      /applyVenueFilter\(state\.appliedFilters\)/,
+      /requestId !== state\.requestSequence/,
+    ],
+    auxiliaryReaders: [],
+    mainResultReaders: ["fetchLessonTeachers", "fetchLessonSubjects", "fetchLessonRecords", "fetchLessonStudentsByIds", "loadSchedule"],
+    writers: [],
+    queryButtonPattern: /type="submit">刷新排班<\/button>/,
+    cacheKey: B5_CACHE_KEY,
+  },
+  {
+    id: "weekly-lesson-dashboard",
+    label: "本周课时待处理",
+    html: "weekly-lesson-dashboard.html",
+    app: "js/weekly-lesson-dashboard-app.js",
+    page: "js/pages/weekly-lesson-dashboard-page.js",
+    resetTarget: "dom.resetButton",
+    resetDefaultPattern: /setDefaultFilters\(\)/,
+    resetClearCallPattern: /clearQueryResults\(\)/,
+    resetClearFunction: "clearQueryResults",
+    clearPatterns: [
+      /state\.requestSequence \+= 1/,
+      /state\.appliedFilters = null/,
+      /state\.students = \[\]/,
+      /state\.rows = \[\]/,
+      /dom\.plannedHours\.textContent = "-"/,
+      /dom\.rows\.innerHTML = ""/,
+      /setLoading\(false\)/,
+    ],
+    queryFunction: "loadDashboard",
+    queryPatterns: [
+      /const requestId = \+\+state\.requestSequence/,
+      /fetchWeeklyLessonOperations\(weekStart\)/,
+      /fetchLessonStudentsByIds\(/,
+      /state\.appliedFilters = \{ weekStart \}/,
+      /renderRows\(rows\)/,
+      /requestId !== state\.requestSequence/,
+    ],
+    auxiliaryReaders: [],
+    mainResultReaders: ["fetchWeeklyLessonOperations", "fetchLessonStudentsByIds", "loadDashboard"],
+    writers: [],
+    queryButtonPattern: /type="submit">查询本周<\/button>/,
+    cacheKey: B5_CACHE_KEY,
+  },
 ];
 
 function read(path) {
@@ -419,7 +522,7 @@ for (const page of pages) {
   const clear = functionSource(source, page.resetClearFunction);
   const query = functionSource(source, page.queryFunction);
 
-  assert.match(html, /type="submit">查询<\/button>/, `${page.label}: explicit query button missing`);
+  assert.match(html, page.queryButtonPattern || /type="submit">查询<\/button>/, `${page.label}: explicit query button missing`);
   assert.match(html, /type="button">重置<\/button>/, `${page.label}: safe reset button missing`);
   assert.ok(source.includes(RESET_MESSAGE), `${page.label}: exact reset message missing`);
   assert.match(reset, page.resetDefaultPattern, `${page.label}: reset does not restore defaults`);
@@ -518,15 +621,28 @@ assert.ok(annualChangeHandler, "外部授课年度汇总: year change handler mi
 assert.match(annualChangeHandler[1], /updateYearUrl\(selectedFiscalYear\(\)\)/);
 assert.doesNotMatch(annualChangeHandler[1], /(?:loadAnnualSummary|fetchPartTimeWorkAnnualSummary|renderAnnualSummary)\(/);
 
+const weeklyScheduleImageSource = read("js/pages/weekly-schedule-image-page.js");
+const weeklyScheduleScopeChange = functionSource(weeklyScheduleImageSource, "handleCandidateScopeChange");
+assert.match(weeklyScheduleScopeChange, /refreshStudentCandidates\(/);
+assert.doesNotMatch(weeklyScheduleScopeChange, /(?:loadSchedules|fetchLessonRecords|fetchLessonStudentsByIds|renderSchedules)\(/);
+
+const classroomScheduleSource = read("js/pages/classroom-schedule-page.js");
+assert.match(classroomScheduleSource, /dom\.venueSelect\?\.addEventListener\("change", handleDraftFilterChange\)/);
+assert.doesNotMatch(classroomScheduleSource, /dom\.venueSelect\?\.addEventListener\("change", applyVenueFilter\)/);
+const classroomDraftChange = functionSource(classroomScheduleSource, "handleDraftFilterChange");
+assert.match(classroomDraftChange, /clearQueryResults\(\)/);
+assert.doesNotMatch(classroomDraftChange, /(?:loadSchedule|fetchLessonRecords|fetchLessonStudentsByIds|applyVenueFilter|renderBoard)\(/);
+
+const weeklyDashboardSource = read("js/pages/weekly-lesson-dashboard-page.js");
+const weeklyDashboardShift = functionSource(weeklyDashboardSource, "shiftWeek");
+assert.match(weeklyDashboardShift, /handleDraftWeekChange\(\)/);
+assert.doesNotMatch(weeklyDashboardShift, /(?:loadDashboard|fetchWeeklyLessonOperations|fetchLessonStudentsByIds|renderRows)\(/);
+
 const migrationCounts = {
-  htmlPages: { applicable: 18, compliant: 14, deprecatedLegacyException: 1, pendingMigration: 3, notApplicable: 0 },
-  routeViews: { applicable: 19, compliant: 15, deprecatedLegacyException: 1, pendingMigration: 3, notApplicable: 0 },
+  htmlPages: { applicable: 18, compliant: 17, deprecatedLegacyException: 1, pendingMigration: 0, notApplicable: 0 },
+  routeViews: { applicable: 19, compliant: 18, deprecatedLegacyException: 1, pendingMigration: 0, notApplicable: 0 },
 };
-const pendingMigrations = [
-  "weekly-timetable-image",
-  "classroom-scheduling",
-  "weekly-lesson-pending",
-];
+const pendingMigrations = [];
 const legacyExceptions = [
   {
     id: "legacy-wage-payment",
@@ -539,20 +655,20 @@ const legacyExceptions = [
 ];
 assert.deepEqual(migrationCounts.htmlPages, {
   applicable: 18,
-  compliant: 14,
+  compliant: 17,
   deprecatedLegacyException: 1,
-  pendingMigration: 3,
+  pendingMigration: 0,
   notApplicable: 0,
 });
 assert.deepEqual(migrationCounts.routeViews, {
   applicable: 19,
-  compliant: 15,
+  compliant: 18,
   deprecatedLegacyException: 1,
-  pendingMigration: 3,
+  pendingMigration: 0,
   notApplicable: 0,
 });
 assert.equal(legacyExceptions.length, 1);
-assert.equal(pendingMigrations.length, 3);
+assert.equal(pendingMigrations.length, 0);
 assert.equal(legacyExceptions[0].status, "deprecated_legacy_exception");
 assert.equal(legacyExceptions[0].reason, "V3 removal");
 assert.equal(legacyExceptions[0].contract, "V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。");
@@ -560,7 +676,7 @@ assert.doesNotThrow(() => read(legacyExceptions[0].html));
 assert.doesNotThrow(() => read(legacyExceptions[0].page));
 
 const config = read("js/config.js");
-assert.match(config, /APP_VERSION = "v10\.5\.60"/);
+assert.match(config, /APP_VERSION = "v10\.5\.61"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);
@@ -571,6 +687,6 @@ for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".
 console.log(
   "FILTER_QUERY_RESET_CONTRACT_STATIC_TEST_PASS",
   "classifications=compliant,pending_migration,deprecated_legacy_exception,not_applicable",
-  "html=18/14/1/3/0",
-  "route_views=19/15/1/3/0"
+  "html=18/17/1/0/0",
+  "route_views=19/18/1/0/0"
 );

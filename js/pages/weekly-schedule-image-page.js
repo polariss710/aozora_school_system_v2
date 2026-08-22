@@ -15,6 +15,8 @@ const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const IMAGE_WIDTH = 1080;
 const IMAGE_PADDING = 64;
 const CARD_RADIUS = 28;
+const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
+const PENDING_MESSAGE = "筛选条件已变更；点击“查询”后刷新结果。";
 
 const state = {
   students: [],
@@ -25,6 +27,9 @@ const state = {
   initialWeekStart: "",
   initialStudentId: "",
   initialIncludeInactive: false,
+  appliedFilters: null,
+  mainRequestSequence: 0,
+  candidateRequestSequence: 0,
 };
 
 const dom = {};
@@ -34,10 +39,18 @@ export function initWeeklyScheduleImagePage() {
   readInitialQuery();
   bindEvents();
   setDefaultWeek();
+  const initializationGeneration = state.mainRequestSequence;
   loadLookups()
-    .then(() => refreshStudentCandidates(state.initialStudentId))
-    .then(() => loadSchedules())
+    .then(() => {
+      if (initializationGeneration !== state.mainRequestSequence) return false;
+      return refreshStudentCandidates(state.initialStudentId);
+    })
+    .then((isCurrent) => {
+      if (isCurrent === false || initializationGeneration !== state.mainRequestSequence) return;
+      return loadSchedules();
+    })
     .catch((error) => {
+      if (initializationGeneration !== state.mainRequestSequence) return;
       showMessage("error", `读取课表基础数据失败：${error.message || error}`);
     });
 }
@@ -49,6 +62,7 @@ function cacheDom() {
   dom.studentSelect = document.querySelector("#weeklyScheduleStudentSelect");
   dom.includeInactiveCheckbox = document.querySelector("#weeklyScheduleIncludeInactiveCheckbox");
   dom.loadButton = document.querySelector("#weeklyScheduleLoadButton");
+  dom.resetButton = document.querySelector("#weeklyScheduleResetButton");
   dom.downloadAllButton = document.querySelector("#weeklyScheduleDownloadAllButton");
   dom.countText = document.querySelector("#weeklyScheduleCount");
   dom.preview = document.querySelector("#weeklySchedulePreview");
@@ -64,6 +78,17 @@ function bindEvents() {
 
   dom.weekStartInput?.addEventListener("change", handleCandidateScopeChange);
   dom.includeInactiveCheckbox?.addEventListener("change", handleCandidateScopeChange);
+  dom.studentSelect?.addEventListener("change", handleDraftFilterChange);
+
+  dom.resetButton.addEventListener("click", () => {
+    setDefaultFilters();
+    clearQueryResults();
+    syncDraftUrl();
+    showMessage("info", RESET_MESSAGE);
+    refreshStudentCandidates("").catch((error) => {
+      showMessage("error", `读取本周学生候选失败：${error.message || error}`);
+    });
+  });
 
   dom.downloadAllButton?.addEventListener("click", () => {
     downloadAllImages();
@@ -86,12 +111,22 @@ function setDefaultWeek() {
     dom.weekStartInput.value = state.initialWeekStart;
     return;
   }
+  dom.weekStartInput.value = defaultWeekStart();
+}
+
+function defaultWeekStart() {
   const today = startOfLocalDay(new Date());
   const nextMonday = getMonday(today);
   if (nextMonday <= today) {
     nextMonday.setDate(nextMonday.getDate() + 7);
   }
-  dom.weekStartInput.value = toDateInputValue(nextMonday);
+  return toDateInputValue(nextMonday);
+}
+
+function setDefaultFilters() {
+  dom.weekStartInput.value = defaultWeekStart();
+  dom.includeInactiveCheckbox.checked = false;
+  dom.studentSelect.value = "";
 }
 
 function readInitialQuery() {
@@ -121,15 +156,23 @@ async function loadLookups() {
 }
 
 function handleCandidateScopeChange() {
+  handleDraftFilterChange();
   refreshStudentCandidates(dom.studentSelect.value).catch((error) => {
     showMessage("error", `读取本周学生候选失败：${error.message || error}`);
   });
 }
 
+function handleDraftFilterChange() {
+  clearQueryResults();
+  syncDraftUrl();
+  showMessage("info", PENDING_MESSAGE);
+}
+
 async function refreshStudentCandidates(selectedStudentId = "") {
+  const requestId = ++state.candidateRequestSequence;
   const weekStart = parseDateInput(dom.weekStartInput.value);
   if (!weekStart) {
-    return;
+    return false;
   }
   const normalizedWeekStart = getMonday(weekStart);
   const weekEnd = addDays(normalizedWeekStart, 6);
@@ -139,10 +182,13 @@ async function refreshStudentCandidates(selectedStudentId = "") {
     includeInactive: Boolean(dom.includeInactiveCheckbox.checked),
     selectedStudentId: selectedStudentId || null,
   });
+  if (requestId !== state.candidateRequestSequence) return false;
   state.studentCandidates = candidates;
   renderStudentRangeCandidateOptions(dom.studentSelect, candidates, {
     selectedStudentId,
   });
+  syncDraftUrl();
+  return true;
 }
 
 async function loadSchedules() {
@@ -159,19 +205,29 @@ async function loadSchedules() {
 
   const weekEnd = addDays(normalizedWeekStart, 6);
   const selectedStudentId = dom.studentSelect.value || "";
+  const includeInactive = Boolean(dom.includeInactiveCheckbox.checked);
+  const requestId = ++state.mainRequestSequence;
   setLoading(true);
   hideMessage();
 
   try {
-    await refreshStudentCandidates(selectedStudentId);
+    const candidateRequestIsCurrent = await refreshStudentCandidates(selectedStudentId);
+    if (!candidateRequestIsCurrent || requestId !== state.mainRequestSequence) return;
     const months = monthsBetween(normalizedWeekStart, weekEnd);
     const monthRows = await Promise.all(months.map((month) => fetchLessonRecords(month)));
+    if (requestId !== state.mainRequestSequence) return;
     const rows = monthRows.flat();
     state.students = await fetchLessonStudentsByIds(rows.map((row) => row.student_id));
+    if (requestId !== state.mainRequestSequence) return;
     const schedules = buildSchedules(rows, normalizedWeekStart, weekEnd, selectedStudentId);
     state.schedules = schedules;
+    state.appliedFilters = {
+      weekStart: toDateInputValue(normalizedWeekStart),
+      studentId: selectedStudentId,
+      includeInactive,
+    };
     renderSchedules();
-    syncUrl(normalizedWeekStart, selectedStudentId);
+    syncUrl(normalizedWeekStart, selectedStudentId, includeInactive);
 
     if (schedules.length) {
       showMessage("success", `已生成 ${schedules.length} 张周课表图片预览。`);
@@ -179,21 +235,39 @@ async function loadSchedules() {
       showMessage("info", "该周没有可生成图片的预定课时。");
     }
   } catch (error) {
+    if (requestId !== state.mainRequestSequence) return;
     state.schedules = [];
+    state.appliedFilters = null;
     renderSchedules();
     showMessage("error", `读取周课表失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (requestId === state.mainRequestSequence) setLoading(false);
   }
 }
 
-function syncUrl(weekStart, studentId) {
+function syncUrl(weekStart, studentId, includeInactive) {
   const params = writeStudentCandidateQuery(new URLSearchParams(), {
     studentId,
-    includeInactive: Boolean(dom.includeInactiveCheckbox.checked),
+    includeInactive,
   });
   params.set("week_start", toDateInputValue(weekStart));
   window.history?.replaceState?.(null, "", `${window.location.pathname}?${params.toString()}`);
+}
+
+function syncDraftUrl() {
+  const weekStart = parseDateInput(dom.weekStartInput.value);
+  if (!weekStart) return;
+  syncUrl(getMonday(weekStart), dom.studentSelect.value || "", Boolean(dom.includeInactiveCheckbox.checked));
+}
+
+function clearQueryResults() {
+  state.mainRequestSequence += 1;
+  state.candidateRequestSequence += 1;
+  state.appliedFilters = null;
+  state.students = [];
+  state.schedules = [];
+  renderSchedules();
+  setLoading(false);
 }
 
 function buildSchedules(rows, weekStart, weekEnd, selectedStudentId) {

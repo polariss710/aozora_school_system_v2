@@ -1,6 +1,6 @@
 # 顶部筛选栏 Query / Reset 合同
 
-本合同适用于 School V2 页面顶部、以“查询”显式应用筛选的结果型筛选栏。`lesson.html`（课时管理）是未改动正向基准；页面按批次迁移，未列入已完成批次的页面不得据此宣称已修复。
+本合同适用于 School V2 页面顶部、以“查询”显式应用筛选的结果型筛选栏。`lesson.html`（课时管理）是未改动正向基准；Phase B1–B5 已完成全部计划迁移，后续新增适用页面必须进入统一参数化合同测试矩阵。
 
 ## 状态所有权
 
@@ -32,16 +32,25 @@
 - Phase B2 已统一：学生管理、老师管理、账户管理。
 - Phase B3 已统一：学生月度结算、工资规则、收入记录、支出记录、外部授课年度汇总。
 - Phase B4 已统一：PTW 授课记录（`part-time-work.html?view=lessons`）与授课结算（`part-time-work.html?view=settlement`）共享视图。两者共用 `lessons`、`wageLessons`、`settlements` 和一次三-reader 请求生命周期；reset 同时失效请求、清空两侧缓存/DOM/结果上下文，保留 `view` 与两套独立折叠 Set。显式 Query 重新使用保存的 display state，writer 成功后的保留折叠刷新仍是独立业务动作。
+- Phase B5 已统一：周课表图片、教室排班、本周课时待处理。三页 reset 均恢复默认 draft、清空 applied filters、主结果/预览/排班/周统计/计数/结果依赖操作和 loading，并通过页面局部 request sequence 阻止旧主响应回填；教室 change 的缓存排班重绘以及教室/周切换按钮的隐式主查询均已移除。周课表图片的学生候选 reader 仍是唯一允许在 change/reset 使用的 B5 auxiliary reader。
 - deprecated legacy exception：Legacy 工资支付（`index.html` / `js/pages/payment-page.js`），理由为 `V3 removal`。正式处置合同为：V2维持现状，不纳入顶部筛选合同迁移；V3删除；如果出现数据、权限或支付链问题，再单独处理。
-- `pending migration`：周课表图片、教室排班、本周课时待处理。
+- `pending migration`：0。所有适用且计划保留的 V2 顶部筛选页面均已迁移。
 - `not applicable` 仅用于确实没有本合同所定义顶部结果筛选栏的页面，不得与 `pending migration` 或 deprecated legacy exception 混用。
+- Quote Generator、Contract Generator 等没有本合同所定义结果筛选栏的页面不计入适用清单，也不以 `not applicable` 增加本表总数。
 
-截至 Phase B4 的统计：
+截至 Phase B5 的最终统计：
 
 | 口径 | 适用总数 | compliant | deprecated legacy exception | pending migration | not applicable |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| HTML 页面 | 18 | 14 | 1 | 3 | 0 |
-| 路由视图（`part-time-work.html` 拆为两个视图） | 19 | 15 | 1 | 3 | 0 |
+| HTML 页面 | 18 | 17 | 1 | 0 | 0 |
+| 路由视图（`part-time-work.html` 拆为两个视图） | 19 | 18 | 1 | 0 | 0 |
+
+## B5 Reader、URL 与异步合同
+
+- 周课表图片：`fetchStudentRangeCandidates` 只更新学生候选，是 auxiliary reader；初始化使用的 `fetchLessonTeachers` / `fetchLessonSubjects` 以及 Query 使用的 `fetchLessonRecords` / `fetchLessonStudentsByIds` 共同决定图片内容，均归入主结果 reader。URL 可表示当前 draft 等待态或最近 Query 的 applied 筛选；change/reset/Query 均只用 `history.replaceState()`，reset 写入默认下周一、全体学生且不含非在籍，并清空预览和下载上下文。图片布局、画布模板与即时 data URL 下载保持不变，不持有 blob/object URL。
+- 教室排班：初始化使用的 `fetchLessonTeachers` / `fetchLessonSubjects` 与 Query 使用的 `fetchLessonRecords` / `fetchLessonStudentsByIds` 共同决定排班卡片内容，均归入主结果 reader；该页无 auxiliary reader。该页不新增筛选 URL；教室、日期、上一周、本周、下一周只更新 draft 并清空失效结果，显式“刷新排班”才读取并执行既有教室筛选、冲突判断和排班渲染。
+- 本周课时待处理：`fetchWeeklyLessonOperations` 与 `fetchLessonStudentsByIds` 均是主 reader，无 auxiliary reader。`week_start` 在 change/reset 的空结果状态表示 draft，在 Query 成功后表示 applied；全部同步使用 `history.replaceState()`。上一周/下一周不再隐式查询。
+- 三页主 Query 均采用 latest-request-wins sequence；reset 和任一 draft 变更会递增 generation、立即结束 loading 并清空结果。旧请求成功、失败或 finally 均不能覆盖 reset 文案、空结果或新 Query。
 
 ## PTW Phase B4 URL 与历史合同
 

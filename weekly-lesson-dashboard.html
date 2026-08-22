@@ -28,11 +28,11 @@
       <header class="page-header"><div><p class="page-kicker">青空塾 管理系统 v2</p><h1>本周课时待处理</h1><p class="page-subtitle">按周查看每位在籍学生的预定、登记与待补课余额。</p></div><div class="header-meta"><span class="readonly-pill">Beta</span><span id="appVersion" class="app-version"></span></div></header>
       <main class="page-main">
         <section id="weeklyLessonDashboardMessage" class="message is-hidden" aria-live="polite"></section>
-        <section class="panel"><form id="weeklyLessonDashboardForm" class="filter-grid"><label class="field"><span>周一日期</span><input id="weeklyLessonDashboardWeekStart" type="date" required></label><div class="filter-actions"><button class="button" id="weeklyLessonDashboardPrevious" type="button">上一周</button><button class="button button-primary" type="submit">查询本周</button><button class="button" id="weeklyLessonDashboardNext" type="button">下一周</button></div></form></section>
+        <section class="panel"><form id="weeklyLessonDashboardForm" class="filter-grid"><label class="field"><span>周一日期</span><input id="weeklyLessonDashboardWeekStart" type="date" required></label><div class="filter-actions"><button class="button" id="weeklyLessonDashboardPrevious" type="button">上一周</button><button class="button button-primary" id="weeklyLessonDashboardLoadButton" type="submit">查询本周</button><button class="button" id="weeklyLessonDashboardNext" type="button">下一周</button><button class="button" id="weeklyLessonDashboardResetButton" type="button">重置</button></div></form></section>
         <section class="summary-grid" aria-label="本周汇总"><div class="summary-card"><span>本周预定课时</span><strong id="weeklyLessonDashboardPlannedHours">-</strong></div><div class="summary-card"><span>待登记课程</span><strong id="weeklyLessonDashboardUnregisteredCount">-</strong></div><div class="summary-card"><span>全体待补课余额</span><strong id="weeklyLessonDashboardCreditHours">-</strong></div></section>
         <section class="panel"><div class="section-heading"><h2>学生明细</h2><p class="section-note">待补课余额仅统计已收未履约的正式预定课时；补课完成不会新增学生学费。</p></div><div id="weeklyLessonDashboardLoading" class="state-text is-hidden">正在读取本周课时...</div><div class="table-scroll"><table class="payment-table"><thead><tr><th>学生</th><th>本周预定</th><th>已登记</th><th>完成时长</th><th>待登记</th><th>取消</th><th>待补来源</th><th>待补余额</th><th>最早来源</th><th>操作</th></tr></thead><tbody id="weeklyLessonDashboardRows"></tbody></table></div><div id="weeklyLessonDashboardEmpty" class="state-text is-hidden">暂无在籍学生。</div></section>
       </main>
     </div>
-    <script type="module" src="./js/weekly-lesson-dashboard-app.js?v=p1-b2b-auth-storage-20260810-1"></script>
+    <script type="module" src="./js/weekly-lesson-dashboard-app.js?v=filter-contract-b5-20260822-1"></script>
   </body>
 </html>

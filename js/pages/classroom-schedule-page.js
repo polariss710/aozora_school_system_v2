@@ -7,7 +7,12 @@ import {
 import { detectRegusOfficeConflictIds } from "../utils/classroom-capacity.js";
 
 const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-const state = { students: [], teachers: [], subjects: [], rows: [], visibleRows: [], conflictIds: new Set() };
+const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
+const PENDING_MESSAGE = "筛选条件已变更；点击“查询”后刷新结果。";
+const state = {
+  students: [], teachers: [], subjects: [], rows: [], visibleRows: [], conflictIds: new Set(),
+  appliedFilters: null, requestSequence: 0,
+};
 const dom = {};
 
 export function initClassroomSchedulePage() {
@@ -26,6 +31,7 @@ function cacheDom() {
   dom.currentButton = document.querySelector("#classroomScheduleCurrentButton");
   dom.nextButton = document.querySelector("#classroomScheduleNextButton");
   dom.loadButton = document.querySelector("#classroomScheduleLoadButton");
+  dom.resetButton = document.querySelector("#classroomScheduleResetButton");
   dom.lessonCount = document.querySelector("#classroomScheduleLessonCount");
   dom.venueCount = document.querySelector("#classroomScheduleVenueCount");
   dom.conflictCount = document.querySelector("#classroomScheduleConflictCount");
@@ -38,10 +44,16 @@ function cacheDom() {
 
 function bindEvents() {
   dom.form?.addEventListener("submit", (event) => { event.preventDefault(); loadSchedule(); });
-  dom.venueSelect?.addEventListener("change", applyVenueFilter);
+  dom.weekStart?.addEventListener("change", handleDraftFilterChange);
+  dom.venueSelect?.addEventListener("change", handleDraftFilterChange);
   dom.previousButton?.addEventListener("click", () => shiftWeek(-7));
-  dom.currentButton?.addEventListener("click", () => { setWeek(new Date()); loadSchedule(); });
+  dom.currentButton?.addEventListener("click", () => { setWeek(new Date()); handleDraftFilterChange(); });
   dom.nextButton?.addEventListener("click", () => shiftWeek(7));
+  dom.resetButton.addEventListener("click", () => {
+    setDefaultFilters();
+    clearQueryResults();
+    showMessage("info", RESET_MESSAGE);
+  });
   dom.board?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-lesson-id]");
     if (card) window.location.href = `./lesson-detail.html?id=${encodeURIComponent(card.dataset.lessonId)}`;
@@ -49,16 +61,19 @@ function bindEvents() {
 }
 
 async function loadLookupsAndSchedule() {
+  const initializationGeneration = state.requestSequence;
   setLoading(true);
   try {
     [state.teachers, state.subjects] = await Promise.all([
       fetchLessonTeachers(), fetchLessonSubjects(),
     ]);
+    if (initializationGeneration !== state.requestSequence) return;
     await loadSchedule();
   } catch (error) {
+    if (initializationGeneration !== state.requestSequence) return;
     showMessage("error", `读取教室排班失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (initializationGeneration === state.requestSequence) setLoading(false);
   }
 }
 
@@ -66,21 +81,29 @@ async function loadSchedule() {
   const weekStart = getMonday(parseDate(dom.weekStart.value) || new Date());
   dom.weekStart.value = dateValue(weekStart);
   const weekEnd = addDays(weekStart, 6);
+  const filters = { weekStart: dateValue(weekStart), venue: dom.venueSelect.value || "" };
+  const requestId = ++state.requestSequence;
   setLoading(true);
   hideMessage();
   try {
     const rows = (await Promise.all(monthsBetween(weekStart, weekEnd).map(fetchLessonRecords))).flat();
+    if (requestId !== state.requestSequence) return;
     state.rows = buildEffectiveOnsiteRows(rows, weekStart, weekEnd);
     state.students = await fetchLessonStudentsByIds(state.rows.map((row) => row.student_id));
-    renderVenueOptions();
-    applyVenueFilter();
+    if (requestId !== state.requestSequence) return;
+    filters.venue = renderVenueOptions(filters.venue);
+    state.appliedFilters = filters;
+    applyVenueFilter(state.appliedFilters);
     showMessage("info", state.rows.length ? "排班已刷新；Regus办公室同一时段出现多组课程时会标红，公共区不限制组数。" : "该周暂无已设置教室的线下课。");
   } catch (error) {
+    if (requestId !== state.requestSequence) return;
+    state.appliedFilters = null;
     state.rows = [];
-    applyVenueFilter();
+    state.students = [];
+    resetRenderedSchedule();
     showMessage("error", `读取教室排班失败：${error.message || error}`);
   } finally {
-    setLoading(false);
+    if (requestId === state.requestSequence) setLoading(false);
   }
 }
 
@@ -95,22 +118,23 @@ function buildEffectiveOnsiteRows(rows, weekStart, weekEnd) {
   }).sort(compareRows);
 }
 
-function applyVenueFilter() {
-  const venue = dom.venueSelect.value;
+function applyVenueFilter(filters = state.appliedFilters) {
+  if (!filters) return;
+  const venue = filters.venue;
   state.visibleRows = state.rows.filter((row) => !venue || normalizeVenue(row.lesson_venue) === venue);
   state.conflictIds = detectRegusOfficeConflictIds(state.rows);
   renderBoard();
 }
 
-function renderVenueOptions() {
-  const selected = dom.venueSelect.value;
+function renderVenueOptions(selected = dom.venueSelect.value) {
   const venues = Array.from(new Map(state.rows.map((row) => [normalizeVenue(row.lesson_venue), safeText(row.lesson_venue)])).entries());
   dom.venueSelect.innerHTML = ['<option value="">全部教室</option>', ...venues.map(([value, label]) => `<option value="${escapeHtml(value)}">${escapeHtml(label)}</option>`)].join("");
   if (venues.some(([value]) => value === selected)) dom.venueSelect.value = selected;
+  return dom.venueSelect.value || "";
 }
 
 function renderBoard() {
-  const weekStart = getMonday(parseDate(dom.weekStart.value) || new Date());
+  const weekStart = parseDate(state.appliedFilters?.weekStart) || getMonday(new Date());
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
   dom.rangeTitle.textContent = `${fullDate(days[0])} - ${fullDate(days[6])}`;
   dom.lessonCount.textContent = String(state.visibleRows.length);
@@ -131,8 +155,29 @@ function renderLessonCard(row) {
   return `<button class="classroom-schedule-lesson${conflict ? " is-conflict" : ""}" type="button" data-lesson-id="${escapeHtml(row.id)}"><span class="classroom-schedule-lesson-time">${escapeHtml(timeRange(row))}</span><strong>${escapeHtml(safeText(row.lesson_venue))}</strong><span>${escapeHtml(subjectName(row.subject_id))} / ${escapeHtml(studentName(row.student_id))}</span><span>${escapeHtml(teacherName(row.teacher_id))}</span>${conflict ? '<em>办公室重叠</em>' : ""}</button>`;
 }
 
-function shiftWeek(days) { setWeek(addDays(parseDate(dom.weekStart.value) || new Date(), days)); loadSchedule(); }
+function shiftWeek(days) { setWeek(addDays(parseDate(dom.weekStart.value) || new Date(), days)); handleDraftFilterChange(); }
 function setWeek(date) { dom.weekStart.value = dateValue(getMonday(date)); }
+function setDefaultFilters() { setWeek(new Date()); dom.venueSelect.innerHTML = '<option value="">全部教室</option>'; dom.venueSelect.value = ""; }
+function handleDraftFilterChange() { clearQueryResults(); showMessage("info", PENDING_MESSAGE); }
+function clearQueryResults() {
+  state.requestSequence += 1;
+  state.appliedFilters = null;
+  state.students = [];
+  state.rows = [];
+  resetRenderedSchedule();
+  setLoading(false);
+}
+function resetRenderedSchedule() {
+  state.visibleRows = [];
+  state.conflictIds = new Set();
+  dom.lessonCount.textContent = "0";
+  dom.venueCount.textContent = "0";
+  dom.conflictCount.textContent = "0";
+  dom.rangeTitle.textContent = "本周排班";
+  dom.conflictSummary.textContent = "办公室同一时段最多 1 组。";
+  dom.emptyState.classList.remove("is-hidden");
+  dom.board.innerHTML = "";
+}
 function setLoading(value) { if (dom.loadButton) dom.loadButton.disabled = value; dom.loadingState?.classList.toggle("is-hidden", !value); }
 function showMessage(type, message) { dom.messageArea.className = `message message-${type}`; dom.messageArea.textContent = message; }
 function hideMessage() { dom.messageArea.className = "message is-hidden"; dom.messageArea.textContent = ""; }
