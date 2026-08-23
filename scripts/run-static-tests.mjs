@@ -51,9 +51,40 @@ function classify(stderr) {
 // 共用模块只有导出、没有副作用，直接执行会「通过」，那是假绿。
 const NOT_TESTS = new Set([SELF, "static-test-helpers.mjs"]);
 
-const files = readdirSync(SCRIPTS)
+// 主干基线只包含 git 跟踪的测试。
+//
+// scripts/ 下存在有意不提交的本地原型 artifact（如 Phase 2C-B 的
+// school-lesson-clearance-phase2c-b-*.mjs）。那个阶段的交付契约就是「只做
+// standalone 本地原型，不碰生产入口、版本或缓存链」，D1 生产集成报告还专门
+// 记录了这些受保护文件「未修改、移动、执行、暂存或提交」。
+// 用 readdirSync 无差别执行会把它们卷进主干基线：既违反了「未执行」的保护
+// 承诺，又让一个本地原型的失败伪装成主干红项。
+//
+// 因此以 git ls-files 为准。未跟踪的 .mjs 会被列出但不执行、不计入结果。
+function trackedTests() {
+  const out = execFileSync("git", ["ls-files", "--", "scripts/*.mjs"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  return new Set(
+    out.split("\n").filter(Boolean).map((p) => path.basename(p))
+  );
+}
+
+let tracked;
+try {
+  tracked = trackedTests();
+} catch (error) {
+  console.error("无法调用 git ls-files，拒绝退回到无差别执行：", error.message);
+  console.error("主干基线必须只包含 git 跟踪的测试，否则会执行受保护的本地原型。");
+  process.exit(2);
+}
+
+const allFiles = readdirSync(SCRIPTS)
   .filter((f) => f.endsWith(".mjs") && !NOT_TESTS.has(f))
   .sort();
+const files = allFiles.filter((f) => tracked.has(f));
+const untracked = allFiles.filter((f) => !tracked.has(f));
 
 const passed = [];
 const skipped = [];
@@ -76,6 +107,11 @@ for (const file of files) {
 }
 
 console.log(`通过 ${passed.length}  跳过 ${skipped.length}  失败 ${failed.length}  (共 ${files.length})`);
+
+if (untracked.length) {
+  console.log(`\n未执行（git 未跟踪，视为本地原型 artifact，不计入基线）：`);
+  for (const f of untracked) console.log(`  ${f}`);
+}
 
 if (skipped.length && listSkipped) {
   console.log("\n跳过（环境缺失，非测试问题）：");
