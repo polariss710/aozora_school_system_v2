@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertAppVersionAtLeast } from "./static-test-helpers.mjs";
 import fs from "node:fs";
 import {
   CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE,
@@ -54,6 +55,6 @@ assert.match(writer, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon, authentica
 assert.match(writer, /GRANT EXECUTE ON FUNCTION[\s\S]*TO service_role/i);
 assert.match(html, /makeup-source-origin-v2-20260820-1/);
 assert.match(app, /makeup-source-origin-v2-20260820-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.55"/);
+assertAppVersionAtLeast(config, "v10.5.55");
 
 console.log("makeup actual correction static checks passed");

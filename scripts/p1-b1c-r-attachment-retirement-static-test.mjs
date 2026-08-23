@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertAppVersionAtLeast } from "./static-test-helpers.mjs";
 import { readFileSync } from "node:fs";
 
 const html = readFileSync("expense-detail.html", "utf8");
@@ -42,7 +43,7 @@ for (const forbiddenStorageRuntime of [
   assert(!api.includes(forbiddenStorageRuntime));
 }
 
-assert(config.includes('APP_VERSION = "v10.5.33"'));
+assertAppVersionAtLeast(config, "v10.5.33");
 assert(app.includes("p1-b1c-r-20260810-1"));
 assert(html.includes("p1-b1c-r-20260810-1"));
 

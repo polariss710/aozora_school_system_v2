@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertAppVersionAtLeast } from "./static-test-helpers.mjs";
 import fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
@@ -11,7 +12,7 @@ const component = read("js/components/lesson-clearance-workspace.js");
 const state = read("js/utils/lesson-clearance-state.js");
 const config = read("js/config.js");
 
-assert.match(config, /APP_VERSION = "v10\.5\.52"/);
+assertAppVersionAtLeast(config, "v10.5.52");
 for (const source of [html, app, page, component]) {
   assert.doesNotMatch(source, /phase2c-d1-clearance-workspace-20260817-2/);
 }

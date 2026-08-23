@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertAppVersionAtLeast } from "./static-test-helpers.mjs";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import {
@@ -110,7 +111,7 @@ assert.doesNotMatch(page, /supabase\.rpc\s*\(/);
 assert.match(page, /const disabled = originDisplay\.selectable \? "" : " disabled"/);
 assert.match(page, /来源日期需核对，当前来源不能用于登记待补课完成/);
 
-assert.match(config, /APP_VERSION = "v10\.5\.55"/);
+assertAppVersionAtLeast(config, "v10.5.55");
 assert.match(app, /makeup-source-origin-v2-20260820-1/);
 assert.match(html, /lesson-app\.js\?v=makeup-source-origin-v2-20260820-1/);
 

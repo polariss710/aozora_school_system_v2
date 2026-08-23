@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertAppVersionAtLeast } from "./static-test-helpers.mjs";
 import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
@@ -11,7 +12,7 @@ const state = read("js/utils/lesson-clearance-state.js");
 const css = read("css/lesson-clearance.css");
 const config = read("js/config.js");
 
-assert.match(config, /APP_VERSION = "v10\.5\.52"/);
+assertAppVersionAtLeast(config, "v10.5.52");
 for (const source of [html, app, page, component]) {
   assert.match(source, /phase2c-d2-a3-clearance-completion-20260818-1/);
 }

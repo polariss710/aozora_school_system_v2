@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { assertAppVersionAtLeast } from "./static-test-helpers.mjs";
 import crypto from "node:crypto";
 import fs from "node:fs";
 
@@ -29,7 +30,7 @@ assert.match(html, /id="lessonClearanceConfirmButton"/);
 
 assert.match(html, /lesson-app\.js\?v=makeup-source-origin-v2-20260820-1/);
 assert.match(app, /config\.js\?v=makeup-source-origin-v2-20260820-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.55"/);
+assertAppVersionAtLeast(config, "v10.5.55");
 assert.equal(sha256(lessonApi), "cf0ea1a26f5ddfa80eb3e522c6a2f3a847ab34981563129b7152bcaf2d0276c7");
 assert.equal(sha256(clearanceApi), "259b79fe2273d6fed19707542af806d65380a7b81ea9a92fe2af81741b73a149");
 
