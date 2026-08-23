@@ -3,8 +3,13 @@
 - 日期：2026-08-23
 - 开发：Claude Code（无 DB 写权限，本轮未执行任何 SQL）
 - 审计与执行：Codex
-- 部署状态：**未部署**。两个 SQL 文件均未在任何库上执行过。
-  部署状态以本文件为准，不写在 SQL 文件头注释里 —— 参见文末「已知的同类失效模式」。
+- 部署状态：**已部署**（2026-08-24 更新）。Codex 于 2026-08-24 在 School 生产
+  执行完毕，preflight 通过，5 条 writer 均保留 month-write assert。生产复验：
+  `2026-09-01 → v2 / lesson_week_open / write_allowed=false`，
+  `2026-09-07 → v2 / closed / write_allowed=true`。
+  部署提交 `317ee0b`，归档去重提交 `0d6222b`。
+  - 本文件撰写时（08-23）状态为「未部署」，部署后已就地更新。部署状态以本文件
+    为准，不写在 SQL 文件头注释里 —— 参见文末「已知的同类失效模式」。
 
 ## 1. 问题
 
@@ -68,12 +73,13 @@ v_current_lesson_month := date_trunc(
 
 ## 4. 文件清单
 
-**未执行的 SQL**
+**SQL**（撰写时位于仓库根目录且未执行；部署后由 `0d6222b` 归档并按
+`sql/current/` 惯例重命名，根目录副本已删除）
 
-- `supabase-update-20260823-settlement-lesson-week-close-guard.sql` —— 主体。
-  含 preflight：5 个写入路径必须仍带 assert，否则 fail closed。
-- `supabase-test-20260823-settlement-lesson-week-close-guard-rollback.sql` ——
-  回滚测试，9 组。**不读写任何业务表、不调用任何 writer RPC**，事务末尾
+- `sql/current/school_student_settlement_lesson_week_close_guard_20260823.sql`
+  —— 主体。含 preflight：5 个写入路径必须仍带 assert，否则 fail closed。
+- `sql/current/school_student_settlement_lesson_week_close_guard_rollback_tests_20260823.sql`
+  —— 回滚测试，9 组。**不读写任何业务表、不调用任何 writer RPC**，事务末尾
   `rollback`。准确说不是「全程只读」：它会在 `pg_temp` 中创建一个辅助函数
   （临时 schema 的 catalog 写入），T8/T9 会读 `pg_proc` / `pg_namespace`
   系统目录。业务数据零影响。
@@ -178,11 +184,26 @@ v_current_lesson_month := date_trunc(
    `school_tuition_r1d_e_c_settlement_reader_authoritative_month_cutover.sql`），
    补丁即静默丢失，须重跑 guard 才能补回。本次 SQL 的 preflight 与回滚测试 T9
    都会检出这种情况，但那是事后发现，不是防止。
-2. **`supabase-update-20260822-correction-p.sql:175` 仍是旧的 `p_amount::text`。**
-   生产当前是正确的 `trim_scale`（由 0823 补丁覆盖），但重跑 0822 会退回旧定义。
-   仓库无执行清单保证 0822 → 0823 顺序。
+2. **`supabase-update-20260822-correction-p.sql` 的 `p_amount::text` 回退陷阱。**
+   ~~生产当前是正确的 `trim_scale`，但重跑 0822 会退回旧定义。~~
+   已于 2026-08-24 修复：该文件同步为 `trim_scale(p_amount)::text`，与生产一致，
+   重跑幂等。详见 `docs/school-v2-correction-p-deployment-closure-20260824.md`。
 3. **仓库源文件不等于生产函数体。** 凡涉及函数体的判断，须以
    `pg_get_functiondef` 的实际返回为准。
 4. **23 个静态测试在主干上即为红。** `AGENTS.md:21` 把 static check failure 列为
-   autopilot 硬停止条件，但该闸门当前实际为空。建议单独立项分类处理：需要 DB
-   环境的、需要浏览器的、以及断言已过期的。
+   autopilot 硬停止条件，但该闸门当前实际为空。
+   已于 2026-08-24 部分处理：新增 `scripts/run-static-tests.mjs` 区分环境缺失与
+   断言失败，7 个钉死版本号的断言改为单调断言，现为 74 通过 / 11 跳过 / 8 失败。
+   剩余 8 项需业务意图判断。
+5. **任何人工维护的部署状态记录都会过期——包括本文件。**
+   本文件曾主张「部署状态以本文件为准，不写在 SQL 文件头注释里」。
+   **该主张已被推翻**：`supabase-update-20260822-correction-p.sql` 的
+   `NOT DEPLOYED` 文件头在部署后未更新，先后两次误导判断；而本文件自身的
+   「部署状态：未部署」同样在 24 小时内过期，直到 2026-08-24 才补正。
+   换一种载体不解决问题，因为问题不在载体，在于「状态需要人记得去更新」。
+
+   **可靠的部署状态只有一个来源：查生产。** 例如
+   `select ... ->> 'contract_version'`、`pg_get_functiondef`、
+   或函数定义的 md5。文档应记录「做过什么、为什么这么做」，
+   不应被当作「现在是什么」的权威。
+   凡是要回答「这个东西部署了吗」，一律查库，不读文件。

@@ -15,7 +15,7 @@
 --
 -- Run:
 --   psql "$SCHOOL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 \
---     -f supabase-test-20260823-settlement-lesson-week-close-guard-rollback.sql
+--     -f sql/current/school_student_settlement_lesson_week_close_guard_rollback_tests_20260823.sql
 
 begin;
 set local statement_timeout = '120s';
