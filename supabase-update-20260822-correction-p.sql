@@ -1,6 +1,24 @@
 -- School V2 x Cash Correction-P
--- Phase B local draft only. NOT DEPLOYED.
--- Production execution is explicitly out of scope for Phase B.
+--
+-- 部署状态：已部署。2026-08-22 在 School 生产执行，同日 Home 侧 prepare、
+-- School finalize，2026-08-23 02:26 UTC Home complete，saga status=completed。
+-- 目标业务事实（202,991 JPY 教室租金由 immediate_account 更正至
+-- fixed_credit_card 路线）已完成更正。
+--
+-- 注意：本文件头此前写的是「Phase B local draft only. NOT DEPLOYED.」，
+-- 那是起草时的状态，部署后未更新，先后误导了两次判断。部署状态一律不再以
+-- SQL 文件头为准，请查 docs/ 下对应的部署报告。
+--
+-- 2026-08-24 修订（本次唯一改动）：
+-- school_correction_p_evidence_fingerprint_v1 的 'amount' 字段由
+--   'amount', p_amount::text
+-- 改为
+--   'amount', trim_scale(p_amount)::text
+-- 原因：本文件按原样重跑会把生产的 fingerprint helper 覆盖回旧定义，
+-- 使 202991 与 202991.00 产生不同的 evidence fingerprint。生产已于
+-- 2026-08-23 由 supabase-update-20260823-correction-p-evidence-fingerprint-
+-- canonicalization.sql 修正为 trim_scale；此处同步，使本文件与生产一致、
+-- 重跑幂等。除该行外，本文件与 2026-08-22 实际执行的内容相同。
 
 create table if not exists public.school_expense_cash_corrections (
   id uuid primary key default gen_random_uuid(),
@@ -182,7 +200,7 @@ as $$
     'replacement_fixed_item_id',p_replacement_fixed_item_id,
     'replacement_projection_id',p_replacement_projection_id,
     'school_expense_id',p_school_expense_id,'school_attempt_id',p_school_attempt_id,
-    'amount',p_amount::text,'currency',p_currency,'charge_date',p_charge_date::text,
+    'amount',trim_scale(p_amount)::text,'currency',p_currency,'charge_date',p_charge_date::text,
     'accounting_scope',p_accounting_scope,'external_event_id',p_external_event_id,
     'original_idempotency_key',p_original_idempotency_key,
     'school_fingerprint',p_school_fingerprint,'home_payload_hash',p_home_payload_hash,
