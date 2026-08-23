@@ -1101,7 +1101,7 @@ function updateAdjustmentActionState() {
     || isAdjustmentPreviewLoading || !hasMatchingPreview || !hasRequiredReason;
   dom.adjustmentSubmitButton.title = dom.adjustmentSubmitButton.disabled
     ? (canPreview && !canSave
-      ? "当前或未来月份仅可读取DB权威预览，月份结束前不能保存。"
+      ? "当前月份、未来月份或自然周未结束的月份仅可读取DB权威预览，不能保存。"
       : "只有active admin且DB权威状态允许、当前输入已重新预览时才能保存。")
     : "保存草稿（不会锁定）";
 }
@@ -1237,6 +1237,7 @@ function safeOnlineErrorDisplay(error, fallbackRequestId = "") {
     SETTLEMENT_WAGE_BLOCKED: "该月份已进入不可变工资链，不能修改。",
     SETTLEMENT_MONTH_NOT_CLOSED: "当前月份尚未结束，仅可读取数据库权威预览，不能保存或锁定。",
     SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED: "未来月份仅可读取数据库权威预览，不能保存或锁定。",
+    SETTLEMENT_LESSON_WEEK_NOT_CLOSED: "该月最后一个自然周尚未结束，仅可读取数据库权威预览，不能保存或锁定。",
     SETTLEMENT_SOURCE_FACTS_EMPTY: "该月份没有可用于月结的课时或收款来源，不能保存草稿。",
     SETTLEMENT_PREVIEW_MANIFEST_STALE: "课时或金额事实已变化，请重新预览。",
     SETTLEMENT_LESSON_MANIFEST_STALE: "课时明细已变化，请重新预览。",

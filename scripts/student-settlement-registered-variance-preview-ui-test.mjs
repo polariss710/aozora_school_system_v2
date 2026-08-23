@@ -122,8 +122,8 @@ assert.doesNotMatch(page, /supabase\s*\.|\.rpc\s*\(/);
 
 assert.match(css, /\.settlement-registered-variance-card\s*\{[\s\S]*?min-width:\s*0/);
 assert.match(css, /overflow-wrap:\s*anywhere/);
-assert.match(config, /v10\.5\.61/);
+assert.match(config, /v10\.5\.62/);
 assert.match(html, /student-settlement-registered-variance-preview-20260816-1/);
-assert.match(app, /filter-contract-b3-20260822-1/);
+assert.match(app, /lesson-week-close-20260823-1/);
 
 console.log("student settlement registered variance Preview UI contract: PASS");

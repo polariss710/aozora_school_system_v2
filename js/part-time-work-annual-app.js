@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=filter-contract-b3-20260822-1";
+import { APP_VERSION } from "./config.js?v=lesson-week-close-20260823-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=filter-contract-b3-20260822-1";
+import { initPartTimeWorkAnnualPage } from "./pages/part-time-work-annual-page.js?v=lesson-week-close-20260823-1";
 
 const globalSessionPromise = requireGlobalSession();
 

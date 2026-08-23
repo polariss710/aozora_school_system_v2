@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
 const B1_CACHE_KEY = "filter-contract-b1-20260822-1";
 const B2_CACHE_KEY = "filter-contract-b2-20260822-1";
-const B3_CACHE_KEY = "filter-contract-b3-20260822-1";
+const B3_CACHE_KEY = "lesson-week-close-20260823-1";
 const B4_CACHE_KEY = "filter-contract-b4-20260822-1";
 const B5_CACHE_KEY = "filter-contract-b5-20260822-1";
 
@@ -676,7 +676,7 @@ assert.doesNotThrow(() => read(legacyExceptions[0].html));
 assert.doesNotThrow(() => read(legacyExceptions[0].page));
 
 const config = read("js/config.js");
-assert.match(config, /APP_VERSION = "v10\.5\.61"/);
+assert.match(config, /APP_VERSION = "v10\.5\.62"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);

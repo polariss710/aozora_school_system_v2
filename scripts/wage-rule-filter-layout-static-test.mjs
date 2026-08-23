@@ -106,9 +106,9 @@ assert.match(css, /@media \(max-width: 1799px\)[\s\S]*?\.wage-rule-filter-panel 
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.wage-rule-filter-panel \.wage-rule-filter-grid[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-rule-|\.wage-filter-panel[^\n{]*\.wage-rule-/);
 
-assert.match(html, /filter-contract-b3-20260822-1/);
-assert.match(app, /filter-contract-b3-20260822-1/);
-assert.match(config, /APP_VERSION = "v10\.5\.61"/);
+assert.match(html, /lesson-week-close-20260823-1/);
+assert.match(app, /lesson-week-close-20260823-1/);
+assert.match(config, /APP_VERSION = "v10\.5\.62"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

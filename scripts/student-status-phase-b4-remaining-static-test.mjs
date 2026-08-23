@@ -120,5 +120,5 @@ for (const source of [weeklyPage, wageRulePage, wageRuleDetail, classroom, weekl
   assert.doesNotMatch(source, /service[_-]?role/i);
 }
 
-assert.match(read("js/config.js"), /APP_VERSION = "v10\.5\.61"/);
+assert.match(read("js/config.js"), /APP_VERSION = "v10\.5\.62"/);
 console.log("STUDENT_STATUS_PHASE_B4_REMAINING_STATIC_TEST_PASS");

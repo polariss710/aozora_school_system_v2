@@ -78,6 +78,7 @@ export function canUseOnlineDraftSave(membershipRole, status) {
 const PREVIEW_ONLY_MONTH_BLOCKERS = new Set([
   "SETTLEMENT_MONTH_NOT_CLOSED",
   "SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED",
+  "SETTLEMENT_LESSON_WEEK_NOT_CLOSED",
 ]);
 
 export function canUseOnlineDraftPreview(membershipRole, status) {
@@ -298,6 +299,7 @@ function blockerLabel(code) {
     SETTLEMENT_WAGE_BLOCKED: "工资链路已冻结",
     SETTLEMENT_MONTH_NOT_CLOSED: "当前月份仅可预览",
     SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED: "未来月份仅可预览",
+    SETTLEMENT_LESSON_WEEK_NOT_CLOSED: "自然周未结束仅可预览",
     SETTLEMENT_SOURCE_FACTS_EMPTY: "无可结算来源",
     SETTLEMENT_NOT_INCOMPLETE: "非普通未完成状态",
     SETTLEMENT_SCOPE_NOT_UNIQUE: "结算范围不唯一",
