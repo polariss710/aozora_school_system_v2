@@ -184,7 +184,7 @@ v_current_lesson_month := date_trunc(
    `school_tuition_r1d_e_c_settlement_reader_authoritative_month_cutover.sql`），
    补丁即静默丢失，须重跑 guard 才能补回。本次 SQL 的 preflight 与回滚测试 T9
    都会检出这种情况，但那是事后发现，不是防止。
-2. **`supabase-update-20260822-correction-p.sql` 的 `p_amount::text` 回退陷阱。**
+2. **`sql/current/school_expense_cash_correction_p_20260822.sql` 的 `p_amount::text` 回退陷阱。**
    ~~生产当前是正确的 `trim_scale`，但重跑 0822 会退回旧定义。~~
    已于 2026-08-24 修复：该文件同步为 `trim_scale(p_amount)::text`，与生产一致，
    重跑幂等。详见 `docs/school-v2-correction-p-deployment-closure-20260824.md`。

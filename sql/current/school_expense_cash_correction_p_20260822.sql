@@ -1,13 +1,13 @@
 -- School V2 x Cash Correction-P
 --
--- 部署状态：已部署。2026-08-22 在 School 生产执行，同日 Home 侧 prepare、
+-- 历史执行记录：2026-08-22 在 School 生产执行，同日 Home 侧 prepare、
 -- School finalize，2026-08-23 02:26 UTC Home complete，saga status=completed。
 -- 目标业务事实（202,991 JPY 教室租金由 immediate_account 更正至
 -- fixed_credit_card 路线）已完成更正。
 --
 -- 注意：本文件头此前写的是「Phase B local draft only. NOT DEPLOYED.」，
--- 那是起草时的状态，部署后未更新，先后误导了两次判断。部署状态一律不再以
--- SQL 文件头为准，请查 docs/ 下对应的部署报告。
+-- 那是起草时的状态，部署后未更新，先后误导了两次判断。本段只记录做过什么；
+-- 当前部署和运行状态不得以 SQL 文件头或文档为准，必须只读查询生产确认。
 --
 -- 2026-08-24 修订（本次唯一改动）：
 -- school_correction_p_evidence_fingerprint_v1 的 'amount' 字段由
@@ -16,9 +16,9 @@
 --   'amount', trim_scale(p_amount)::text
 -- 原因：本文件按原样重跑会把生产的 fingerprint helper 覆盖回旧定义，
 -- 使 202991 与 202991.00 产生不同的 evidence fingerprint。生产已于
--- 2026-08-23 由 supabase-update-20260823-correction-p-evidence-fingerprint-
--- canonicalization.sql 修正为 trim_scale；此处同步，使本文件与生产一致、
--- 重跑幂等。除该行外，本文件与 2026-08-22 实际执行的内容相同。
+-- 2026-08-23 由 sql/current/school_expense_cash_correction_p_evidence_
+-- fingerprint_canonicalization_20260823.sql 修正为 trim_scale；此处同步，
+-- 使本文件与生产一致、重跑幂等。除该行外，本文件与 2026-08-22 实际执行的内容相同。
 
 create table if not exists public.school_expense_cash_corrections (
   id uuid primary key default gen_random_uuid(),

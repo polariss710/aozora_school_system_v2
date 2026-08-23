@@ -40,6 +40,8 @@
 - Confirm the target SQL file matches the current phase: schema-only files must not contain RPC/function creation; RPC files must not include unrelated schema or data repair.
 - Execute School DB SQL files with `psql "$SCHOOL_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>` and Cash DB SQL files with `psql "$CASH_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f <file>`.
 - Never print, save, or commit any DB URL or secret; `SUPABASE_DB_URL` is not authoritative for V2 / V3 and must not be used.
+- Treat live production as the sole authority for current deployment and runtime state. Verify it with read-only evidence such as contract versions, `pg_get_functiondef`, definition hashes, catalog metadata, or exact postdeploy queries.
+- SQL headers, handoff reports, `docs/current-status.md`, and other documents record historical actions and intent only. Never use an unverified document statement by itself to claim that an object is currently deployed, absent, enabled, blocked, or matches the repository.
 - After schema execution, run read-only verification for columns, nullable flags, FK/constraints, indexes, comments, and unchanged historical data.
 - After RPC execution, smoke test function existence, run rollback tests, then run a commit test only against whitelisted test data.
 - Report SQL output summaries, verification results, git status, and whether the workflow completed or stopped.
