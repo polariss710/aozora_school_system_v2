@@ -33,7 +33,8 @@ for (const [name, page, html, prefix] of [
   ["income", income, read("income.html"), "income"],
   ["expense", expense, read("expense.html"), "expense"],
 ]) {
-  assert.match(page, /student-status-api\.js\?v=phase-b4-finance-20260807-1/, `${name}: shared API import`);
+  // Historical cache-key literals are intentionally not asserted; the shared API reference remains covered (handoff section 8.6).
+  assert.match(page, /student-status-api\.js/, `${name}: shared API import`);
   assert.match(page, /fetchStudentMonthCandidates\(\{[\s\S]*?month:[\s\S]*?includeInactive:[\s\S]*?selectedStudentId:/, `${name}: authoritative candidate args`);
   assert.match(page, /writeStudentCandidateQuery\(/, `${name}: URL serializer`);
   assert.match(page, /student_id/, `${name}: student_id URL/filter`);

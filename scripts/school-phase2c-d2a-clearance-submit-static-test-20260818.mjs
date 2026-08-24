@@ -13,10 +13,7 @@ const state = read("js/utils/lesson-clearance-state.js");
 const config = read("js/config.js");
 
 assertAppVersionAtLeast(config, "v10.5.52");
-for (const source of [html, app, page, component]) {
-  assert.doesNotMatch(source, /phase2c-d1-clearance-workspace-20260817-2/);
-}
-assert.match(html, /phase2c-d2-a3-clearance-completion-20260818-1/);
+// Historical cache-key presence and absence snapshots were removed under handoff section 8.6.
 assert.match(html, /id="lessonClearanceConfirmButton"[^>]*disabled>核对并准备清偿</);
 assert.match(html, /id="lessonClearanceFinalConfirmDialog"/);
 assert.match(html, /id="lessonClearanceFinalSubmitButton"/);

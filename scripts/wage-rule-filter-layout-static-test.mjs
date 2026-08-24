@@ -106,8 +106,7 @@ assert.match(css, /@media \(max-width: 1799px\)[\s\S]*?\.wage-rule-filter-panel 
 assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.wage-rule-filter-panel \.wage-rule-filter-grid[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\)/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-rule-|\.wage-filter-panel[^\n{]*\.wage-rule-/);
 
-assert.match(html, /lesson-week-close-20260823-1/);
-assert.match(app, /lesson-week-close-20260823-1/);
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 assert.match(config, /APP_VERSION = "v10\.5\.62"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 

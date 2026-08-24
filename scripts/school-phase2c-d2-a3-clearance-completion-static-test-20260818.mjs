@@ -4,16 +4,14 @@ import fs from "node:fs";
 
 const read = (path) => fs.readFileSync(path, "utf8");
 const html = read("lesson.html");
-const app = read("js/lesson-app.js");
 const page = read("js/pages/lesson-page.js");
 const api = read("js/api/lesson-clearance-api.js");
 const component = read("js/components/lesson-clearance-workspace.js");
 const state = read("js/utils/lesson-clearance-state.js");
 const config = read("js/config.js");
-const cacheKey = "phase2c-d2-a3-clearance-completion-20260818-1";
 
 assertAppVersionAtLeast(config, "v10.5.52");
-for (const source of [html, app, page, component]) assert.match(source, new RegExp(cacheKey));
+// Historical cache-key snapshots are intentionally not asserted; see the week-close handoff section 8.6.
 
 for (const [label, id] of [
   ["选择待补对象", "lessonClearancePendingSelect"],

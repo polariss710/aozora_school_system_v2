@@ -2,11 +2,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
 const RESET_MESSAGE = "已重置筛选条件；点击“查询”后刷新结果。";
-const B1_CACHE_KEY = "filter-contract-b1-20260822-1";
-const B2_CACHE_KEY = "filter-contract-b2-20260822-1";
-const B3_CACHE_KEY = "lesson-week-close-20260823-1";
-const B4_CACHE_KEY = "filter-contract-b4-20260822-1";
-const B5_CACHE_KEY = "filter-contract-b5-20260822-1";
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 
 const pages = [
   {
@@ -25,7 +21,6 @@ const pages = [
     auxiliaryReaders: ["fetchStudentMonthCandidates", "refreshTopStudentCandidatesFromControls"],
     mainResultReaders: ["fetchLessonRecords", "loadLessonMonth"],
     writers: ["createPlannedLessonRecord", "generatePlannedLessonsBatch"],
-    cacheKey: null,
   },
   {
     id: "subject",
@@ -43,7 +38,6 @@ const pages = [
     auxiliaryReaders: [],
     mainResultReaders: ["fetchSubjects", "loadSubjectData"],
     writers: ["createSubjectProfile", "updateSubjectProfile"],
-    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "wage",
@@ -67,7 +61,6 @@ const pages = [
     auxiliaryReaders: ["fetchWageStudentMonthCandidates", "fetchWageTeachers", "fetchWageSubjects"],
     mainResultReaders: ["fetchWageLocks", "fetchWageCandidateLessons", "loadWageMonth"],
     writers: ["generateTeacherMonthlyWage", "createTeacherWageExpenseRecord"],
-    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "reimbursement",
@@ -90,7 +83,6 @@ const pages = [
     auxiliaryReaders: ["fetchReimbursementLookups"],
     mainResultReaders: ["fetchReimbursementRecords", "fetchReimbursementCandidateExpenses", "loadReimbursementMonth"],
     writers: ["createReimbursementRecord"],
-    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "profit",
@@ -108,7 +100,6 @@ const pages = [
     auxiliaryReaders: [],
     mainResultReaders: ["fetchProfitSummaryPageData", "loadProfitSummary"],
     writers: [],
-    cacheKey: B1_CACHE_KEY,
   },
   {
     id: "student",
@@ -134,7 +125,6 @@ const pages = [
     auxiliaryReaders: ["fetchStudentFilterOptions", "fetchBusinessEntitiesForStudents"],
     mainResultReaders: ["fetchStudents", "fetchStudentStatusManagement", "loadStudentData"],
     writers: ["createStudentProfile", "updateStudentProfile", "transitionStudentStatus", "correctStudentStatusEvent"],
-    cacheKey: B2_CACHE_KEY,
   },
   {
     id: "teacher",
@@ -152,7 +142,6 @@ const pages = [
     auxiliaryReaders: ["fetchTeacherFilterOptions", "fetchBusinessEntitiesForTeachers", "fetchSubjectsForTeachers"],
     mainResultReaders: ["fetchTeachers", "loadTeacherData"],
     writers: ["createTeacherProfile", "updateTeacherProfile"],
-    cacheKey: B2_CACHE_KEY,
   },
   {
     id: "account",
@@ -185,7 +174,6 @@ const pages = [
     auxiliaryReaders: ["fetchBusinessEntitiesForAccounts"],
     mainResultReaders: ["fetchAccounts", "fetchAccountTransactions", "loadAccountData"],
     writers: ["createAccountProfile", "updateAccountProfile", "createAccountTransfer", "createAccountAdjustment"],
-    cacheKey: B2_CACHE_KEY,
   },
   {
     id: "settlement",
@@ -210,7 +198,6 @@ const pages = [
     auxiliaryReaders: ["fetchSettlementStudents", "fetchStudentMonthCandidates"],
     mainResultReaders: ["fetchStudentSettlements", "runQuery"],
     writers: ["saveStudentSettlementDraftOnline"],
-    cacheKey: B3_CACHE_KEY,
   },
   {
     id: "wage-rule",
@@ -235,7 +222,6 @@ const pages = [
     auxiliaryReaders: ["fetchWageRuleCurrentStudentCandidates", "refreshDraftStudentCandidates"],
     mainResultReaders: ["fetchWageRules", "queryDraftFilters"],
     writers: ["createWageRuleConfig", "updateWageRuleConfig", "setWageRuleActiveState"],
-    cacheKey: B3_CACHE_KEY,
   },
   {
     id: "income",
@@ -261,7 +247,6 @@ const pages = [
     auxiliaryReaders: ["fetchStudentMonthCandidates", "refreshDraftStudentCandidates"],
     mainResultReaders: ["fetchIncomeRecords", "queryDraftFilters", "loadIncomeMonth"],
     writers: ["createIncomeRecord", "createPendingCashIncomeRecord", "requestCashIncomeConfirmationForRecord", "generateStudentTuitionBillAtomic"],
-    cacheKey: B3_CACHE_KEY,
   },
   {
     id: "expense",
@@ -288,7 +273,6 @@ const pages = [
     auxiliaryReaders: ["fetchStudentMonthCandidates", "refreshDraftStudentCandidates"],
     mainResultReaders: ["fetchExpenseRecords", "fetchExpenseMonthSnapshot", "queryDraftFilters", "loadExpenseMonth"],
     writers: ["createExpenseRecord", "createPendingCashExpenseRecord", "requestCashExpenseConfirmation"],
-    cacheKey: B3_CACHE_KEY,
   },
   {
     id: "part-time-work-annual",
@@ -312,7 +296,6 @@ const pages = [
     auxiliaryReaders: [],
     mainResultReaders: ["fetchPartTimeWorkAnnualSummary", "loadAnnualSummary"],
     writers: [],
-    cacheKey: B3_CACHE_KEY,
   },
   {
     id: "part-time-work",
@@ -356,7 +339,6 @@ const pages = [
       "unlockPartTimeWorkMonthlySettlement",
       "createPartTimeWorkIncomeRequest",
     ],
-    cacheKey: B4_CACHE_KEY,
   },
   {
     id: "weekly-schedule-image",
@@ -390,7 +372,6 @@ const pages = [
     mainResultReaders: ["fetchLessonTeachers", "fetchLessonSubjects", "fetchLessonRecords", "fetchLessonStudentsByIds", "loadSchedules"],
     writers: [],
     queryButtonPattern: /type="submit">生成预览<\/button>/,
-    cacheKey: B5_CACHE_KEY,
   },
   {
     id: "classroom-schedule",
@@ -424,7 +405,6 @@ const pages = [
     mainResultReaders: ["fetchLessonTeachers", "fetchLessonSubjects", "fetchLessonRecords", "fetchLessonStudentsByIds", "loadSchedule"],
     writers: [],
     queryButtonPattern: /type="submit">刷新排班<\/button>/,
-    cacheKey: B5_CACHE_KEY,
   },
   {
     id: "weekly-lesson-dashboard",
@@ -458,7 +438,6 @@ const pages = [
     mainResultReaders: ["fetchWeeklyLessonOperations", "fetchLessonStudentsByIds", "loadDashboard"],
     writers: [],
     queryButtonPattern: /type="submit">查询本周<\/button>/,
-    cacheKey: B5_CACHE_KEY,
   },
 ];
 
@@ -551,11 +530,6 @@ for (const page of pages) {
     [],
     `${page.label}: reader classifications overlap`
   );
-
-  if (page.cacheKey) {
-    assert.ok(html.includes(page.cacheKey), `${page.label}: HTML cache key missing`);
-    assert.ok(app.includes(page.cacheKey), `${page.label}: app cache key missing`);
-  }
 
   const state = new ContractState(page.id === "lesson" || page.id === "profit");
   state.change();

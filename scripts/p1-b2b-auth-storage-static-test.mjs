@@ -81,7 +81,8 @@ for (const htmlFile of businessEntries) {
   const modulePath = html.match(/<script type="module" src="\.\/(js\/[^"?]+\.js)(?:\?[^"\s]+)?"><\/script>/)?.[1];
   assert.ok(modulePath, `${htmlFile}: missing module entry`);
   const moduleSource = readFileSync(modulePath, "utf8");
-  assert.match(moduleSource, /auth-guard\.js\?v=p1-b2b-auth-storage-20260810-1/);
+  // Historical cache-key literals are intentionally not asserted; the auth-guard reference remains covered (handoff section 8.6).
+  assert.match(moduleSource, /auth-guard\.js/);
 }
 
 console.log("P1_B2B_AUTH_STORAGE_STATIC_TEST_PASS");

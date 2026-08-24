@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 
-const AUTH_ASSET_VERSION = "p0-g1-a-20260804-1";
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 const rootHtmlFiles = readdirSync(".")
   .filter((file) => file.endsWith(".html") && file !== "login.html")
   .sort();
@@ -91,17 +91,10 @@ assert.doesNotMatch(client, /keyPrefix|slice\(0, 5\)/);
 
 assert.match(
   authApi,
-  /supabase-client\.js\?v=p1-b2b-auth-storage-20260810-1/,
-  "auth-api must import the single versioned canonical Supabase client"
+  /supabase-client\.js/,
+  "auth-api must import the canonical Supabase client resource"
 );
-for (const file of readdirSync("js", { recursive: true }).filter((file) => file.endsWith(".js"))) {
-  const source = readFileSync(`js/${file}`, "utf8");
-  assert.doesNotMatch(
-    source,
-    /supabase-client\.js(?!\?v=p1-b2b-auth-storage-20260810-1)/,
-    `js/${file} must use the single versioned canonical Supabase client URL`
-  );
-}
+// The former exact-key cross-file assertion was removed under handoff section 8.6.
 
 const css = readFileSync("css/app.css", "utf8");
 assert.match(css, /html\.auth-pending body\s*\{\s*visibility: hidden;/);

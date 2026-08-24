@@ -15,6 +15,7 @@ const pending = (id, overrides = {}) => ({
   can_be_candidate: true,
   active_claimed: false,
   is_locked: false,
+  source_row_md5: `pending-${id}`,
   ...overrides,
 });
 const overage = (id, overrides = {}) => ({
@@ -27,6 +28,24 @@ const overage = (id, overrides = {}) => ({
   can_be_candidate: true,
   active_claimed: false,
   is_locked: false,
+  source_row_md5: `overage-${id}`,
+  ...overrides,
+});
+
+const previewForRequest = (state, request, overrides = {}) => ({
+  request_identity: request.requestIdentity,
+  clearance_type: request.clearanceType,
+  requested_minutes: Number(request.allocatedMinutes),
+  operation_date: request.operationDate,
+  preview_manifest_sha256: "manifest-0123456789",
+  pending_source: { planned_id: request.pendingSourcePlannedId },
+  overtime_source: { actual_id: request.overtimeSourceActualId },
+  comparison: { same_teacher: true, same_subject: true },
+  financial: { requires_forward_adjustment: false },
+  source_versions: {
+    pending_row_md5: state.selectedPending().source_row_md5,
+    overtime_row_md5: state.selectedOverage().source_row_md5,
+  },
   ...overrides,
 });
 
@@ -58,15 +77,19 @@ assert.match(firstIdentity, /^[0-9a-f-]{36}$/i);
 state.setPreviewInput("allocatedMinutes", "15");
 const minutesIdentity = state.selection.requestIdentity;
 assert.notEqual(minutesIdentity, firstIdentity);
+state.setPreviewInput("businessNote", "  \n  ");
+assert.equal(state.previewValidationMessage(), "请填写业务说明。");
+assert.throws(() => state.previewRequest(), /请填写业务说明/);
+state.setPreviewInput("businessNote", "状态机测试业务说明");
 const request1 = state.previewRequest();
 const request2 = state.previewRequest();
-assert.equal(request1.requestIdentity, minutesIdentity);
-assert.equal(request2.requestIdentity, minutesIdentity, "same input reuses identity");
-assert.equal(state.acceptPreview({ request_identity: minutesIdentity, comparison: {} }), true);
+assert.equal(request1.requestIdentity, state.selection.requestIdentity);
+assert.equal(request2.requestIdentity, request1.requestIdentity, "same input reuses identity");
+assert.equal(state.acceptPreview(previewForRequest(state, request1), request1), true);
 assert.ok(state.selection.preview);
 state.setPreviewInput("businessNote", "人工备注");
 assert.equal(state.selection.preview, null);
-assert.notEqual(state.selection.requestIdentity, minutesIdentity);
+assert.notEqual(state.selection.requestIdentity, request1.requestIdentity);
 
 state.selectPending("pending-other");
 state.setPreviewInput("allocatedMinutes", "15");
@@ -95,6 +118,9 @@ assert.deepEqual(state.draftFilters, LESSON_CLEARANCE_DEFAULT_FILTERS);
 assert.equal(state.appliedFilters.fifoOnly, true, "reset changes draft only");
 
 state.setRole("read_only");
+assert.equal(state.selection.pendingId, "", "role changes clear the selected pending source");
+assert.equal(state.selection.overtimeId, "", "role changes clear the selected overage source");
+assert.equal(state.selection.businessNote, "", "role changes clear Preview-bound business input");
 assert.equal(state.selectPending("pending-fifo"), false);
 assert.match(state.previewValidationMessage(), /只能查看余额/);
 state.setRole("operator");
@@ -106,10 +132,14 @@ state.setRole("admin");
 state.selectPending("pending-fifo");
 state.selectOvertime("overage-1");
 state.setPreviewInput("allocatedMinutes", "15");
+state.setPreviewInput("businessNote", "角色切换后重新填写业务说明");
 const currentIdentity = state.selection.requestIdentity;
-assert.equal(state.acceptPreview({ request_identity: "stale-identity" }), false);
+const currentRequest = state.previewRequest();
+const staleRequest = { ...currentRequest, requestIdentity: "stale-identity" };
+assert.equal(state.acceptPreview(previewForRequest(state, staleRequest), staleRequest), false);
 assert.equal(state.selection.preview, null);
-assert.match(state.selection.previewError, /来源事实已变化/);
+// 8efb0d0 localized “来源事实已变化” to “所选对象事实已变化”; retain user-message coverage.
+assert.match(state.selection.previewError, /所选对象事实已变化/);
 assert.notEqual(currentIdentity, "stale-identity");
 
 state.clearSelection();

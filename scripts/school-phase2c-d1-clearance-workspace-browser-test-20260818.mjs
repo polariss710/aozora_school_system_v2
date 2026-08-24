@@ -98,6 +98,10 @@ await page.evaluate(async () => {
 
 await page.click("#openLessonClearanceWorkspaceButton");
 await page.waitForSelector("#lessonClearanceWorkspaceContent:not(.is-hidden)");
+// 8efb0d0 moved the visible request identity from preview-actions <code> into the selectionAudit “请求编号” fact.
+const requestIdentityValue = page
+  .locator("#lessonClearanceSelectionPanel .lesson-clearance-system-details .lesson-clearance-fact", { hasText: /^请求编号/ })
+  .locator("strong");
 assert.equal(await page.locator("#lessonClearancePendingSelect").inputValue(), "");
 assert.equal(await page.locator("#lessonClearanceOverageSelect").inputValue(), "");
 assert.equal(await page.locator("#lessonClearanceConfirmButton").isDisabled(), true);
@@ -107,16 +111,16 @@ await page.selectOption("#lessonClearancePendingSelect", "10000000-0000-4000-800
 await page.selectOption("#lessonClearanceOverageSelect", "20000000-0000-4000-8000-000000000001");
 await page.fill("#lessonClearanceAllocatedMinutesInput", "15");
 await page.dispatchEvent("#lessonClearanceAllocatedMinutesInput", "change");
-const identity1 = await page.locator(".lesson-clearance-preview-actions code").innerText();
+const identity1 = await requestIdentityValue.innerText();
 await page.click("#lessonClearancePreviewButton");
 await page.waitForSelector(".lesson-clearance-preview-card");
 assert.match(await page.locator(".lesson-clearance-preview-card").innerText(), /确认跨老师/);
 assert.match(await page.locator(".lesson-clearance-preview-card").innerText(), /确认跨科目/);
 await page.click("#lessonClearancePreviewButton");
-const identity2 = await page.locator(".lesson-clearance-preview-actions code").innerText();
+const identity2 = await requestIdentityValue.innerText();
 assert.equal(identity2, identity1, "same input reuses request identity");
 await page.fill("#lessonClearanceBusinessNoteInput", "业务备注变化");
-const noteIdentity = await page.locator(".lesson-clearance-preview-actions code").innerText();
+const noteIdentity = await requestIdentityValue.innerText();
 assert.notEqual(noteIdentity, identity2, "changed business note rotates request identity");
 assert.equal(await page.locator(".lesson-clearance-preview-card").count(), 0, "changed business note hides stale preview immediately");
 await page.locator("#lessonClearanceAllocatedMinutesInput").evaluate((element) => {

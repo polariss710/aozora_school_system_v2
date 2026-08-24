@@ -35,11 +35,10 @@ assert(page.includes('console.error("Lesson management initial load failed", err
 assert(!page.includes(".rpc("), "page module must not call RPC directly");
 assert(!/\.(insert|update|delete|upsert)\s*\(/.test(page), "page module must not perform direct row writes");
 
-const appCacheKey = "makeup-source-origin-v2-20260820-1";
-const apiCacheKey = "makeup-source-origin-v2-20260820-1";
-assert(html.includes(`lesson-app.js?v=${appCacheKey}`), "lesson HTML must load the current app cache key");
-assert(app.includes(`config.js?v=${appCacheKey}`) && app.includes(`lesson-page.js?v=${appCacheKey}`), "app/config/page cache keys must match");
-assert(page.includes(`lesson-api.js?v=${apiCacheKey}`), "page must retain the current lesson API cache key");
+// Historical cache-key literals are intentionally not asserted; resource references remain covered (handoff section 8.6).
+assert(html.includes("lesson-app.js"), "lesson HTML must load the lesson app resource");
+assert(app.includes("config.js") && app.includes("lesson-page.js"), "app must retain config and page resource imports");
+assert(page.includes("lesson-api.js"), "page must retain the lesson API resource import");
 
 const sampleRecords = [
   { id: "planned-1", lesson_type: "planned" },

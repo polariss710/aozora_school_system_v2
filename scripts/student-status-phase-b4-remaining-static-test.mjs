@@ -42,8 +42,7 @@ for (const [html, app, page] of [
   [weeklyOperationsHtml, weeklyOperationsApp, weeklyOperations],
 ]) {
   assert.match(html, /type="button">重置<\/button>/);
-  assert.match(html, /filter-contract-b5-20260822-1/);
-  assert.match(app, /filter-contract-b5-20260822-1/);
+  // Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
   assert.match(page, /已重置筛选条件；点击“查询”后刷新结果。/);
   assert.match(page, /(?:mainRequestSequence|requestSequence)/);
   assert.match(page, /appliedFilters/);

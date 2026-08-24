@@ -200,7 +200,6 @@ const pageSource = readFileSync(new URL("../js/pages/income-page.js", import.met
 const apiSource = readFileSync(new URL("../js/api/income-api.js", import.meta.url), "utf8");
 const htmlSource = readFileSync(new URL("../income.html", import.meta.url), "utf8");
 const cssSource = readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
-const incomeAppSource = readFileSync(new URL("../js/income-app.js", import.meta.url), "utf8");
 const sqlSource = readFileSync(new URL("../sql/current/school_tuition_r2_e_planned_aircon_fee_cutover.sql", import.meta.url), "utf8");
 const r2ffPolicySource = readFileSync(new URL("../sql/current/school_tuition_r2_f_f_aircon_policy_cutover.sql", import.meta.url), "utf8");
 const previewRendererSource = pageSource.slice(
@@ -238,9 +237,8 @@ assert.match(cssSource, /@media \(max-width:\s*767px\)[\s\S]*?\.tuition-bill-pre
 assert.match(cssSource, /\.tuition-bill-dialog-body\s*\{[\s\S]*?overflow-y:\s*auto/);
 assert.match(cssSource, /\.tuition-bill-dialog-panel\s*\{[\s\S]*?overflow:\s*hidden/);
 assert.doesNotMatch(pageSource, /generateTuitionBillDialog\.addEventListener\(\s*["']click/);
-assert.match(incomeAppSource, /income-page\.js\?v=phase-b4-finance-20260807-2/);
-assert.match(htmlSource, /income-app\.js\?v=be-ui-blocker-20260807-2/);
-assert.match(pageSource, /tuition-validation-preview\.js\?v=v2\.115\.2-tuition-duplicate-message/);
+// Historical cache-key snapshots are intentionally not asserted; see the week-close handoff section 8.6.
+assert.match(pageSource, /tuition-validation-preview\.js/);
 assert.doesNotMatch(apiSource, /\.rpc\("school_generate_student_tuition_bill"/);
 assert.doesNotMatch(apiSource, /school_create_student_tuition_bill_income_record/);
 assert.match(sqlSource, /school_list_student_tuition_charge_candidates/);

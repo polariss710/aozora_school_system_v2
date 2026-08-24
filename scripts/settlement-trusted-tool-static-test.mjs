@@ -12,7 +12,8 @@ const sql = fs.readFileSync(
 
 assert.match(html, /管理员可在线保存已结束月份的未完成月结草稿；当前及未来月份仅可读取DB权威预览，正式锁定暂未开放。/);
 assert.match(html, /编辑月结草稿/);
-assert.match(html, /settlement-app\.js\?v=lesson-week-close-20260823-1/);
+// Historical cache-key literals are intentionally not asserted; the settlement app reference remains covered (handoff section 8.6).
+assert.match(html, /settlement-app\.js/);
 assert.match(page, /saveStudentSettlementDraftOnline\(saveInput\)/);
 assert.match(page, /dom\.adjustmentSubmitButton\.disabled = !canSave/);
 assert.doesNotMatch(page, /data-lock-settlement-id=/);

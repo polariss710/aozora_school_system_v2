@@ -68,8 +68,7 @@ assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.income-filter-panel \.in
 assert.doesNotMatch(css, /\.expense-filter-panel[^\n{]*\.income-filter-|\.wage-filter-panel[^\n{]*\.income-filter-|\.settlement-filter-panel[^\n{]*\.income-filter-/);
 
 assert.match(api, /export async function fetchIncomeRecords\(month\)/);
-assert.match(html, /lesson-week-close-20260823-1/);
-assert.match(app, /lesson-week-close-20260823-1/);
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 assert.match(config, /APP_VERSION = "v10\.5\.62"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 

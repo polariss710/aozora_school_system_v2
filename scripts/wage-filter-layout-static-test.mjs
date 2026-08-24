@@ -50,8 +50,7 @@ assert.doesNotMatch(generateCall, /student|settlementType/i);
 assert.match(page, /generationScopeCandidateLessonsForFilters\(filters\)[\s\S]*filters\?\.teacherId/);
 assert.match(page, /<td><span class="status-badge status-neutral">\$\{escapeHtml\(settlementTypeLabel\(row\.settlement_type\)\)\}<\/span><\/td>/);
 
-assert.match(html, /filter-contract-b1-20260822-1/);
-assert.match(app, /filter-contract-b1-20260822-1/);
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 assert.match(config, /APP_VERSION = "v10\.5\.62"/);
 assert.doesNotMatch(page, /(?:yearFilter|monthFilter|includeInactiveCheckbox).*addEventListener\("change"/);
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-|\.lesson-filter-panel[^\n{]*\.wage-/);

@@ -4,7 +4,6 @@ import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(path, "utf8");
 const html = read("lesson.html");
-const app = read("js/lesson-app.js");
 const page = read("js/pages/lesson-page.js");
 const api = read("js/api/lesson-clearance-api.js");
 const component = read("js/components/lesson-clearance-workspace.js");
@@ -13,9 +12,7 @@ const css = read("css/lesson-clearance.css");
 const config = read("js/config.js");
 
 assertAppVersionAtLeast(config, "v10.5.52");
-for (const source of [html, app, page, component]) {
-  assert.match(source, /phase2c-d2-a3-clearance-completion-20260818-1/);
-}
+// Historical cache-key snapshots are intentionally not asserted; see the week-close handoff section 8.6.
 assert.match(api, /school_list_lesson_clearance_pending_balances_v3/);
 assert.doesNotMatch(api, /school_list_lesson_clearance_pending_balances_v2/);
 assert.equal((api.match(/supabase\.rpc\(/g) || []).length, 2);

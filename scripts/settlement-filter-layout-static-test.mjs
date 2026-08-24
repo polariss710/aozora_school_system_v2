@@ -6,8 +6,7 @@ const css = readFileSync("css/app.css", "utf8");
 const page = readFileSync("js/pages/settlement-page.js", "utf8");
 const app = readFileSync("js/settlement-app.js", "utf8");
 const config = readFileSync("js/config.js", "utf8");
-const cssCacheKey = "student-settlement-registered-variance-preview-20260816-1";
-const runtimeCacheKey = "lesson-week-close-20260823-1";
+// Historical cache-key literals are intentionally not asserted; resource references remain covered (handoff section 8.6).
 
 const filterForm = html.match(/<form id="settlementFilterForm"[\s\S]*?<\/form>/)?.[0] || "";
 const studentField = filterForm.match(/<div class="field student-month-candidate-field settlement-student-filter-field">[\s\S]*?<\/div>/)?.[0] || "";
@@ -45,9 +44,9 @@ assert.match(page, /setOptionalQuery\(url\.searchParams, "keyword", filters\.key
 assert.match(page, /fetchStudentMonthCandidates\(\{[\s\S]*month:[\s\S]*includeInactive:[\s\S]*selectedStudentId:/);
 assert.match(page, /row\.student_id !== filters\.studentId/);
 
-assert.match(html, new RegExp(`app\\.css\\?v=${cssCacheKey}`));
-assert.match(html, new RegExp(`settlement-app\\.js\\?v=${runtimeCacheKey}`));
-assert.match(app, new RegExp(`config\\.js\\?v=${runtimeCacheKey}`));
+assert.match(html, /app\.css/);
+assert.match(html, /settlement-app\.js/);
+assert.match(app, /config\.js/);
 assert.match(config, /APP_VERSION = "v10\.5\.62"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

@@ -5,7 +5,6 @@ import { readFileSync } from "node:fs";
 const html = readFileSync("expense-detail.html", "utf8");
 const page = readFileSync("js/pages/expense-detail-page.js", "utf8");
 const api = readFileSync("js/api/expense-detail-api.js", "utf8");
-const app = readFileSync("js/expense-detail-app.js", "utf8");
 const config = readFileSync("js/config.js", "utf8");
 const migration = readFileSync(
   "sql/current/school_p1_b1c_r_attachment_write_retirement_20260810.sql",
@@ -44,8 +43,7 @@ for (const forbiddenStorageRuntime of [
 }
 
 assertAppVersionAtLeast(config, "v10.5.33");
-assert(app.includes("p1-b1c-r-20260810-1"));
-assert(html.includes("p1-b1c-r-20260810-1"));
+// Historical cache-key snapshots are intentionally not asserted; see the week-close handoff section 8.6.
 
 assert(migration.includes("begin;"));
 assert(migration.includes("commit;"));

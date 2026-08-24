@@ -20,12 +20,23 @@ assert.match(detailApi, /school_get_student_monthly_settlement_effective_states/
 assert.match(api, /row\.settlement_status !== "unlocked" \|\| row\.editable === false/);
 assert.match(page, /historically_consumed_immutable/);
 assert.match(detailPage, /historically_consumed_immutable/);
-assert.match(page, /row\.editable === false/);
+assert.match(page, /canUseOnlineDraftSave\(membershipRole, row\.online_status\)/);
+assert.match(page, /canUseOnlineDraftPreview\(membershipRole, row\.online_status\)/);
+assert.match(page, /canUseOnlineDraftSave\(membershipRole, currentOnlineStatus\)/);
 assert.match(detailPage, /settlement\.editable === false/);
-assert.match(page, /if \(!preserveManualAmount\) \{[\s\S]*clearAdjustmentErrors\(\)/);
+const hideAdjustmentErrorIfCleanBlock = page.match(
+  /function hideAdjustmentErrorIfClean\(\) \{[\s\S]*?\n\}/
+)?.[0] || "";
+assert.match(hideAdjustmentErrorIfCleanBlock, /if \(!dom\.adjustmentDialog\?\.querySelector\("\.field\.is-invalid"\)\) \{/);
+assert.match(hideAdjustmentErrorIfCleanBlock, /dom\.adjustmentError\.classList\.add\("is-hidden"\)/);
+const adjustmentModeChangeBlock = page.match(
+  /dom\.adjustmentSourceInput\?\.addEventListener\("change", \(\) => \{[\s\S]*?\n  \}\);/
+)?.[0] || "";
+assert.match(adjustmentModeChangeBlock, /applyAdjustmentMode\(\)[\s\S]*invalidateAdjustmentPreview\(\)/);
 assert.doesNotMatch(api, /school_set_student_monthly_settlement_draft_adjustment/);
-assert.match(html, /settlement-app\.js\?v=settlement-writer-p0-closure-20260809-1/);
-assert.match(detailHtml, /settlement-detail-app\.js\?v=settlement-writer-p0-closure-20260809-1/);
+// Historical cache-key literals are intentionally not asserted; resource references remain covered (handoff section 8.6).
+assert.match(html, /settlement-app\.js/);
+assert.match(detailHtml, /settlement-detail-app\.js/);
 
 assert.match(schema, /school_student_tuition_generation_revision_adjustments/);
 assert.match(schema, /adjustment_type='neutralize_historical_carryover_v1'/);

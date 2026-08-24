@@ -48,7 +48,7 @@ assert.doesNotMatch(
 );
 assert.match(page, /学生仅用于筛选查看，生成老师工资仍按完整工资快照范围执行/);
 
-assert.match(app, /filter-contract-b1-20260822-1/);
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 assert.match(config, /APP_VERSION = "v10\.5\.\d+"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 

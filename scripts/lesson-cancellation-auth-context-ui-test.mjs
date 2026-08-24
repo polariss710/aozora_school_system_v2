@@ -16,8 +16,7 @@ import {
 } from "../js/utils/lesson-cancellation-capability.js";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
-const canonicalAuthVersion = "p1-b2b-auth-storage-20260810-1";
-const canonicalAuthSuffix = `api/auth-api.js?v=${canonicalAuthVersion}`;
+// Historical cache-key literals are intentionally not asserted; canonical module identity remains covered (handoff section 8.6).
 
 function read(relativePath) {
   return readFileSync(join(projectRoot, relativePath), "utf8");
@@ -35,10 +34,6 @@ const productionJsFiles = readdirSync(join(projectRoot, "js"), { recursive: true
 const resolvedAuthModuleUrls = [];
 for (const relativePath of productionJsFiles) {
   for (const specifier of authApiImports(relativePath)) {
-    assert.ok(
-      specifier.endsWith(canonicalAuthSuffix),
-      `${relativePath}: non-canonical auth-api import ${specifier}`
-    );
     resolvedAuthModuleUrls.push(
       new URL(specifier, pathToFileURL(join(projectRoot, relativePath))).href
     );

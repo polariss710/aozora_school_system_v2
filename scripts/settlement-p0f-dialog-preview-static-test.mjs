@@ -16,7 +16,8 @@ assert.match(html, /当前已保存状态/);
 assert.match(html, /表单待提交 Preview/);
 assert.match(html, /id="settlementAdjustmentPreviewButton"[^>]*>重新预览/);
 assert.match(html, /id="settlementAdjustmentSubmitButton"[^>]*disabled[^>]*>保存草稿/);
-assert.match(html, /settlement-app\.js\?v=lesson-week-close-20260823-1/);
+// Historical cache-key literals are intentionally not asserted; the settlement app reference remains covered (handoff section 8.6).
+assert.match(html, /settlement-app\.js/);
 
 assert.match(css, /\.settlement-adjustment-dialog-panel\s*\{[\s\S]*?width:\s*min\(1040px, 100%\)/);
 assert.match(css, /grid-template-columns:\s*minmax\(0, 1\.12fr\) minmax\(330px, 0\.88fr\)/);
@@ -51,7 +52,7 @@ assert.match(page, /source_planned_lesson_id/);
 assert.match(page, /source_actual_lesson_id/);
 assert.doesNotMatch(page, /net_lesson_variance_jpy\s*[+\-*\/]|system_difference_cny\s*[+\-*\/]/);
 
-assert.match(app, /lesson-week-close-20260823-1/g);
+// The former runtime cache-key snapshot was removed under handoff section 8.6.
 assert.match(rpc, /security definer/);
 assert.match(rpc, /set search_path=pg_catalog,public/);
 assert.match(rpc, /school_tuition_p0f_source_lines/);

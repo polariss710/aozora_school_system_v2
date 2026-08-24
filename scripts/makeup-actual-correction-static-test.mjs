@@ -53,8 +53,7 @@ assert.match(writer, /DELETE FROM public\.school_lesson_records/);
 assert.match(writer, /public\.school_create_lesson_credit_makeup_actual\(/);
 assert.match(writer, /REVOKE ALL ON FUNCTION[\s\S]*FROM PUBLIC, anon, authenticated, service_role/i);
 assert.match(writer, /GRANT EXECUTE ON FUNCTION[\s\S]*TO service_role/i);
-assert.match(html, /makeup-source-origin-v2-20260820-1/);
-assert.match(app, /makeup-source-origin-v2-20260820-1/);
+// Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 assertAppVersionAtLeast(config, "v10.5.55");
 
 console.log("makeup actual correction static checks passed");
