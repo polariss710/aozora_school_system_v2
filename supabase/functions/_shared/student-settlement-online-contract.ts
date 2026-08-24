@@ -607,6 +607,21 @@ const DB_ERROR_MAP: Record<string, { status: number; message: string; action: st
   SETTLEMENT_ADJUSTMENT_DRAFT_STALE: { status: 409, message: "差额调整草稿版本已变化，请刷新状态。", action: "refresh_status" },
   SETTLEMENT_SCOPE_BUSY: { status: 423, message: "同一结算范围正在处理中，请稍后刷新状态。", action: "retry_later" },
   SETTLEMENT_LOCK_CONFLICT: { status: 409, message: "现有正式结算与本次请求不一致。", action: "refresh_status" },
+
+  // 2026-08-25 补齐：以下 5 个 code 生产 DB 会抛出，但此前未映射，会退化成
+  // SETTLEMENT_EDGE_INTERNAL_ERROR。缺口不是某一次改动引入的——本映射从未与
+  // DB 错误面系统性对齐过，SETTLEMENT_LESSON_WEEK_NOT_CLOSED 只是 2026-08-24
+  // 新增的第 5 个。防复发见
+  // scripts/settlement-online-edge-error-map-static-test.mjs。
+  SETTLEMENT_ACTIVE_MEMBERSHIP_REQUIRED: { status: 403, message: "当前账号不是活跃成员，不能执行结算写操作。", action: "stop" },
+  SETTLEMENT_LESSON_WEEK_NOT_CLOSED: { status: 409, message: "该月最后一个自然周尚未结束，仅可预览，不能保存或锁定。", action: "stop" },
+  SETTLEMENT_SOURCE_FACTS_EMPTY: { status: 409, message: "该月份没有可用于月结的课时或收款来源，不能保存或锁定。", action: "stop" },
+  // 正式锁定前必须先保存与 DB 权威预览一致的草稿。action 取 repreview：
+  // 用户需先完成一次 save 并重读 status，can_lock 才可能为 true。
+  SETTLEMENT_REPREVIEW_REQUIRED: { status: 409, message: "正式锁定前必须先保存与数据库权威预览一致的草稿。", action: "repreview" },
+  // can_save 为 false 但 DB 未给出具体 blocker 时的兜底。具体原因未知，
+  // 因此要求刷新状态，而不是直接停止。
+  SETTLEMENT_ONLINE_SAVE_STRUCTURALLY_BLOCKED: { status: 409, message: "该结算范围当前不允许在线写入，请刷新状态。", action: "refresh_status" },
 };
 
 function requireRecord(value: unknown): JsonRecord {
