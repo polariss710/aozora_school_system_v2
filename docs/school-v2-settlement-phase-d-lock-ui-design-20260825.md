@@ -2,9 +2,40 @@
 
 - 日期：2026-08-25
 - 设计：Claude Code
-- 状态：**设计稿，未实现。** 第 7 节列出的假设尚未经生产验证，
-  须由 Codex 的生产契约核查确认后才能开始实现。
+- 状态：**设计稿，未实现，且已知需修订 4 处。**
+  Codex 已于 2026-08-25 完成生产契约核查，推翻本稿多处判断。
+  **在按下方「核查结论」修订之前，不要按本稿实现。**
 - 部署状态请查生产，不以本文件为准（`AGENTS.md` 默认守则）。
+
+## 0. Codex 生产核查结论（2026-08-25，先读这一节）
+
+已确认成立：第 3.3 节的成功判定（`ordinary_locked` + 两份草稿 `consumed`）、
+第 2.3 节的 P0 金额边界方向、canonical confirmation 页面无需提供。
+
+**需修订的 4 处：**
+
+1. **第 7.6 节的假设不成立。** 生产公式是
+   `can_lock = can_save AND NOT requires_repreview`。2026-08 的 6 个 scope 当前
+   两份草稿均为 `null`、`requires_repreview=true`，因此 2026-09-07 开闸后只会
+   变成 `can_save=true`，**必须先成功 save、重读 status，`can_lock` 才可能为
+   true**。「9/7 六个自动可锁定」已被否定。这与 Phase C 的首次页面 save 前置
+   天然衔接：**先 save 再 lock**。
+2. **第 3.4 节的三态恢复不足。** `sameDraftVersions + incomplete` 不等于可重试；
+   auth/body 错误 status 完全未变，现规则会判成 `unchanged` 并允许重试原请求。
+   应改为先按 `error.action` 分流的 `classifyLockFailure(error, before, after,
+   preview)`，仅对真正结果不明确的情况使用三态，并新增 `unknown`（status 读不到
+   时禁止重试）。
+3. **第 5 节自相矛盾。** 「表单任一项变化即作废 Preview 并清空确认输入」若包含
+   确认金额输入框本身，用户一输入 Preview 就失效、输入被清空，流程走不完。
+   应限定为「影响 DB Preview 的业务输入变化才作废」；确认金额与备注变化不作废。
+4. **第 6 节新增断言 1 表达能力不足。** 静态正则无法证明「该金额不来自 DOM」——
+   那是数据流属性而非文本属性。应改为三层：把 `buildOnlineDraftLockInput` 做成
+   纯函数（签名中根本没有确认金额，写不出错误代码）、sentinel 集成测试（DOM 输入
+   `999999.123`、DB 为 `40000.00`，深比较 payload 且递归确认不含 sentinel）、
+   API 层对 `buildLockPayload` 做 exact-key/deep-equal。
+
+另：`SETTLEMENT_REPREVIEW_REQUIRED`（lock 的专属 blocker）此前未被 Edge 映射，
+会退化成内部错误。已由提交 `3a062d6` 修复，需重新部署 Edge 生效。
 
 ## 1. 目标与范围
 
