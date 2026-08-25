@@ -20,6 +20,21 @@ const SHA_B = "b".repeat(64);
 
 const row = { student_id: "S1", year_month: "2026-08" };
 
+// afterStatus 侧的权威事实。必须与 previewResult 分开定义——两者同源就无法
+// 验证「复核后的状态是否仍与请求一致」。
+const LIVE_PREVIEW = Object.freeze({
+  lesson_variance_source_count: 3,
+  unused_planned_credit_jpy: "0",
+  overage_charge_jpy: "0",
+  net_lesson_variance_jpy: "0",
+  net_lesson_variance_cny: "0",
+  projected_final_carryover_cny: "40000.00",
+});
+const BASE_SOURCE_DRAFT = Object.freeze({
+  draft_id: "SD1", status: "active", updated_at: "2026-09-07T01:00:00Z",
+  source_manifest_sha256: "b".repeat(64), source_count: 3,
+});
+
 function makeStatus(over = {}) {
   return {
     contract_version: "student_settlement_online_status_v1",
@@ -31,9 +46,13 @@ function makeStatus(over = {}) {
     save_blocker_code: null,
     immutable_blocker: null,
     preview_manifest_sha256: SHA_A,
+    lesson_manifest_sha256: SHA_B,
+    business_entity_id: "BE1",
+    authoritative_preview: LIVE_PREVIEW,
+    authoritative_system_difference_cny: "0",
     physical_settlement: { settlement_id: null, settlement_status: null, locked_at: null },
     effective_state: { effective_status: "incomplete" },
-    source_treatment_draft: { draft_id: "SD1", status: "active", updated_at: "2026-09-07T01:00:00Z" },
+    source_treatment_draft: { ...BASE_SOURCE_DRAFT },
     adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "2026-09-07T01:00:00Z" },
     ...over,
   };
@@ -220,10 +239,37 @@ function classify(over = {}) {
 // T7  分流第二层：refresh_status 且严格未变 → retriable
 // ---------------------------------------------------------------------------
 {
+  // 初版把这里写成 retriable，是错的：SETTLEMENT_LOCK_CONFLICT 表达的是
+  // 「现有正式结算与本次请求不一致」，重放同一 payload 只会同样失败。
+  // 由 Codex 逐码走查 9 个 refresh_status code 后指出，无一可安全重放。
   assert.equal(
     classify({ error: { code: "SETTLEMENT_LOCK_CONFLICT", action: "refresh_status" } }),
-    S.RETRIABLE,
-    "Edge 明确响应 + 严格未变应可重试"
+    S.CONFLICT,
+    "refresh_status 不得默认放行重试"
+  );
+
+  // 全部 9 个生产 refresh_status code 逐一验证，一个都不许是 retriable
+  const REFRESH_STATUS_CODES = [
+    "SETTLEMENT_NOT_INCOMPLETE",
+    "SETTLEMENT_ORDINARY_ALREADY_LOCKED",
+    "SETTLEMENT_SOURCE_DRAFT_STALE",
+    "SETTLEMENT_ADJUSTMENT_DRAFT_STALE",
+    "SETTLEMENT_LOCK_CONFLICT",
+    "SETTLEMENT_ONLINE_SAVE_STRUCTURALLY_BLOCKED",
+    "SETTLEMENT_POSTED_ADJUSTMENT_IMMUTABLE",
+    "SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED",
+    "SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED_FOR_RELOCK",
+  ];
+  for (const code of REFRESH_STATUS_CODES) {
+    const got = classify({ error: { code, action: "refresh_status" } });
+    assert.notEqual(got, S.RETRIABLE, `${code} 被判为可重放`);
+  }
+
+  // 未知 action 必须 fail-closed，不得落进第二层后被放行
+  assert.equal(
+    classify({ error: { code: "SETTLEMENT_FUTURE_THING", action: "future_action" } }),
+    S.UNKNOWN,
+    "未知 action 必须按结果未知处理"
   );
 }
 
@@ -314,6 +360,28 @@ function classify(over = {}) {
     );
   }
 
+  // afterStatus 的权威事实变化必须判出。初版这一段拿 previewResult 与 lockInput
+  // 互比，而后者本就由前者构造，恒真——改 afterStatus 的 manifest 完全不影响
+  // 结果。由 Codex 动态反证。
+  const authoritativeBreaks = [
+    ["afterStatus 的 preview manifest 变了", { preview_manifest_sha256: "c".repeat(64) }],
+    ["afterStatus 的 lesson manifest 变了", { lesson_manifest_sha256: "c".repeat(64) }],
+    ["business entity 变了", { business_entity_id: "BE2" }],
+    ["权威结转变了", { authoritative_preview: { ...LIVE_PREVIEW, projected_final_carryover_cny: "50000.00" } }],
+    ["权威系统差额变了", { authoritative_system_difference_cny: "77" }],
+    ["source count 变了", { source_treatment_draft: { ...BASE_SOURCE_DRAFT, source_count: 9 } }],
+  ];
+  for (const [label, over] of authoritativeBreaks) {
+    assert.equal(
+      lockStatusStrictlyUnchanged({
+        beforeStatus: baseStatus, afterStatus: makeStatus(over),
+        previewResult: basePreview, membershipRole: "admin", lockInput: baseInput,
+      }),
+      false,
+      `未判出变化：${label}`
+    );
+  }
+
   // 角色必须用当前真实值，不得写死 admin
   assert.equal(
     lockStatusStrictlyUnchanged({
@@ -324,23 +392,17 @@ function classify(over = {}) {
     "角色降级后仍判为严格未变——不得写死 admin"
   );
 
-  // Preview 金额漂移必须判出
+  // canonicalDecimal 判等：afterStatus 的权威结转写成 40000.000 时，
+  // 与 payload 的 40000.00 应视为同值，不算变化。
+  // 注意基准是 afterStatus 而非 previewResult——初版在这里操作 previewResult，
+  // 而它已不再是比对基准，那样的断言测不到任何东西。
   assert.equal(
     lockStatusStrictlyUnchanged({
-      beforeStatus: baseStatus, afterStatus: baseStatus,
-      previewResult: makePreview({ preview: { projected_final_carryover_cny: "50000.00" } }),
-      membershipRole: "admin", lockInput: baseInput,
-    }),
-    false,
-    "结转金额漂移未被判出"
-  );
-
-  // canonicalDecimal 判等：40000.00 与 40000.000 应视为同值，不算变化
-  assert.equal(
-    lockStatusStrictlyUnchanged({
-      beforeStatus: baseStatus, afterStatus: baseStatus,
-      previewResult: makePreview({ preview: { projected_final_carryover_cny: "40000.000" } }),
-      membershipRole: "admin", lockInput: baseInput,
+      beforeStatus: baseStatus,
+      afterStatus: makeStatus({
+        authoritative_preview: { ...LIVE_PREVIEW, projected_final_carryover_cny: "40000.000" },
+      }),
+      previewResult: basePreview, membershipRole: "admin", lockInput: baseInput,
     }),
     true,
     "同值不同字符串被误判为变化"

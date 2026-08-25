@@ -482,21 +482,41 @@ export function lockStatusStrictlyUnchanged({
   if (nullableText(source.draft_id) !== nullableText(lockInput.expectedSourceTreatmentDraftId)) return false;
   if (nullableText(adjustment.draft_id) !== nullableText(lockInput.expectedAdjustmentDraftId)) return false;
 
-  // payload 中的全部权威事实必须仍与当前 Preview 一致，逐项比对
-  const expected = previewResult.preview_expected_facts || {};
-  const preview = previewResult.preview || {};
-  if (previewResult.preview_manifest_sha256 !== lockInput.expectedPreviewManifestSha256) return false;
-  if (expected.lesson_variance_manifest_sha256 !== lockInput.expectedLessonVarianceManifestSha256) return false;
-  if (preview.lesson_variance_source_count !== lockInput.expectedSourceCount) return false;
-  const amountPairs = [
-    [preview.unused_planned_credit_jpy, lockInput.expectedUnusedPlannedCreditJpy],
-    [preview.overage_charge_jpy, lockInput.expectedOverageChargeJpy],
-    [preview.net_lesson_variance_jpy, lockInput.expectedNetLessonVarianceJpy],
-    [preview.net_lesson_variance_cny, lockInput.expectedNetLessonVarianceCny],
-    [expected.system_difference_cny, lockInput.expectedSystemDifferenceCny],
-    [preview.projected_final_carryover_cny, lockInput.expectedFinalCarryoverCny],
+  // 与 afterStatus 逐项比对——不是与 previewResult 比。
+  //
+  // 初版这里拿 previewResult 与 lockInput 互比，而 lockInput 本就是从
+  // previewResult 构造的，等于自己跟自己比，恒真。动态反证：改
+  // afterStatus.preview_manifest_sha256 或 business_entity_id 后仍返回 true。
+  // 由 Codex 审出。要证明「复核后的 DB 状态与本次请求一致」，比对对象必须是
+  // 复核读回来的 afterStatus。
+  if (nullableText(beforeStatus.business_entity_id) !== nullableText(afterStatus.business_entity_id)) return false;
+  if (nullableText(afterStatus.preview_manifest_sha256) !== nullableText(lockInput.expectedPreviewManifestSha256)) return false;
+  if (nullableText(afterStatus.lesson_manifest_sha256) !== nullableText(lockInput.expectedLessonVarianceManifestSha256)) return false;
+
+  const afterSource = afterStatus.source_treatment_draft || {};
+  if (nullableText(afterSource.source_manifest_sha256) !== nullableText(lockInput.expectedLessonVarianceManifestSha256)) return false;
+  if (afterSource.source_count !== lockInput.expectedSourceCount) return false;
+  if (nullableText(afterSource.updated_at) !== nullableText(lockInput.expectedSourceTreatmentDraftUpdatedAt)) return false;
+  const afterAdjustment = afterStatus.adjustment_draft || {};
+  if (nullableText(afterAdjustment.updated_at) !== nullableText(lockInput.expectedAdjustmentDraftUpdatedAt)) return false;
+
+  const live = afterStatus.authoritative_preview || {};
+  const pairs = [
+    [live.unused_planned_credit_jpy, lockInput.expectedUnusedPlannedCreditJpy],
+    [live.overage_charge_jpy, lockInput.expectedOverageChargeJpy],
+    [live.net_lesson_variance_jpy, lockInput.expectedNetLessonVarianceJpy],
+    [live.net_lesson_variance_cny, lockInput.expectedNetLessonVarianceCny],
+    [afterStatus.authoritative_system_difference_cny, lockInput.expectedSystemDifferenceCny],
+    [live.projected_final_carryover_cny, lockInput.expectedFinalCarryoverCny],
   ];
-  return amountPairs.every(([live, sent]) => canonicalDecimal(live) === canonicalDecimal(sent));
+  return pairs.every(([liveValue, sent]) => {
+    if (liveValue === null || liveValue === undefined) return false;
+    try {
+      return canonicalDecimal(liveValue) === canonicalDecimal(sent);
+    } catch {
+      return false;
+    }
+  });
 }
 
 // 这三个 code 表示「请求是否落库未知」：invokeSettlementEdge 用 Promise.race
@@ -524,6 +544,26 @@ export const LOCK_FAILURE_STATES = Object.freeze({
  * 关键区分：「请求已明确终止」与「请求结果未知」。前者可依据 status 判断能否
  * 重试；后者一律不得重试，因为底层请求可能稍后落库。
  */
+// Edge 契约中已知的 action。未知 action 一律按结果未知处理，不得 fail-open——
+// 新增一个 action 就悄悄放行重试，是最容易被忽略的回归面。
+const KNOWN_LOCK_ACTIONS = new Set([
+  "stop", "reauthenticate", "repreview", "retry_later", "refresh_status",
+]);
+
+// 允许重放同一 payload 的 code 白名单。
+//
+// 当前为空，且这是有意的：Codex 逐条走查了 9 个 refresh_status code
+// （NOT_INCOMPLETE / ORDINARY_ALREADY_LOCKED / SOURCE_DRAFT_STALE /
+//  ADJUSTMENT_DRAFT_STALE / LOCK_CONFLICT / ONLINE_SAVE_STRUCTURALLY_BLOCKED /
+//  POSTED_ADJUSTMENT_IMMUTABLE / SOURCE_TREATMENT_DRAFT_REQUIRED /
+//  SOURCE_TREATMENT_DRAFT_REQUIRED_FOR_RELOCK），没有任何一个能证明「原 payload
+//  可以安全重放」——它们表达的都是「当前状态与本次请求不符」。
+//
+// 初版对 refresh_status 无差别放行为 retriable，直接违反设计稿「不能默认未变
+// 即可重试」，而矩阵测试还把 LOCK_CONFLICT → retriable 写成了正确答案。
+// 在服务器明确给出「同 payload 重试」契约之前，本白名单保持为空。
+const LOCK_REPLAY_SAFE_CODES = new Set([]);
+
 export function classifyLockFailure({
   error, beforeStatus, afterStatus, statusReadFailed,
   previewResult, membershipRole, lockInput,
@@ -531,22 +571,28 @@ export function classifyLockFailure({
   const S = LOCK_FAILURE_STATES;
   const code = String(error?.code || "");
   const action = String(error?.action || "");
-  const outcomeUnknown = LOCK_OUTCOME_UNKNOWN_CODES.has(code) || !action;
+  const outcomeUnknown = LOCK_OUTCOME_UNKNOWN_CODES.has(code)
+    || !action
+    || !KNOWN_LOCK_ACTIONS.has(action);
 
   if (!outcomeUnknown) {
     if (action === "stop" || action === "reauthenticate") return S.BLOCKED;
     if (action === "repreview") return S.STALE;
     if (action === "retry_later") return S.BUSY;
-    // refresh_status 落到第二层，按具体状态判断
+    // refresh_status 落到第二层
   }
 
   if (statusReadFailed) return S.UNKNOWN;
   if (statusConfirmsDraftLock(afterStatus, previewResult)) return S.CONFIRMED;
-  if (lockStatusStrictlyUnchanged({
+
+  const unchanged = lockStatusStrictlyUnchanged({
     beforeStatus, afterStatus, previewResult, membershipRole, lockInput,
-  })) {
-    // 严格未变时，能否重试取决于请求是否已明确终止
-    return outcomeUnknown ? S.UNKNOWN : S.RETRIABLE;
-  }
-  return S.CONFLICT;
+  });
+  if (!unchanged) return S.CONFLICT;
+
+  // 结果未知时，即使严格未变也不得重试——超时不取消底层请求
+  if (outcomeUnknown) return S.UNKNOWN;
+  // 请求已明确终止且状态未变，但服务器仍拒绝了它：除非该 code 明确属于可重放，
+  // 否则重放同一 payload 只会以同样方式再次失败。
+  return LOCK_REPLAY_SAFE_CODES.has(code) ? S.RETRIABLE : S.CONFLICT;
 }

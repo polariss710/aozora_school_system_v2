@@ -31,7 +31,7 @@ import {
   onlineStatusDisplay,
   readRegisteredVarianceSummary,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=student-settlement-registered-variance-preview-20260816-1";
+} from "./settlement-online-state.js?v=phase-d-settlement-lock-20260825-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
