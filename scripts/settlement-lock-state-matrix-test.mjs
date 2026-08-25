@@ -31,7 +31,8 @@ function makeStatus(over = {}) {
     save_blocker_code: null,
     immutable_blocker: null,
     preview_manifest_sha256: SHA_A,
-    effective_state: { effective_status: "incomplete", settlement_id: null },
+    physical_settlement: { settlement_id: null, settlement_status: null, locked_at: null },
+    effective_state: { effective_status: "incomplete" },
     source_treatment_draft: { draft_id: "SD1", status: "active", updated_at: "2026-09-07T01:00:00Z" },
     adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "2026-09-07T01:00:00Z" },
     ...over,
@@ -174,7 +175,8 @@ function classify(over = {}) {
 // ---------------------------------------------------------------------------
 {
   const locked = makeStatus({
-    effective_state: { effective_status: "ordinary_locked", settlement_id: "SET1" },
+    physical_settlement: { settlement_id: "SET1", settlement_status: "locked", locked_at: "T" },
+    effective_state: { effective_status: "ordinary_locked" },
     source_treatment_draft: { draft_id: "SD1", status: "consumed", updated_at: "T" },
     adjustment_draft: { draft_id: "AD1", status: "consumed", updated_at: "T" },
   });
@@ -264,7 +266,8 @@ function classify(over = {}) {
 // ---------------------------------------------------------------------------
 {
   const locked = makeStatus({
-    effective_state: { effective_status: "ordinary_locked", settlement_id: "SET1" },
+    physical_settlement: { settlement_id: "SET1", settlement_status: "locked", locked_at: "T" },
+    effective_state: { effective_status: "ordinary_locked" },
     source_treatment_draft: { draft_id: "SD1", status: "consumed", updated_at: "T" },
     adjustment_draft: { draft_id: "AD1", status: "consumed", updated_at: "T" },
   });
@@ -290,7 +293,7 @@ function classify(over = {}) {
   const breaks = [
     ["草稿版本变了", { source_treatment_draft: { draft_id: "SD1", status: "active", updated_at: "CHANGED" } }],
     ["已非 incomplete", { effective_state: { effective_status: "ordinary_locked" } }],
-    ["物理 settlement 已存在", { effective_state: { effective_status: "incomplete", settlement_id: "SET1" } }],
+    ["物理 settlement 已存在", { physical_settlement: { settlement_id: "SET1" } }],
     ["契约版本变了", { contract_version: "v2" }],
     ["scope 学生不符", { student_id: "OTHER" }],
     ["scope 月份不符", { year_month: "2026-07" }],
