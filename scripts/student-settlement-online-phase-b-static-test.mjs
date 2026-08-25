@@ -249,16 +249,25 @@ test("static permission, deployment-unit and browser boundaries", async () => {
   assert.match(settlementPage, /getStudentSettlementOnlineStatus/);
   assert.match(settlementPage, /saveStudentSettlementDraftOnline/);
   assert.match(settlementPage, /lockStudentSettlementOnline\(lockInput\)/);
-  // 锁定功能的实现体只有两个文件：settlement-page.js（handler 与入口）与
-  // settlement-online-state.js（state 层，其 JSDoc 会提及该 API 名）。
-  // 除此之外的任何页面模块都不得触及锁定 Edge——防止入口扩散。
-  const LOCK_IMPLEMENTATION = new Set(["settlement-page.js", "settlement-online-state.js"]);
+  // 锁定 Edge 只能有 settlement-page.js 一个调用点，防止入口扩散。
+  // settlement-online-state.js 的 JSDoc 会提及该 API 名，因此对它只放开
+  // 文字引用，仍禁止实际调用表达式——整体排除会让它日后真的调用 Edge 也不报错。
   const otherPages = pageFiles
-    .filter((file) => !LOCK_IMPLEMENTATION.has(path.basename(file)));
+    .filter((file) => path.basename(file) !== "settlement-page.js");
   const otherPageSource = (await Promise.all(
     otherPages.map((file) => readFile(file, "utf8")),
   )).join("\n");
-  assert.doesNotMatch(otherPageSource, /lockStudentSettlementOnline|lock-student-settlement/);
+  assert.doesNotMatch(otherPageSource, /lockStudentSettlementOnline\s*\(/);
+  assert.doesNotMatch(otherPageSource, /lock-student-settlement/);
+  // state 模块与 page 必须使用同一缓存键，否则浏览器可能加载到旧 state 模块，
+  // 出现「新导出缺失」或「跑的是旧逻辑」。
+  const stateKey = /settlement-online-state\.js\?v=([A-Za-z0-9._-]+)/.exec(settlementPage);
+  assert(stateKey, "settlement-page.js 未带缓存键加载 state 模块");
+  assert.match(
+    await readFile(path.join(ROOT, "settlement.html"), "utf8"),
+    new RegExp(`settlement-app\\.js\\?v=${stateKey[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    "state 模块的缓存键与页面入口不一致",
+  );
   assert.doesNotMatch(pageSource, /SCHOOL_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY/);
 });
 
