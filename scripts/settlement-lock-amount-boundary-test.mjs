@@ -24,7 +24,8 @@ const AUTHORITATIVE_CARRY = "40000.00";
 
 const row = { student_id: "S1", year_month: "2026-08" };
 
-const status = Object.freeze({
+// 必须经 freezeAuthoritativeSnapshot 登记，Object.freeze 字面量已不被接受
+const status = freezeAuthoritativeSnapshot({
   contract_version: "student_settlement_online_status_v1",
   student_id: "S1",
   year_month: "2026-08",
@@ -160,14 +161,42 @@ function containsDeep(value, needle) {
     /frozen authoritative snapshot/,
     "builder 接受了未冻结的快照"
   );
-  // status 侧同样必须冻结
+  // status 侧同样必须是登记过的权威快照
   assert.throws(
     () => buildOnlineDraftLockInput({
       row, status: { ...status }, previewResult: freezeAuthoritativeSnapshot(makePreview()),
       membershipRole: "admin", note: "", clientCorrelationId: "C1",
     }),
     /frozen authoritative snapshot/,
-    "builder 接受了未冻结的 status"
+    "builder 接受了未登记的 status"
+  );
+
+  // 关键：手动冻结的污染对象也必须被拒绝。
+  //
+  // 只查 Object.isFrozen 时这一条会通过——实测能把 999999.99 送进 payload。
+  // 判据必须是「由 freezeAuthoritativeSnapshot 产出并登记」，而不是「处于冻结
+  // 状态」。这个洞是写交接文档时自查发现的，此前提交信息里「被污染的快照根本
+  // 进不去」是不成立的。
+  const manuallyFrozen = Object.freeze({
+    preview_manifest_sha256: SHA_A,
+    preview: Object.freeze({
+      lesson_variance_source_count: 3,
+      unused_planned_credit_jpy: "0",
+      overage_charge_jpy: "0",
+      net_lesson_variance_jpy: "0",
+      net_lesson_variance_cny: "0",
+      projected_final_carryover_cny: "999999.99",
+    }),
+    preview_expected_facts: Object.freeze({
+      lesson_variance_manifest_sha256: SHA_B,
+      system_difference_cny: "0",
+    }),
+  });
+  assert.ok(Object.isFrozen(manuallyFrozen), "该对象确实处于冻结状态");
+  assert.throws(
+    () => buildFrom(manuallyFrozen),
+    /frozen authoritative snapshot/,
+    "手动冻结的污染快照被接受——判据退化成了 Object.isFrozen"
   );
 }
 
