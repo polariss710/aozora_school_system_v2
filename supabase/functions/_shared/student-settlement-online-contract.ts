@@ -542,6 +542,29 @@ export function mapSettlementOnlineError(error: unknown): SettlementOnlinePublic
     );
   }
 
+  // 已识别出稳定 code 但 DB_ERROR_MAP 中没有它：保留该 code，不要折叠成
+  // SETTLEMENT_EDGE_INTERNAL_ERROR。
+  //
+  // 2026-08-25：此前所有未映射 code 都会丢失身份，变成不透明的内部错误。
+  // 起初想靠「把 DB 的错误码全部枚举进 DB_ERROR_MAP」来堵，但那条路走不通——
+  // 一个 code 能否传到 Edge 是调用图属性：DB 普遍先把 code 赋给变量、再
+  // raise ... message = v_code，文本扫描既判不出可达性，也必然漏掉
+  // S1_C_* 一类不同前缀的 code。枚举清单只会给出虚假的完整感。
+  //
+  // 改为保留身份：有 curated 文案的仍走 DB_ERROR_MAP，没有的至少让 code
+  // 原样透出，用户与排查者能看到究竟是哪一条规则拦下了操作。
+  // 只透出 code token 本身——extractStableCode 用 STABLE_CODE_PATTERN 匹配，
+  // 只取全大写下划线标识符，不会带出 DB 的原始报错文本。
+  // status 与 action 沿用原兜底，行为不变，变的只是 code 不再被抹掉。
+  if (stableCode) {
+    return new SettlementOnlinePublicError(
+      stableCode,
+      "操作未完成，请刷新状态后重试。",
+      500,
+      "refresh_status",
+    );
+  }
+
   return new SettlementOnlinePublicError(
     "SETTLEMENT_EDGE_INTERNAL_ERROR",
     "操作未完成，请稍后刷新状态。",
@@ -608,20 +631,23 @@ const DB_ERROR_MAP: Record<string, { status: number; message: string; action: st
   SETTLEMENT_SCOPE_BUSY: { status: 423, message: "同一结算范围正在处理中，请稍后刷新状态。", action: "retry_later" },
   SETTLEMENT_LOCK_CONFLICT: { status: 409, message: "现有正式结算与本次请求不一致。", action: "refresh_status" },
 
-  // 2026-08-25 补齐：以下 5 个 code 生产 DB 会抛出，但此前未映射，会退化成
-  // SETTLEMENT_EDGE_INTERNAL_ERROR。缺口不是某一次改动引入的——本映射从未与
-  // DB 错误面系统性对齐过，SETTLEMENT_LESSON_WEEK_NOT_CLOSED 只是 2026-08-24
-  // 新增的第 5 个。防复发见
-  // scripts/settlement-online-edge-error-map-static-test.mjs。
+  // 2026-08-25 补：月份可写性判定链上的 blocker，经
+  // school_assert_student_settlement_month_write_allowed 间接 raise 到本映射
+  // （DB 先把 code 赋给变量、再 raise ... message = v_code）。
+  // 补 curated 文案是为了给用户明确的下一步；未映射的 code 现在也不再丢失
+  // 身份，见 mapSettlementOnlineError 末尾的保留式兜底。
   SETTLEMENT_ACTIVE_MEMBERSHIP_REQUIRED: { status: 403, message: "当前账号不是活跃成员，不能执行结算写操作。", action: "stop" },
   SETTLEMENT_LESSON_WEEK_NOT_CLOSED: { status: 409, message: "该月最后一个自然周尚未结束，仅可预览，不能保存或锁定。", action: "stop" },
   SETTLEMENT_SOURCE_FACTS_EMPTY: { status: 409, message: "该月份没有可用于月结的课时或收款来源，不能保存或锁定。", action: "stop" },
-  // 正式锁定前必须先保存与 DB 权威预览一致的草稿。action 取 repreview：
-  // 用户需先完成一次 save 并重读 status，can_lock 才可能为 true。
-  SETTLEMENT_REPREVIEW_REQUIRED: { status: 409, message: "正式锁定前必须先保存与数据库权威预览一致的草稿。", action: "repreview" },
   // can_save 为 false 但 DB 未给出具体 blocker 时的兜底。具体原因未知，
   // 因此要求刷新状态，而不是直接停止。
   SETTLEMENT_ONLINE_SAVE_STRUCTURALLY_BLOCKED: { status: 409, message: "该结算范围当前不允许在线写入，请刷新状态。", action: "refresh_status" },
+
+  // 不要在此加入 SETTLEMENT_REPREVIEW_REQUIRED。它只在 status JSON 构造时
+  // 赋值给 v_lock_blocker_code，从不被 raise，因此永远到不了本映射；它属于
+  // status 展示层，文案应在前端 blockerLabel 中给。
+  // 2026-08-25 初版曾误加，理由是「Phase D 用户最常撞到」——那是未经查证的
+  // 判断，一次 grep 即可证伪。
 };
 
 function requireRecord(value: unknown): JsonRecord {

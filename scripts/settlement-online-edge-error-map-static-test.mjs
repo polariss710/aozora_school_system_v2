@@ -1,134 +1,144 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-// 学生月度结算在线 Edge 的 DB 错误映射完整性。
+// 学生月度结算在线路径的错误身份保全。
 //
-// 背景：2026-08-25 发现 supabase/functions/_shared/student-settlement-online-contract.ts
-// 的 DB_ERROR_MAP 与 DB 的错误面从未系统性对齐——在线契约面 39 个 code 中，
-// 5 个运行时 code 未被映射，会在 mapDbError 中退化成
-// SETTLEMENT_EDGE_INTERNAL_ERROR，把明确的业务 blocker 变成不透明的内部错误。
-// 其中 SETTLEMENT_REPREVIEW_REQUIRED 是正式锁定的专属 blocker，
-// SETTLEMENT_SOURCE_FACTS_EMPTY 是 can_save 判定链上最常见的一条。
+// 本测试 2026-08-25 重写。初版的前提是错的，记录在此以免重蹈：
 //
-// 本测试的作用：下一个新增的 DB code 必须做出显式决定——要么映射，要么写进
-// 下方的部署期白名单——否则本测试红。缺口不再靠人记得。
+//   初版试图枚举 DB 会抛出的全部 code，断言每一个都在 DB_ERROR_MAP 里。
+//   这条路走不通——「某个 code 能否传到 Edge」是调用图属性，不是文本属性。
+//   DB 普遍先把 code 赋给变量、再 raise ... message = v_code，静态扫描既判
+//   不出可达性；初版的正则又只匹配 SETTLEMENT_*，必然漏掉 S1_C_* 一类前缀。
+//   结果是测试报「未处理 0 个」而实际仍有未映射 code——比没有测试更糟，
+//   因为它给出虚假的完整感。由 Codex 审出。
 //
-// 范围说明：只覆盖「在线 Edge 路径可达」的契约面，即下列 4 个归档 SQL。
-// sql/current 全量有 149 个 SETTLEMENT_*/S1_C_* code，其余绝大多数是部署期、
-// 回滚测试或本机受信工具专用，永远到不了浏览器，纳入只会产生噪音。
-// 若将来在线写入路径扩展到别的 SQL，必须同步扩充 CONTRACT_SQL_FILES——
-// 这一点无法由本测试自动发现，是已知的范围边界。
-
-const CONTRACT_SQL_FILES = [
-  "sql/current/school_student_settlement_online_admin_contract_20260809.sql",
-  "sql/current/school_student_settlement_tokyo_month_close_guard_20260810.sql",
-  "sql/current/school_student_settlement_lesson_week_close_guard_20260823.sql",
-  "sql/current/school_student_settlement_online_can_save_qualification_20260810.sql",
-];
+// 改为断言真正可表达的不变式：不再要求映射完整，而要求**未映射的 code 不丢失
+// 身份**。这样「哪些 code 可达」这个问题不需要回答。
 
 const CONTRACT_TS = "supabase/functions/_shared/student-settlement-online-contract.ts";
+const PAGE_JS = "js/pages/settlement-page.js";
+const STATE_JS = "js/pages/settlement-online-state.js";
 
-// 部署期 / 迁移期断言：由 SQL 文件自身的 preflight、patch 形状校验或迁移守卫
-// 抛出，只会在执行 SQL 文件时出现，不经由 Edge 返回浏览器。逐条点名，不用
-// 正则前缀排除——正则会把将来某个真正的运行时 code 一起吞掉。
-const DEPLOY_TIME_ONLY = new Set([
-  // 2026-08-10 月封口 guard 的字符串补丁形状校验，共 7 处注入点
-  "SETTLEMENT_MONTH_CLOSE_ADJUSTMENT_CORE_PATCH_SHAPE_MISMATCH",
-  "SETTLEMENT_MONTH_CLOSE_ELIGIBILITY_PATCH_SHAPE_MISMATCH",
-  "SETTLEMENT_MONTH_CLOSE_LOCAL_LOCK_PATCH_SHAPE_MISMATCH",
-  "SETTLEMENT_MONTH_CLOSE_LOCAL_SAVE_PATCH_SHAPE_MISMATCH",
-  "SETTLEMENT_MONTH_CLOSE_LOCK_CORE_PATCH_SHAPE_MISMATCH",
-  "SETTLEMENT_MONTH_CLOSE_SOURCE_CORE_PATCH_SHAPE_MISMATCH",
-  "SETTLEMENT_MONTH_CLOSE_STATUS_PATCH_SHAPE_MISMATCH",
-  // 部署前对象 / ACL 检查
-  "SETTLEMENT_ONLINE_PREFLIGHT_OBJECTS_MISSING",
-  "SETTLEMENT_ONLINE_PREFLIGHT_CORE_ACL_DRIFT",
-  "SETTLEMENT_ONLINE_PREFLIGHT_TABLE_DML_EXPOSED",
-  "SETTLEMENT_ONLINE_CAN_SAVE_R1_DEPENDENCY_MISSING",
-  "SETTLEMENT_ONLINE_SAVE_ACL_INVALID",
-  // 迁移保留标记
-  "SETTLEMENT_TOKYO_MONTH_CLOSE_MIGRATION_HELD_FOR_ROLLBACK_TESTS",
-]);
-
-const contractTs = readFileSync(CONTRACT_TS, "utf8");
+const contract = readFileSync(CONTRACT_TS, "utf8");
+const page = readFileSync(PAGE_JS, "utf8");
+const state = readFileSync(STATE_JS, "utf8");
 
 // ---------------------------------------------------------------------------
-// 提取 DB_ERROR_MAP 的键
+// T1  code 提取正则必须能覆盖两种前缀形态。
+//     SETTLEMENT_LESSON_WEEK_NOT_CLOSED 与 S1_C_LOCK_OVERAGE_AGGREGATE_DRIFT
+//     都是生产实际存在的 code；提取不到就等于身份从源头就丢了。
 // ---------------------------------------------------------------------------
-const mapBlock = /const DB_ERROR_MAP[^=]*=\s*\{([\s\S]*?)\n\};/.exec(contractTs);
-assert(mapBlock, "未能在 contract.ts 中定位 DB_ERROR_MAP");
-const mapped = new Set(
-  [...mapBlock[1].matchAll(/^\s{2}([A-Z][A-Z0-9_]+):/gm)].map((m) => m[1])
-);
-assert(mapped.size > 0, "DB_ERROR_MAP 解析结果为空，正则可能已失效");
-
-// ---------------------------------------------------------------------------
-// 提取契约面 SQL 会抛出的 code
-// ---------------------------------------------------------------------------
-const dbCodes = new Set();
-for (const file of CONTRACT_SQL_FILES) {
-  const sql = readFileSync(file, "utf8");
-  for (const m of sql.matchAll(/'(SETTLEMENT_[A-Z0-9_]+)'/g)) dbCodes.add(m[1]);
+{
+  const m = /const STABLE_CODE_PATTERN\s*=\s*(\/.+\/);/.exec(contract);
+  assert(m, "未能定位 STABLE_CODE_PATTERN");
+  const pattern = new RegExp(m[1].slice(1, m[1].lastIndexOf("/")));
+  for (const sample of [
+    "SETTLEMENT_LESSON_WEEK_NOT_CLOSED",
+    "S1_C_LOCK_OVERAGE_AGGREGATE_DRIFT",
+    "SETTLEMENT_ADJUSTMENT_RESOLUTION_MISMATCH",
+  ]) {
+    const hit = sample.match(pattern);
+    assert.equal(
+      hit?.[0],
+      sample,
+      `STABLE_CODE_PATTERN 无法完整提取 ${sample}，未映射时其身份会丢失`
+    );
+  }
+  // 反向：不得把普通英文句子误当成 code
+  assert.equal(
+    "decimal must be a decimal string".match(pattern),
+    null,
+    "STABLE_CODE_PATTERN 过宽，会把自由文本当成 code 透出"
+  );
 }
-assert(dbCodes.size > 0, "契约面 SQL 未解析出任何 code，文件路径可能已变");
 
 // ---------------------------------------------------------------------------
-// 断言 1：每个契约面 code 要么被映射，要么被显式声明为部署期专用
+// T2  核心不变式：识别出 code 但未映射时，必须保留该 code，
+//     不得折叠成 SETTLEMENT_EDGE_INTERNAL_ERROR。
+//
+//     静态断言的边界：这里只能证明兜底分支在源码中以 stableCode 构造返回值，
+//     不能证明运行时一定走到。契约文件是 TypeScript，node 无法直接 import 求值；
+//     真正的运行时验证须由具备 Deno 环境的一方执行。此处标明该限制，不假装
+//     覆盖到了。
 // ---------------------------------------------------------------------------
-const unhandled = [...dbCodes]
-  .filter((c) => !mapped.has(c) && !DEPLOY_TIME_ONLY.has(c))
-  .sort();
-assert.deepEqual(
-  unhandled,
-  [],
-  `以下 DB code 既未映射也未声明为部署期专用，会退化成 `
-    + `SETTLEMENT_EDGE_INTERNAL_ERROR：\n  ${unhandled.join("\n  ")}\n`
-    + `请在 DB_ERROR_MAP 中映射，或在本测试的 DEPLOY_TIME_ONLY 中点名并说明理由。`
-);
+{
+  const tail = contract.slice(contract.indexOf("export function mapSettlementOnlineError"));
+  assert(tail, "未能定位 mapSettlementOnlineError");
+
+  const preserve = /if\s*\(\s*stableCode\s*\)\s*\{[\s\S]{0,400}?new SettlementOnlinePublicError\(\s*\n?\s*stableCode\s*,/
+    .exec(tail);
+  assert(
+    preserve,
+    "未映射 code 的保留分支缺失：mapSettlementOnlineError 必须在 stableCode "
+      + "非空时以该 code 构造返回值，而不是折叠成 SETTLEMENT_EDGE_INTERNAL_ERROR"
+  );
+
+  // INTERNAL_ERROR 只能出现在保留分支之后，作为「连 code 都没提取到」的兜底
+  const preserveAt = tail.indexOf(preserve[0]);
+  const internalAt = tail.indexOf("SETTLEMENT_EDGE_INTERNAL_ERROR", preserveAt);
+  assert(
+    internalAt > preserveAt,
+    "SETTLEMENT_EDGE_INTERNAL_ERROR 必须排在 code 保留分支之后"
+  );
+}
 
 // ---------------------------------------------------------------------------
-// 断言 2：白名单不得包含实际已映射的 code（两处重复会让意图不清）
+// T3  SETTLEMENT_REPREVIEW_REQUIRED 不得进入 DB_ERROR_MAP。
+//     它只在 status JSON 构造时赋值给 v_lock_blocker_code，从不被 raise，
+//     因此永远到不了该映射。放进去是死代码，且会让人以为它经 Edge 返回。
+//     文案归属在前端 blockerLabel。
 // ---------------------------------------------------------------------------
-const bothPlaces = [...DEPLOY_TIME_ONLY].filter((c) => mapped.has(c)).sort();
-assert.deepEqual(bothPlaces, [], `既在 DB_ERROR_MAP 又在 DEPLOY_TIME_ONLY：${bothPlaces}`);
+{
+  const mapBlock = /const DB_ERROR_MAP[^=]*=\s*\{([\s\S]*?)\n\};/.exec(contract);
+  assert(mapBlock, "未能定位 DB_ERROR_MAP");
+  assert.doesNotMatch(
+    mapBlock[1],
+    /^\s{2}SETTLEMENT_REPREVIEW_REQUIRED:/m,
+    "SETTLEMENT_REPREVIEW_REQUIRED 不应在 DB_ERROR_MAP 中——它从不被 raise，"
+      + "文案应在前端 blockerLabel 给"
+  );
+  assert.match(
+    state,
+    /SETTLEMENT_REPREVIEW_REQUIRED:\s*"/,
+    "前端 blockerLabel 缺少 SETTLEMENT_REPREVIEW_REQUIRED 的文案"
+  );
+}
 
 // ---------------------------------------------------------------------------
-// 断言 3：白名单不得包含契约面根本不存在的 code（防止清单僵化）
+// T4  前端回落到 error.message 时必须先判类型。
+//
+//     safeOnlineErrorDisplay 也接收非 Edge 异常——buildOnlineDraftSaveInput
+//     抛出的普通 Error，message 是 "decimal must be a decimal string" 这类
+//     内部英文文本。无条件回落会把它显示给用户。
+//     2026-08-25 初版即如此，属真实回归，由 Codex 审出。
 // ---------------------------------------------------------------------------
-const stale = [...DEPLOY_TIME_ONLY].filter((c) => !dbCodes.has(c)).sort();
-assert.deepEqual(
-  stale,
-  [],
-  `DEPLOY_TIME_ONLY 中的以下 code 已不存在于契约面 SQL，应删除：${stale}`
-);
+{
+  const fn = /function safeOnlineErrorDisplay[\s\S]*?\n\}/.exec(page);
+  assert(fn, "未能定位 safeOnlineErrorDisplay");
+  const body = fn[0];
+
+  if (/error\?\.message|error\.message/.test(body)) {
+    assert.match(
+      body,
+      /error instanceof StudentSettlementOnlineError\s*\?/,
+      "safeOnlineErrorDisplay 回落到 error.message 时必须先判 "
+        + "instanceof StudentSettlementOnlineError，否则会把内部异常文本显示给用户"
+    );
+  }
+  assert.match(
+    page,
+    /StudentSettlementOnlineError/,
+    "settlement-page.js 未引入 StudentSettlementOnlineError，类型判断无从谈起"
+  );
+}
 
 // ---------------------------------------------------------------------------
-// 断言 4：正式锁定路径的关键 blocker 必须有明确 action，不得是 stop
-// SETTLEMENT_REPREVIEW_REQUIRED 表示「先 save 再 lock」，用户有明确下一步，
-// 给 stop 会让人以为无解。
-// ---------------------------------------------------------------------------
-const repreviewEntry = /SETTLEMENT_REPREVIEW_REQUIRED:\s*\{[^}]*action:\s*"([a-z_]+)"/
-  .exec(contractTs);
-assert(repreviewEntry, "SETTLEMENT_REPREVIEW_REQUIRED 未映射");
-assert.equal(
-  repreviewEntry[1],
-  "repreview",
-  "SETTLEMENT_REPREVIEW_REQUIRED 的 action 必须是 repreview：用户需先完成一次 save"
-);
-
-// ---------------------------------------------------------------------------
-// 断言 5：未映射 code 仍必须走 internal error 兜底，不得直接抛裸 DB 消息
+// T5  渲染必须走 textContent。透出服务端文本的前提是不存在 HTML 注入面。
 // ---------------------------------------------------------------------------
 assert.match(
-  contractTs,
-  /SETTLEMENT_EDGE_INTERNAL_ERROR/,
-  "缺少 internal error 兜底"
+  page,
+  /function renderDialogBusinessError[\s\S]*?\.textContent\s*=/,
+  "renderDialogBusinessError 必须以 textContent 渲染错误文案"
 );
 
-console.log(
-  `edge error map: 契约面 ${dbCodes.size} 个 code，已映射 ${
-    [...dbCodes].filter((c) => mapped.has(c)).length
-  } 个，部署期专用 ${
-    [...dbCodes].filter((c) => DEPLOY_TIME_ONLY.has(c)).length
-  } 个，未处理 0 个`
-);
+console.log("settlement online edge error identity: T1-T5 全部通过");

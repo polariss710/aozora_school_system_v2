@@ -300,6 +300,9 @@ function blockerLabel(code) {
     SETTLEMENT_MONTH_NOT_CLOSED: "当前月份仅可预览",
     SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED: "未来月份仅可预览",
     SETTLEMENT_LESSON_WEEK_NOT_CLOSED: "自然周未结束仅可预览",
+    // 只出现在 status JSON 的 lock_blocker_code，从不被 raise，因此不在 Edge
+    // 的 DB_ERROR_MAP 中——它的文案归属就是这里。
+    SETTLEMENT_REPREVIEW_REQUIRED: "需先保存草稿才能锁定",
     SETTLEMENT_SOURCE_FACTS_EMPTY: "无可结算来源",
     SETTLEMENT_NOT_INCOMPLETE: "非普通未完成状态",
     SETTLEMENT_SCOPE_NOT_UNIQUE: "结算范围不唯一",

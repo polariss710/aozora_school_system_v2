@@ -1249,17 +1249,18 @@ function safeOnlineErrorDisplay(error, fallbackRequestId = "") {
     SETTLEMENT_EDGE_UNAUTHORIZED: "登录状态已失效，请重新登录。",
     SETTLEMENT_EDGE_FORBIDDEN: "当前账号没有结算管理权限。",
   }[code]
-    // 本地无专属文案时，优先用 Edge 返回的业务消息，而不是通用兜底。
-    // 该消息来自 Edge 的 DB_ERROR_MAP 常量表（服务端固定文本，非用户数据），
-    // 且此处经 textContent 渲染，见 renderDialogBusinessError。
+    // 本地无专属文案时回落到 Edge 返回的业务消息，消除「两张平行映射表各自
+    // 漂移」：2026-08-25 实测 Edge 映射 25 个 code，前端只有 17 个有专属文案。
+    // 逐条补齐只能解决当下，新增 code 仍会重现。
     //
-    // 这样做是为了消除「两张平行映射表各自漂移」这一类问题：2026-08-25 实测
-    // Edge 映射 26 个 code，前端只有 17 个有专属文案，缺的 9 个里包括
-    // SETTLEMENT_REPREVIEW_REQUIRED——正式锁定的专属 blocker，本该告诉用户
-    // 「先保存草稿再锁定」，却会显示通用的「请刷新状态后重试」。
-    // 逐条补齐只能解决当下，新增 code 仍会重现；改为回落到 Edge 消息后，
-    // 新 code 自动获得业务文案。
-    || safeText(error?.message)
+    // 必须先判类型。本函数也接收非 Edge 异常——例如 handleAdjustmentSubmit 中
+    // buildOnlineDraftSaveInput 抛出的普通 Error，其 message 是
+    // "decimal must be a decimal string" 这类内部英文文本。无条件回落会把它
+    // 直接显示给用户，是真实回归（2026-08-25 初版即如此，由 Codex 审出）。
+    // 只有 StudentSettlementOnlineError 的 message 才来自 Edge 的公开消息表
+    // （api 层以 safeText(details.message) 构造），可安全展示；此处经
+    // textContent 渲染，见 renderDialogBusinessError。
+    || (error instanceof StudentSettlementOnlineError ? safeText(error.message) : "")
     || "在线结算操作未完成，请刷新状态后重试。";
   return {
     message,
