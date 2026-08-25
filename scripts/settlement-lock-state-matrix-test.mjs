@@ -261,8 +261,12 @@ function classify(over = {}) {
     "SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED_FOR_RELOCK",
   ];
   for (const code of REFRESH_STATUS_CODES) {
-    const got = classify({ error: { code, action: "refresh_status" } });
-    assert.notEqual(got, S.RETRIABLE, `${code} 被判为可重放`);
+    // 精确断言而非 notEqual(RETRIABLE)：后者对 unknown、blocked 等也会通过，
+    // 证明不了它落在正确的那一态。由 Codex 在复审中指出。
+    assert.equal(
+      classify({ error: { code, action: "refresh_status" } }), S.CONFLICT,
+      `${code} 未精确落在 conflict`
+    );
   }
 
   // 未知 action 必须 fail-closed，不得落进第二层后被放行
@@ -336,8 +340,15 @@ function classify(over = {}) {
     previewResult: basePreview, membershipRole: "admin", lockInput: baseInput,
   }), true, "基准场景应判为严格未变");
 
+  // 每个负例只破坏一个字段。用整个对象替换会同时触发多个 guard——
+  // 那样即使某个 guard 失效，测试仍然会绿，证明不了它在起作用。
+  // 由 Codex 在复审中指出。
   const breaks = [
-    ["草稿版本变了", { source_treatment_draft: { draft_id: "SD1", status: "active", updated_at: "CHANGED" } }],
+    ["草稿 updated_at 变了", { source_treatment_draft: { ...BASE_SOURCE_DRAFT, updated_at: "CHANGED" } }],
+    ["草稿 id 变了", { adjustment_draft: { draft_id: "AD2", status: "active", updated_at: "2026-09-07T01:00:00Z" } }],
+    ["草稿变为 consumed", { source_treatment_draft: { ...BASE_SOURCE_DRAFT, status: "consumed" } }],
+    ["source manifest 变了", { source_treatment_draft: { ...BASE_SOURCE_DRAFT, source_manifest_sha256: "c".repeat(64) } }],
+    ["source count 变了", { source_treatment_draft: { ...BASE_SOURCE_DRAFT, source_count: 9 } }],
     ["已非 incomplete", { effective_state: { effective_status: "ordinary_locked" } }],
     ["物理 settlement 已存在", { physical_settlement: { settlement_id: "SET1" } }],
     ["契约版本变了", { contract_version: "v2" }],
@@ -346,9 +357,23 @@ function classify(over = {}) {
     ["requires_repreview 变真", { requires_repreview: true }],
     ["出现 lock blocker", { lock_blocker_code: "X" }],
     ["出现 save blocker", { save_blocker_code: "X" }],
-    ["草稿变为 consumed", { source_treatment_draft: { draft_id: "SD1", status: "consumed", updated_at: "2026-09-07T01:00:00Z" } }],
-    ["草稿 id 变了", { adjustment_draft: { draft_id: "AD2", status: "active", updated_at: "2026-09-07T01:00:00Z" } }],
+    ["business entity 变了", { business_entity_id: "BE2" }],
+    ["preview manifest 变了", { preview_manifest_sha256: "c".repeat(64) }],
+    ["lesson manifest 变了", { lesson_manifest_sha256: "c".repeat(64) }],
+    ["权威系统差额变了", { authoritative_system_difference_cny: "77" }],
+    ["adjustment 草稿 updated_at 变了", { adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "CHANGED" } }],
   ];
+  // authoritative_preview 的四项金额逐个隔离突变
+  for (const field of [
+    "unused_planned_credit_jpy", "overage_charge_jpy",
+    "net_lesson_variance_jpy", "net_lesson_variance_cny",
+    "projected_final_carryover_cny",
+  ]) {
+    breaks.push([
+      `权威 ${field} 变了`,
+      { authoritative_preview: { ...LIVE_PREVIEW, [field]: "12345" } },
+    ]);
+  }
   for (const [label, over] of breaks) {
     assert.equal(
       lockStatusStrictlyUnchanged({
@@ -360,25 +385,31 @@ function classify(over = {}) {
     );
   }
 
-  // afterStatus 的权威事实变化必须判出。初版这一段拿 previewResult 与 lockInput
-  // 互比，而后者本就由前者构造，恒真——改 afterStatus 的 manifest 完全不影响
-  // 结果。由 Codex 动态反证。
-  const authoritativeBreaks = [
-    ["afterStatus 的 preview manifest 变了", { preview_manifest_sha256: "c".repeat(64) }],
-    ["afterStatus 的 lesson manifest 变了", { lesson_manifest_sha256: "c".repeat(64) }],
-    ["business entity 变了", { business_entity_id: "BE2" }],
-    ["权威结转变了", { authoritative_preview: { ...LIVE_PREVIEW, projected_final_carryover_cny: "50000.00" } }],
-    ["权威系统差额变了", { authoritative_system_difference_cny: "77" }],
-    ["source count 变了", { source_treatment_draft: { ...BASE_SOURCE_DRAFT, source_count: 9 } }],
-  ];
-  for (const [label, over] of authoritativeBreaks) {
+  // 陈旧 payload：before 与 after 一致（sameDraftVersions 通过），但 lockInput
+  // 来自更早的快照。这是 after↔payload 那两条判据唯一能单独发挥作用的场景——
+  // 没有它，移除这些判据测试仍会绿，因为 before↔after 的比对先一步拦住了。
+  //
+  // 两份草稿必须分开构造。初次补这个场景时把两份都设成 STALE，结果两条判据
+  // 互相兜底，移除任一条测试都仍绿——修隔离问题时又制造了一个隔离问题。
+  for (const [label, staleStatus] of [
+    ["source 草稿陈旧", makeStatus({
+      source_treatment_draft: { ...BASE_SOURCE_DRAFT, updated_at: "STALE" },
+    })],
+    ["adjustment 草稿陈旧", makeStatus({
+      adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "STALE" },
+    })],
+  ]) {
+    const staleInput = buildOnlineDraftLockInput({
+      row, status: staleStatus, previewResult: basePreview,
+      membershipRole: "admin", note: "", clientCorrelationId: "C1",
+    });
     assert.equal(
       lockStatusStrictlyUnchanged({
-        beforeStatus: baseStatus, afterStatus: makeStatus(over),
-        previewResult: basePreview, membershipRole: "admin", lockInput: baseInput,
+        beforeStatus: baseStatus, afterStatus: baseStatus,
+        previewResult: basePreview, membershipRole: "admin", lockInput: staleInput,
       }),
       false,
-      `未判出变化：${label}`
+      `before 与 after 一致但 payload 陈旧时未判出：${label}`
     );
   }
 
