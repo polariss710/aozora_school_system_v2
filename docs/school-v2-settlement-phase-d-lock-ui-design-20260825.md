@@ -2,40 +2,37 @@
 
 - 日期：2026-08-25
 - 设计：Claude Code
-- 状态：**设计稿，未实现，且已知需修订 4 处。**
-  Codex 已于 2026-08-25 完成生产契约核查，推翻本稿多处判断。
-  **在按下方「核查结论」修订之前，不要按本稿实现。**
+- 状态：**设计稿，未实现。** Codex 于 2026-08-25 完成生产契约核查，推翻本稿
+  初版 4 处判断；修订已并入正文，见第 0 节。
 - 部署状态请查生产，不以本文件为准（`AGENTS.md` 默认守则）。
 
-## 0. Codex 生产核查结论（2026-08-25，先读这一节）
+## 0. 修订记录（2026-08-25）
 
-已确认成立：第 3.3 节的成功判定（`ordinary_locked` + 两份草稿 `consumed`）、
-第 2.3 节的 P0 金额边界方向、canonical confirmation 页面无需提供。
+初版依据阅读仓库文件写成，Codex 的生产只读核查推翻其中 4 处。修订已并入正文，
+此处保留被推翻的内容，以免后来者重蹈。
 
-**需修订的 4 处：**
+**已由生产证据确认成立**：第 3.3 节的成功判定（`ordinary_locked` + 两份草稿
+`consumed`，生产存在实例 `6ec3b815-…`）、第 2.3 节的 P0 金额边界方向、
+canonical confirmation 页面无需提供（生产 wrapper 内部生成，Edge sanitizer
+还会从浏览器响应中剔除）。
 
-1. **第 7.6 节的假设不成立。** 生产公式是
-   `can_lock = can_save AND NOT requires_repreview`。2026-08 的 6 个 scope 当前
-   两份草稿均为 `null`、`requires_repreview=true`，因此 2026-09-07 开闸后只会
-   变成 `can_save=true`，**必须先成功 save、重读 status，`can_lock` 才可能为
-   true**。「9/7 六个自动可锁定」已被否定。这与 Phase C 的首次页面 save 前置
-   天然衔接：**先 save 再 lock**。
-2. **第 3.4 节的三态恢复不足。** `sameDraftVersions + incomplete` 不等于可重试；
-   auth/body 错误 status 完全未变，现规则会判成 `unchanged` 并允许重试原请求。
-   应改为先按 `error.action` 分流的 `classifyLockFailure(error, before, after,
-   preview)`，仅对真正结果不明确的情况使用三态，并新增 `unknown`（status 读不到
-   时禁止重试）。
-3. **第 5 节自相矛盾。** 「表单任一项变化即作废 Preview 并清空确认输入」若包含
-   确认金额输入框本身，用户一输入 Preview 就失效、输入被清空，流程走不完。
-   应限定为「影响 DB Preview 的业务输入变化才作废」；确认金额与备注变化不作废。
-4. **第 6 节新增断言 1 表达能力不足。** 静态正则无法证明「该金额不来自 DOM」——
-   那是数据流属性而非文本属性。应改为三层：把 `buildOnlineDraftLockInput` 做成
-   纯函数（签名中根本没有确认金额，写不出错误代码）、sentinel 集成测试（DOM 输入
-   `999999.123`、DB 为 `40000.00`，深比较 payload 且递归确认不含 sentinel）、
-   API 层对 `buildLockPayload` 做 exact-key/deep-equal。
+**被推翻并已修订的 4 处**：
 
-另：`SETTLEMENT_REPREVIEW_REQUIRED`（lock 的专属 blocker）此前未被 Edge 映射，
-会退化成内部错误。已由提交 `3a062d6` 修复，需重新部署 Edge 生效。
+| # | 初版判断 | 生产事实 | 修订位置 |
+|---|---|---|---|
+| 1 | 2026-09-07 开闸后 6 个 scope 自动 `can_lock=true` | `can_lock = can_save AND NOT requires_repreview`。6 个 scope 当前两份草稿均为 `null`、`requires_repreview=true`，开闸后只会 `can_save=true`。**必须先 save 再 lock** | 第 3.1、8 节 |
+| 2 | 三态恢复 `confirmed / unchanged / conflict` 足够 | `sameDraftVersions + incomplete` 不等于可重试；auth/body 错误下 status 完全未变，会被误判为 `unchanged` 并允许重试原请求 | 第 3.4 节重写 |
+| 3 | 「表单任一项变化即作废 Preview 并清空确认输入」 | 若包含确认金额输入框本身，用户一输入 Preview 就失效、输入被清空，流程走不完 | 第 5 节 |
+| 4 | 静态断言可以守住「确认金额不进 payload」 | 那是数据流属性而非文本属性，正则无法证明金额没有经重命名或中间对象传入 | 第 6 节重写 |
+
+第 1 条其实是好消息：它把顺序说清楚了——**9/7 开闸 → 页面 save → 才可能
+lock**，与 Phase C 要求的「首次页面真实 save 证据」天然衔接，不是两件事。
+
+**相关但已独立完成**：`SETTLEMENT_REPREVIEW_REQUIRED` 经查只在 status JSON 中
+赋值、从不被 raise，因此不属于 Edge 错误映射，其文案已放入前端 `blockerLabel`。
+在线结算 Edge 的错误映射已于 `816b6b6` 收口，22 个生产调用图确认可传播的 code
+均有明确 `status` / `action` / 中文文案，未映射的稳定 code 也不再丢失身份。
+本设计第 3.4 节的失败分流直接依据该映射的 `action` 词汇表。
 
 ## 1. 目标与范围
 
@@ -90,7 +87,7 @@ DB 值一致才启用锁定按钮。
 | `canUseOnlineDraftSave` | `canUseOnlineDraftLock` |
 | `buildOnlineDraftSaveInput` | `buildOnlineDraftLockInput` |
 | `statusConfirmsDraftSave` | `statusConfirmsDraftLock` |
-| `classifySaveRecovery` | `classifyLockRecovery` |
+| `classifySaveRecovery` | `classifyLockFailure`（签名不同，见 3.4） |
 
 `canonicalDecimal`、`sameDraftVersions`、`createSingleFlight`、`decimalString`
 直接复用，不复制。
@@ -110,7 +107,18 @@ membershipRole === "admin"
 自然周封口已在生产生效，因此 2026-08 在 2026-09-07 之前 `can_lock` 必为 false，
 按钮自然禁用——**不需要前端做任何日期判断**。
 
-### 3.2 `buildOnlineDraftLockInput({ row, status, previewResult })`
+**关键顺序约束**：`can_lock` 为真需要两个条件同时成立，而 2026-08 的 6 个 scope
+当前两份草稿均为 `null`、`requires_repreview=true`。所以 2026-09-07 开闸**只会**
+让 `can_save` 变真，`can_lock` 仍为假，blocker 是
+`SETTLEMENT_REPREVIEW_REQUIRED`。用户必须先在页面完成一次 save、重读 status，
+锁定按钮才可能启用。
+
+这不是缺陷，是设计——锁定要冻结的正是那两份草稿的精确版本，没有草稿就没有可冻结
+的东西。UI 上应把这一步表达清楚：`can_lock=false` 且 blocker 为
+`SETTLEMENT_REPREVIEW_REQUIRED` 时，tooltip 要说「需先保存草稿」而不是笼统的
+「当前不可锁定」。前端 `blockerLabel` 已有该文案。
+
+### 3.2 `buildOnlineDraftLockInput({ row, status, previewResult, note, clientCorrelationId })`
 
 产出 `lockStudentSettlementOnline` 所需输入。全部字段取自 `status` 与
 `previewResult`，无一项由前端计算：
@@ -130,17 +138,69 @@ membershipRole === "admin"
 - 且该 settlement 的 manifest 与 `previewResult` 一致
 - 且两份草稿状态已由 `active` 变为 `consumed`
 
-### 3.4 `classifyLockRecovery(beforeStatus, afterStatus, previewResult)`
+### 3.4 `classifyLockFailure(error, beforeStatus, afterStatus, previewResult)`
+
+初版设计的三态（`confirmed / unchanged / conflict`）不足，已废弃。问题是
+`sameDraftVersions + incomplete` **不等于可重试**：权限错误、body 校验错误发生时
+status 完全没变，会被判成 `unchanged` 从而允许重试同一个必然再次失败的请求。
+
+改为**先按 `error.action` 分流，只有真正结果不明确时才做状态比对**。
+`action` 取值来自 Edge 的 `DB_ERROR_MAP`，生产实测四类：
+`repreview`（20 个 code）、`stop`（13）、`refresh_status`（9）、`retry_later`（1）。
 
 ```
-statusConfirmsDraftLock(afterStatus, previewResult)  → "confirmed"
-sameDraftVersions(before, after) 且 after 仍为 incomplete → "unchanged"
-其余                                                  → "conflict"
+第一层 —— 按 error.action 分流
+
+  stop            → "blocked"
+                    权限或业务条件不满足。禁止重试。
+                    展示 message，关闭提交入口，要求用户先解决前置条件。
+
+  repreview       → "stale"
+                    payload 已不代表当前事实。禁止重试旧 payload。
+                    作废当前 Preview，要求重新预览并重建 input。
+
+  retry_later     → "busy"
+                    同一 scope 正被占用。等待后重读 status；
+                    仅当 status 证明未发生写入时才允许重试。
+
+  refresh_status  → 进入第二层
+  无 action / 网络超时 / 响应格式无效 / 未提取到 code → 进入第二层
+
+第二层 —— 仅对结果不明确的情况，重读 status 后判定
+
+  status 读取失败                              → "unknown"
+  statusConfirmsDraftLock(after, preview)      → "confirmed"
+  严格未变（见下）                              → "retriable"
+  其余                                          → "conflict"
 ```
 
-- `confirmed`：提示成功，关闭对话框，刷新列表
-- `unchanged`：未发生任何写入，**允许**用户重试
-- `conflict`：**禁止重试**，强制刷新状态后重新预览
+「严格未变」不能只看草稿版本，必须同时满足：
+
+- `sameDraftVersions(before, after)`
+- `after.effective_state.effective_status === "incomplete"`
+- `canUseOnlineDraftLock("admin", after)` 仍为真
+- `after` 无任何 blocker，`requires_repreview === false`
+- 两份草稿仍为 `active`
+- manifest 与 expected facts 仍与本次 `previewResult` 一致
+
+任一条不成立即归为 `conflict`。
+
+各态的处理：
+
+| 态 | 是否允许重试 | 动作 |
+|---|---|---|
+| `confirmed` | — | 按成功处理：提示已锁定、关闭对话框、刷新列表 |
+| `blocked` | ❌ | 展示原因，禁用提交，不刷新 Preview |
+| `stale` | ❌ | 作废 Preview，要求重新预览 |
+| `busy` | ⚠️ 仅在 status 证明未写入后 | 提示稍后重试 |
+| `retriable` | ✅ | 允许用户再次提交同一 payload |
+| `unknown` | ❌ | **最危险的一态**：既不能确认成功也不能确认失败。禁止重试，强制刷新状态，提示「结果未确认，请勿重复锁定」 |
+
+`unknown` 必须存在。锁定不可逆且 `unlock` 无任何通路，在结果未知时重试可能造成
+无法撤销的重复尝试；宁可让用户手动刷新确认，也不能自动重试。
+
+与 save 侧 `SETTLEMENT_EDGE_RESULT_UNCERTAIN` 的处理保持一致
+（`js/pages/settlement-page.js:1247`）。
 
 ## 4. 对话框：必须独立于保存草稿对话框
 
@@ -182,18 +242,33 @@ canUseOnlineDraftLock(...)
   → 校验：金额匹配 && can_lock && 有匹配 Preview
   → single-flight 提交（复用 createSingleFlight，防双击）
   → 成功        → 提示 + 关闭 + 刷新列表
-  → 失败/超时   → 一律先重读 status，用 classifyLockRecovery 判定
+  → 失败/超时   → 一律经 classifyLockFailure 分流，见 3.4
                   unchanged → 允许重试
                   confirmed → 按成功处理（提示已锁定）
                   conflict  → 禁止重试，强制重新预览
 ```
 
-**任何情况下都不得在结果不明确时直接重试提交。** 与 save 侧
-`SETTLEMENT_EDGE_RESULT_UNCERTAIN` 的处理保持一致
-（`js/pages/settlement-page.js:1247`）。
+**任何情况下都不得在结果不明确时直接重试提交。**
 
-表单任一项变化即作废当前 Preview 并清空确认输入框——避免用户对着旧金额
-确认后提交新事实。
+### 5.1 什么会作废 Preview，什么不会
+
+初版写的「表单任一项变化即作废 Preview 并清空确认输入」是自相矛盾的：确认金额
+输入框本身也是表单项，用户一开始输入 Preview 就失效、输入被清空，流程永远走不完。
+
+正确划分依据是**该输入是否参与 DB Preview 的计算**：
+
+| 输入 | 变化时 | 理由 |
+|---|---|---|
+| 学生 / 月份 / 任何影响 DB Preview 的业务选择 | **作废 Preview，并清空确认输入** | 权威事实变了，之前确认的金额不再对应当前事实 |
+| 确认金额输入框 | 不作废 | 它是闸门，不参与任何计算 |
+| 业务备注 | 不作废 | 不进 Preview，只随 payload 提交 |
+
+清空确认输入必须与作废 Preview 同时发生——否则用户会对着**旧金额**的确认状态
+提交**新事实**，那正是这道闸门要防的。
+
+锁定对话框的输入面本来就很窄（只有确认金额与备注），业务选择在保存草稿阶段
+就已固定。因此实践中这一节主要是防止对话框在打开期间被外部状态刷新后，
+确认状态却残留。
 
 ## 6. 静态断言改写（6 处）
 
@@ -216,31 +291,79 @@ canUseOnlineDraftLock(...)
   （`phase-c-static-test.mjs:26`）
 - 全部 `service_role` 禁令
 
-**新增断言**（本设计引入的新约束）：
+**新增约束**（本设计引入）：
 
-1. 页面不得把确认输入框的值写入任何 `expected_*` 字段——即
-   `buildOnlineDraftLockInput` 的返回值中不得出现来自 DOM 输入的金额
-2. 锁定对话框必须独立于草稿对话框（两个不同的 dialog id）
-3. 提交失败路径必须调用 `classifyLockRecovery`，不得直接重试
+1. 锁定对话框必须独立于草稿对话框（两个不同的 dialog id），且两者的提交
+   handler 不得共用
+2. 提交失败路径必须经 `classifyLockFailure` 分流，不得直接重试
+3. 页面不得把确认输入框的值写入任何 `expected_*` 字段 —— 见下节，
+   这一条**不能靠静态断言表达**
 
-净效果：**放开的只有「lock 经 Edge 这一条受控路径」，其余边界一条未松，
-另新增三条。**
+### 6.1 「确认金额不进 payload」为什么不能只靠断言
 
-## 7. 尚未经生产验证的假设
+初版把它写成一条静态断言。那是错的：「这个值不来自 DOM」是**数据流属性**，
+静态正则最多证明 builder 源码里没有出现某个 DOM 变量名，无法证明该金额没有经
+重命名、中间对象或参数间接传入 `expected_final_carryover_cny`。
 
-以下全部来自阅读仓库文件，按 `AGENTS.md`「生产是当前状态唯一权威」，
-须由 Codex 的生产契约核查确认后才能实现：
+改为三层，靠结构而非检查：
 
-1. `school_lock_student_monthly_settlement_online_admin` 的确切签名与校验顺序
-   （仓库记录 18 个参数）
-2. 生产部署的 `lock-student-settlement` Edge 是否与仓库版本一致，
-   其错误码全集，以及哪些属于「结果不明确」类
-3. `canonical_confirmation` 在生产的实际生成与比对位置——本设计假定页面完全
-   不需要提供它
-4. `status` 是否确实返回两份草稿的 `draft_id` 与 `updated_at`
-5. 锁定成功后 `effective_status` 是否确实翻为 `ordinary_locked`，
-   两份草稿是否确实变为 `consumed`（第 3.3 节的判定依赖此）
-6. 2026-08 的 6 个活跃 scope 在 2026-09-07 之后 `can_lock` 是否确实为 true
+**第一层 —— 让错误代码写不出来。**
+`buildOnlineDraftLockInput` 定义为纯函数，签名只接受
+`{ row, status, previewResult, note, clientCorrelationId }`。
+**确认金额根本不在参数表里**，函数内部拿不到它。这一层不是断言，是不可能性。
+
+**第二层 —— sentinel 集成测试。**
+构造 DOM 确认输入为 `999999.123`、DB Preview 的 `final_carryover_cny` 为
+`40000.00`，走完整提交流程，捕获传给 `lockStudentSettlementOnline` 的完整 input：
+
+- 断言 `expected_final_carryover_cny === "40000.00"`
+- 递归遍历整个 input，断言**任何层级**都不含 sentinel 值 `999999.123`
+
+sentinel 选成非法金额形态（三位小数），确保它一旦泄漏必然可辨认。
+
+**第三层 —— API 层 exact-key 断言。**
+对 `buildLockPayload` 的返回值做精确键集比对：键集必须与契约完全一致，不多不少。
+额外断言不含 `canonical_confirmation`、不含任何确认输入相关字段。
+
+第一层是主要保障，二三层是回归网。**只有第二层能真正证明数据流**，因此它是
+Phase D 验收的必要项，不能因为「静态测试已绿」而跳过。
+
+净效果：放开的只有「lock 经 Edge 这一条受控路径」，其余边界一条未松，
+另新增上述三条约束。
+
+## 7. 生产验证状态
+
+初版列出的 6 项假设已由 Codex 于 2026-08-25 完成生产只读核查。
+
+**已确认成立（可直接依赖）**：
+
+1. `school_lock_student_monthly_settlement_online_admin` 确为 18 参数，
+   `security definer`、owner `postgres`，校验顺序共 15 步；owner writer 自身
+   还有第二层校验。
+2. `lock-student-settlement` 与 `save-student-settlement-draft` 已于 `816b6b6`
+   重新部署为 ACTIVE v3 —— 这同时消除了「生产 Edge 是否与仓库一致」的不确定性，
+   因为部署之后生产即为本仓库版本。错误码映射已收口，22 个生产调用图确认可传播
+   的 code 均有明确 `status` / `action` / 中文文案。
+3. `canonical_confirmation` 由生产 wrapper 在 expected facts 核验之后内部生成，
+   不是参数、不与页面输入比较，Edge sanitizer 还会从浏览器响应中剔除。
+   **页面完全不需要提供它**，`buildLockPayload` 中确无该字段。
+4. `status` 确实返回两份草稿的 `draft_id`、`status` 与 `updated_at`。
+5. 锁定成功后 `effective_status` 确为 `ordinary_locked`，adjustment draft 由
+   writer 改为 `consumed`，source draft 由 `school_tuition_p0f_settlement_after`
+   trigger 改为 `consumed`。生产存在实例 `6ec3b815-…`（彭宇晗 2026-07）。
+
+**已被否定**：
+
+6. 「2026-08 的 6 个 scope 在 2026-09-07 之后 `can_lock` 为 true」不成立。
+   见第 0 节第 1 条与第 3.1 节。
+
+**仍未验证、需在实现阶段处理**：
+
+- 第 6.1 节第二层的 sentinel 集成测试尚未编写，那是唯一能真正证明确认金额不进
+  payload 的手段。
+- `classifyLockFailure` 的六态划分是否覆盖全部真实失败模式，须在实现后用
+  Edge 的实际错误码逐条走查。设计依据是 `DB_ERROR_MAP` 的四类 `action`，
+  但「某个具体 code 在什么条件下出现」仍需实测。
 
 ## 8. Phase C 前置与时间约束
 
@@ -253,8 +376,27 @@ lock 前须有一次**从页面**完成的真实 save 成功证据。Codex 已�
 - 2026-07 及更早的 scope 全部因已锁定 / 历史消费 / 后继冻结而 `can_save=false`
 - 2026-08 在自然周封口下要到 **2026-09-07** 才开闸
 
-因此：**代码可以现在写完，生产验收最早 2026-09-07。**
+Codex 核查后这条链更清楚了，Phase C 与 Phase D 不是两件事而是同一条：
+
+```
+2026-09-07 00:00 JST   自然周封口开闸，6 个 scope 变为 can_save=true
+                       此时 can_lock 仍为 false，blocker 是
+                       SETTLEMENT_REPREVIEW_REQUIRED（两份草稿均为 null）
+        ↓
+页面完成一次真实 save   → 这就是 Phase C 要求的前置证据
+                       → 两份草稿产生，requires_repreview 变为 false
+        ↓
+重读 status            can_lock 才可能为 true，锁定按钮启用
+        ↓
+页面 lock              Phase D 生产验收
+```
+
+因此：**代码可以现在写完，生产验收最早 2026-09-07，且当天必须先 save 再 lock。**
 这不是排期选择，是规则决定的。
+
+实现阶段可以做完的：UI、handler、state helper、静态测试、第 6.1 节第一与第三层。
+必须等到 9/7 之后的：sentinel 集成测试的真实数据部分、`classifyLockFailure` 的
+实际错误码走查、Phase C 首次 save、Phase D 首次 lock。
 
 ## 9. 待业务方决定（不阻塞实现）
 
