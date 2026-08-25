@@ -72,7 +72,7 @@ assert.doesNotMatch(css, /\.income-filter-panel[^\n{]*\.expense-filter-|\.wage-f
 
 assert.match(api, /export async function fetchExpenseRecords\(month\)/);
 // Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
-assert.match(config, /APP_VERSION = "v10\.5\.62"/);
+assert.match(config, /APP_VERSION = "v10\.5\.63"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 assert.doesNotMatch(filterMarkup, /业务归属|个人名义|business_entity_id/);
 

@@ -70,7 +70,7 @@ assert.equal(writerCalls, 0);
 assert.match(html, /app\.css/);
 assert.match(html, /income-app\.js/);
 assert.match(app, /config\.js/);
-assert.match(config, /APP_VERSION = "v10\.5\.62"/);
+assert.match(config, /APP_VERSION = "v10\.5\.63"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);

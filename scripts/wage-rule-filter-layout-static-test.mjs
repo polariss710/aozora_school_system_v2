@@ -107,7 +107,7 @@ assert.match(css, /@media \(max-width: 767px\)[\s\S]*?\.wage-rule-filter-panel \
 assert.doesNotMatch(css, /\.settlement-filter-panel[^\n{]*\.wage-rule-|\.wage-filter-panel[^\n{]*\.wage-rule-/);
 
 // Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
-assert.match(config, /APP_VERSION = "v10\.5\.62"/);
+assert.match(config, /APP_VERSION = "v10\.5\.63"/);
 assert.doesNotMatch(page, /legacy-core\.js/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {

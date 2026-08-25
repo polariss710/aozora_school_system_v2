@@ -154,9 +154,25 @@ export function onlineStatusDisplay(status, statusError = null) {
     return { key: effective, label: "历史零结转已完成", detail: "该月份已通过历史零结转证据完成，只能查看。", className: "status-paid" };
   }
   if (status.requires_repreview === false) {
-    return { key: "draft_saved", label: "草稿已保存", detail: "当前草稿与DB权威预览一致。", className: "status-paid" };
+    return { key: "draft_saved", label: "草稿已保存", detail: "当前草稿与DB权威预览一致，可以正式锁定。", className: "status-paid" };
   }
-  return { key: "incomplete", label: "未完成", detail: "可读取DB权威预览；保存草稿后仍不会锁定。", className: "status-pending" };
+  // 只有 lock 侧被拦、save 仍可用时，不能沿用上面 blocker 分支的
+  // status-cancelled 外观——那会把一个「可以继续操作」的行显示成已冻结。
+  // 这类 blocker（主要是 SETTLEMENT_REPREVIEW_REQUIRED）表达的是「下一步要
+  // 先保存草稿」，属于正常流程中的一环。
+  //
+  // 本分支是 2026-08-25 新增：此前 onlineStatusDisplay 只读 save_blocker_code，
+  // 从不读 lock_blocker_code，导致 Phase D 上线后 9/7 开闸的引导文案根本不会
+  // 被展示。
+  if (status.lock_blocker_code) {
+    return {
+      key: status.lock_blocker_code,
+      label: blockerLabel(status.lock_blocker_code),
+      detail: status.lock_blocker_message || "需先保存草稿才能正式锁定。",
+      className: "status-pending",
+    };
+  }
+  return { key: "incomplete", label: "未完成", detail: "可读取DB权威预览；需先保存草稿才能正式锁定。", className: "status-pending" };
 }
 
 export function buildOnlineDraftSaveInput({ row, status, previewResult, input }) {
@@ -339,6 +355,26 @@ function deepFreeze(value) {
   Object.freeze(value);
   for (const key of Object.keys(value)) deepFreeze(value[key]);
   return value;
+}
+
+/**
+ * 确认闸门：用户手打的金额是否与 DB 权威结转一致。
+ *
+ * 抽成纯函数有两个理由：一是让它可以脱离 DOM 直接测试——这道闸门是 P0 金额
+ * 边界的唯一入口，不能因为「需要浏览器」而在日常回归中被跳过；二是明确它的
+ * 职责只有比对，不产生任何将被提交的值。
+ *
+ * 返回 true 只代表可以放行提交，提交的金额仍一律取自权威快照。
+ */
+export function lockConfirmationAccepted(typedValue, authoritativeValue) {
+  if (authoritativeValue === null || authoritativeValue === undefined) return false;
+  const typed = String(typedValue ?? "").trim();
+  if (!typed) return false;
+  try {
+    return canonicalDecimal(typed) === canonicalDecimal(authoritativeValue);
+  } catch {
+    return false;
+  }
 }
 
 export function canUseOnlineDraftLock(membershipRole, status) {

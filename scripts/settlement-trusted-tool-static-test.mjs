@@ -10,13 +10,22 @@ const sql = fs.readFileSync(
   "utf8"
 );
 
-assert.match(html, /管理员可在线保存已结束月份的未完成月结草稿；当前及未来月份仅可读取DB权威预览，正式锁定暂未开放。/);
+// Phase D 起横幅需反映锁定已开放。断言分解为若干必须同时成立的语义要点，
+// 而不是钉死整句——整句钉死会让每次文案微调都变成假红。
+assert.match(html, /管理员可在线保存已结束月份的未完成月结草稿/);
+assert.match(html, /草稿保存后正式锁定/);
+assert.match(html, /自然周未结束的月份仅可读取DB权威预览/);
+assert.match(html, /锁定不可撤销/);
 assert.match(html, /编辑月结草稿/);
 // Historical cache-key literals are intentionally not asserted; the settlement app reference remains covered (handoff section 8.6).
 assert.match(html, /settlement-app\.js/);
 assert.match(page, /saveStudentSettlementDraftOnline\(saveInput\)/);
 assert.match(page, /dom\.adjustmentSubmitButton\.disabled = !canSave/);
-assert.doesNotMatch(page, /data-lock-settlement-id=/);
+// Phase D 起页面有正式锁定入口。原断言钉的是 data-lock-settlement-id，
+// 与实际命名 data-settlement-lock-id 不符，已是死断言。改为正向断言入口存在，
+// 且其可用性由完整的 canUseOnlineDraftLock 判定驱动，而不只看 can_lock。
+assert.match(page, /data-settlement-lock-id=/);
+assert.match(page, /canUseOnlineDraftLock\(membershipRole, row\.online_status\)/);
 assert.doesNotMatch(page, /data-settlement-action-id=/);
 for (const writer of [
   "lockStudentMonthlySettlement",
@@ -28,7 +37,10 @@ for (const writer of [
   assert.doesNotMatch(page, new RegExp(`\\b${writer}\\s*\\(`), `page still calls ${writer}`);
 }
 assert.doesNotMatch(page, /\.rpc\s*\(/);
-assert.doesNotMatch(page, /lockStudentSettlementOnline|lock-student-settlement/);
+// Phase D：锁定必须经 Edge，且只允许这一条受控路径。
+assert.match(page, /lockStudentSettlementOnline\(lockInput\)/);
+// 提交失败一律经 classifyLockFailure 分流，不得就地判断能否重试
+assert.match(page, /classifyLockFailure\(/);
 assert.match(api, /school_preview_student_settlement_adjustment_dialog/);
 for (const coreWriter of [
   "school_lock_student_monthly_settlement",

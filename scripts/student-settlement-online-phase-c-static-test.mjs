@@ -15,8 +15,13 @@ assert.match(page, /getStudentSettlementOnlineStatus/);
 assert.match(page, /saveStudentSettlementDraftOnline/);
 assert.match(page, /canUseOnlineDraftSave\(membershipRole, currentOnlineStatus\)/);
 assert.match(page, /canUseOnlineDraftPreview\(membershipRole, currentOnlineStatus\)/);
-assert.doesNotMatch(page, /lockStudentSettlementOnline|lock-student-settlement/);
-assert.doesNotMatch(html, /data-lock-settlement|lockSettlementDialog|保存并锁定/);
+assert.match(page, /lockStudentSettlementOnline\(lockInput\)/);
+// 锁定对话框必须独立于草稿对话框，且两者不得合并为同一操作。
+// 原断言里的 data-lock-settlement / lockSettlementDialog 与实际命名不符，
+// 已是死断言；合并操作的禁令保留并继续生效。
+assert.match(html, /id="settlementLockDialog"/);
+assert.match(html, /id="settlementAdjustmentDialog"/);
+assert.doesNotMatch(html, /保存并锁定/);
 assert.doesNotMatch(detailHtml + detailPage, /school_(?:unlock|relock|lock)_student_monthly_settlement|data-(?:unlock|relock|lock)-settlement/);
 assert.doesNotMatch(page, /supabase\s*\.\s*(?:rpc|from)\s*\(/);
 assert.doesNotMatch(page, /supabase[\s\S]{0,120}\.(?:insert|update|delete|upsert)\s*\(/);
