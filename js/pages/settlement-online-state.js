@@ -343,11 +343,29 @@ function blockerLabel(code) {
  * 因此改为结构约束：API 返回后立刻深拷贝并递归冻结，之后任何篡改在严格模式下
  * 抛错、非严格模式下静默失败，两种情况 payload 都拿不到被改的值。
  */
+// 只有经本函数产出的快照会被登记在此。builder 据此判断快照是否可信。
+//
+// 单靠 Object.isFrozen 不够：它只证明对象被冻结，不证明它来自权威读取。
+// 攻击者（或不小心的调用方）完全可以构造一个被污染的对象再手动 Object.freeze，
+// 那样的对象能通过 isFrozen 检查并把脏值送进 payload——实测确认可行。
+// WeakSet 登记把判据从「是否冻结」换成「是否由本模块冻结」，
+// 且不阻止垃圾回收。
+const AUTHORITATIVE_SNAPSHOTS = new WeakSet();
+
 export function freezeAuthoritativeSnapshot(value) {
   const cloned = typeof structuredClone === "function"
     ? structuredClone(value)
     : JSON.parse(JSON.stringify(value ?? null));
-  return deepFreeze(cloned);
+  const frozen = deepFreeze(cloned);
+  if (frozen !== null && typeof frozen === "object") {
+    AUTHORITATIVE_SNAPSHOTS.add(frozen);
+  }
+  return frozen;
+}
+
+export function isAuthoritativeSnapshot(value) {
+  return value !== null && typeof value === "object"
+    && AUTHORITATIVE_SNAPSHOTS.has(value);
 }
 
 function deepFreeze(value) {
@@ -403,17 +421,19 @@ export function buildOnlineDraftLockInput({
   if (!previewResult?.preview || !previewResult?.preview_expected_facts) {
     throw new Error("authoritative preview is required");
   }
-  // 只接受已冻结的权威快照。
+  // 只接受由 freezeAuthoritativeSnapshot 产出并登记的权威快照。
   //
   // 参数表里没有确认金额并不构成保障——调用方可以先把 DOM 值写进可变的
   // previewResult 再传进来，JS 的参数表证明不了对象来源（设计初版称「纯函数
-  // 签名让错误代码写不出来」，那是错的）。真正的结构约束是：拒绝任何未经
-  // freezeAuthoritativeSnapshot 处理的对象，使被污染的快照根本无法进入。
-  if (!Object.isFrozen(previewResult) || !Object.isFrozen(previewResult.preview)
-      || !Object.isFrozen(previewResult.preview_expected_facts)) {
+  // 签名让错误代码写不出来」，那是错的）。
+  //
+  // 只查 Object.isFrozen 同样不够：构造一个被污染的对象再手动 Object.freeze
+  // 就能通过，实测可以把 999999.99 送进 payload。因此判据是「是否由本模块
+  // 冻结并登记」，而不是「是否处于冻结状态」。
+  if (!isAuthoritativeSnapshot(previewResult)) {
     throw new Error("previewResult must be a frozen authoritative snapshot");
   }
-  if (!Object.isFrozen(status)) {
+  if (!isAuthoritativeSnapshot(status)) {
     throw new Error("status must be a frozen authoritative snapshot");
   }
   const sourceDraftId = status.source_treatment_draft?.draft_id;
