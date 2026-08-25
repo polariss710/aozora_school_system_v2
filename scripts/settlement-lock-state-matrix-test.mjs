@@ -36,7 +36,7 @@ const BASE_SOURCE_DRAFT = Object.freeze({
 });
 
 function makeStatus(over = {}) {
-  return {
+  return freezeAuthoritativeSnapshot({
     contract_version: "student_settlement_online_status_v1",
     student_id: "S1",
     year_month: "2026-08",
@@ -55,11 +55,11 @@ function makeStatus(over = {}) {
     source_treatment_draft: { ...BASE_SOURCE_DRAFT },
     adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "2026-09-07T01:00:00Z" },
     ...over,
-  };
+  });
 }
 
 function makePreview(over = {}) {
-  return {
+  return freezeAuthoritativeSnapshot({
     preview_manifest_sha256: SHA_A,
     preview: {
       lesson_variance_source_count: 3,
@@ -75,7 +75,7 @@ function makePreview(over = {}) {
       system_difference_cny: "0",
       ...(over.preview_expected_facts || {}),
     },
-  };
+  });
 }
 
 const baseStatus = makeStatus();
@@ -181,8 +181,14 @@ function classify(over = {}) {
   assert.equal(inputFromFrozen.expectedFinalCarryoverCny, "40000.00",
     "payload 取到了被篡改的值");
 
-  // 深拷贝：改原始对象不应影响已冻结快照
-  const original = makePreview();
+  // 深拷贝：改原始对象不应影响已冻结快照。
+  // 这里必须用一个未冻结的字面量——makePreview() 现在返回冻结对象，
+  // 在 ESM 的严格模式下赋值会直接抛错，测不到深拷贝这件事。
+  const original = {
+    preview_manifest_sha256: SHA_A,
+    preview: { ...LIVE_PREVIEW },
+    preview_expected_facts: { lesson_variance_manifest_sha256: SHA_B, system_difference_cny: "0" },
+  };
   const snapshot = freezeAuthoritativeSnapshot(original);
   original.preview.projected_final_carryover_cny = "1";
   assert.equal(snapshot.preview.projected_final_carryover_cny, "40000.00",

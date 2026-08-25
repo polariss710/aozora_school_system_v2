@@ -150,12 +150,24 @@ function containsDeep(value, needle) {
   assert.equal(payload.expectedSystemDifferenceCny, "0", "系统差额被篡改成功");
   assert.equal(containsDeep(payload, TAMPERED), false, "被篡改的值进入了 payload");
 
-  // 未冻结的对象则会被改到——这条反证冻结确实是那道防线
+  // 未冻结的对象现在被 builder 直接拒绝，而不是「能被改到」。
+  // 这比原先的反证更强：污染过的快照根本进不了 builder，不需要依赖
+  // 「payload 里没出现被篡改的值」这种事后检查。
   const unfrozen = makePreview();
   unfrozen.preview.projected_final_carryover_cny = TAMPERED;
-  assert.equal(
-    buildFrom(unfrozen).expectedFinalCarryoverCny, TAMPERED,
-    "未冻结时也没被改到，说明本场景没有真正验证冻结的作用"
+  assert.throws(
+    () => buildFrom(unfrozen),
+    /frozen authoritative snapshot/,
+    "builder 接受了未冻结的快照"
+  );
+  // status 侧同样必须冻结
+  assert.throws(
+    () => buildOnlineDraftLockInput({
+      row, status: { ...status }, previewResult: freezeAuthoritativeSnapshot(makePreview()),
+      membershipRole: "admin", note: "", clientCorrelationId: "C1",
+    }),
+    /frozen authoritative snapshot/,
+    "builder 接受了未冻结的 status"
   );
 }
 

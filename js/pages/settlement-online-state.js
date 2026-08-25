@@ -403,6 +403,19 @@ export function buildOnlineDraftLockInput({
   if (!previewResult?.preview || !previewResult?.preview_expected_facts) {
     throw new Error("authoritative preview is required");
   }
+  // 只接受已冻结的权威快照。
+  //
+  // 参数表里没有确认金额并不构成保障——调用方可以先把 DOM 值写进可变的
+  // previewResult 再传进来，JS 的参数表证明不了对象来源（设计初版称「纯函数
+  // 签名让错误代码写不出来」，那是错的）。真正的结构约束是：拒绝任何未经
+  // freezeAuthoritativeSnapshot 处理的对象，使被污染的快照根本无法进入。
+  if (!Object.isFrozen(previewResult) || !Object.isFrozen(previewResult.preview)
+      || !Object.isFrozen(previewResult.preview_expected_facts)) {
+    throw new Error("previewResult must be a frozen authoritative snapshot");
+  }
+  if (!Object.isFrozen(status)) {
+    throw new Error("status must be a frozen authoritative snapshot");
+  }
   const sourceDraftId = status.source_treatment_draft?.draft_id;
   const adjustmentDraftId = status.adjustment_draft?.draft_id;
   if (!sourceDraftId || !adjustmentDraftId) {
