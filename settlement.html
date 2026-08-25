@@ -282,6 +282,51 @@
       </section>
     </div>
 
+    <!--
+      正式锁定对话框。必须与草稿对话框完全分离：锁定要求独立二次确认，
+      不得出现「保存并锁定」这类合并操作。
+      设计依据 docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 4 节。
+    -->
+    <div id="settlementLockDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
+      <section class="dialog-panel settlement-lock-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settlementLockTitle">
+        <div class="section-heading">
+          <h2 id="settlementLockTitle">正式锁定月结（不可撤销）</h2>
+          <p class="section-note">锁定后不可撤销。当前系统未开放解锁与重新锁定。</p>
+        </div>
+
+        <div id="settlementLockError" class="dialog-error is-hidden" aria-live="polite"></div>
+
+        <div class="settlement-lock-dialog-body">
+          <dl class="settlement-lock-facts">
+            <div><dt>学生</dt><dd id="settlementLockStudent">-</dd></div>
+            <div><dt>结算月份</dt><dd id="settlementLockMonth">-</dd></div>
+            <div><dt>系统差额 CNY</dt><dd id="settlementLockDifference">-</dd></div>
+            <div class="settlement-lock-carry">
+              <dt>最终结转 CNY</dt>
+              <dd id="settlementLockCarryover">-</dd>
+            </div>
+          </dl>
+
+          <label class="field" data-settlement-lock-field="confirmation">
+            <span>请输入上方「最终结转 CNY」以确认</span>
+            <input id="settlementLockConfirmationInput" type="text" inputmode="decimal" autocomplete="off">
+            <small id="settlementLockConfirmationHint" class="field-hint"></small>
+          </label>
+
+          <label class="field" data-settlement-lock-field="note">
+            <span>业务备注（可选）</span>
+            <textarea id="settlementLockNoteInput" rows="2"></textarea>
+          </label>
+        </div>
+
+        <div class="dialog-actions settlement-lock-footer">
+          <button class="button" id="settlementLockCancelButton" type="button">取消</button>
+          <button class="button" id="settlementLockRecheckButton" type="button" hidden>再次检查状态</button>
+          <button class="button button-danger" id="settlementLockSubmitButton" type="button" disabled>确认锁定</button>
+        </div>
+      </section>
+    </div>
+
     <script type="module" src="./js/settlement-app.js?v=lesson-week-close-20260823-1"></script>
   </body>
 </html>

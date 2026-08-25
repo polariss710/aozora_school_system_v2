@@ -425,8 +425,12 @@ export function lockStatusStrictlyUnchanged({
 
   if (!sameDraftVersions(beforeStatus, afterStatus)) return false;
   if (afterStatus.effective_state?.effective_status !== "incomplete") return false;
-  // lock 的直接后果就是创建物理 settlement 行；它一旦存在就不是「未变」
-  if (afterStatus.effective_state?.settlement_id) return false;
+  // lock 的直接后果就是创建物理 settlement 行；它一旦存在就不是「未变」。
+  // 字段路径是 status.physical_settlement.settlement_id——effective_state 下
+  // 只有 effective_complete / effective_status / source_type / source_id /
+  // carry_cny，没有 settlement_id。初版写成 effective_state.settlement_id，
+  // 取到的永远是 undefined，该判据成了永不触发的死代码。
+  if (afterStatus.physical_settlement?.settlement_id) return false;
   // 必须用当前真实角色，不得写死 "admin"——角色可能在此期间变化
   if (!canUseOnlineDraftLock(membershipRole, afterStatus)) return false;
   // 契约版本变化意味着语义可能已变，不能跨版本比较
