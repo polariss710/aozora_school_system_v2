@@ -1,8 +1,8 @@
-import { APP_VERSION } from "./config.js?v=lesson-week-close-20260823-1";
+import { APP_VERSION } from "./config.js?v=phase-d-settlement-lock-20260825-1";
 import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
-import { initSettlementPage } from "./pages/settlement-page.js?v=lesson-week-close-20260823-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=phase-d-settlement-lock-20260825-1";
 
-const SETTLEMENT_PAGE_VERSION = "lesson-week-close-20260823-1";
+const SETTLEMENT_PAGE_VERSION = "phase-d-settlement-lock-20260825-1";
 
 const globalSessionPromise = requireGlobalSession();
 

@@ -7,20 +7,27 @@ import {
 } from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-3";
 import {
   getStudentSettlementOnlineStatus,
+  lockStudentSettlementOnline,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
 } from "../api/student-settlement-online-api.js?v=student-settlement-tokyo-month-close-20260810-3";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
+  LOCK_FAILURE_STATES,
+  buildOnlineDraftLockInput,
   buildOnlineDraftSaveInput,
+  canUseOnlineDraftLock,
   canUseOnlineDraftPreview,
   canUseOnlineDraftSave,
   canonicalDecimal,
+  classifyLockFailure,
   classifySaveRecovery,
   createSingleFlight,
   decimalString,
+  freezeAuthoritativeSnapshot,
   isPositiveDecimalString,
+  lockConfirmationAccepted,
   onlineStatusDisplay,
   readRegisteredVarianceSummary,
   statusConfirmsDraftSave,
@@ -74,6 +81,17 @@ let membershipRole = "";
 let queryRequestSequence = 0;
 let currentAdjustmentSettlement = null;
 let isAdjustmentSubmitting = false;
+
+// Phase D 锁定侧的模块私有状态。
+// lockStatusSnapshot / lockPreviewSnapshot 是冻结后的 DB 权威快照，
+// 渲染层与确认输入都拿不到它们的可变引用——见 freezeAuthoritativeSnapshot。
+let currentLockSettlement = null;
+let lockStatusSnapshot = null;
+let lockPreviewSnapshot = null;
+let isLockSubmitting = false;
+let lockRequestSequence = 0;
+let lockCorrelationId = null;
+let lockPendingRecoveryInput = null;
 let isAdjustmentPreviewLoading = false;
 let currentAdjustmentPreview = null;
 let currentAdjustmentPreviewSignature = "";
@@ -82,6 +100,7 @@ let currentOnlineStatusError = null;
 let adjustmentPreviewRequestSequence = 0;
 let dialogRequestSequence = 0;
 const saveSingleFlight = createSingleFlight();
+const lockSingleFlight = createSingleFlight();
 
 export function initSettlementPage(options = {}) {
   membershipRole = options.membershipRole || "";
@@ -140,6 +159,18 @@ function cacheDom() {
   dom.adjustmentPreviewButton = document.querySelector("#settlementAdjustmentPreviewButton");
   dom.adjustmentSubmitButton = document.querySelector("#settlementAdjustmentSubmitButton");
   dom.adjustmentCancelButton = document.querySelector("#settlementAdjustmentCancelButton");
+  dom.lockDialog = document.querySelector("#settlementLockDialog");
+  dom.lockError = document.querySelector("#settlementLockError");
+  dom.lockStudent = document.querySelector("#settlementLockStudent");
+  dom.lockMonth = document.querySelector("#settlementLockMonth");
+  dom.lockDifference = document.querySelector("#settlementLockDifference");
+  dom.lockCarryover = document.querySelector("#settlementLockCarryover");
+  dom.lockConfirmationInput = document.querySelector("#settlementLockConfirmationInput");
+  dom.lockConfirmationHint = document.querySelector("#settlementLockConfirmationHint");
+  dom.lockNoteInput = document.querySelector("#settlementLockNoteInput");
+  dom.lockSubmitButton = document.querySelector("#settlementLockSubmitButton");
+  dom.lockCancelButton = document.querySelector("#settlementLockCancelButton");
+  dom.lockRecheckButton = document.querySelector("#settlementLockRecheckButton");
 }
 
 function bindEvents() {
@@ -159,7 +190,20 @@ function bindEvents() {
     const adjustmentButton = event.target.closest("[data-settlement-adjustment-id]");
     if (adjustmentButton) {
       openAdjustmentDialog(adjustmentButton.dataset.settlementAdjustmentId);
+      return;
     }
+    const lockButton = event.target.closest("[data-settlement-lock-id]");
+    if (lockButton) {
+      openLockDialog(lockButton.dataset.settlementLockId);
+    }
+  });
+
+  dom.lockCancelButton?.addEventListener("click", () => closeLockDialog());
+  dom.lockSubmitButton?.addEventListener("click", handleLockSubmit);
+  dom.lockRecheckButton?.addEventListener("click", handleLockRecheck);
+  dom.lockConfirmationInput?.addEventListener("input", updateLockActionState);
+  dom.lockDialog?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !isLockSubmitting) closeLockDialog();
   });
 
   dom.adjustmentCancelButton?.addEventListener("click", () => closeAdjustmentDialog());
@@ -430,11 +474,30 @@ function renderSettlementDetailAction(row) {
   const action = canPreview
     ? `<button class="button table-action-button" type="button" data-settlement-adjustment-id="${escapeAttribute(row.id)}">${canSave ? "编辑草稿" : "只读预览"}</button>`
     : `<span class="table-cell-summary">只读</span>`;
+
+  // Phase D：正式锁定入口。canUseOnlineDraftLock 完整判定，不只看 can_lock——
+  // 角色、effective state、blocker、requires_repreview 缺一不可。
+  const canLock = canUseOnlineDraftLock(membershipRole, row.online_status);
+  const lockAction = canLock
+    ? `<button class="button table-action-button button-danger" type="button" data-settlement-lock-id="${escapeAttribute(row.id)}">正式锁定</button>`
+    : "";
+
+  // 顺序引导必须始终可见，不能只放在禁用按钮的 tooltip 里——
+  // 触屏没有 hover，键盘用户也拿不到。
+  const needsDraftFirst = !canLock
+    && canSave
+    && row.online_status?.lock_blocker_code === "SETTLEMENT_REPREVIEW_REQUIRED";
+  const lockHint = needsDraftFirst
+    ? `<span class="table-cell-summary settlement-lock-next-step">下一步：请先完成预览并保存草稿。保存成功并刷新状态后，才可正式锁定。</span>`
+    : "";
+
   return `
     <div class="table-action-group">
       ${detailLink}
       ${action}
+      ${lockAction}
       <span class="status-badge ${escapeAttribute(statusDisplay.className)}" title="${escapeAttribute(statusDisplay.detail)}">${escapeHtml(statusDisplay.label)}</span>
+      ${lockHint}
     </div>
   `;
 }
@@ -1063,7 +1126,7 @@ async function confirmSaveWithStatus({
     renderAdjustmentPendingPreview(currentAdjustmentPreview, `草稿已保存并经DB状态确认${requestSuffix}。`, "草稿已保存");
     currentAdjustmentPreview = null;
     currentAdjustmentPreviewSignature = "";
-    showMessage("success", "月结草稿已保存；正式锁定仍未开放。");
+    showMessage("success", "月结草稿已保存。刷新状态后可正式锁定。");
     return;
   }
   currentAdjustmentPreview = null;
@@ -1422,4 +1485,283 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value);
+}
+
+// ===========================================================================
+// Phase D —— 正式锁定
+//
+// 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md
+// 与草稿对话框完全分离；确认金额只作闸门，不进 payload。
+// ===========================================================================
+
+async function openLockDialog(settlementId) {
+  if (!hasSupabaseConfig()) {
+    showMessage("error", "当前 Supabase 配置不可用，不能锁定月结。");
+    return;
+  }
+  const row = settlements.find((item) => item.id === settlementId);
+  if (!row) {
+    showMessage("error", "未找到可锁定的结算记录。");
+    return;
+  }
+
+  currentLockSettlement = row;
+  lockStatusSnapshot = null;
+  lockPreviewSnapshot = null;
+  lockPendingRecoveryInput = null;
+  lockCorrelationId = createCorrelationId();
+  const requestSequence = ++lockRequestSequence;
+
+  clearLockError();
+  dom.lockConfirmationInput.value = "";
+  dom.lockNoteInput.value = "";
+  dom.lockRecheckButton.hidden = true;
+  setLockSubmitting(false);
+  renderLockFacts(row, null);
+  dom.lockDialog.classList.remove("is-hidden");
+  dom.lockDialog.setAttribute("aria-hidden", "false");
+  dom.lockCancelButton.focus();
+
+  try {
+    const status = await getStudentSettlementOnlineStatus(row.student_id, row.year_month);
+    if (requestSequence !== lockRequestSequence) return;
+    if (!canUseOnlineDraftLock(membershipRole, status)) {
+      const display = onlineStatusDisplay(status);
+      showLockError(display.detail || "当前状态不允许正式锁定。");
+      updateLockActionState();
+      return;
+    }
+    const preview = await fetchLockPreviewFromDrafts(row, status);
+    if (requestSequence !== lockRequestSequence) return;
+
+    // 权威事实一经取得立即深拷贝并递归冻结，此后任何篡改都改不到 payload
+    lockStatusSnapshot = freezeAuthoritativeSnapshot(status);
+    lockPreviewSnapshot = freezeAuthoritativeSnapshot(preview);
+    renderLockFacts(row, lockPreviewSnapshot);
+    dom.lockConfirmationInput.focus();
+    updateLockActionState();
+  } catch (error) {
+    if (requestSequence !== lockRequestSequence) return;
+    showLockError(safeOnlineErrorDisplay(error));
+    updateLockActionState();
+  }
+}
+
+// 锁定用的 Preview 必须与已保存的两份草稿一致——参数一律取自草稿，
+// 不从任何 DOM 读取。
+async function fetchLockPreviewFromDrafts(row, status) {
+  const source = status.source_treatment_draft || {};
+  const adjustment = status.adjustment_draft || {};
+  return fetchStudentSettlementAdjustmentDialogPreview({
+    studentId: row.student_id,
+    yearMonth: row.year_month,
+    sourceTreatmentMode: source.source_treatment_mode,
+    settlementExchangeRate: source.settlement_exchange_rate ?? null,
+    settlementExchangeRateSource: source.settlement_exchange_rate_source || null,
+    settlementExchangeRateEffectiveDate: source.settlement_exchange_rate_effective_date || null,
+    adjustmentMode: adjustment.adjustment_mode,
+    explicitUserAmountCny: adjustment.adjustment_mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT
+      ? adjustment.adjustment_amount_cny
+      : null,
+  });
+}
+
+function renderLockFacts(row, previewResult) {
+  dom.lockStudent.textContent = row?.student_name || "-";
+  dom.lockMonth.textContent = row?.year_month || "-";
+  const expected = previewResult?.preview_expected_facts;
+  const preview = previewResult?.preview;
+  dom.lockDifference.textContent = expected
+    ? formatCurrency(expected.system_difference_cny, "CNY") : "-";
+  dom.lockCarryover.textContent = preview
+    ? formatCurrency(preview.projected_final_carryover_cny, "CNY") : "-";
+}
+
+function lockConfirmationMatches() {
+  // 比对逻辑在 state 层的纯函数里，此处只负责取值——
+  // 这样闸门本身可以脱离 DOM 测试，不会因为「需要浏览器」而被跳过。
+  return lockConfirmationAccepted(
+    dom.lockConfirmationInput?.value,
+    lockPreviewSnapshot?.preview?.projected_final_carryover_cny,
+  );
+}
+
+function updateLockActionState() {
+  const ready = Boolean(lockStatusSnapshot && lockPreviewSnapshot);
+  const allowed = ready && canUseOnlineDraftLock(membershipRole, lockStatusSnapshot);
+  const matches = allowed && lockConfirmationMatches();
+  dom.lockSubmitButton.disabled = !matches || isLockSubmitting;
+
+  if (!ready) {
+    dom.lockConfirmationHint.textContent = "正在读取数据库权威事实…";
+  } else if (!allowed) {
+    dom.lockConfirmationHint.textContent = "当前状态不允许正式锁定。";
+  } else if (!matches) {
+    dom.lockConfirmationHint.textContent = "输入的金额需与上方「最终结转 CNY」一致。";
+  } else {
+    dom.lockConfirmationHint.textContent = "确认金额一致，可以锁定。";
+  }
+}
+
+function setLockSubmitting(submitting) {
+  isLockSubmitting = submitting;
+  dom.lockConfirmationInput.disabled = submitting;
+  dom.lockNoteInput.disabled = submitting;
+  dom.lockCancelButton.disabled = submitting;
+  dom.lockSubmitButton.textContent = submitting ? "锁定中…" : "确认锁定";
+  updateLockActionState();
+}
+
+async function handleLockSubmit() {
+  if (!currentLockSettlement || isLockSubmitting || lockSingleFlight.active) return;
+  if (!lockStatusSnapshot || !lockPreviewSnapshot) return;
+  if (!lockConfirmationMatches()) return;
+
+  let lockInput;
+  try {
+    // 确认输入不出现在参数表中；全部字段取自冻结快照
+    lockInput = lockPendingRecoveryInput || buildOnlineDraftLockInput({
+      row: currentLockSettlement,
+      status: lockStatusSnapshot,
+      previewResult: lockPreviewSnapshot,
+      membershipRole,
+      note: dom.lockNoteInput.value,
+      clientCorrelationId: lockCorrelationId,
+    });
+  } catch (error) {
+    showLockError(safeOnlineErrorDisplay(error));
+    return;
+  }
+
+  const beforeStatus = lockStatusSnapshot;
+  await lockSingleFlight.run(async () => {
+    setLockSubmitting(true);
+    clearLockError();
+    try {
+      await lockStudentSettlementOnline(lockInput);
+      await finishLockSuccess();
+    } catch (error) {
+      await recoverFromLockFailure(error, beforeStatus, lockInput);
+    } finally {
+      setLockSubmitting(false);
+    }
+  });
+}
+
+async function finishLockSuccess() {
+  showMessage("success", "月结已正式锁定。");
+  closeLockDialog(true);
+  await loadSettlements();
+}
+
+// 失败一律经 classifyLockFailure 分流。此处不自行判断能否重试——
+// 尤其不得因为「status 看起来没变」就重放请求：超时不取消底层调用。
+async function recoverFromLockFailure(error, beforeStatus, lockInput) {
+  let afterStatus = null;
+  let statusReadFailed = false;
+  try {
+    afterStatus = await getStudentSettlementOnlineStatus(
+      currentLockSettlement.student_id, currentLockSettlement.year_month,
+    );
+  } catch {
+    statusReadFailed = true;
+  }
+
+  const outcome = classifyLockFailure({
+    error,
+    beforeStatus,
+    afterStatus,
+    statusReadFailed,
+    previewResult: lockPreviewSnapshot,
+    membershipRole,
+    lockInput,
+  });
+
+  const S = LOCK_FAILURE_STATES;
+  if (outcome === S.CONFIRMED) {
+    await finishLockSuccess();
+    return;
+  }
+
+  lockPendingRecoveryInput = outcome === S.RETRIABLE ? lockInput : null;
+  dom.lockRecheckButton.hidden = outcome !== S.UNKNOWN;
+
+  if (afterStatus && !statusReadFailed) {
+    lockStatusSnapshot = freezeAuthoritativeSnapshot(afterStatus);
+  }
+
+  const display = safeOnlineErrorDisplay(error);
+  const guidance = {
+    [S.BLOCKED]: "该操作已被拒绝，请先解决上述前置条件。",
+    [S.STALE]: "权威事实已变化，请关闭本对话框并重新预览后再锁定。",
+    [S.BUSY]: "同一结算范围正在处理中。请稍后关闭并重新打开本对话框。",
+    [S.RETRIABLE]: "本次请求未写入任何数据，可以再次提交。",
+    [S.CONFLICT]: "当前状态与本次请求不一致，请关闭并重新预览。",
+    [S.UNKNOWN]: "结果未确认，请勿重复锁定。请点击「再次检查状态」确认。",
+  }[outcome] || "";
+
+  showLockError({ ...display, message: `${display.message}${guidance ? `　${guidance}` : ""}` });
+
+  // stale / conflict / blocked 之后不允许在本对话框内直接重提
+  if (outcome !== S.RETRIABLE) {
+    lockPreviewSnapshot = outcome === S.UNKNOWN ? lockPreviewSnapshot : null;
+  }
+  updateLockActionState();
+}
+
+// unknown 态专用：只读地再查一次状态，不重发锁定请求
+async function handleLockRecheck() {
+  if (!currentLockSettlement || isLockSubmitting) return;
+  try {
+    const status = await getStudentSettlementOnlineStatus(
+      currentLockSettlement.student_id, currentLockSettlement.year_month,
+    );
+    lockStatusSnapshot = freezeAuthoritativeSnapshot(status);
+    if (statusConfirmsLockedNow(status)) {
+      await finishLockSuccess();
+      return;
+    }
+    showLockError("状态已刷新：该月结仍未锁定。请关闭对话框重新预览后再决定。");
+    dom.lockRecheckButton.hidden = true;
+    lockPreviewSnapshot = null;
+    updateLockActionState();
+  } catch (error) {
+    showLockError(safeOnlineErrorDisplay(error));
+  }
+}
+
+function statusConfirmsLockedNow(status) {
+  return status?.effective_state?.effective_status === "ordinary_locked";
+}
+
+function closeLockDialog(force = false) {
+  if (isLockSubmitting && !force) return;
+  dom.lockDialog?.classList.add("is-hidden");
+  dom.lockDialog?.setAttribute("aria-hidden", "true");
+  lockRequestSequence += 1;
+  currentLockSettlement = null;
+  lockStatusSnapshot = null;
+  lockPreviewSnapshot = null;
+  lockPendingRecoveryInput = null;
+  lockCorrelationId = null;
+  dom.lockConfirmationInput.value = "";
+  dom.lockNoteInput.value = "";
+  dom.lockRecheckButton.hidden = true;
+  clearLockError();
+}
+
+function showLockError(errorDisplay) {
+  renderDialogBusinessError(dom.lockError, errorDisplay);
+  dom.lockError.classList.remove("is-hidden");
+}
+
+function clearLockError() {
+  dom.lockError?.replaceChildren();
+  dom.lockError?.classList.add("is-hidden");
+}
+
+function createCorrelationId() {
+  return typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : null;
 }

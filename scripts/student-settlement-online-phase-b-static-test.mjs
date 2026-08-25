@@ -248,8 +248,17 @@ test("static permission, deployment-unit and browser boundaries", async () => {
   const settlementPage = await read("js/pages/settlement-page.js");
   assert.match(settlementPage, /getStudentSettlementOnlineStatus/);
   assert.match(settlementPage, /saveStudentSettlementDraftOnline/);
-  assert.doesNotMatch(settlementPage, /lockStudentSettlementOnline|lock-student-settlement/);
-  assert.doesNotMatch(pageSource, /lock-student-settlement/);
+  assert.match(settlementPage, /lockStudentSettlementOnline\(lockInput\)/);
+  // 锁定功能的实现体只有两个文件：settlement-page.js（handler 与入口）与
+  // settlement-online-state.js（state 层，其 JSDoc 会提及该 API 名）。
+  // 除此之外的任何页面模块都不得触及锁定 Edge——防止入口扩散。
+  const LOCK_IMPLEMENTATION = new Set(["settlement-page.js", "settlement-online-state.js"]);
+  const otherPages = pageFiles
+    .filter((file) => !LOCK_IMPLEMENTATION.has(path.basename(file)));
+  const otherPageSource = (await Promise.all(
+    otherPages.map((file) => readFile(file, "utf8")),
+  )).join("\n");
+  assert.doesNotMatch(otherPageSource, /lockStudentSettlementOnline|lock-student-settlement/);
   assert.doesNotMatch(pageSource, /SCHOOL_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY/);
 });
 
