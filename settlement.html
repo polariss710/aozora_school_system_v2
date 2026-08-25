@@ -284,8 +284,12 @@
 
     <!--
       正式锁定对话框。必须与草稿对话框完全分离：锁定要求独立二次确认，
-      不得出现「保存并锁定」这类合并操作。
+      草稿保存与锁定不得合并为同一个操作或同一个按钮。
       设计依据 docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 4 节。
+
+      注：此处刻意不写出那个被禁止的合并操作名称——
+      scripts/student-settlement-online-phase-c-static-test.mjs 的断言按字面量
+      匹配整个 HTML，注释里出现该词同样会触发。
     -->
     <div id="settlementLockDialog" class="dialog-backdrop is-hidden" aria-hidden="true">
       <section class="dialog-panel settlement-lock-dialog-panel" role="dialog" aria-modal="true" aria-labelledby="settlementLockTitle">
