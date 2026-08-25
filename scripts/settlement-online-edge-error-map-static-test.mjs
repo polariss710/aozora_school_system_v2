@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import {
+  mapSettlementOnlineError,
+} from "../supabase/functions/_shared/student-settlement-online-contract.ts";
 
 // 学生月度结算在线路径的错误身份保全。
 //
@@ -12,8 +15,9 @@ import { readFileSync } from "node:fs";
 //   结果是测试报「未处理 0 个」而实际仍有未映射 code——比没有测试更糟，
 //   因为它给出虚假的完整感。由 Codex 审出。
 //
-// 改为断言真正可表达的不变式：不再要求映射完整，而要求**未映射的 code 不丢失
-// 身份**。这样「哪些 code 可达」这个问题不需要回答。
+// 改为断言两层不变式：
+// 1. 生产只读调用图已确认的 owner writer/trigger 可传播 code 必须逐项映射；
+// 2. 未来新增而尚未映射的稳定 code 仍必须保留身份，不退化成 INTERNAL_ERROR。
 
 const CONTRACT_TS = "supabase/functions/_shared/student-settlement-online-contract.ts";
 const PAGE_JS = "js/pages/settlement-page.js";
@@ -53,37 +57,79 @@ const state = readFileSync(STATE_JS, "utf8");
 }
 
 // ---------------------------------------------------------------------------
-// T2  核心不变式：识别出 code 但未映射时，必须保留该 code，
-//     不得折叠成 SETTLEMENT_EDGE_INTERNAL_ERROR。
+// T2  生产 owner writer 调用图中的稳定 code 必须真正进入 curated map。
 //
-//     静态断言的边界：这里只能证明兜底分支在源码中以 stableCode 构造返回值，
-//     不能证明运行时一定走到。契约文件是 TypeScript，node 无法直接 import 求值；
-//     真正的运行时验证须由具备 Deno 环境的一方执行。此处标明该限制，不假装
-//     覆盖到了。
+//     2026-08-25 以生产 pg_get_functiondef + trigger catalog 只读递归复核：seed
+//     是 school_lock_student_monthly_settlement 及其写表 trigger，递归跟踪直接
+//     public.school_* 调用。这里只登记该调用图实际出现、且能作为稳定 token 传播的
+//     code；每项都必须返回非 5xx、明确 action 与非通用公开文案。
 // ---------------------------------------------------------------------------
 {
-  const tail = contract.slice(contract.indexOf("export function mapSettlementOnlineError"));
-  assert(tail, "未能定位 mapSettlementOnlineError");
+  const ownerWriterCodes = [
+    ["S1_C_LOCK_OVERAGE_AGGREGATE_DRIFT", "repreview"],
+    ["SETTLEMENT_ADJUSTMENT_RESOLUTION_MISMATCH", "repreview"],
+    ["SETTLEMENT_ADJUSTMENT_SCOPE_INVALID", "repreview"],
+    ["SETTLEMENT_ADJUSTMENT_MODE_INVALID", "repreview"],
+    ["SETTLEMENT_POSTED_ADJUSTMENT_IMMUTABLE", "refresh_status"],
+    ["SETTLEMENT_LESSON_VARIANCE_CLAIM_COUNT_MISMATCH", "repreview"],
+    ["SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED", "refresh_status"],
+    ["SETTLEMENT_LESSON_VARIANCE_SOURCE_CHANGED_AFTER_DRAFT", "repreview"],
+    ["SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED_FOR_RELOCK", "refresh_status"],
+    ["SETTLEMENT_MONTH_INVALID", "repreview"],
+    ["SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED", "stop"],
+    ["SETTLEMENT_LESSON_WEEK_NOT_CLOSED", "stop"],
+    ["SETTLEMENT_MONTH_NOT_CLOSED", "stop"],
+    ["SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH", "repreview"],
+    ["SETTLEMENT_EXPLICIT_EXCHANGE_RATE_REQUIRED", "repreview"],
+    ["SETTLEMENT_SOURCE_TREATMENT_MODE_INVALID", "repreview"],
+    ["SETTLEMENT_SOURCE_TREATMENT_SCOPE_INVALID", "repreview"],
+    ["SETTLEMENT_ADJUSTMENT_AMOUNT_FORBIDDEN_FOR_MODE", "repreview"],
+    ["SETTLEMENT_MANUAL_ADJUSTMENT_AMOUNT_INVALID", "repreview"],
+    ["SETTLEMENT_MANUAL_ADJUSTMENT_AMOUNT_REQUIRED", "repreview"],
+    ["SETTLEMENT_LESSON_SOURCE_UNRESOLVED", "repreview"],
+    ["SETTLEMENT_LESSON_SOURCE_VALUE_INVALID", "repreview"],
+  ];
 
-  const preserve = /if\s*\(\s*stableCode\s*\)\s*\{[\s\S]{0,400}?new SettlementOnlinePublicError\(\s*\n?\s*stableCode\s*,/
-    .exec(tail);
-  assert(
-    preserve,
-    "未映射 code 的保留分支缺失：mapSettlementOnlineError 必须在 stableCode "
-      + "非空时以该 code 构造返回值，而不是折叠成 SETTLEMENT_EDGE_INTERNAL_ERROR"
-  );
-
-  // INTERNAL_ERROR 只能出现在保留分支之后，作为「连 code 都没提取到」的兜底
-  const preserveAt = tail.indexOf(preserve[0]);
-  const internalAt = tail.indexOf("SETTLEMENT_EDGE_INTERNAL_ERROR", preserveAt);
-  assert(
-    internalAt > preserveAt,
-    "SETTLEMENT_EDGE_INTERNAL_ERROR 必须排在 code 保留分支之后"
-  );
+  for (const [code, action] of ownerWriterCodes) {
+    const mapped = mapSettlementOnlineError({
+      code: "P0001",
+      message: code,
+      details: null,
+      hint: null,
+    });
+    assert.equal(mapped.code, code, `${code} 的错误身份被改写`);
+    assert.ok(mapped.status < 500, `${code} 未进入 curated map，仍返回 ${mapped.status}`);
+    assert.equal(mapped.action, action, `${code} 的 action 不符合恢复路径`);
+    assert.doesNotMatch(
+      mapped.message,
+      /^操作未完成/,
+      `${code} 仍使用通用兜底文案`
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
-// T3  SETTLEMENT_REPREVIEW_REQUIRED 不得进入 DB_ERROR_MAP。
+// T3  未知稳定 code 的运行时兜底必须保留身份；只有无法提取稳定 code 时才用
+//     SETTLEMENT_EDGE_INTERNAL_ERROR。这一组直接执行 TypeScript，不再靠源码正则。
+// ---------------------------------------------------------------------------
+{
+  const unknown = mapSettlementOnlineError({
+    code: "P0001",
+    message: "FUTURE_SETTLEMENT_OWNER_GUARD",
+  });
+  assert.equal(unknown.code, "FUTURE_SETTLEMENT_OWNER_GUARD");
+  assert.equal(unknown.status, 500);
+  assert.equal(unknown.action, "refresh_status");
+
+  const internal = mapSettlementOnlineError({
+    code: "P0001",
+    message: "ordinary database error text",
+  });
+  assert.equal(internal.code, "SETTLEMENT_EDGE_INTERNAL_ERROR");
+}
+
+// ---------------------------------------------------------------------------
+// T4  SETTLEMENT_REPREVIEW_REQUIRED 不得进入 DB_ERROR_MAP。
 //     它只在 status JSON 构造时赋值给 v_lock_blocker_code，从不被 raise，
 //     因此永远到不了该映射。放进去是死代码，且会让人以为它经 Edge 返回。
 //     文案归属在前端 blockerLabel。
@@ -105,7 +151,7 @@ const state = readFileSync(STATE_JS, "utf8");
 }
 
 // ---------------------------------------------------------------------------
-// T4  前端回落到 error.message 时必须先判类型。
+// T5  前端回落到 error.message 时必须先判类型。
 //
 //     safeOnlineErrorDisplay 也接收非 Edge 异常——buildOnlineDraftSaveInput
 //     抛出的普通 Error，message 是 "decimal must be a decimal string" 这类
@@ -133,7 +179,7 @@ const state = readFileSync(STATE_JS, "utf8");
 }
 
 // ---------------------------------------------------------------------------
-// T5  渲染必须走 textContent。透出服务端文本的前提是不存在 HTML 注入面。
+// T6  渲染必须走 textContent。透出服务端文本的前提是不存在 HTML 注入面。
 // ---------------------------------------------------------------------------
 assert.match(
   page,
@@ -141,4 +187,4 @@ assert.match(
   "renderDialogBusinessError 必须以 textContent 渲染错误文案"
 );
 
-console.log("settlement online edge error identity: T1-T5 全部通过");
+console.log("settlement online edge error mapping: T1-T6 全部通过");

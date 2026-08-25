@@ -643,6 +643,30 @@ const DB_ERROR_MAP: Record<string, { status: number; message: string; action: st
   // 因此要求刷新状态，而不是直接停止。
   SETTLEMENT_ONLINE_SAVE_STRUCTURALLY_BLOCKED: { status: 409, message: "该结算范围当前不允许在线写入，请刷新状态。", action: "refresh_status" },
 
+  // 2026-08-25 生产只读调用图复核：lock online wrapper 会调用既有 owner
+  // writer school_lock_student_monthly_settlement；该 writer、它写表时触发的
+  // P0-B2/P0-F guards，以及递归调用的 preview/source resolver 可传播下列稳定
+  // code。它们必须有明确的 HTTP/action/公开文案，不能只依赖末尾 500 身份保留
+  // 兜底。配套测试会真正执行 mapSettlementOnlineError，并要求每项 status < 500。
+  S1_C_LOCK_OVERAGE_AGGREGATE_DRIFT: { status: 409, message: "课时超额聚合已变化，请重新预览后再锁定。", action: "repreview" },
+  SETTLEMENT_ADJUSTMENT_RESOLUTION_MISMATCH: { status: 409, message: "差额调整权威结果已变化，请重新预览。", action: "repreview" },
+  SETTLEMENT_ADJUSTMENT_SCOPE_INVALID: { status: 422, message: "结算差额调整范围无效，请刷新后重新预览。", action: "repreview" },
+  SETTLEMENT_ADJUSTMENT_MODE_INVALID: { status: 422, message: "结算差额处理方式无效，请重新选择。", action: "repreview" },
+  SETTLEMENT_POSTED_ADJUSTMENT_IMMUTABLE: { status: 409, message: "已入账的结算差额不可修改，请刷新状态。", action: "refresh_status" },
+  SETTLEMENT_LESSON_VARIANCE_CLAIM_COUNT_MISMATCH: { status: 409, message: "课时差额认领数量已变化，请重新预览。", action: "repreview" },
+  SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED: { status: 409, message: "锁定前必须先保存当前课时差额处理草稿。", action: "refresh_status" },
+  SETTLEMENT_LESSON_VARIANCE_SOURCE_CHANGED_AFTER_DRAFT: { status: 409, message: "保存草稿后课时差额来源已变化，请重新预览。", action: "repreview" },
+  SETTLEMENT_SOURCE_TREATMENT_DRAFT_REQUIRED_FOR_RELOCK: { status: 409, message: "重新锁定前缺少已保存的课时差额处理草稿。", action: "refresh_status" },
+  SETTLEMENT_EXCHANGE_RATE_EFFECTIVE_DATE_MISMATCH: { status: 422, message: "结算汇率生效日期与所选来源不一致，请重新预览。", action: "repreview" },
+  SETTLEMENT_EXPLICIT_EXCHANGE_RATE_REQUIRED: { status: 422, message: "当前课时差额处理方式需要明确填写结算汇率。", action: "repreview" },
+  SETTLEMENT_SOURCE_TREATMENT_MODE_INVALID: { status: 422, message: "课时差额处理方式无效，请重新选择。", action: "repreview" },
+  SETTLEMENT_SOURCE_TREATMENT_SCOPE_INVALID: { status: 422, message: "课时差额处理范围无效，请刷新后重新预览。", action: "repreview" },
+  SETTLEMENT_ADJUSTMENT_AMOUNT_FORBIDDEN_FOR_MODE: { status: 422, message: "当前差额处理方式不允许填写手动调整金额。", action: "repreview" },
+  SETTLEMENT_MANUAL_ADJUSTMENT_AMOUNT_INVALID: { status: 422, message: "手动调整金额无效，请重新填写。", action: "repreview" },
+  SETTLEMENT_MANUAL_ADJUSTMENT_AMOUNT_REQUIRED: { status: 422, message: "当前差额处理方式需要填写手动调整金额。", action: "repreview" },
+  SETTLEMENT_LESSON_SOURCE_UNRESOLVED: { status: 409, message: "仍有课时差额来源尚未处理，请刷新后重新预览。", action: "repreview" },
+  SETTLEMENT_LESSON_SOURCE_VALUE_INVALID: { status: 409, message: "课时差额来源值已失效，请刷新后重新预览。", action: "repreview" },
+
   // 不要在此加入 SETTLEMENT_REPREVIEW_REQUIRED。它只在 status JSON 构造时
   // 赋值给 v_lock_blocker_code，从不被 raise，因此永远到不了本映射；它属于
   // status 展示层，文案应在前端 blockerLabel 中给。
