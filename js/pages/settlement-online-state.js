@@ -308,3 +308,205 @@ function blockerLabel(code) {
     SETTLEMENT_SCOPE_NOT_UNIQUE: "结算范围不唯一",
   }[code] || "当前不可修改";
 }
+
+// ===========================================================================
+// Phase D —— 正式锁定（lock）侧
+//
+// 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md
+// 与 save 侧严格对称，canonicalDecimal / sameDraftVersions / createSingleFlight
+// 直接复用，不复制。
+// ===========================================================================
+
+/**
+ * 权威事实一经取得即冻结。
+ *
+ * 锁定的 payload 全部来自 DB 权威快照，而「用户手打的确认金额只是闸门、
+ * 不进 payload」这条 P0 边界无法靠静态断言表达——JS 的参数表证明不了对象来源，
+ * 调用方完全可以先把 DOM 值写进可变的 previewResult 再传给 builder。
+ *
+ * 因此改为结构约束：API 返回后立刻深拷贝并递归冻结，之后任何篡改在严格模式下
+ * 抛错、非严格模式下静默失败，两种情况 payload 都拿不到被改的值。
+ */
+export function freezeAuthoritativeSnapshot(value) {
+  const cloned = typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value ?? null));
+  return deepFreeze(cloned);
+}
+
+function deepFreeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const key of Object.keys(value)) deepFreeze(value[key]);
+  return value;
+}
+
+export function canUseOnlineDraftLock(membershipRole, status) {
+  return membershipRole === "admin"
+    && status?.can_lock === true
+    && status?.effective_state?.effective_status === "incomplete"
+    && !status?.lock_blocker_code
+    && !status?.immutable_blocker
+    && status?.requires_repreview === false;
+}
+
+/**
+ * 产出 lockStudentSettlementOnline 所需输入。
+ *
+ * 参数表中没有确认金额——但这不是保障（见 freezeAuthoritativeSnapshot 的说明），
+ * 保障来自传入的 status / previewResult 必须是已冻结的权威快照。
+ * 每一个 expected_* 字段都取自快照，无一项由前端计算或来自 DOM。
+ */
+export function buildOnlineDraftLockInput({
+  row, status, previewResult, membershipRole, note, clientCorrelationId,
+}) {
+  if (!row?.student_id || !row?.year_month) throw new Error("settlement scope is required");
+  if (!canUseOnlineDraftLock(membershipRole, status)) {
+    throw new Error("status does not allow lock");
+  }
+  if (!previewResult?.preview || !previewResult?.preview_expected_facts) {
+    throw new Error("authoritative preview is required");
+  }
+  const sourceDraftId = status.source_treatment_draft?.draft_id;
+  const adjustmentDraftId = status.adjustment_draft?.draft_id;
+  if (!sourceDraftId || !adjustmentDraftId) {
+    throw new Error("both drafts are required before lock");
+  }
+  const preview = previewResult.preview;
+  const expected = previewResult.preview_expected_facts;
+  return {
+    studentId: row.student_id,
+    settlementMonth: row.year_month,
+    expectedSourceTreatmentDraftId: sourceDraftId,
+    expectedSourceTreatmentDraftUpdatedAt: status.source_treatment_draft?.updated_at || null,
+    expectedAdjustmentDraftId: adjustmentDraftId,
+    expectedAdjustmentDraftUpdatedAt: status.adjustment_draft?.updated_at || null,
+    expectedPreviewManifestSha256: previewResult.preview_manifest_sha256,
+    expectedLessonVarianceManifestSha256: expected.lesson_variance_manifest_sha256,
+    expectedSourceCount: requireSourceCount(preview.lesson_variance_source_count),
+    expectedUnusedPlannedCreditJpy: decimalString(preview.unused_planned_credit_jpy, "expectedUnusedPlannedCreditJpy"),
+    expectedOverageChargeJpy: decimalString(preview.overage_charge_jpy, "expectedOverageChargeJpy"),
+    expectedNetLessonVarianceJpy: decimalString(preview.net_lesson_variance_jpy, "expectedNetLessonVarianceJpy"),
+    expectedNetLessonVarianceCny: decimalString(preview.net_lesson_variance_cny, "expectedNetLessonVarianceCny"),
+    expectedSystemDifferenceCny: decimalString(expected.system_difference_cny, "expectedSystemDifferenceCny"),
+    expectedFinalCarryoverCny: decimalString(preview.projected_final_carryover_cny, "expectedFinalCarryoverCny"),
+    note: String(note || ""),
+    confirmLock: true,
+    clientCorrelationId: clientCorrelationId || null,
+  };
+}
+
+/**
+ * 判定锁定确实落库。
+ * lock 会产生终态，因此比 save 侧更好判定：effective_status 翻为
+ * ordinary_locked，且两份草稿由 active 变为 consumed。
+ * 生产已确认该行为，实例 6ec3b815-…（彭宇晗 2026-07）。
+ */
+export function statusConfirmsDraftLock(status, previewResult) {
+  if (!status || !previewResult?.preview_expected_facts) return false;
+  if (status.effective_state?.effective_status !== "ordinary_locked") return false;
+  const source = status.source_treatment_draft || {};
+  const adjustment = status.adjustment_draft || {};
+  if (source.status !== "consumed" || adjustment.status !== "consumed") return false;
+  return status.preview_manifest_sha256 === previewResult.preview_manifest_sha256;
+}
+
+/**
+ * 「严格未变」——比 save 侧的 sameDraftVersions 严格得多。
+ *
+ * 只看草稿版本不够：权限错误、body 校验错误发生时 status 完全没变，
+ * 若据此允许重试，就是在重放一个必然再次失败的请求。
+ * 九条判据全部成立才算未变。
+ */
+export function lockStatusStrictlyUnchanged({
+  beforeStatus, afterStatus, previewResult, membershipRole, lockInput,
+}) {
+  if (!beforeStatus || !afterStatus || !previewResult || !lockInput) return false;
+
+  if (!sameDraftVersions(beforeStatus, afterStatus)) return false;
+  if (afterStatus.effective_state?.effective_status !== "incomplete") return false;
+  // lock 的直接后果就是创建物理 settlement 行；它一旦存在就不是「未变」
+  if (afterStatus.effective_state?.settlement_id) return false;
+  // 必须用当前真实角色，不得写死 "admin"——角色可能在此期间变化
+  if (!canUseOnlineDraftLock(membershipRole, afterStatus)) return false;
+  // 契约版本变化意味着语义可能已变，不能跨版本比较
+  if (nullableText(beforeStatus.contract_version) !== nullableText(afterStatus.contract_version)) return false;
+  if (nullableText(afterStatus.student_id) !== nullableText(lockInput.studentId)) return false;
+  if (nullableText(afterStatus.year_month) !== nullableText(lockInput.settlementMonth)) return false;
+  if (afterStatus.requires_repreview !== false) return false;
+  if (afterStatus.lock_blocker_code || afterStatus.save_blocker_code || afterStatus.immutable_blocker) return false;
+
+  const source = afterStatus.source_treatment_draft || {};
+  const adjustment = afterStatus.adjustment_draft || {};
+  if (source.status !== "active" || adjustment.status !== "active") return false;
+  if (nullableText(source.draft_id) !== nullableText(lockInput.expectedSourceTreatmentDraftId)) return false;
+  if (nullableText(adjustment.draft_id) !== nullableText(lockInput.expectedAdjustmentDraftId)) return false;
+
+  // payload 中的全部权威事实必须仍与当前 Preview 一致，逐项比对
+  const expected = previewResult.preview_expected_facts || {};
+  const preview = previewResult.preview || {};
+  if (previewResult.preview_manifest_sha256 !== lockInput.expectedPreviewManifestSha256) return false;
+  if (expected.lesson_variance_manifest_sha256 !== lockInput.expectedLessonVarianceManifestSha256) return false;
+  if (preview.lesson_variance_source_count !== lockInput.expectedSourceCount) return false;
+  const amountPairs = [
+    [preview.unused_planned_credit_jpy, lockInput.expectedUnusedPlannedCreditJpy],
+    [preview.overage_charge_jpy, lockInput.expectedOverageChargeJpy],
+    [preview.net_lesson_variance_jpy, lockInput.expectedNetLessonVarianceJpy],
+    [preview.net_lesson_variance_cny, lockInput.expectedNetLessonVarianceCny],
+    [expected.system_difference_cny, lockInput.expectedSystemDifferenceCny],
+    [preview.projected_final_carryover_cny, lockInput.expectedFinalCarryoverCny],
+  ];
+  return amountPairs.every(([live, sent]) => canonicalDecimal(live) === canonicalDecimal(sent));
+}
+
+// 这三个 code 表示「请求是否落库未知」：invokeSettlementEdge 用 Promise.race
+// 实现超时，没有 AbortController，超时只是停止等待，底层调用仍在继续。
+// 因此它们绝不能进入 retriable——「此刻未变」证明不了「将来不变」。
+const LOCK_OUTCOME_UNKNOWN_CODES = new Set([
+  "SETTLEMENT_EDGE_RESULT_UNCERTAIN",
+  "SETTLEMENT_EDGE_RESPONSE_INVALID",
+  "SETTLEMENT_EDGE_REQUEST_FAILED",
+]);
+
+export const LOCK_FAILURE_STATES = Object.freeze({
+  CONFIRMED: "confirmed",
+  BLOCKED: "blocked",
+  STALE: "stale",
+  BUSY: "busy",
+  RETRIABLE: "retriable",
+  CONFLICT: "conflict",
+  UNKNOWN: "unknown",
+});
+
+/**
+ * 锁定失败分流。先按错误来源与 action 判定，只有结果确实不明确时才比对状态。
+ *
+ * 关键区分：「请求已明确终止」与「请求结果未知」。前者可依据 status 判断能否
+ * 重试；后者一律不得重试，因为底层请求可能稍后落库。
+ */
+export function classifyLockFailure({
+  error, beforeStatus, afterStatus, statusReadFailed,
+  previewResult, membershipRole, lockInput,
+}) {
+  const S = LOCK_FAILURE_STATES;
+  const code = String(error?.code || "");
+  const action = String(error?.action || "");
+  const outcomeUnknown = LOCK_OUTCOME_UNKNOWN_CODES.has(code) || !action;
+
+  if (!outcomeUnknown) {
+    if (action === "stop" || action === "reauthenticate") return S.BLOCKED;
+    if (action === "repreview") return S.STALE;
+    if (action === "retry_later") return S.BUSY;
+    // refresh_status 落到第二层，按具体状态判断
+  }
+
+  if (statusReadFailed) return S.UNKNOWN;
+  if (statusConfirmsDraftLock(afterStatus, previewResult)) return S.CONFIRMED;
+  if (lockStatusStrictlyUnchanged({
+    beforeStatus, afterStatus, previewResult, membershipRole, lockInput,
+  })) {
+    // 严格未变时，能否重试取决于请求是否已明确终止
+    return outcomeUnknown ? S.UNKNOWN : S.RETRIABLE;
+  }
+  return S.CONFLICT;
+}
