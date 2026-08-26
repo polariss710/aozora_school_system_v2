@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-// P0 金额边界：用户手打的确认金额只是闸门，绝不进 payload。
+// 锁定金额边界的页面层：用户手打的确认金额只作闸门，不参与 payload 构造。
 //
-// 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 6.1 节。
+// 定位（2026-08-27 确认）：安全边界在 DB——lock RPC 用库内草稿行重算 preview
+// 并比对全部 expected_*，写入前不一致即拒绝。前端拦不住蓄意伪造（supabase 客户端
+// 公开导出）。本文件测的是**防误用**：正常路径下 payload 里的金额确实取自权威
+// 快照，而非 DOM。全绿不等于「伪造不可能」。
+//
+// 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 6.1 节
+// （该节定位已在 2026-08-27 追记中修正）。
 //
 // 本文件覆盖页面层这一段：权威快照 → buildOnlineDraftLockInput 的 camelCase
 // 产出。API 层的 snake_case 最终提交体由 settlement-lock-edge-body-test 覆盖，

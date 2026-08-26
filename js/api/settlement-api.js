@@ -328,7 +328,18 @@ export async function fetchStudentSettlementAdjustmentDialogPreview(payload) {
 // ===========================================================================
 // Phase D —— 锁定用权威事实读取
 //
-// P0 边界是「用户手打的确认金额只是闸门、不进 payload」。本段收紧的是**读取侧**：
+// 关于这条边界的定位，先说清楚，否则本段容易被误读为安全保证：
+//
+// 「确认金额绝不进 payload」是前端属性，而 supabase-client.js 公开导出 supabase，
+// 任何前端模块都能直接 functions.invoke 发任意 body——**这个属性在纯前端里不可
+// 达**。真正的边界在 DB：lock RPC 用库内草稿行重算 preview，再比对客户端传来的
+// expected_*，不一致即抛 SETTLEMENT_EXPECTED_FACTS_MISMATCH，且比对在写入之前。
+// 生产定义已核对（见 docs/school-v2-settlement-phase-d-authority-boundary-is-in-db-20260827.md）。
+//
+// 所以本段的作用是**防误用与早失败**：让正常代码不易走错路，让错误在到达 DB 前
+// 就暴露。不要再把它写成「结构保证」——那个说法已经被证伪过三次。
+//
+// 在此定位下，本段收紧的是**读取侧**：
 //
 //   - AUTHORITATIVE_SNAPSHOTS 与 brandAuthoritative 是本模块私有、不导出。
 //     在内建对象未被篡改的常规执行环境中，没有导出路径能把自造对象送进这个

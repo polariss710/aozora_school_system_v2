@@ -407,13 +407,16 @@ export function buildOnlineDraftLockInput({
   // settlement-api.js 的模块私有函数，对外的两个入口只收 studentId + yearMonth，
   // 其余 RPC 参数在 API 层从 status 现取。
   //
-  // 这比前三版都强，但**不是**完整的来源约束，两处已知缺口：
+  // 这比前三版都强，但它是**防误用**，不是安全边界——后者在 DB：lock RPC 用库内
+  // 草稿行重算 preview 并比对全部 expected_*，写入前不一致即拒绝。前端拦不住
+  // 蓄意伪造（supabase 客户端公开导出，可直接 invoke），也不需要拦。
+  //
+  // 本函数已知的两处绕法，均由 2026-08-26 审查发现：
   //   一、本函数的产出未冻结，而 lockStudentSettlementOnline 公开接受任意
   //      payload——调用方改一个字段直接调它即可绕过这里的全部检查。
   //   二、未校验 row 与 status 的 scope 是否一致，可混合 A 的快照与 B 的 row。
-  // 两条均由 2026-08-26 的审查发现，见
-  // docs/school-v2-settlement-phase-d-p0-boundary-authoritative-source-20260826.md
-  // 第 7 节。在它们修好之前，不要把这里描述成结构保证。
+  // 两条都会被 DB 拒绝，因此是整洁性问题而非安全问题。见
+  // docs/school-v2-settlement-phase-d-authority-boundary-is-in-db-20260827.md。
   if (!isAuthoritativeSnapshot(previewResult)) {
     throw new Error("previewResult must be a frozen authoritative snapshot");
   }

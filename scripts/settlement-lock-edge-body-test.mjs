@@ -16,9 +16,14 @@ import {
   stub,
 } from "./lib/settlement-lock-authority.mjs";
 
-// P0 金额边界：DB 权威事实 → 页面层 input → API 层最终提交给 Edge 的 body。
+// 锁定金额边界的跨层链路：DB 权威事实 → 页面层 input → API 层交给 SDK 的 body。
 //
-// 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 6.1 节。
+// 定位（2026-08-27 确认）：安全边界在 DB，本文件测的是正常路径下这条链没有把
+// DOM 值带进 body，属**防误用**。前端无法阻止伪造请求发出（supabase 客户端公开
+// 导出，可绕过本链直接 invoke），那由 DB 的 expected_* 比对拒绝。
+//
+// 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 6.1 节
+// （该节定位已在 2026-08-27 追记中修正）。
 //
 // 本文件的链路起点是 RPC 返回值，不是手写的快照对象。这一点是 2026-08-26 的
 // 改动带来的：权威快照的登记入口已收进 js/api/settlement-api.js 的模块作用域，
