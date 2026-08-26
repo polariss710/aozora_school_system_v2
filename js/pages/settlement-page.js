@@ -1623,7 +1623,16 @@ async function handleLockSubmit() {
 
   let lockInput;
   try {
-    // 确认输入不出现在参数表中；全部字段取自冻结快照
+    // 确认输入不出现在参数表中；全部字段取自冻结快照。
+    //
+    // lockPendingRecoveryInput 这一分支当前是死代码：它只在 classifyLockFailure
+    // 返回 RETRIABLE 时被赋值，而 LOCK_REPLAY_SAFE_CODES 为空集（有意为之）使该
+    // 状态不可达——settlement-lock-state-matrix-test 的 T12 穷举证明并钉住了它。
+    //
+    // ⚠️ 若将来往白名单加入任何 code 使其激活，注意这条路径**跳过下面 builder 的
+    // 全部校验**：权威快照登记、scope、canUseOnlineDraftLock 都不再经过，重放的
+    // 是一个存放了一段时间、未冻结的对象。届时应改为重新构造而非重放，或至少在
+    // 此补上等价校验。
     lockInput = lockPendingRecoveryInput || buildOnlineDraftLockInput({
       row: currentLockSettlement,
       status: lockStatusSnapshot,

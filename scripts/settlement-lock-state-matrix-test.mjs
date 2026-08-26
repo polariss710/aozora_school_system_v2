@@ -298,16 +298,25 @@ function classify(over = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// T7  分流第二层：refresh_status 且严格未变 → retriable
+// T7  分流第二层：refresh_status 一律不得默认放行重试
+//
+//     标题原为「refresh_status 且严格未变 → retriable」，那是初版的错误答案，
+//     早已改为 conflict，标题一直没跟着改。
 // ---------------------------------------------------------------------------
 {
   // 初版把这里写成 retriable，是错的：SETTLEMENT_LOCK_CONFLICT 表达的是
   // 「现有正式结算与本次请求不一致」，重放同一 payload 只会同样失败。
   // 由 Codex 逐码走查 9 个 refresh_status code 后指出，无一可安全重放。
+  const REPLAY_ACTIVATION_HINT =
+    "若此处因 LOCK_REPLAY_SAFE_CODES 启用而转红，注意 handleLockSubmit 的 "
+    + "lockPendingRecoveryInput 重试路径会随之激活——它跳过 builder 的权威快照、"
+    + "scope 与 canUseOnlineDraftLock 全部校验，重放的还是个未冻结的旧对象，"
+    + "必须一并处理。详见 T12。";
+
   assert.equal(
     classify({ error: { code: "SETTLEMENT_LOCK_CONFLICT", action: "refresh_status" } }),
     S.CONFLICT,
-    "refresh_status 不得默认放行重试"
+    `refresh_status 不得默认放行重试。${REPLAY_ACTIVATION_HINT}`
   );
 
   // 全部 9 个生产 refresh_status code 逐一验证，一个都不许是 retriable
@@ -510,4 +519,57 @@ function classify(over = {}) {
   );
 }
 
-console.log("settlement lock state matrix: T1-T11 全部通过");
+// ---------------------------------------------------------------------------
+// T12 RETRIABLE 当前不可达 —— 这条断言是给未来的人看的
+//
+//     LOCK_REPLAY_SAFE_CODES 目前是空集且有意为之，因此 classifyLockFailure
+//     的末行永远走 CONFLICT，RETRIABLE 产生不出来。
+//
+//     为什么要专门钉住它：handleLockSubmit 的第一行是
+//
+//         lockInput = lockPendingRecoveryInput || buildOnlineDraftLockInput({...})
+//
+//     而 lockPendingRecoveryInput 只在 outcome === RETRIABLE 时被赋值。也就是说
+//     那条重试路径当前是死代码——**一旦白名单里加进任何一个 code，它就会激活，
+//     直接提交一个存放了一段时间的、未冻结的 lockInput，并完全跳过 builder 的
+//     登记校验与 scope 校验。**
+//
+//     本断言转红时，不要只顾着改这里：请同时处理 handleLockSubmit 的重试路径。
+// ---------------------------------------------------------------------------
+{
+  const ACTIONS = [
+    "stop", "reauthenticate", "repreview", "retry_later", "refresh_status",
+    "", "未知的新增 action",
+  ];
+  const CODES = [
+    "SETTLEMENT_LOCK_CONFLICT", "SETTLEMENT_SOURCE_DRAFT_STALE",
+    "SETTLEMENT_ADJUSTMENT_DRAFT_STALE", "SETTLEMENT_ORDINARY_ALREADY_LOCKED",
+    "SETTLEMENT_NOT_INCOMPLETE", "SETTLEMENT_EDGE_RESULT_UNCERTAIN",
+    "SETTLEMENT_EDGE_RESPONSE_INVALID", "SETTLEMENT_EDGE_REQUEST_FAILED",
+    "任意未知 code", "",
+  ];
+
+  // 用「严格未变」这一组作为基准——它是最容易产生 RETRIABLE 的条件：
+  // before 与 after 完全一致、角色未降级、payload 与 afterStatus 逐项相符。
+  const outcomes = new Set();
+  for (const action of ACTIONS) {
+    for (const code of CODES) {
+      outcomes.add(classify({ error: { code, action } }));
+    }
+  }
+
+  assert.equal(
+    outcomes.has(S.RETRIABLE), false,
+    `RETRIABLE 变为可达（穷举 ${ACTIONS.length}×${CODES.length} 组）。`
+    + "这意味着 LOCK_REPLAY_SAFE_CODES 已非空，"
+    + "handleLockSubmit 的 lockPendingRecoveryInput 重试路径随之激活——"
+    + "它会跳过 buildOnlineDraftLockInput 的全部校验，必须一并处理。",
+  );
+
+  // 顺带确认穷举确实覆盖到了各条分支，避免这组用例本身空转
+  for (const expected of [S.BLOCKED, S.STALE, S.BUSY, S.CONFLICT, S.UNKNOWN]) {
+    assert.ok(outcomes.has(expected), `穷举未覆盖到 ${expected}，用例集需要补`);
+  }
+}
+
+console.log("settlement lock state matrix: T1-T12 全部通过");
