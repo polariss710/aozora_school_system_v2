@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
+// 本文件只测 save 侧的纯逻辑，不涉及权威快照。需要 bootstrap 是因为 state 层
+// 现在间接依赖 supabase 客户端（登记入口移入 API 层的连带影响）。
+import "./lib/browser-module-bootstrap.mjs";
+
+const {
   ONLINE_ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES,
   buildOnlineDraftSaveInput,
@@ -12,7 +16,7 @@ import {
   createSingleFlight,
   onlineStatusDisplay,
   statusConfirmsDraftSave,
-} from "../js/pages/settlement-online-state.js";
+} = await import("../js/pages/settlement-online-state.js");
 
 const UUID = "123e4567-e89b-42d3-a456-426614174000";
 const UUID_2 = "223e4567-e89b-42d3-a456-426614174000";
