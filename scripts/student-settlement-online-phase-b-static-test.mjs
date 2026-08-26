@@ -270,6 +270,29 @@ test("static permission, deployment-unit and browser boundaries", async () => {
   );
   assert.doesNotMatch(pageSource, /SCHOOL_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY/);
 
+  // --- unknown 态的成功判据必须与恢复路径一致 -----------------------------
+  //
+  // handleLockRecheck 是 unknown 态专用，此时并不知道本次请求有没有落库，
+  // 是最不该放松判据的地方。它必须用 statusConfirmsDraftLock（终态 + 两份草稿
+  // consumed + manifest 一致），与 classifyLockFailure 的 confirmed 分支同源；
+  // 若退回「effective_status === 'ordinary_locked'」这一条，他人操作造成的锁定
+  // 会被误报为本次成功。
+  {
+    const recheck = /async function handleLockRecheck\(\)[\s\S]*?\n\}/.exec(settlementPage);
+    assert(recheck, "未找到 handleLockRecheck");
+    assert.match(
+      recheck[0],
+      /if \(statusConfirmsDraftLock\([^)]*\)\)\s*\{\s*await finishLockSuccess\(\);/,
+      "handleLockRecheck 的成功分支必须以 statusConfirmsDraftLock 为条件",
+    );
+    // 弱判据可以保留用于区分提示文案，但不得直接守着 finishLockSuccess
+    assert.doesNotMatch(
+      recheck[0],
+      /if \(statusConfirmsLockedNow\([^)]*\)\)\s*\{\s*await finishLockSuccess\(\);/,
+      "statusConfirmsLockedNow 不得用作成功判据",
+    );
+  }
+
   // --- P0 金额边界的来源约束（A'）---------------------------------------
   //
   // 以下三组断言各自钉住读取侧的一环：登记入口不导出、读取入口只收 scope、

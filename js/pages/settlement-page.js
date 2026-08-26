@@ -31,6 +31,7 @@ import {
   lockConfirmationAccepted,
   onlineStatusDisplay,
   readRegisteredVarianceSummary,
+  statusConfirmsDraftLock,
   statusConfirmsDraftSave,
 } from "./settlement-online-state.js?v=phase-d-lock-authoritative-source-20260826-1";
 import {
@@ -1714,7 +1715,18 @@ async function recoverFromLockFailure(error, beforeStatus, lockInput) {
   updateLockActionState();
 }
 
-// unknown 态专用：只读地再查一次状态，不重发锁定请求
+// unknown 态专用：只读地再查一次状态，不重发锁定请求。
+//
+// 判据必须与 classifyLockFailure 的 confirmed 分支一致，即 statusConfirmsDraftLock：
+// 终态 + 两份草稿均为 consumed + preview manifest 与本次请求一致。
+//
+// 此前这里用的是「effective_status === 'ordinary_locked'」这一条。它更弱，而
+// unknown 恰恰是最不该放松的场景——此时并不知道本次请求有没有落库。弱判据下，
+// 一个由他人操作（或另一次请求）造成的锁定会被当作本次成功，弹出「月结已正式
+// 锁定」并关闭对话框，把结果归因到了错误的请求上。
+//
+// 该差异已实证：构造「已 locked、但 manifest 已变、两份草稿仍 active」的 status，
+// 强判据返回 false、弱判据返回 true。
 async function handleLockRecheck() {
   if (!currentLockSettlement || isLockSubmitting) return;
   try {
@@ -1722,11 +1734,15 @@ async function handleLockRecheck() {
       currentLockSettlement.student_id, currentLockSettlement.year_month,
     );
     lockStatusSnapshot = status;
-    if (statusConfirmsLockedNow(status)) {
+    if (statusConfirmsDraftLock(status, lockPreviewSnapshot)) {
       await finishLockSuccess();
       return;
     }
-    showLockError("状态已刷新：该月结仍未锁定。请关闭对话框重新预览后再决定。");
+    // 已是终态但判据不符：确实锁上了，只是无法归因于本次请求。不能报成功，
+    // 也不能说「仍未锁定」——那同样是错的，会引导用户去重新预览再锁一次。
+    showLockError(statusConfirmsLockedNow(status)
+      ? "该月结已被锁定，但与本次请求的权威事实不一致，无法确认是本次操作的结果。请关闭对话框重新预览核对。"
+      : "状态已刷新：该月结仍未锁定。请关闭对话框重新预览后再决定。");
     dom.lockRecheckButton.hidden = true;
     lockPreviewSnapshot = null;
     updateLockActionState();
@@ -1735,6 +1751,8 @@ async function handleLockRecheck() {
   }
 }
 
+// 只用于区分「已锁定但不属于本次请求」与「仍未锁定」两种提示文案。
+// 不得用作成功判据——那正是本轮修掉的问题。
 function statusConfirmsLockedNow(status) {
   return status?.effective_state?.effective_status === "ordinary_locked";
 }

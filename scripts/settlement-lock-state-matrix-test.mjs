@@ -256,6 +256,29 @@ function classify(over = {}) {
     false,
     "manifest 不一致时不应判为成功"
   );
+
+  // 强弱两个判据的差异，钉在这里。
+  //
+  // 页面层的 handleLockRecheck 曾用「effective_status === 'ordinary_locked'」
+  // 作成功判据。下面这个 status 是「确实已锁定，但 manifest 已变、两份草稿仍
+  // active」——即锁定不是本次请求造成的。此时：
+  //   强判据 statusConfirmsDraftLock → false（正确：无法归因于本次请求）
+  //   弱判据 effective_status 比较    → true （错误：会弹出「已正式锁定」）
+  // unknown 态下用弱判据，等于把他人操作的结果当成自己的。
+  const lockedByOther = {
+    ...locked,
+    preview_manifest_sha256: SHA_B,
+    source_treatment_draft: { draft_id: "SD1", status: "active", updated_at: "T" },
+    adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "T" },
+  };
+  assert.equal(
+    statusConfirmsDraftLock(lockedByOther, basePreview), false,
+    "他人造成的锁定不得判为本次请求成功"
+  );
+  assert.equal(
+    lockedByOther.effective_state?.effective_status === "ordinary_locked", true,
+    "该场景下弱判据确实会放行——这正是不能用它作成功判据的原因"
+  );
 }
 
 // ---------------------------------------------------------------------------
