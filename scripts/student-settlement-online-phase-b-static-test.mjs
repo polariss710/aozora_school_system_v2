@@ -272,8 +272,12 @@ test("static permission, deployment-unit and browser boundaries", async () => {
 
   // --- P0 金额边界的来源约束（A'）---------------------------------------
   //
-  // 这条边界现在靠「登记入口不可达 + 读取入口只收 scope」保证。以下三组断言
-  // 各自钉住其中一环；任何一环松掉，约束就退回一道可绕过的检查。
+  // 以下三组断言各自钉住读取侧的一环：登记入口不导出、读取入口只收 scope、
+  // 模块实例唯一。任何一环松掉，读取侧的约束就退回一道可绕过的检查。
+  //
+  // 这三条**不足以**保证 P0。2026-08-26 审查发现下游还有缺口：builder 产出未
+  // 冻结、writer 公开接受任意 payload、scope 未校验一致。补上之前不要把这一组
+  // 断言当作金额边界已经闭合的证据。
   const settlementApi = await read("js/api/settlement-api.js");
   const stateSource = await read("js/pages/settlement-online-state.js");
 

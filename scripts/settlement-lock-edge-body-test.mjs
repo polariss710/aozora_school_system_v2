@@ -22,8 +22,13 @@ import {
 //
 // 本文件的链路起点是 RPC 返回值，不是手写的快照对象。这一点是 2026-08-26 的
 // 改动带来的：权威快照的登记入口已收进 js/api/settlement-api.js 的模块作用域，
-// 任何模块（包括测试）都无法再自行登记一个对象。想要拿到 builder 认可的快照，
+// 常规执行环境下没有导出路径能自行登记一个对象。想要拿到 builder 认可的快照，
 // 只能经 fetchAuthoritativeLockFacts 真实走一遍 API 层。
+//
+// 但要清楚本文件证明的范围：它走的是「权威快照 → builder → writer」这条正常
+// 路径。2026-08-26 审查指出，调用方完全可以不走 builder——直接把改过的对象交给
+// 公开的 lockStudentSettlementOnline，脏值照样进 body。本文件的 T1-T7 全绿并
+// 不意味着 P0 已闭合。
 //
 // 早先的版本在这里用页面层导出的 freezeAuthoritativeSnapshot 直接造 fixture，
 // 于是「快照来自 DB」这件事本身从未被测试触及——测试和被绕过的攻击路径用的是

@@ -84,9 +84,14 @@ let currentAdjustmentSettlement = null;
 let isAdjustmentSubmitting = false;
 
 // Phase D 锁定侧的模块私有状态。
-// lockStatusSnapshot / lockPreviewSnapshot 只能来自 API 层的 scope-only 权威
-// 读取入口（fetchAuthoritativeLockFacts / fetchAuthoritativeLockStatus），
-// 已在那一层深拷贝、递归冻结并登记。本文件没有产出此类快照的能力。
+// lockStatusSnapshot / lockPreviewSnapshot 来自 API 层的 scope-only 权威读取入口
+// （fetchAuthoritativeLockFacts / fetchAuthoritativeLockStatus），已在那一层深
+// 拷贝、递归冻结并登记。本文件没有产出此类快照的正常途径。
+//
+// 这不等于锁定金额已被结构性地保护住：buildOnlineDraftLockInput 的产出未冻结，
+// 而 lockStudentSettlementOnline 是公开的、接受任意 payload。见 2026-08-26 审查
+// （docs/school-v2-settlement-phase-d-p0-boundary-authoritative-source-20260826.md
+// 第 7 节 P0）。
 let currentLockSettlement = null;
 let lockStatusSnapshot = null;
 let lockPreviewSnapshot = null;

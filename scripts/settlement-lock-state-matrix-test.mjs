@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 // 全部用 mock 数据，不需要 DB、不需要浏览器、不需要等 2026-09-07。
 //
 // 关于 fixture 的两种形态（2026-08-26 起）：权威快照的登记入口已收进 API 层的
-// 模块作用域，测试无法再自行登记对象。所幸矩阵判定——canUseOnlineDraftLock、
+// 模块作用域，测试没有正常途径自行登记对象。所幸矩阵判定——canUseOnlineDraftLock、
 // classifyLockFailure、lockStatusStrictlyUnchanged——只读不写，普通冻结对象即
 // 够用；只有 buildOnlineDraftLockInput 要求登记快照，那几处经 authoritativeFacts
 // 真实走一遍 API 层取回。

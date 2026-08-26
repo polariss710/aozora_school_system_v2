@@ -328,17 +328,26 @@ export async function fetchStudentSettlementAdjustmentDialogPreview(payload) {
 // ===========================================================================
 // Phase D —— 锁定用权威事实读取
 //
-// P0 边界是「用户手打的确认金额只是闸门、不进 payload」。这条属性由「登记入口
-// 不可达」保证，而不是由「登记时对象是什么形状」保证：
+// P0 边界是「用户手打的确认金额只是闸门、不进 payload」。本段收紧的是**读取侧**：
 //
-//   - AUTHORITATIVE_SNAPSHOTS 与 brandAuthoritative 是本模块私有、不导出，
-//     没有任何模块能登记自己构造的对象。
+//   - AUTHORITATIVE_SNAPSHOTS 与 brandAuthoritative 是本模块私有、不导出。
+//     在内建对象未被篡改的常规执行环境中，没有导出路径能把自造对象送进这个
+//     WeakSet。（这不是绝对的：WeakSet.prototype.add 可被替换以捕获私有集合的
+//     引用。能做到这一点的代码已在同一 realm 内执行，另有更直接的手段，因此
+//     不为此更换机制——但也不能把它说成不可达。）
 //   - 对外只有下面两个读取入口，参数表只含 scope（studentId + yearMonth）。
 //     其余 RPC 参数一律在本层从 status 现取，调用方递不进任何值。
 //
 // 早先的版本把登记入口公开导出（页面层的 freezeAuthoritativeSnapshot），
 // 那只是一道检查：先污染对象、再调该函数登记即可绕过。判断标准是
-// 「这个约束的入口，调用方能不能自己构造输入」——能，就不是来源约束。
+// 「这个约束的入口，调用方能不能自己构造输入」。
+//
+// ⚠️ 这条标准要对准**整条链**，不是只对准正在改的这一段。2026-08-26 的审查
+// 证明本段之下仍有缺口：buildOnlineDraftLockInput 的产出未冻结，且
+// lockStudentSettlementOnline 公开接受任意 payload，调用方改一个字段直接调它
+// 即可把金额送进 Edge body。P0 因此尚未闭合，详见
+// docs/school-v2-settlement-phase-d-p0-boundary-authoritative-source-20260826.md
+// 第 7 节。
 //
 // 特别注意 fetchStudentSettlementAdjustmentDialogPreview 不可用于锁定：
 // 它的 payload 含 explicitUserAmountCny，直通 p_explicit_user_amount_cny，
