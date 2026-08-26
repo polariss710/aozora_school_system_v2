@@ -1,24 +1,36 @@
 import assert from "node:assert/strict";
-import {
-  LOCK_FAILURE_STATES,
-  buildOnlineDraftLockInput,
-  canUseOnlineDraftLock,
-  classifyLockFailure,
-  freezeAuthoritativeSnapshot,
-  lockStatusStrictlyUnchanged,
-  statusConfirmsDraftLock,
-} from "../js/pages/settlement-online-state.js";
 
 // Phase D 锁定侧 state 层的行为矩阵。
 //
 // 设计依据：docs/school-v2-settlement-phase-d-lock-ui-design-20260825.md 第 3 节。
 // 全部用 mock 数据，不需要 DB、不需要浏览器、不需要等 2026-09-07。
+//
+// 关于 fixture 的两种形态（2026-08-26 起）：权威快照的登记入口已收进 API 层的
+// 模块作用域，测试无法再自行登记对象。所幸矩阵判定——canUseOnlineDraftLock、
+// classifyLockFailure、lockStatusStrictlyUnchanged——只读不写，普通冻结对象即
+// 够用；只有 buildOnlineDraftLockInput 要求登记快照，那几处经 authoritativeFacts
+// 真实走一遍 API 层取回。
+
+import {
+  STUDENT_ID,
+  YEAR_MONTH,
+  authoritativeFacts,
+} from "./lib/settlement-lock-authority.mjs";
+
+const {
+  LOCK_FAILURE_STATES,
+  buildOnlineDraftLockInput,
+  canUseOnlineDraftLock,
+  classifyLockFailure,
+  lockStatusStrictlyUnchanged,
+  statusConfirmsDraftLock,
+} = await import("../js/pages/settlement-online-state.js");
 
 const S = LOCK_FAILURE_STATES;
 const SHA_A = "a".repeat(64);
 const SHA_B = "b".repeat(64);
 
-const row = { student_id: "S1", year_month: "2026-08" };
+const row = { student_id: STUDENT_ID, year_month: YEAR_MONTH };
 
 // afterStatus 侧的权威事实。必须与 previewResult 分开定义——两者同源就无法
 // 验证「复核后的状态是否仍与请求一致」。
@@ -35,11 +47,13 @@ const BASE_SOURCE_DRAFT = Object.freeze({
   source_manifest_sha256: "b".repeat(64), source_count: 3,
 });
 
-function makeStatus(over = {}) {
-  return freezeAuthoritativeSnapshot({
+// DB 返回的 status 行（未冻结、未登记）。既作矩阵 fixture 的基底，也作
+// authoritativeFacts 的 RPC 返回值——后者会在 API 层被深拷贝、冻结并登记。
+function statusRowOf(over = {}) {
+  return {
     contract_version: "student_settlement_online_status_v1",
-    student_id: "S1",
-    year_month: "2026-08",
+    student_id: STUDENT_ID,
+    year_month: YEAR_MONTH,
     can_lock: true,
     requires_repreview: false,
     lock_blocker_code: null,
@@ -52,14 +66,17 @@ function makeStatus(over = {}) {
     authoritative_system_difference_cny: "0",
     physical_settlement: { settlement_id: null, settlement_status: null, locked_at: null },
     effective_state: { effective_status: "incomplete" },
-    source_treatment_draft: { ...BASE_SOURCE_DRAFT },
-    adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "2026-09-07T01:00:00Z" },
+    source_treatment_draft: { ...BASE_SOURCE_DRAFT, source_treatment_mode: "separate_makeup_and_overage_v1" },
+    adjustment_draft: {
+      draft_id: "AD1", status: "active", updated_at: "2026-09-07T01:00:00Z",
+      adjustment_mode: "carry_final_balance", adjustment_amount_cny: null,
+    },
     ...over,
-  });
+  };
 }
 
-function makePreview(over = {}) {
-  return freezeAuthoritativeSnapshot({
+function previewRowOf(over = {}) {
+  return {
     preview_manifest_sha256: SHA_A,
     preview: {
       lesson_variance_source_count: 3,
@@ -75,11 +92,29 @@ function makePreview(over = {}) {
       system_difference_cny: "0",
       ...(over.preview_expected_facts || {}),
     },
-  });
+  };
 }
 
-const baseStatus = makeStatus();
-const basePreview = makePreview();
+function deepFreezeLocal(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const key of Object.keys(value)) deepFreezeLocal(value[key]);
+  return value;
+}
+
+// 矩阵用：冻结但不登记。进不了 builder，这正是它该有的样子。
+function makeStatus(over = {}) {
+  return deepFreezeLocal(structuredClone(statusRowOf(over)));
+}
+
+function makePreview(over = {}) {
+  return deepFreezeLocal(structuredClone(previewRowOf(over)));
+}
+
+// builder 用：经真实 API 层取回的已登记权威快照
+const { status: baseStatus, preview: basePreview } = await authoritativeFacts({
+  status: statusRowOf(), preview: previewRowOf(),
+});
 const baseInput = buildOnlineDraftLockInput({
   row, status: baseStatus, previewResult: basePreview,
   membershipRole: "admin", note: "", clientCorrelationId: "C1",
@@ -163,36 +198,34 @@ function classify(over = {}) {
 // T4  权威快照必须真的冻结，且冻结后篡改不影响 payload
 // ---------------------------------------------------------------------------
 {
-  const frozen = freezeAuthoritativeSnapshot(makePreview());
-  assert.ok(Object.isFrozen(frozen), "顶层未冻结");
-  assert.ok(Object.isFrozen(frozen.preview), "嵌套对象未冻结");
+  // basePreview 由 API 层深拷贝、递归冻结并登记
+  assert.ok(Object.isFrozen(basePreview), "顶层未冻结");
+  assert.ok(Object.isFrozen(basePreview.preview), "嵌套对象未冻结");
 
   // 非严格模式下静默失败，严格模式下抛错——两种都不得改到值
-  try { frozen.preview.projected_final_carryover_cny = "999999.123"; } catch { /* 严格模式抛错 */ }
+  try { basePreview.preview.projected_final_carryover_cny = "999999.123"; } catch { /* 严格模式抛错 */ }
   assert.equal(
-    frozen.preview.projected_final_carryover_cny, "40000.00",
+    basePreview.preview.projected_final_carryover_cny, "40000.00",
     "冻结后仍被篡改成功"
   );
 
   const inputFromFrozen = buildOnlineDraftLockInput({
-    row, status: baseStatus, previewResult: frozen,
+    row, status: baseStatus, previewResult: basePreview,
     membershipRole: "admin", note: "", clientCorrelationId: "C1",
   });
   assert.equal(inputFromFrozen.expectedFinalCarryoverCny, "40000.00",
     "payload 取到了被篡改的值");
 
-  // 深拷贝：改原始对象不应影响已冻结快照。
-  // 这里必须用一个未冻结的字面量——makePreview() 现在返回冻结对象，
-  // 在 ESM 的严格模式下赋值会直接抛错，测不到深拷贝这件事。
-  const original = {
-    preview_manifest_sha256: SHA_A,
-    preview: { ...LIVE_PREVIEW },
-    preview_expected_facts: { lesson_variance_manifest_sha256: SHA_B, system_difference_cny: "0" },
-  };
-  const snapshot = freezeAuthoritativeSnapshot(original);
-  original.preview.projected_final_carryover_cny = "1";
+  // 深拷贝：改 RPC 返回的原始行不应影响已取回的快照。
+  //
+  // 这比原先的写法更贴近真实。原先测的是「传给登记函数的那个对象」，而登记
+  // 函数已经不对外开放；现在测的是 DB 返回的那一行——生产中真实存在的、
+  // 唯一那个可变对象。
+  const rawRow = previewRowOf();
+  const { preview: snapshot } = await authoritativeFacts({ preview: rawRow });
+  rawRow.preview.projected_final_carryover_cny = "1";
   assert.equal(snapshot.preview.projected_final_carryover_cny, "40000.00",
-    "快照与原对象共享引用");
+    "快照与 RPC 返回行共享引用")
 }
 
 // ---------------------------------------------------------------------------
@@ -397,14 +430,22 @@ function classify(over = {}) {
   //
   // 两份草稿必须分开构造。初次补这个场景时把两份都设成 STALE，结果两条判据
   // 互相兜底，移除任一条测试都仍绿——修隔离问题时又制造了一个隔离问题。
-  for (const [label, staleStatus] of [
-    ["source 草稿陈旧", makeStatus({
-      source_treatment_draft: { ...BASE_SOURCE_DRAFT, updated_at: "STALE" },
-    })],
-    ["adjustment 草稿陈旧", makeStatus({
-      adjustment_draft: { draft_id: "AD1", status: "active", updated_at: "STALE" },
-    })],
+  for (const [label, over] of [
+    ["source 草稿陈旧", {
+      source_treatment_draft: {
+        ...BASE_SOURCE_DRAFT, updated_at: "STALE",
+        source_treatment_mode: "separate_makeup_and_overage_v1",
+      },
+    }],
+    ["adjustment 草稿陈旧", {
+      adjustment_draft: {
+        draft_id: "AD1", status: "active", updated_at: "STALE",
+        adjustment_mode: "carry_final_balance", adjustment_amount_cny: null,
+      },
+    }],
   ]) {
+    // 陈旧快照同样只能经 API 层取得——builder 只认登记过的
+    const { status: staleStatus } = await authoritativeFacts({ status: statusRowOf(over) });
     const staleInput = buildOnlineDraftLockInput({
       row, status: staleStatus, previewResult: basePreview,
       membershipRole: "admin", note: "", clientCorrelationId: "C1",

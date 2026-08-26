@@ -269,6 +269,50 @@ test("static permission, deployment-unit and browser boundaries", async () => {
     "state 模块的缓存键与页面入口不一致",
   );
   assert.doesNotMatch(pageSource, /SCHOOL_SERVICE_ROLE_KEY|SUPABASE_SERVICE_ROLE_KEY/);
+
+  // --- P0 金额边界的来源约束（A'）---------------------------------------
+  //
+  // 这条边界现在靠「登记入口不可达 + 读取入口只收 scope」保证。以下三组断言
+  // 各自钉住其中一环；任何一环松掉，约束就退回一道可绕过的检查。
+  const settlementApi = await read("js/api/settlement-api.js");
+  const stateSource = await read("js/pages/settlement-online-state.js");
+
+  // 一、登记入口必须模块私有。曾经它是页面层的公开导出，于是「先污染对象、
+  // 再调它登记」即可把 DOM 值送进 payload——那正是 P1-1 的原问题。
+  assert.doesNotMatch(settlementApi, /export[^\n]*brandAuthoritative/);
+  assert.doesNotMatch(stateSource, /export[^\n]*freezeAuthoritativeSnapshot/);
+  assert.doesNotMatch(pageSource, /function\s+freezeAuthoritativeSnapshot/);
+
+  // 二、对外的两个权威读取入口，参数表只能是 scope。多一个参数就多一条
+  // 调用方能操纵的通道，来源约束即不成立。
+  assert.match(
+    settlementApi,
+    /export async function fetchAuthoritativeLockStatus\(studentId, yearMonth\)/,
+  );
+  assert.match(
+    settlementApi,
+    /export async function fetchAuthoritativeLockFacts\(studentId, yearMonth\)/,
+  );
+  // 锁定预览不得再经 fetchStudentSettlementAdjustmentDialogPreview——
+  // 它的 payload 有 explicitUserAmountCny 直通 p_explicit_user_amount_cny。
+  // 与上面 otherPages 的处理一致：放开注释里的文字引用，禁止调用与定义表达式。
+  assert.doesNotMatch(settlementPage, /fetchLockPreviewFromDrafts\s*\(/);
+  assert.doesNotMatch(settlementPage, /function\s+fetchLockPreviewFromDrafts/);
+
+  // 三、WeakSet 在 settlement-api.js 的模块作用域内，凡导入该模块处必须使用
+  // 同一查询串。不同查询串产生不同模块实例、各持互不相通的 WeakSet，会让所有
+  // 权威快照在另一实例中判为 false。这是功能性不变式，不只是缓存卫生。
+  const apiCacheKeys = new Set();
+  for (const file of jsFiles) {
+    const source = await readFile(file, "utf8");
+    for (const hit of source.matchAll(/settlement-api\.js\?v=([A-Za-z0-9._-]+)/g)) {
+      apiCacheKeys.add(hit[1]);
+    }
+  }
+  assert.equal(
+    apiCacheKeys.size, 1,
+    `settlement-api.js 的导入查询串必须唯一，实际有 ${apiCacheKeys.size} 个：${[...apiCacheKeys].join(", ")}`,
+  );
 });
 
 async function read(relativePath) {

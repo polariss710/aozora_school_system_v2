@@ -1,10 +1,12 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
+  fetchAuthoritativeLockFacts,
+  fetchAuthoritativeLockStatus,
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=student-settlement-tokyo-month-close-20260810-3";
+} from "../api/settlement-api.js?v=phase-d-lock-authoritative-source-20260826-1";
 import {
   getStudentSettlementOnlineStatus,
   lockStudentSettlementOnline,
@@ -25,13 +27,12 @@ import {
   classifySaveRecovery,
   createSingleFlight,
   decimalString,
-  freezeAuthoritativeSnapshot,
   isPositiveDecimalString,
   lockConfirmationAccepted,
   onlineStatusDisplay,
   readRegisteredVarianceSummary,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=phase-d-settlement-lock-20260825-1";
+} from "./settlement-online-state.js?v=phase-d-lock-authoritative-source-20260826-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
@@ -83,8 +84,9 @@ let currentAdjustmentSettlement = null;
 let isAdjustmentSubmitting = false;
 
 // Phase D 锁定侧的模块私有状态。
-// lockStatusSnapshot / lockPreviewSnapshot 是冻结后的 DB 权威快照，
-// 渲染层与确认输入都拿不到它们的可变引用——见 freezeAuthoritativeSnapshot。
+// lockStatusSnapshot / lockPreviewSnapshot 只能来自 API 层的 scope-only 权威
+// 读取入口（fetchAuthoritativeLockFacts / fetchAuthoritativeLockStatus），
+// 已在那一层深拷贝、递归冻结并登记。本文件没有产出此类快照的能力。
 let currentLockSettlement = null;
 let lockStatusSnapshot = null;
 let lockPreviewSnapshot = null;
@@ -1523,7 +1525,11 @@ async function openLockDialog(settlementId) {
   dom.lockCancelButton.focus();
 
   try {
-    const status = await getStudentSettlementOnlineStatus(row.student_id, row.year_month);
+    // status 与 preview 都由 API 层读取、冻结并登记。本函数只递 scope，
+    // 拿不到登记入口，也无法影响 preview 的任何 RPC 参数。
+    const { status, preview } = await fetchAuthoritativeLockFacts(
+      row.student_id, row.year_month,
+    );
     if (requestSequence !== lockRequestSequence) return;
     if (!canUseOnlineDraftLock(membershipRole, status)) {
       const display = onlineStatusDisplay(status);
@@ -1531,12 +1537,17 @@ async function openLockDialog(settlementId) {
       updateLockActionState();
       return;
     }
-    const preview = await fetchLockPreviewFromDrafts(row, status);
-    if (requestSequence !== lockRequestSequence) return;
+    // canUseOnlineDraftLock 依赖 membershipRole，API 层判不了，因此那边只按
+    // 「两份草稿是否齐全」决定要不要预读 preview。两个条件不完全重合时会多走
+    // 一次只读 RPC，无副作用。
+    if (!preview) {
+      showLockError("两份草稿尚未齐全，无法读取锁定所需的权威预览。");
+      updateLockActionState();
+      return;
+    }
 
-    // 权威事实一经取得立即深拷贝并递归冻结，此后任何篡改都改不到 payload
-    lockStatusSnapshot = freezeAuthoritativeSnapshot(status);
-    lockPreviewSnapshot = freezeAuthoritativeSnapshot(preview);
+    lockStatusSnapshot = status;
+    lockPreviewSnapshot = preview;
     renderLockFacts(row, lockPreviewSnapshot);
     dom.lockConfirmationInput.focus();
     updateLockActionState();
@@ -1547,24 +1558,11 @@ async function openLockDialog(settlementId) {
   }
 }
 
-// 锁定用的 Preview 必须与已保存的两份草稿一致——参数一律取自草稿，
-// 不从任何 DOM 读取。
-async function fetchLockPreviewFromDrafts(row, status) {
-  const source = status.source_treatment_draft || {};
-  const adjustment = status.adjustment_draft || {};
-  return fetchStudentSettlementAdjustmentDialogPreview({
-    studentId: row.student_id,
-    yearMonth: row.year_month,
-    sourceTreatmentMode: source.source_treatment_mode,
-    settlementExchangeRate: source.settlement_exchange_rate ?? null,
-    settlementExchangeRateSource: source.settlement_exchange_rate_source || null,
-    settlementExchangeRateEffectiveDate: source.settlement_exchange_rate_effective_date || null,
-    adjustmentMode: adjustment.adjustment_mode,
-    explicitUserAmountCny: adjustment.adjustment_mode === ADJUSTMENT_MODES.MANUAL_ADJUSTMENT
-      ? adjustment.adjustment_amount_cny
-      : null,
-  });
-}
+// 锁定用的 Preview 取参已下沉到 js/api/settlement-api.js 的
+// fetchAuthoritativeLockFacts。此处曾有 fetchLockPreviewFromDrafts，虽然它取的
+// 是草稿值而非 DOM 值，但它经 fetchStudentSettlementAdjustmentDialogPreview 的
+// payload 通道，而该通道有 explicitUserAmountCny 直通 DB——只要取参留在页面层，
+// 「金额来自 DB 而非页面」就仍是一条约定，不是结构。
 
 function renderLockFacts(row, previewResult) {
   dom.lockStudent.textContent = row?.student_name || "-";
@@ -1660,7 +1658,9 @@ async function recoverFromLockFailure(error, beforeStatus, lockInput) {
   let afterStatus = null;
   let statusReadFailed = false;
   try {
-    afterStatus = await getStudentSettlementOnlineStatus(
+    // 已登记的权威快照——classifyLockFailure 会把它与 beforeStatus 逐项比对，
+    // 比对结果决定能否重试，因此两侧都必须来自权威读取。
+    afterStatus = await fetchAuthoritativeLockStatus(
       currentLockSettlement.student_id, currentLockSettlement.year_month,
     );
   } catch {
@@ -1687,7 +1687,7 @@ async function recoverFromLockFailure(error, beforeStatus, lockInput) {
   dom.lockRecheckButton.hidden = outcome !== S.UNKNOWN;
 
   if (afterStatus && !statusReadFailed) {
-    lockStatusSnapshot = freezeAuthoritativeSnapshot(afterStatus);
+    lockStatusSnapshot = afterStatus;
   }
 
   const display = safeOnlineErrorDisplay(error);
@@ -1713,10 +1713,10 @@ async function recoverFromLockFailure(error, beforeStatus, lockInput) {
 async function handleLockRecheck() {
   if (!currentLockSettlement || isLockSubmitting) return;
   try {
-    const status = await getStudentSettlementOnlineStatus(
+    const status = await fetchAuthoritativeLockStatus(
       currentLockSettlement.student_id, currentLockSettlement.year_month,
     );
-    lockStatusSnapshot = freezeAuthoritativeSnapshot(status);
+    lockStatusSnapshot = status;
     if (statusConfirmsLockedNow(status)) {
       await finishLockSuccess();
       return;

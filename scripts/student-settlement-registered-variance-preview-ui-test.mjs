@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { readRegisteredVarianceSummary } from "../js/pages/settlement-online-state.js";
+
+// state 层现在间接依赖 supabase 客户端（权威快照的登记入口移入 API 层的连带
+// 影响），因此需要 bootstrap 装远程导入钩子。本文件本身不涉及权威快照。
+import "./lib/browser-module-bootstrap.mjs";
+
+const { readRegisteredVarianceSummary } =
+  await import("../js/pages/settlement-online-state.js");
 
 const page = fs.readFileSync("js/pages/settlement-page.js", "utf8");
 const state = fs.readFileSync("js/pages/settlement-online-state.js", "utf8");

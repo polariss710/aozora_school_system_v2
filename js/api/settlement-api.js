@@ -325,6 +325,89 @@ export async function fetchStudentSettlementAdjustmentDialogPreview(payload) {
   });
 }
 
+// ===========================================================================
+// Phase D —— 锁定用权威事实读取
+//
+// P0 边界是「用户手打的确认金额只是闸门、不进 payload」。这条属性由「登记入口
+// 不可达」保证，而不是由「登记时对象是什么形状」保证：
+//
+//   - AUTHORITATIVE_SNAPSHOTS 与 brandAuthoritative 是本模块私有、不导出，
+//     没有任何模块能登记自己构造的对象。
+//   - 对外只有下面两个读取入口，参数表只含 scope（studentId + yearMonth）。
+//     其余 RPC 参数一律在本层从 status 现取，调用方递不进任何值。
+//
+// 早先的版本把登记入口公开导出（页面层的 freezeAuthoritativeSnapshot），
+// 那只是一道检查：先污染对象、再调该函数登记即可绕过。判断标准是
+// 「这个约束的入口，调用方能不能自己构造输入」——能，就不是来源约束。
+//
+// 特别注意 fetchStudentSettlementAdjustmentDialogPreview 不可用于锁定：
+// 它的 payload 含 explicitUserAmountCny，直通 p_explicit_user_amount_cny，
+// 调整对话框正是拿 DOM 值走这条路。若用它取权威事实，DOM 值就能经一次 DB
+// 往返影响 projected_final_carryover_cny。
+// ===========================================================================
+
+const AUTHORITATIVE_SNAPSHOTS = new WeakSet();
+const ADJUSTMENT_MODE_MANUAL = "manual_adjustment";
+
+// 只有经本模块读取入口产出的快照会被登记。builder 据此判断可信与否。
+// WeakSet 不阻止垃圾回收。
+export function isAuthoritativeSnapshot(value) {
+  return value !== null && typeof value === "object"
+    && AUTHORITATIVE_SNAPSHOTS.has(value);
+}
+
+function brandAuthoritative(value) {
+  const cloned = typeof structuredClone === "function"
+    ? structuredClone(value)
+    : JSON.parse(JSON.stringify(value ?? null));
+  const frozen = deepFreeze(cloned);
+  if (frozen !== null && typeof frozen === "object") {
+    AUTHORITATIVE_SNAPSHOTS.add(frozen);
+  }
+  return frozen;
+}
+
+function deepFreeze(value) {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const key of Object.keys(value)) deepFreeze(value[key]);
+  return value;
+}
+
+export async function fetchAuthoritativeLockStatus(studentId, yearMonth) {
+  return brandAuthoritative(
+    await getStudentSettlementOnlineStatus(studentId, yearMonth),
+  );
+}
+
+export async function fetchAuthoritativeLockFacts(studentId, yearMonth) {
+  const status = await fetchAuthoritativeLockStatus(studentId, yearMonth);
+  const source = status?.source_treatment_draft;
+  const adjustment = status?.adjustment_draft;
+  // 草稿不全时不预读 preview：与页面层原有的「先判 canUseOnlineDraftLock、
+  // 再取 preview」同序，不多走一次 DB 往返。
+  if (!source?.source_treatment_mode || !adjustment?.adjustment_mode) {
+    return { status, preview: null };
+  }
+  // 直接走 RPC，不经 fetchStudentSettlementAdjustmentDialogPreview——
+  // 那条路的 payload 有 explicitUserAmountCny 通道。此处每个参数都从 status
+  // 现取，代码路径上没有外部传入的机会。
+  const preview = await fetchRpcSingle("school_preview_student_settlement_adjustment_dialog", {
+    p_student_id: studentId,
+    p_business_entity_id: status.business_entity_id,
+    p_year_month: yearMonth,
+    p_source_treatment_mode: source.source_treatment_mode,
+    p_settlement_exchange_rate: source.settlement_exchange_rate ?? null,
+    p_settlement_exchange_rate_source: source.settlement_exchange_rate_source || null,
+    p_settlement_exchange_rate_effective_date: source.settlement_exchange_rate_effective_date || null,
+    p_adjustment_mode: adjustment.adjustment_mode,
+    p_explicit_user_amount_cny: adjustment.adjustment_mode === ADJUSTMENT_MODE_MANUAL
+      ? adjustment.adjustment_amount_cny
+      : null,
+  });
+  return { status, preview: brandAuthoritative(preview) };
+}
+
 async function fetchStudentSettlementWageBlockers(yearMonth) {
   const { data, error } = await supabase.rpc("school_get_student_monthly_settlement_wage_blockers", {
     p_year_month: yearMonth,

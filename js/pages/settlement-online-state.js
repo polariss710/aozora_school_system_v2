@@ -1,3 +1,5 @@
+import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=phase-d-lock-authoritative-source-20260826-1";
+
 const DECIMAL_RE = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
 
 export const ONLINE_ADJUSTMENT_MODES = Object.freeze({
@@ -333,47 +335,16 @@ function blockerLabel(code) {
 // 直接复用，不复制。
 // ===========================================================================
 
-/**
- * 权威事实一经取得即冻结。
- *
- * 锁定的 payload 全部来自 DB 权威快照，而「用户手打的确认金额只是闸门、
- * 不进 payload」这条 P0 边界无法靠静态断言表达——JS 的参数表证明不了对象来源，
- * 调用方完全可以先把 DOM 值写进可变的 previewResult 再传给 builder。
- *
- * 因此改为结构约束：API 返回后立刻深拷贝并递归冻结，之后任何篡改在严格模式下
- * 抛错、非严格模式下静默失败，两种情况 payload 都拿不到被改的值。
- */
-// 只有经本函数产出的快照会被登记在此。builder 据此判断快照是否可信。
+// 权威快照的登记与判据都在 API 层（js/api/settlement-api.js）。
 //
-// 单靠 Object.isFrozen 不够：它只证明对象被冻结，不证明它来自权威读取。
-// 攻击者（或不小心的调用方）完全可以构造一个被污染的对象再手动 Object.freeze，
-// 那样的对象能通过 isFrozen 检查并把脏值送进 payload——实测确认可行。
-// WeakSet 登记把判据从「是否冻结」换成「是否由本模块冻结」，
-// 且不阻止垃圾回收。
-const AUTHORITATIVE_SNAPSHOTS = new WeakSet();
-
-export function freezeAuthoritativeSnapshot(value) {
-  const cloned = typeof structuredClone === "function"
-    ? structuredClone(value)
-    : JSON.parse(JSON.stringify(value ?? null));
-  const frozen = deepFreeze(cloned);
-  if (frozen !== null && typeof frozen === "object") {
-    AUTHORITATIVE_SNAPSHOTS.add(frozen);
-  }
-  return frozen;
-}
-
-export function isAuthoritativeSnapshot(value) {
-  return value !== null && typeof value === "object"
-    && AUTHORITATIVE_SNAPSHOTS.has(value);
-}
-
-function deepFreeze(value) {
-  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
-  Object.freeze(value);
-  for (const key of Object.keys(value)) deepFreeze(value[key]);
-  return value;
-}
+// 本模块只导入只读的 isAuthoritativeSnapshot，拿不到登记入口——这是刻意的。
+// 早先版本在此导出 freezeAuthoritativeSnapshot，页面因而可以先把 DOM 值写进
+// 一个对象、再调该函数登记它，登记检查就只是一道检查而非来源约束。
+//
+// 注意：判据依赖 API 模块内的 WeakSet，因此本模块与 settlement-page.js 对
+// settlement-api.js 的导入查询串必须完全一致——不同查询串会产生不同模块实例、
+// 各自持有互不相通的 WeakSet，使所有权威快照在另一实例中判为 false。
+// 这是功能性不变式，不只是缓存卫生问题，已由静态断言看住。
 
 /**
  * 确认闸门：用户手打的金额是否与 DB 权威结转一致。
@@ -407,8 +378,9 @@ export function canUseOnlineDraftLock(membershipRole, status) {
 /**
  * 产出 lockStudentSettlementOnline 所需输入。
  *
- * 参数表中没有确认金额——但这不是保障（见 freezeAuthoritativeSnapshot 的说明），
- * 保障来自传入的 status / previewResult 必须是已冻结的权威快照。
+ * 参数表中没有确认金额——但这不是保障，JS 的参数表证明不了对象来源。
+ * 保障来自传入的 status / previewResult 必须是 API 层权威读取入口产出的快照，
+ * 而那两个入口的参数表只含 scope，页面递不进任何值。
  * 每一个 expected_* 字段都取自快照，无一项由前端计算或来自 DOM。
  */
 export function buildOnlineDraftLockInput({
@@ -421,15 +393,20 @@ export function buildOnlineDraftLockInput({
   if (!previewResult?.preview || !previewResult?.preview_expected_facts) {
     throw new Error("authoritative preview is required");
   }
-  // 只接受由 freezeAuthoritativeSnapshot 产出并登记的权威快照。
+  // 只接受 API 层权威读取入口产出的快照。
   //
-  // 参数表里没有确认金额并不构成保障——调用方可以先把 DOM 值写进可变的
-  // previewResult 再传进来，JS 的参数表证明不了对象来源（设计初版称「纯函数
-  // 签名让错误代码写不出来」，那是错的）。
+  // 判据的演进（每一步都是被证伪后才改的）：
+  //   1. 「纯函数签名让错误代码写不出来」——错。JS 参数表证明不了对象来源，
+  //      调用方可先把 DOM 值写进可变的 previewResult 再传进来。
+  //   2. Object.isFrozen——不够。构造一个被污染的对象再手动 Object.freeze
+  //      就能通过，实测可以把 999999.99 送进 payload。
+  //   3. 页面层导出的 freezeAuthoritativeSnapshot 登记——仍不够。登记入口是
+  //      公开的且无条件登记任意对象，先污染再登记即可绕过。
   //
-  // 只查 Object.isFrozen 同样不够：构造一个被污染的对象再手动 Object.freeze
-  // 就能通过，实测可以把 999999.99 送进 payload。因此判据是「是否由本模块
-  // 冻结并登记」，而不是「是否处于冻结状态」。
+  // 现在判据是「是否来自 API 层的 scope-only 读取入口」：登记入口是
+  // settlement-api.js 的模块私有函数，没有任何模块能登记自己构造的对象；
+  // 对外的两个入口只收 studentId + yearMonth，其余 RPC 参数在 API 层从
+  // status 现取。这才是来源约束，而不是又一道检查。
   if (!isAuthoritativeSnapshot(previewResult)) {
     throw new Error("previewResult must be a frozen authoritative snapshot");
   }
