@@ -14,6 +14,7 @@ import {
 } from "../_shared/expense-cash-attempt-v2.js";
 
 type RequestBody = {
+  action?: string;
   expense_record_id?: string;
   payment_route?: string;
   card_instrument_id?: string;
@@ -25,6 +26,13 @@ type RequestBody = {
   exchange_rate?: number | string | null;
   rounding_mode?: string | null;
   note?: string | null;
+};
+
+type SchoolFixedRouteCardRow = {
+  card_instrument_id: string;
+  name: string;
+  settlement_currency: string;
+  cash_route_enabled: boolean;
 };
 
 type HomeFixedScheduleRow = {
@@ -405,6 +413,49 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "CASH_SUPABASE_URL",
       "CASH_SERVICE_ROLE_KEY",
     );
+
+    // 固定信用卡路线的可选卡列表。
+    //
+    // 位置刻意选在 requireCurrentActiveAdmin 之后、expense_record_id 解析之前：
+    // 列表请求不携带 expense_record_id，若放在解析之后会被必填校验挡掉；而放在
+    // admin 校验之前则会让任意登录用户都能列出信用卡。
+    //
+    // 走 Cash 侧的窄 DEFINER RPC 而不是直查 home_card_instruments。该表 ACL 只有
+    // owner grant、RLS 启用且零 policy，service_role 没有表级 SELECT——BYPASSRLS
+    // 绕过的是 policy 不是 grant，直查必然 42501。RPC 只返回展示所需的四个字段。
+    //
+    // cash_route_enabled 只等于 Cash 侧的一条 Gate，为 true 也不代表这张卡当下
+    // 可提交（还要过 School Gate、币种一致、归属一致等），前端只能用它显示
+    // 「Cash 侧未启用」这一种不可用原因。
+    const action = optionalText(body.action);
+    if (action === "list_eligible_cards") {
+      const { data: cardData, error: cardError } = await cashClient.rpc(
+        "home_list_school_fixed_route_cards",
+      );
+      if (cardError) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "HOME_CARD_LIST_FAILED",
+            message: "Cash eligible card lookup failed",
+            details: cardError.message,
+          },
+          400,
+        );
+      }
+
+      // 显式逐字段挑选，不直接透传 RPC 返回值——将来 Cash 侧若给该 RPC 增列，
+      // 不会经由本入口意外暴露给 School 前端。
+      return jsonResponse({
+        ok: true,
+        cards: ((cardData ?? []) as SchoolFixedRouteCardRow[]).map((card) => ({
+          card_instrument_id: card.card_instrument_id,
+          name: card.name,
+          settlement_currency: card.settlement_currency,
+          cash_route_enabled: card.cash_route_enabled,
+        })),
+      });
+    }
 
     const expenseRecordId = requireUuid(body.expense_record_id, "expense_record_id");
     const paymentRoute = optionalText(body.payment_route) ?? "immediate_account";
