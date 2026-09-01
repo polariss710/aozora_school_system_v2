@@ -238,15 +238,34 @@ export async function updateExpenseRecord(payload) {
 export async function requestCashExpenseConfirmation(payload) {
   const expenseId = requireUuid(payload.expenseId, "expense_record_id");
 
+  // 两条支付路线的 payload 结构不同。
+  //
+  // 固定信用卡路线不传金额与币种：Edge 侧的 prepare RPC
+  // school_request_cash_fixed_expense_payment_confirmation_v2 不接受金额参数，
+  // 金额取自支出记录本身，币种由卡的 settlement_currency 决定。也不传账户——
+  // 这条路线不经过任何 Cash 账户，而是在 Cash 生成一条固定项。
+  //
+  // charge_date 是刷卡日。Cash 侧据此按卡的 cutoff / funding 推导目标固定月与
+  // 扣款日，前端不参与任何日期计算，也无法干预结果。
+  const body = payload.paymentRoute === "fixed_credit_card"
+    ? {
+        expense_record_id: expenseId,
+        payment_route: "fixed_credit_card",
+        card_instrument_id: payload.cardInstrumentId,
+        charge_date: payload.chargeDate,
+        note: payload.note || null,
+      }
+    : {
+        expense_record_id: expenseId,
+        cash_account_id: payload.cashAccountId,
+        actual_payment_amount: payload.actualPaymentAmount,
+        actual_payment_currency: payload.actualPaymentCurrency,
+        actual_payment_date: payload.actualPaymentDate,
+        note: payload.note || null,
+      };
+
   const { data, error } = await supabase.functions.invoke("request-cash-expense-confirmation", {
-    body: {
-      expense_record_id: expenseId,
-      cash_account_id: payload.cashAccountId,
-      actual_payment_amount: payload.actualPaymentAmount,
-      actual_payment_currency: payload.actualPaymentCurrency,
-      actual_payment_date: payload.actualPaymentDate,
-      note: payload.note || null,
-    },
+    body,
   });
 
   if (error) {

@@ -160,6 +160,40 @@ export async function fetchSchoolEligibleCashAccountsViaFunction() {
   return data.accounts || [];
 }
 
+// 固定信用卡路线的可选卡列表。
+//
+// 注意调的是 request-cash-expense-confirmation，而不是上面账户列表用的
+// request-cash-confirmation。后者是 legacy payment-request bridge，token 校验之后
+// 没有管理员限制；卡列表挂在 expense Edge 的 requireCurrentActiveAdmin 之后。
+//
+// 返回的卡可能带 cash_route_enabled: false（Cash 侧路线未启用）。这类卡仍会返回，
+// 由调用方渲染成不可选状态——否则 Gate 未开时只能拿到空列表，无法区分「没有卡」
+// 与「卡还没启用」。
+//
+// cash_route_enabled 为 true 也不代表这张卡当下可提交：还要过 School Gate、
+// 卡币种与支出币种一致、卡归属一致等。它只能用来显示「Cash 侧未启用」这一种原因。
+export async function fetchSchoolFixedRouteCardsViaFunction() {
+  const { data, error } = await supabase.functions.invoke("request-cash-expense-confirmation", {
+    body: {
+      action: "list_fixed_route_cards",
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error("Cash System 可选信用卡读取失败：Function 没有返回结果。");
+  }
+
+  if (data.ok === false) {
+    throw new Error(data.details || data.message || "Cash System 可选信用卡读取失败。");
+  }
+
+  return data.cards || [];
+}
+
 export async function reversePaidPaymentRequest(payload) {
   const { data, error } = await supabase.rpc("school_reverse_paid_payment_request_v2", {
     p_payment_request_id: payload.paymentRequestId,
