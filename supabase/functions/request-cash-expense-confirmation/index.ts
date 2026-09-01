@@ -422,6 +422,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "CASH_SERVICE_ROLE_KEY",
     );
 
+    // 非字符串的 action 必须先单独拒绝。optionalText 对数字、对象、数组一律返回
+    // null，与「没传 action」不可区分，因此 {"action":123, ...} 会带着完整支出参数
+    // 绕过下面的未知 action 检查，直接创建 Cash 请求。
+    if (
+      body.action !== undefined && body.action !== null &&
+      typeof body.action !== "string"
+    ) {
+      return jsonResponse(
+        { ok: false, code: "INVALID_ACTION", message: "action must be a string" },
+        400,
+      );
+    }
+
     // 固定信用卡路线的卡列表。
     //
     // 刻意不叫 list_eligible_cards：本入口会连 cash_route_enabled=false 的卡
