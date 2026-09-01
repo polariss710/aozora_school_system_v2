@@ -1,9 +1,17 @@
 // request-cash-expense-confirmation
 //
-// Page-triggered School -> Cash pending request bridge for canonical expense
-// records. This function only creates a Cash pending request and records the
-// submitted request id on School. It must not approve/reject Cash requests,
-// create Cash transactions, or mutate legacy school_payment_requests.
+// Page-triggered School -> Cash bridge for canonical expense records.
+//
+// Two responsibilities, split by the `action` field:
+//
+//   action 缺省      创建 Cash pending request，并把 request id 记回 School。
+//                    不得批准/拒绝 Cash 请求、不得创建 Cash 流水、
+//                    不得改动 legacy school_payment_requests。
+//   list_fixed_route_cards
+//                    只读：列出固定信用卡路线的可选卡。不产生任何写入。
+//
+// 两条路径共用同一道 requireCurrentActiveAdmin 边界。新增 action 时必须放在
+// 该校验之后，否则会绕过管理员限制。
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
@@ -414,7 +422,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
       "CASH_SERVICE_ROLE_KEY",
     );
 
-    // 固定信用卡路线的可选卡列表。
+    // 固定信用卡路线的卡列表。
+    //
+    // 刻意不叫 list_eligible_cards：本入口会连 cash_route_enabled=false 的卡
+    // 一并返回，用 eligible 会暗示「返回的都可用」，与实际语义相反。
     //
     // 位置刻意选在 requireCurrentActiveAdmin 之后、expense_record_id 解析之前：
     // 列表请求不携带 expense_record_id，若放在解析之后会被必填校验挡掉；而放在
@@ -428,7 +439,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
     // 可提交（还要过 School Gate、币种一致、归属一致等），前端只能用它显示
     // 「Cash 侧未启用」这一种不可用原因。
     const action = optionalText(body.action);
-    if (action === "list_eligible_cards") {
+    if (action === "list_fixed_route_cards") {
       const { data: cardData, error: cardError } = await cashClient.rpc(
         "home_list_school_fixed_route_cards",
       );
@@ -437,10 +448,12 @@ Deno.serve(async (request: Request): Promise<Response> => {
           {
             ok: false,
             code: "HOME_CARD_LIST_FAILED",
-            message: "Cash eligible card lookup failed",
+            message: "Cash card list lookup failed",
             details: cardError.message,
           },
-          400,
+          // 502 而非 400：RPC 不存在、权限异常、Cash 服务故障都不是调用方的参数
+          // 错误。用 4xx 会让前端与监控把上游依赖故障误判成请求本身有问题。
+          502,
         );
       }
 
@@ -455,6 +468,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
           cash_route_enabled: card.cash_route_enabled,
         })),
       });
+    }
+
+    // 未知 action 显式拒绝。若放任其落入提交路径，一个拼错的 action 会因为缺少
+    // expense_record_id 而变成 500，把调用方的错误伪装成服务端故障。
+    if (action) {
+      return jsonResponse(
+        {
+          ok: false,
+          code: "UNKNOWN_ACTION",
+          message: `Unknown action: ${action}`,
+        },
+        400,
+      );
     }
 
     const expenseRecordId = requireUuid(body.expense_record_id, "expense_record_id");
