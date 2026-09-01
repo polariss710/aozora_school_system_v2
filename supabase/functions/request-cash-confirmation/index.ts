@@ -26,6 +26,15 @@ type CashAccountRow = {
   allow_school_requests: boolean;
 };
 
+type CardInstrumentRow = {
+  id: string;
+  user_id: string;
+  name: string | null;
+  settlement_currency: string;
+  is_active: boolean;
+  is_school_fixed_route_enabled: boolean;
+};
+
 type SchoolRequestRow = {
   payment_request_id: string;
   linkage_event_id: string;
@@ -224,6 +233,30 @@ async function listEligibleAccounts(cashClient: ReturnType<typeof createClient>)
   return (data || []) as CashAccountRow[];
 }
 
+// 固定信用卡路线的可选卡列表。
+//
+// 只按 is_active 过滤，不按 is_school_fixed_route_enabled 过滤——未启用的卡
+// 也返回，由前端显示成不可选状态。否则 Gate 未开时前端只会拿到空列表，
+// 无从区分「没有卡」和「卡还没启用」。
+//
+// route_enabled 的算法与 Cash 侧 home_get_school_fixed_card_schedule 保持一致
+// （is_active and is_school_fixed_route_enabled），确保前端看到的可用性判据
+// 与提交时的校验判据是同一个。
+async function listEligibleCards(cashClient: ReturnType<typeof createClient>): Promise<CardInstrumentRow[]> {
+  const { data, error } = await cashClient
+    .from("home_card_instruments")
+    .select("id,user_id,name,settlement_currency,is_active,is_school_fixed_route_enabled")
+    .eq("is_active", true)
+    .order("settlement_currency", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    throw new Error(`Cash eligible card lookup failed: ${error.message}`);
+  }
+
+  return (data || []) as CardInstrumentRow[];
+}
+
 async function fetchPaymentRequestSourceType(
   schoolClient: ReturnType<typeof createClient>,
   paymentRequestId: string,
@@ -368,6 +401,19 @@ Deno.serve(async (request: Request): Promise<Response> => {
           account_type: account.account_type,
           is_active: account.is_active,
           allow_school_requests: account.allow_school_requests,
+        })),
+      });
+    }
+
+    if (action === "list_eligible_cards") {
+      const eligibleCards = await listEligibleCards(cashClient);
+      return jsonResponse({
+        ok: true,
+        cards: eligibleCards.map((card) => ({
+          id: card.id,
+          name: card.name,
+          settlement_currency: card.settlement_currency,
+          route_enabled: card.is_active && card.is_school_fixed_route_enabled,
         })),
       });
     }
