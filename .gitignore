@@ -1,2 +1,7 @@
 .DS_Store
 supabase/.temp/
+
+# Keep private tabular review exports out of the public repository.
+docs/*.csv
+docs/*.xls
+docs/*.xlsx
