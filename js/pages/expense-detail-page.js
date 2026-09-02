@@ -13,7 +13,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=fixed-card-schedule-preview-20260902-1";
+} from "../api/expense-detail-api.js?v=fixed-card-preview-dedup-20260902-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -101,6 +101,7 @@ let cashFixedRouteCards = [];
 let hasLoadedCashFixedRouteCards = false;
 let cashFixedSchedulePreview = null;
 let cashFixedSchedulePreviewSeq = 0;
+let cashFixedSchedulePreviewKey = "";
 const REVERSE_EXPENSE_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const EDITABLE_EXPENSE_CATEGORIES = ["classroom", "other", "tax_accounting", "advertising", "software"];
 const EDIT_PAYMENT_METHOD_OPTIONS = ["cash", "bank_transfer", "card", "alipay"];
@@ -996,6 +997,7 @@ async function openCashExpenseRequestDialog() {
   // 丢弃上一次打开时留下的预览，并让在途请求的结果失效——否则切换支出记录后，
   // 前一条记录的固定月可能因响应晚到而显示在这一条上。
   cashFixedSchedulePreviewSeq += 1;
+  cashFixedSchedulePreviewKey = "";
   cashFixedSchedulePreview = null;
   renderCashExpenseAccountOptions();
   updateCashExpenseRouteMode();
@@ -1193,10 +1195,19 @@ async function refreshCashFixedSchedulePreview() {
     || !/^\d{4}-\d{2}-\d{2}$/.test(chargeDate || "")
   ) {
     cashFixedSchedulePreviewSeq += 1;
+    cashFixedSchedulePreviewKey = "";
     cashFixedSchedulePreview = null;
     updateCashExpenseRequestPreview();
     return;
   }
+
+  // 按参数去重。input 与 change 绑的是同一个回调，选卡或填完日期都会各触发一次，
+  // 递增序号能保证结果正确，却消除不了重复的网络调用。
+  const requestKey = `${cardId}|${chargeDate}`;
+  if (requestKey === cashFixedSchedulePreviewKey) {
+    return;
+  }
+  cashFixedSchedulePreviewKey = requestKey;
 
   const seq = ++cashFixedSchedulePreviewSeq;
   try {
@@ -1213,6 +1224,8 @@ async function refreshCashFixedSchedulePreview() {
       return;
     }
     // 预览失败不打断填写，也不弹错误横幅——它只是辅助信息，真正的判定在提交时。
+    // 清掉 key，使同一组参数在下次事件时能够重试，不会被去重挡住。
+    cashFixedSchedulePreviewKey = "";
     cashFixedSchedulePreview = null;
   }
   updateCashExpenseRequestPreview();

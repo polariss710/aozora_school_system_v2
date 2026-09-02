@@ -505,6 +505,17 @@ Deno.serve(async (request: Request): Promise<Response> => {
         if (!parsedChargeDate) {
           throw new Error("charge_date is required");
         }
+        // optionalDate 只校验 YYYY-MM-DD 的字符形状，2026-02-30 这类不存在的日期
+        // 能通过。若放行，会由 PostgreSQL 的日期转换拒绝，最终归类成 502 上游故障，
+        // 而它其实是调用方的参数错误。这里做一次真实日历校验：Date 会把不存在的
+        // 日期规范化到下个月，与原串比对即可识别。
+        const parsedDate = new Date(`${parsedChargeDate}T00:00:00Z`);
+        if (
+          Number.isNaN(parsedDate.getTime())
+          || parsedDate.toISOString().slice(0, 10) !== parsedChargeDate
+        ) {
+          throw new Error("charge_date is not a valid calendar date");
+        }
         previewChargeDate = parsedChargeDate;
       } catch (inputError) {
         // 显式挡在前面而不是让它冒泡：外层 catch 一律返回 500，会把调用方的参数
