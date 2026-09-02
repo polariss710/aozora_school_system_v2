@@ -13,7 +13,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=fixed-card-preview-dedup-20260902-1";
+} from "../api/expense-detail-api.js?v=fixed-card-hidden-class-fix-20260902-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -992,7 +992,7 @@ async function openCashExpenseRequestDialog() {
   // 的调用方，而一旦把老师工资之类提成固定项，那笔钱会挂到信用卡账单上，与实际
   // 支付方式对不上，且撤销要经过 Cash 侧整套删除保护。
   const allowsFixedCardRoute = expense.expense_category === FIXED_CARD_ALLOWED_CATEGORY;
-  dom.cashExpensePaymentRouteField.hidden = !allowsFixedCardRoute;
+  dom.cashExpensePaymentRouteField.classList.toggle("is-hidden", !allowsFixedCardRoute);
   dom.cashExpensePaymentRouteSelect.value = "immediate_account";
   // 丢弃上一次打开时留下的预览，并让在途请求的结果失效——否则切换支出记录后，
   // 前一条记录的固定月可能因响应晚到而显示在这一条上。
@@ -1169,7 +1169,10 @@ function renderCashExpenseCardOptions() {
 function updateCashExpenseRouteMode() {
   const route = currentCashExpenseRoute();
   for (const field of dom.cashExpenseRequestDialog.querySelectorAll("[data-cash-expense-route]")) {
-    field.hidden = field.dataset.cashExpenseRoute !== route;
+    // 必须用 is-hidden 类，不能用 hidden 属性。本项目没有 [hidden] 的全局样式，
+    // 而 .field 有 display: grid——类选择器的优先级高于 hidden 的默认样式，
+    // 设了 hidden 也不会消失。
+    field.classList.toggle("is-hidden", field.dataset.cashExpenseRoute !== route);
   }
   dom.cashExpenseActualDateLabel.textContent = route === "fixed_credit_card"
     ? "刷卡日"
