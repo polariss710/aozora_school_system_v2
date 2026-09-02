@@ -7,15 +7,13 @@ import {
 import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
   fetchExpenseDetailPage,
+  fetchSchoolFixedRouteCardsViaFunction,
   requestCashExpenseConfirmation,
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=p1-b1c-r-20260810-1";
-import {
-  fetchSchoolEligibleCashAccountsViaFunction,
-  fetchSchoolFixedRouteCardsViaFunction,
-} from "../api/payment-api.js";
+} from "../api/expense-detail-api.js?v=fixed-card-route-ui-20260902-1";
+import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   currentJapanDate,
@@ -257,16 +255,23 @@ function bindEvents() {
     [dom.cashExpenseCardSelect, "cardInstrument"],
     [dom.cashExpenseNoteInput, "note"],
   ]) {
-    const onChange = () => {
+    const onChange = async () => {
       setCashExpenseFieldInvalid(fieldId, false);
       hideCashExpenseRequestErrorIfClean();
       if (input === dom.cashExpenseActualCurrencySelect) {
         renderCashExpenseAccountOptions();
       }
-      // 切换路线时字段集整体变化，且卡的可选性依赖支出币种，需要重渲染一次。
+      // 卡列表在切到固定信用卡时才拉取，不放在打开对话框的主路径上。
+      //
+      // 默认路线是即时账户，固定卡目前又只有教室租金一个场景；若在打开时就 await
+      // 卡列表，一次 Cash 侧超时会把即时路线一起卡住，读取失败还会在与卡无关的
+      // 界面上弹出「信用卡读取失败」。
       if (input === dom.cashExpensePaymentRouteSelect) {
         updateCashExpenseRouteMode();
-        renderCashExpenseCardOptions();
+        if (currentCashExpenseRoute() === "fixed_credit_card") {
+          await ensureCashFixedRouteCards();
+          renderCashExpenseCardOptions();
+        }
       }
       updateCashExpenseRequestPreview();
     };
@@ -947,7 +952,6 @@ async function openCashExpenseRequestDialog() {
 
   clearCashExpenseRequestErrors();
   await ensureCashEligibleAccounts();
-  await ensureCashFixedRouteCards();
   const expense = detailData.expense;
   dom.cashExpenseRequestSummary.innerHTML = renderCashExpenseRequestSummary(expense);
   dom.cashExpenseActualAmountInput.value = expense.amount ?? "";
@@ -964,7 +968,6 @@ async function openCashExpenseRequestDialog() {
   // 要经过 Cash 侧一整套删除保护，代价远高于多点一次下拉。
   dom.cashExpensePaymentRouteSelect.value = "immediate_account";
   renderCashExpenseAccountOptions();
-  renderCashExpenseCardOptions();
   updateCashExpenseRouteMode();
   updateCashExpenseRequestPreview();
   setCashRequestSubmitting(false);
@@ -1151,8 +1154,8 @@ function updateCashExpenseRequestPreview() {
     const fixedAmountText = expense?.amount != null
       ? formatCurrency(Number(expense.amount), expense.currency || "JPY")
       : "-";
-    // 只回显输入，不预告目标固定月。推导在 Cash 侧的 service_role 函数里，前端
-    // 拿不到；在这里猜一个月份出来，等于把同一套 cutoff/funding 规则实现两遍。
+    // 只回显输入，不预告目标固定月。推导发生在 Cash 侧的受限函数里，前端拿不到；
+    // 在这里猜一个月份出来，等于把同一套 cutoff/funding 规则实现两遍。
     dom.cashExpenseRequestPreview.textContent =
       `Cash 请求预览：刷卡 ${chargeDate || "-"} / ${fixedAmountText} / ${card?.name || "-"}`;
     return;
@@ -1324,7 +1327,15 @@ function setCashRequestSubmitting(isSubmitting) {
 function clearCashExpenseRequestErrors() {
   dom.cashExpenseRequestError.textContent = "";
   dom.cashExpenseRequestError.classList.add("is-hidden");
-  ["actualAmount", "actualDate", "actualCurrency", "cashAccount", "note"].forEach((fieldId) => {
+  [
+    "paymentRoute",
+    "actualAmount",
+    "actualDate",
+    "actualCurrency",
+    "cashAccount",
+    "cardInstrument",
+    "note",
+  ].forEach((fieldId) => {
     setCashExpenseFieldInvalid(fieldId, false);
   });
 }
