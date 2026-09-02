@@ -318,24 +318,35 @@
         <div id="cashExpenseRequestSummary" class="dialog-summary"></div>
 
         <div class="expense-create-field-grid">
-          <label class="field" data-cash-expense-field="actualAmount">
+          <label class="field expense-create-wide-field" data-cash-expense-field="paymentRoute">
+            <span>支付路线</span>
+            <select id="cashExpensePaymentRouteSelect">
+              <option value="immediate_account">即时账户支付</option>
+              <option value="fixed_credit_card">固定信用卡</option>
+            </select>
+          </label>
+          <label class="field" data-cash-expense-field="actualAmount" data-cash-expense-route="immediate_account">
             <span>实际支付金额</span>
             <input id="cashExpenseActualAmountInput" type="number" step="0.01" min="0" inputmode="decimal">
           </label>
           <label class="field" data-cash-expense-field="actualDate">
-            <span>实际支付日（Cash流水日）</span>
+            <span id="cashExpenseActualDateLabel">实际支付日（Cash流水日）</span>
             <input id="cashExpenseActualDateInput" type="date">
           </label>
-          <label class="field" data-cash-expense-field="actualCurrency">
+          <label class="field" data-cash-expense-field="actualCurrency" data-cash-expense-route="immediate_account">
             <span>实际支付币种</span>
             <select id="cashExpenseActualCurrencySelect">
               <option value="JPY">JPY</option>
               <option value="CNY">CNY</option>
             </select>
           </label>
-          <label class="field" data-cash-expense-field="cashAccount">
+          <label class="field" data-cash-expense-field="cashAccount" data-cash-expense-route="immediate_account">
             <span>Cash 支付账户</span>
             <select id="cashExpenseAccountSelect"></select>
+          </label>
+          <label class="field" data-cash-expense-field="cardInstrument" data-cash-expense-route="fixed_credit_card" hidden>
+            <span>信用卡</span>
+            <select id="cashExpenseCardSelect"></select>
           </label>
           <label class="field expense-create-wide-field" data-cash-expense-field="note">
             <span>备注</span>

@@ -12,7 +12,10 @@ import {
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
 } from "../api/expense-detail-api.js?v=p1-b1c-r-20260810-1";
-import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
+import {
+  fetchSchoolEligibleCashAccountsViaFunction,
+  fetchSchoolFixedRouteCardsViaFunction,
+} from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   currentJapanDate,
@@ -89,6 +92,8 @@ let isEditSubmitting = false;
 let isCashRequestSubmitting = false;
 let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
+let cashFixedRouteCards = [];
+let hasLoadedCashFixedRouteCards = false;
 const REVERSE_EXPENSE_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const EDITABLE_EXPENSE_CATEGORIES = ["classroom", "other", "tax_accounting", "advertising", "software"];
 const EDIT_PAYMENT_METHOD_OPTIONS = ["cash", "bank_transfer", "card", "alipay"];
@@ -184,6 +189,9 @@ function cacheDom() {
   dom.cashExpenseActualDateInput = document.querySelector("#cashExpenseActualDateInput");
   dom.cashExpenseActualCurrencySelect = document.querySelector("#cashExpenseActualCurrencySelect");
   dom.cashExpenseAccountSelect = document.querySelector("#cashExpenseAccountSelect");
+  dom.cashExpensePaymentRouteSelect = document.querySelector("#cashExpensePaymentRouteSelect");
+  dom.cashExpenseCardSelect = document.querySelector("#cashExpenseCardSelect");
+  dom.cashExpenseActualDateLabel = document.querySelector("#cashExpenseActualDateLabel");
   dom.cashExpenseNoteInput = document.querySelector("#cashExpenseNoteInput");
   dom.cashExpenseRequestPreview = document.querySelector("#cashExpenseRequestPreview");
   dom.cashExpenseRequestSubmitButton = document.querySelector("#cashExpenseRequestSubmitButton");
@@ -241,28 +249,29 @@ function bindEvents() {
   dom.cashExpenseRequestCancelButton.addEventListener("click", closeCashExpenseRequestDialog);
   dom.cashExpenseRequestSubmitButton.addEventListener("click", submitCashExpenseRequest);
   for (const [input, fieldId] of [
+    [dom.cashExpensePaymentRouteSelect, "paymentRoute"],
     [dom.cashExpenseActualAmountInput, "actualAmount"],
     [dom.cashExpenseActualDateInput, "actualDate"],
     [dom.cashExpenseActualCurrencySelect, "actualCurrency"],
     [dom.cashExpenseAccountSelect, "cashAccount"],
+    [dom.cashExpenseCardSelect, "cardInstrument"],
     [dom.cashExpenseNoteInput, "note"],
   ]) {
-    input.addEventListener("input", () => {
+    const onChange = () => {
       setCashExpenseFieldInvalid(fieldId, false);
       hideCashExpenseRequestErrorIfClean();
       if (input === dom.cashExpenseActualCurrencySelect) {
         renderCashExpenseAccountOptions();
       }
-      updateCashExpenseRequestPreview();
-    });
-    input.addEventListener("change", () => {
-      setCashExpenseFieldInvalid(fieldId, false);
-      hideCashExpenseRequestErrorIfClean();
-      if (input === dom.cashExpenseActualCurrencySelect) {
-        renderCashExpenseAccountOptions();
+      // 切换路线时字段集整体变化，且卡的可选性依赖支出币种，需要重渲染一次。
+      if (input === dom.cashExpensePaymentRouteSelect) {
+        updateCashExpenseRouteMode();
+        renderCashExpenseCardOptions();
       }
       updateCashExpenseRequestPreview();
-    });
+    };
+    input.addEventListener("input", onChange);
+    input.addEventListener("change", onChange);
   }
 }
 
@@ -938,6 +947,7 @@ async function openCashExpenseRequestDialog() {
 
   clearCashExpenseRequestErrors();
   await ensureCashEligibleAccounts();
+  await ensureCashFixedRouteCards();
   const expense = detailData.expense;
   dom.cashExpenseRequestSummary.innerHTML = renderCashExpenseRequestSummary(expense);
   dom.cashExpenseActualAmountInput.value = expense.amount ?? "";
@@ -949,7 +959,13 @@ async function openCashExpenseRequestDialog() {
     expense.year_month,
     expense.description,
   ].filter(Boolean).join(" / ");
+  // 每次打开都回到即时账户路线。固定信用卡是少数场景（目前只有教室租金），
+  // 让它保持上次的选择容易导致下一笔支出被误提交成固定项，而固定项的撤销
+  // 要经过 Cash 侧一整套删除保护，代价远高于多点一次下拉。
+  dom.cashExpensePaymentRouteSelect.value = "immediate_account";
   renderCashExpenseAccountOptions();
+  renderCashExpenseCardOptions();
+  updateCashExpenseRouteMode();
   updateCashExpenseRequestPreview();
   setCashRequestSubmitting(false);
   dom.cashExpenseRequestDialog.classList.remove("is-hidden");
@@ -1033,7 +1049,115 @@ function renderCashExpenseAccountOptions() {
   }
 }
 
+function currentCashExpenseRoute() {
+  return dom.cashExpensePaymentRouteSelect?.value === "fixed_credit_card"
+    ? "fixed_credit_card"
+    : "immediate_account";
+}
+
+async function ensureCashFixedRouteCards() {
+  if (hasLoadedCashFixedRouteCards) {
+    return;
+  }
+
+  try {
+    cashFixedRouteCards = await fetchSchoolFixedRouteCardsViaFunction();
+    hasLoadedCashFixedRouteCards = true;
+  } catch (error) {
+    cashFixedRouteCards = [];
+    hasLoadedCashFixedRouteCards = false;
+    showCashExpenseRequestError(`Cash 信用卡读取失败：${error.message || error}`, ["cardInstrument"]);
+  }
+}
+
+// 一张卡不可选可能有三种原因，逐一给出而不是笼统禁用：
+//
+//   cash_route_enabled=false  Cash 侧路线 Gate 未开（当前西武卡即是）
+//   币种与支出记录不符        卡的结算币种决定了这笔支出的币种，无法换算
+//   币种尚未支持              CNY 卡的提交路径没打通——prepare RPC 接不了金额，
+//                             而人民币账单需要填实际金额
+//
+// 不可选的卡仍然列出并标注原因，不从列表里去掉。Gate 未开时若直接过滤，列表会
+// 是空的，无从区分「没有卡」与「卡还没启用」。
+function cashCardUnavailableReason(card, expenseCurrency) {
+  if (!card.cash_route_enabled) {
+    return "Cash 侧未启用";
+  }
+  if (card.settlement_currency !== expenseCurrency) {
+    return `币种不符（${card.settlement_currency}）`;
+  }
+  if (card.settlement_currency !== "JPY") {
+    return "该币种的提交路径尚未启用";
+  }
+  return null;
+}
+
+function cashCardLabel(card, expenseCurrency) {
+  const base = `${card.name || "未命名卡"}（${card.settlement_currency}）`;
+  const reason = cashCardUnavailableReason(card, expenseCurrency);
+  return reason ? `${base} · ${reason}` : base;
+}
+
+function renderCashExpenseCardOptions() {
+  const expenseCurrency = detailData?.expense?.currency || "JPY";
+  const selectedValue = dom.cashExpenseCardSelect.value;
+  const options = ['<option value="">请选择信用卡</option>'];
+  let onlyAvailableId = "";
+  let availableCount = 0;
+
+  for (const card of cashFixedRouteCards) {
+    const unavailable = cashCardUnavailableReason(card, expenseCurrency) !== null;
+    if (!unavailable) {
+      onlyAvailableId = card.card_instrument_id;
+      availableCount += 1;
+    }
+    options.push(
+      `<option value="${escapeAttribute(card.card_instrument_id)}"${unavailable ? " disabled" : ""}>`
+      + `${escapeHtml(cashCardLabel(card, expenseCurrency))}</option>`,
+    );
+  }
+
+  dom.cashExpenseCardSelect.innerHTML = options.join("");
+
+  if (cashFixedRouteCards.some((card) => card.card_instrument_id === selectedValue)) {
+    dom.cashExpenseCardSelect.value = selectedValue;
+  } else if (availableCount === 1) {
+    dom.cashExpenseCardSelect.value = onlyAvailableId;
+  }
+}
+
+// 两条路线的字段集不同。固定信用卡不经过 Cash 账户，金额取自支出记录本身、币种
+// 由卡决定，因此金额/币种/账户三个字段整体隐藏。
+//
+// 日期字段两条路线共用，但语义不同：即时路线是 Cash 流水日，固定路线是刷卡日
+// ——Cash 侧据此按卡的 cutoff/funding 推导账单月与扣款日。label 随路线切换。
+function updateCashExpenseRouteMode() {
+  const route = currentCashExpenseRoute();
+  for (const field of dom.cashExpenseRequestDialog.querySelectorAll("[data-cash-expense-route]")) {
+    field.hidden = field.dataset.cashExpenseRoute !== route;
+  }
+  dom.cashExpenseActualDateLabel.textContent = route === "fixed_credit_card"
+    ? "刷卡日"
+    : "实际支付日（Cash流水日）";
+}
+
 function updateCashExpenseRequestPreview() {
+  if (currentCashExpenseRoute() === "fixed_credit_card") {
+    const expense = detailData?.expense;
+    const chargeDate = dom.cashExpenseActualDateInput.value;
+    const card = cashFixedRouteCards.find(
+      (item) => item.card_instrument_id === dom.cashExpenseCardSelect.value,
+    );
+    const fixedAmountText = expense?.amount != null
+      ? formatCurrency(Number(expense.amount), expense.currency || "JPY")
+      : "-";
+    // 只回显输入，不预告目标固定月。推导在 Cash 侧的 service_role 函数里，前端
+    // 拿不到；在这里猜一个月份出来，等于把同一套 cutoff/funding 规则实现两遍。
+    dom.cashExpenseRequestPreview.textContent =
+      `Cash 请求预览：刷卡 ${chargeDate || "-"} / ${fixedAmountText} / ${card?.name || "-"}`;
+    return;
+  }
+
   const amount = Number(dom.cashExpenseActualAmountInput.value);
   const currency = dom.cashExpenseActualCurrencySelect.value || "JPY";
   const paymentDate = dom.cashExpenseActualDateInput.value;
@@ -1080,6 +1204,38 @@ function readCashExpenseRequestPayload() {
   if (!canRequestCashExpense(detailData)) {
     showCashExpenseRequestError(cashRequestNotAllowedMessage(detailData));
     return null;
+  }
+
+  if (currentCashExpenseRoute() === "fixed_credit_card") {
+    const chargeDate = dom.cashExpenseActualDateInput.value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(chargeDate || "")) {
+      showCashExpenseRequestError("请选择刷卡日。", ["actualDate"]);
+      return null;
+    }
+
+    const cardId = dom.cashExpenseCardSelect.value;
+    const card = cashFixedRouteCards.find((item) => item.card_instrument_id === cardId);
+    if (!card) {
+      showCashExpenseRequestError("请选择信用卡。", ["cardInstrument"]);
+      return null;
+    }
+
+    // 再查一次可用性。不可用的卡在下拉里是 disabled 的，正常点不中，但 value 能被
+    // 直接改。真正的拒绝在 Cash 侧（HOME_FIXED_CARD_ROUTE_DISABLED 等），这里只是
+    // 让原因就地显示，省掉一趟往返。
+    const unavailableReason = cashCardUnavailableReason(card, expense.currency || "JPY");
+    if (unavailableReason) {
+      showCashExpenseRequestError(`该信用卡当前不可用：${unavailableReason}。`, ["cardInstrument"]);
+      return null;
+    }
+
+    return {
+      expenseId: expense.id,
+      paymentRoute: "fixed_credit_card",
+      cardInstrumentId: cardId,
+      chargeDate,
+      note: buildCashFixedExpenseRequestNote(expense, chargeDate, card),
+    };
   }
 
   const amount = Number(dom.cashExpenseActualAmountInput.value);
@@ -1140,6 +1296,22 @@ function buildCashExpenseRequestNote(expense, amount, currency, paymentDate) {
     return requiredText;
   }
   return base.includes("实际支付日") ? base : `${base}；${requiredText}`;
+}
+
+// 固定信用卡路线的备注。与即时路线的区别在于「刷卡日」而非「实际支付日」——
+// 这两个日期在信用卡场景下相差一个多月，混用会让 Cash 侧的记录难以对账。
+// 金额取自支出记录，因为这条路线没有用户输入的金额。
+function buildCashFixedExpenseRequestNote(expense, chargeDate, card) {
+  const base = dom.cashExpenseNoteInput.value.trim();
+  const amountText = expense.amount != null
+    ? formatCurrency(Number(expense.amount), expense.currency || "JPY")
+    : "-";
+  const requiredText = `${displayValue(expense.payee_name_snapshot || expense.description)}，`
+    + `${card.name || "信用卡"}刷卡日${chargeDate}，${amountText}`;
+  if (!base) {
+    return requiredText;
+  }
+  return base.includes("刷卡日") ? base : `${base}；${requiredText}`;
 }
 
 function setCashRequestSubmitting(isSubmitting) {
