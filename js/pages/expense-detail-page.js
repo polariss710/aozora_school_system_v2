@@ -7,12 +7,13 @@ import {
 import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
   fetchExpenseDetailPage,
+  fetchFixedCardSchedulePreview,
   fetchSchoolFixedRouteCardsViaFunction,
   requestCashExpenseConfirmation,
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=fixed-card-route-ui-20260902-1";
+} from "../api/expense-detail-api.js?v=fixed-card-schedule-preview-20260902-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -98,6 +99,8 @@ let cashEligibleAccounts = [];
 let hasLoadedCashEligibleAccounts = false;
 let cashFixedRouteCards = [];
 let hasLoadedCashFixedRouteCards = false;
+let cashFixedSchedulePreview = null;
+let cashFixedSchedulePreviewSeq = 0;
 const REVERSE_EXPENSE_FIELD_IDS = ["reversalDate", "reason", "confirmCheck"];
 const EDITABLE_EXPENSE_CATEGORIES = ["classroom", "other", "tax_accounting", "advertising", "software"];
 const EDIT_PAYMENT_METHOD_OPTIONS = ["cash", "bank_transfer", "card", "alipay"];
@@ -281,6 +284,14 @@ function bindEvents() {
         }
       }
       updateCashExpenseRequestPreview();
+      // 目标固定月只取决于卡与刷卡日，其余字段变化不必重新拉取。
+      if (
+        input === dom.cashExpensePaymentRouteSelect
+        || input === dom.cashExpenseCardSelect
+        || input === dom.cashExpenseActualDateInput
+      ) {
+        await refreshCashFixedSchedulePreview();
+      }
     };
     input.addEventListener("input", onChange);
     input.addEventListener("change", onChange);
@@ -982,6 +993,10 @@ async function openCashExpenseRequestDialog() {
   const allowsFixedCardRoute = expense.expense_category === FIXED_CARD_ALLOWED_CATEGORY;
   dom.cashExpensePaymentRouteField.hidden = !allowsFixedCardRoute;
   dom.cashExpensePaymentRouteSelect.value = "immediate_account";
+  // 丢弃上一次打开时留下的预览，并让在途请求的结果失效——否则切换支出记录后，
+  // 前一条记录的固定月可能因响应晚到而显示在这一条上。
+  cashFixedSchedulePreviewSeq += 1;
+  cashFixedSchedulePreview = null;
   renderCashExpenseAccountOptions();
   updateCashExpenseRouteMode();
   updateCashExpenseRequestPreview();
@@ -1159,6 +1174,50 @@ function updateCashExpenseRouteMode() {
     : "实际支付日（Cash流水日）";
 }
 
+// 拉取目标固定月预览。卡或刷卡日变化时调用。
+//
+// 用递增序号做竞态保护：日期输入可能连续触发多次请求，而响应返回顺序不保证，
+// 旧请求后到会把预览覆盖成过期结果。只有最后一次发出的请求允许写入状态。
+async function refreshCashFixedSchedulePreview() {
+  const cardId = dom.cashExpenseCardSelect.value;
+  const chargeDate = dom.cashExpenseActualDateInput.value;
+  const card = cashFixedRouteCards.find((item) => item.card_instrument_id === cardId);
+
+  // 卡不可用时不发请求：Cash 侧会照常算出月份，但那个月份没有意义——这张卡本来
+  // 就提交不了，显示一个「将生成 2026-10」只会误导。
+  const expenseCurrency = detailData?.expense?.currency || "JPY";
+  if (
+    currentCashExpenseRoute() !== "fixed_credit_card"
+    || !card
+    || cashCardUnavailableReason(card, expenseCurrency) !== null
+    || !/^\d{4}-\d{2}-\d{2}$/.test(chargeDate || "")
+  ) {
+    cashFixedSchedulePreviewSeq += 1;
+    cashFixedSchedulePreview = null;
+    updateCashExpenseRequestPreview();
+    return;
+  }
+
+  const seq = ++cashFixedSchedulePreviewSeq;
+  try {
+    const result = await fetchFixedCardSchedulePreview({
+      cardInstrumentId: cardId,
+      chargeDate,
+    });
+    if (seq !== cashFixedSchedulePreviewSeq) {
+      return;
+    }
+    cashFixedSchedulePreview = result;
+  } catch (_error) {
+    if (seq !== cashFixedSchedulePreviewSeq) {
+      return;
+    }
+    // 预览失败不打断填写，也不弹错误横幅——它只是辅助信息，真正的判定在提交时。
+    cashFixedSchedulePreview = null;
+  }
+  updateCashExpenseRequestPreview();
+}
+
 function updateCashExpenseRequestPreview() {
   if (currentCashExpenseRoute() === "fixed_credit_card") {
     const expense = detailData?.expense;
@@ -1169,10 +1228,14 @@ function updateCashExpenseRequestPreview() {
     const fixedAmountText = expense?.amount != null
       ? formatCurrency(Number(expense.amount), expense.currency || "JPY")
       : "-";
-    // 只回显输入，不预告目标固定月。推导发生在 Cash 侧的受限函数里，前端拿不到；
-    // 在这里猜一个月份出来，等于把同一套 cutoff/funding 规则实现两遍。
+    // 目标固定月来自 Cash 侧，不在前端计算。cashFixedSchedulePreview 为空时（尚未
+    // 拉取、卡不可用、或拉取失败）只回显输入，不显示一个猜出来的月份。
+    const scheduleText = cashFixedSchedulePreview
+      ? ` → ${String(cashFixedSchedulePreview.target_fixed_month).slice(0, 7)} 固定项，`
+        + `${cashFixedSchedulePreview.funding_date} 扣款`
+      : "";
     dom.cashExpenseRequestPreview.textContent =
-      `Cash 请求预览：刷卡 ${chargeDate || "-"} / ${fixedAmountText} / ${card?.name || "-"}`;
+      `Cash 请求预览：刷卡 ${chargeDate || "-"} / ${fixedAmountText} / ${card?.name || "-"}${scheduleText}`;
     return;
   }
 

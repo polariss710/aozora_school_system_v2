@@ -273,6 +273,35 @@ export async function fetchSchoolFixedRouteCardsViaFunction() {
   return data.cards || [];
 }
 
+// 预览目标固定月与扣款日。只读，不创建任何请求或 attempt。
+//
+// 推导规则（cutoff / funding）在 Cash 侧，刷卡日落在 cutoff 前后会差整整一个月。
+// 不在前端自行计算——那会把同一套规则实现两遍，前端那份迟早偏离。本入口与提交
+// 路径共用同一个 Cash 函数，因此预览与实际落库的结果必然一致。
+export async function fetchFixedCardSchedulePreview(payload) {
+  const { data, error } = await supabase.functions.invoke("request-cash-expense-confirmation", {
+    body: {
+      action: "preview_fixed_card_schedule",
+      card_instrument_id: payload.cardInstrumentId,
+      charge_date: payload.chargeDate,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error("固定月预览失败：Function 没有返回结果。");
+  }
+
+  if (data.ok === false) {
+    throw new Error(data.details || data.message || "固定月预览失败。");
+  }
+
+  return data;
+}
+
 export async function requestCashExpenseConfirmation(payload) {
   const expenseId = requireUuid(payload.expenseId, "expense_record_id");
 

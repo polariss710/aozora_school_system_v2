@@ -9,6 +9,8 @@
 //                    不得改动 legacy school_payment_requests。
 //   list_fixed_route_cards
 //                    只读：列出固定信用卡路线的可选卡。不产生任何写入。
+//   preview_fixed_card_schedule
+//                    只读：按卡与刷卡日预览目标固定月与扣款日。不产生任何写入。
 //
 // 两条路径共用同一道 requireCurrentActiveAdmin 边界。新增 action 时必须放在
 // 该校验之后，否则会绕过管理员限制。
@@ -480,6 +482,74 @@ Deno.serve(async (request: Request): Promise<Response> => {
           settlement_currency: card.settlement_currency,
           cash_route_enabled: card.cash_route_enabled,
         })),
+      });
+    }
+
+    // 目标固定月与扣款日的预览。只读，不产生任何写入，也不创建 attempt。
+    //
+    // 存在的理由：推导规则（cutoff / funding）在 Cash 侧，前端拿不到，而刷卡日
+    // 落在 cutoff 前后会差整整一个月。若不预览，用户提交前无从知道这笔钱会挂到
+    // 哪个月的账单，算错的代价是生成一条固定项，撤销要走 Cash 侧整套删除保护。
+    //
+    // 刻意不在前端按 cutoff/funding 自行计算：那会把同一套规则实现两遍，前端那份
+    // 迟早偏离——这正是 Phase D 反复出问题的形状。
+    //
+    // 与提交路径共用 home_get_school_fixed_card_schedule，因此预览与实际落库使用
+    // 的是同一个推导，不存在两处判据不一致的可能。
+    if (action === "preview_fixed_card_schedule") {
+      let previewCardId: string;
+      let previewChargeDate: string;
+      try {
+        previewCardId = requireUuid(body.card_instrument_id, "card_instrument_id");
+        const parsedChargeDate = optionalDate(body.charge_date, "charge_date");
+        if (!parsedChargeDate) {
+          throw new Error("charge_date is required");
+        }
+        previewChargeDate = parsedChargeDate;
+      } catch (inputError) {
+        // 显式挡在前面而不是让它冒泡：外层 catch 一律返回 500，会把调用方的参数
+        // 错误伪装成服务端故障。
+        return jsonResponse(
+          {
+            ok: false,
+            code: "PREVIEW_INPUT_INVALID",
+            message: inputError instanceof Error ? inputError.message : "invalid input",
+          },
+          400,
+        );
+      }
+
+      const { data: previewData, error: previewError } = await cashClient.rpc(
+        "home_get_school_fixed_card_schedule",
+        {
+          p_card_instrument_id: previewCardId,
+          p_charge_date: previewChargeDate,
+        },
+      );
+      if (previewError) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "HOME_FIXED_CARD_SCHEDULE_FAILED",
+            message: "Cash fixed-card schedule lookup failed",
+            details: previewError.message,
+          },
+          502,
+        );
+      }
+
+      const previewSchedule = unwrapSingleRow<HomeFixedScheduleRow>(
+        previewData as HomeFixedScheduleRow[] | HomeFixedScheduleRow | null,
+        "home_get_school_fixed_card_schedule",
+      );
+
+      // 与卡列表同样逐字段挑选。cash_user_id 与 cutoff_day 等内部字段不出库。
+      return jsonResponse({
+        ok: true,
+        settlement_currency: previewSchedule.settlement_currency,
+        target_fixed_month: previewSchedule.target_fixed_month,
+        funding_date: previewSchedule.funding_date,
+        cash_route_enabled: previewSchedule.route_enabled,
       });
     }
 
