@@ -39,6 +39,12 @@ const EXPENSE_CATEGORY_LABELS = {
   teacher_wage: "老师工资",
 };
 
+// 允许走固定信用卡路线的支出分类。业务约定：只有教室租金这类大额、需要「刷卡进
+// 账单、次月还款」的支出才走信用卡；其余小额支出直接用公司卡走即时账户路线。
+//
+// 与 School 侧 prepare RPC 的判定必须保持一致，此处仅用于界面显隐。
+const FIXED_CARD_ALLOWED_CATEGORY = "classroom";
+
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
   bank: "银行",
@@ -188,6 +194,7 @@ function cacheDom() {
   dom.cashExpenseActualCurrencySelect = document.querySelector("#cashExpenseActualCurrencySelect");
   dom.cashExpenseAccountSelect = document.querySelector("#cashExpenseAccountSelect");
   dom.cashExpensePaymentRouteSelect = document.querySelector("#cashExpensePaymentRouteSelect");
+  dom.cashExpensePaymentRouteField = document.querySelector('[data-cash-expense-field="paymentRoute"]');
   dom.cashExpenseCardSelect = document.querySelector("#cashExpenseCardSelect");
   dom.cashExpenseActualDateLabel = document.querySelector("#cashExpenseActualDateLabel");
   dom.cashExpenseNoteInput = document.querySelector("#cashExpenseNoteInput");
@@ -966,6 +973,14 @@ async function openCashExpenseRequestDialog() {
   // 每次打开都回到即时账户路线。固定信用卡是少数场景（目前只有教室租金），
   // 让它保持上次的选择容易导致下一笔支出被误提交成固定项，而固定项的撤销
   // 要经过 Cash 侧一整套删除保护，代价远高于多点一次下拉。
+  // 固定信用卡路线只对教室费用开放。业务约定：只有教室租金这类大额、需要「预扣
+  // 到账单、次月还款」的支出才走信用卡；其余小额支出直接用公司卡走即时路线。
+  //
+  // 这里只是界面镜像。权威判定在 School 侧的 prepare RPC——UI 挡不住直接调 Edge
+  // 的调用方，而一旦把老师工资之类提成固定项，那笔钱会挂到信用卡账单上，与实际
+  // 支付方式对不上，且撤销要经过 Cash 侧整套删除保护。
+  const allowsFixedCardRoute = expense.expense_category === FIXED_CARD_ALLOWED_CATEGORY;
+  dom.cashExpensePaymentRouteField.hidden = !allowsFixedCardRoute;
   dom.cashExpensePaymentRouteSelect.value = "immediate_account";
   renderCashExpenseAccountOptions();
   updateCashExpenseRouteMode();
