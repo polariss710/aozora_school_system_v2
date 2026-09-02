@@ -36,10 +36,17 @@
 --
 --   update public.school_feature_gates
 --   set state='blocked',
---       reason='Rolled back: fixed credit card route disabled.',
+--       reason='Fixed credit card route not yet released; School expense fixed writer fails closed.',
+--       release_version='phase-3c2r-20260819',
+--       evidence_hash='phase3c2r-db-edge-cutover-verified',
 --       updated_at=now(),
 --       updated_by=current_user
 --   where feature_key='cash_fixed_credit_card_route_enabled';
+--
+--   注意必须一并恢复 release_version 与 evidence_hash。本文件初稿的回滚语句只改了
+--   state 与 reason，导致 2026-09-02 那次回滚后这两个元数据仍停留在本次部署的值。
+--   它们不影响功能判定（权威状态是 state），但会让 Gate 的发布溯源失真。
+--   上面填的是该 Gate 在本次部署前的实际值。
 --
 --   回滚后固定卡路线的提交立即失效（报 SCHOOL_CASH_FIXED_CREDIT_CARD_ROUTE_DISABLED），
 --   但已生成的 Cash 固定项不会消失，需要另行处理。因此回滚前应先确认没有已提交
@@ -53,24 +60,37 @@ begin;
 
 do $gate_precheck$
 begin
-  -- 依赖的上游 Gate 必须已开
-  if (select state from public.school_feature_gates
-      where feature_key = 'cash_expense_attempt_writer_v2_enabled') <> 'enabled' then
+  -- 依赖的上游 Gate 必须已开。
+  --
+  -- 用 not exists 而不是 (select state) <> 'enabled'：后者在 Gate 行不存在时
+  -- 返回 NULL，而 NULL <> 'enabled' 既不是 true 也不是 false，异常不会触发，
+  -- 前置检查形同虚设。
+  if not exists (
+    select 1 from public.school_feature_gates
+    where feature_key = 'cash_expense_attempt_writer_v2_enabled'
+      and state = 'enabled'
+  ) then
     raise exception using errcode = '55000',
       message = 'FIXED_CARD_GATE_UPSTREAM_WRITER_V2_NOT_ENABLED';
   end if;
 
-  -- 当前必须仍是 blocked，避免重复执行或状态漂移
-  if (select state from public.school_feature_gates
-      where feature_key = 'cash_fixed_credit_card_route_enabled') <> 'blocked' then
+  -- 当前必须仍是 blocked，避免重复执行或状态漂移。同样用 not exists。
+  if not exists (
+    select 1 from public.school_feature_gates
+    where feature_key = 'cash_fixed_credit_card_route_enabled'
+      and state = 'blocked'
+  ) then
     raise exception using errcode = '55000',
       message = 'FIXED_CARD_GATE_NOT_BLOCKED';
   end if;
 
   -- 分类限制必须已部署。直接读生产函数体，不假定 d4e874f 已上线。
   --
-  -- 按 proname 匹配而不写死签名：该函数有 13 个参数，写死签名一旦顺序有出入就会
-  -- 报「函数不存在」，把一个本该通过的前置检查变成部署阻塞。
+  -- 按 proname 匹配而不写死签名。该函数在生产上有 15 个参数——本文件初稿按 Edge
+  -- 的调用推断为 13 个，是错的。写死签名会让这个本该通过的检查报「函数不存在」，
+  -- 把前置保护变成部署阻塞。
+  --
+  -- 生产已确认该函数只有一个重载，因此 exists 不会放行未打补丁的旧版本。
   if not exists (
     select 1
     from pg_proc p
@@ -121,10 +141,19 @@ commit;
 --   → 期望成功返回 prepared，payment_route='fixed_credit_card'
 --
 -- 三、其他分类仍被拒（rollback-only fixture）
---   teacher_wage / software / advertising
---   → 期望仍报 SCHOOL_EXPENSE_CASH_FIXED_CATEGORY_FORBIDDEN
+--   用 software / advertising / other 三个分类构造，期望均报
+--   SCHOOL_EXPENSE_CASH_FIXED_CATEGORY_FORBIDDEN
 --
 --   这一条是本次开 Gate 后最关键的保护：Gate 开了之后，分类限制成为唯一屏障。
+--
+--   **不要用 teacher_wage 构造 fixture。** 2026-09-02 的首次验证正是卡在这里：
+--   老师工资支出不能经通用的待支付支出 RPC 创建（报「老师工资支出请通过老师工资
+--   支付流程生成」），fixture 构造阶段就会失败，导致整组验证无法进行。
+--
+--   teacher_wage 不需要单独验证。分类检查是单条判断
+--   `if v_expense.expense_category is distinct from 'classroom'`，对所有非
+--   classroom 分类一视同仁，software 被拒即证明该判断生效。若将来改成白名单多值
+--   匹配，这个论证不再成立，届时需要另找验证 teacher_wage 的途径。
 --
 -- 四、即时账户路线不受影响
 --   immediate_account 的提交行为与开 Gate 前完全一致
