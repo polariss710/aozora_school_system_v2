@@ -155,6 +155,19 @@ commit;
 --   classroom 分类一视同仁，software 被拒即证明该判断生效。若将来改成白名单多值
 --   匹配，这个论证不再成立，届时需要另找验证 teacher_wage 的途径。
 --
+--   该论证已于 2026-09-03 由审核方独立核实：生产只有一个 prepare 重载，
+--   `IS DISTINCT FROM 'classroom'` 精确出现一次，且位于 source_type 的
+--   manual_cash / teacher_wage 分支之前，teacher_wage 无绕过路径。
+--
+-- 三之附：fixture 的正确终态 —— 汇总断言按此写
+--   classroom 固定卡请求      → cash_request_status = 'pending_cash_request'
+--   immediate_account 请求    → cash_request_status = 'pending_cash_request'
+--   software / advertising / other → cash_request_status 保持 NULL，整行不变
+--
+--   **不要断言「全部 fixture 进入 pending_cash_request」。** 被分类限制拒绝的三条
+--   本就不该有任何状态变化，它们保持 NULL 才是正确结果。2026-09-03 的第二次尝试
+--   正是卡在这条写反的汇总断言上——五组功能验证全部通过，却因汇总判据错误而回滚。
+--
 -- 四、即时账户路线不受影响
 --   immediate_account 的提交行为与开 Gate 前完全一致
 --
