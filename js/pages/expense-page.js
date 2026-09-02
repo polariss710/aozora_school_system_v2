@@ -64,6 +64,11 @@ const EXPENSE_CATEGORY_LABELS = {
   teacher_wage: "老师工资",
 };
 
+// 唯一允许走固定信用卡路线的支出分类。本页只用它决定要不要提示「请改从详情页
+// 提交」，真正的判定在 School 侧的 prepare RPC，与 expense-detail-page.js 中的
+// 同名常量必须保持一致。
+const FIXED_CARD_ALLOWED_CATEGORY = "classroom";
+
 const PAYMENT_METHOD_LABELS = {
   alipay: "支付宝",
   bank: "银行",
@@ -205,6 +210,7 @@ function cacheDom() {
   dom.selectAllCashRequests = document.querySelector("#expenseSelectAllCashRequests");
   dom.batchCashExpenseDialog = document.querySelector("#batchCashExpenseDialog");
   dom.batchCashExpenseError = document.querySelector("#batchCashExpenseError");
+  dom.batchCashExpenseFixedCardHint = document.querySelector("#batchCashExpenseFixedCardHint");
   dom.batchCashExpenseRateToolbar = document.querySelector("#batchCashExpenseRateToolbar");
   dom.batchCashExpenseTableBody = document.querySelector("#batchCashExpenseTableBody");
   dom.batchCashExpenseTotal = document.querySelector("#batchCashExpenseTotal");
@@ -1147,6 +1153,25 @@ async function openBatchCashExpenseDialog(rows) {
     roundingMode: "",
     rateStatus: "",
   }));
+
+  // 本对话框只支持即时账户路线。固定信用卡路线的入口在支出详情页——它需要选卡与
+  // 刷卡日，且不使用金额/币种/账户，塞进这张逐行表格会让每行多出两个控件。
+  //
+  // 教室费用是目前唯一允许走信用卡的分类，因此选中它时给一句提示，避免用户在这里
+  // 找不到卡而以为功能没做。
+  const fixedCardCandidates = targets.filter(
+    (expense) => expense.expense_category === FIXED_CARD_ALLOWED_CATEGORY,
+  );
+  if (fixedCardCandidates.length) {
+    dom.batchCashExpenseFixedCardHint.textContent = fixedCardCandidates.length === targets.length
+      ? "所选支出为教室费用，如需走固定信用卡（西武卡）路线，请改从支出详情页逐条提交；本页只能提交到即时账户。"
+      : `所选支出中有 ${fixedCardCandidates.length} 条教室费用，如需走固定信用卡（西武卡）路线，请改从支出详情页逐条提交；本页只能提交到即时账户。`;
+    dom.batchCashExpenseFixedCardHint.classList.remove("is-hidden");
+  } else {
+    dom.batchCashExpenseFixedCardHint.textContent = "";
+    dom.batchCashExpenseFixedCardHint.classList.add("is-hidden");
+  }
+
   clearBatchCashExpenseError();
   setBatchCashExpenseSubmitting(false);
   renderBatchCashExpenseRows();
