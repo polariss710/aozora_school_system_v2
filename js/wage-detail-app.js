@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
-import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-role-access-20260903-1";
 import { initWageDetailPage } from "./pages/wage-detail-page.js?v=wage-duty-report-summary-20260809-1";
 
 const globalSessionPromise = requireGlobalSession();

@@ -33,7 +33,7 @@ import {
   readRegisteredVarianceSummary,
   statusConfirmsDraftLock,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=phase-d-lock-authoritative-source-20260826-1";
+} from "./settlement-online-state.js?v=operator-role-access-20260903-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,

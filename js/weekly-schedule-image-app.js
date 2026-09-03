@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js?v=filter-contract-b5-20260822-1";
-import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-role-access-20260903-1";
 import { initWeeklyScheduleImagePage } from "./pages/weekly-schedule-image-page.js?v=filter-contract-b5-20260822-1";
 
 const globalSessionPromise = requireGlobalSession();

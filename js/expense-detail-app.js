@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
-import { requireGlobalSession } from "./auth-guard.js?v=p1-b2b-auth-storage-20260810-1";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-role-access-20260903-1";
 import { initExpenseDetailPage } from "./pages/expense-detail-page.js?v=fixed-card-hidden-class-fix-20260902-1";
 
 const globalSessionPromise = requireGlobalSession();
