@@ -1,27 +1,37 @@
 -- ###########################################################################
--- ##  不完整，禁止部署 —— 2026-09-04 审核驳回（P1-1 / P1-2）
+-- ##  2026-09-04 第二版：已补齐回写链，覆盖首轮驳回的 P1-1 / P1-2
 -- ##
--- ##  本文件只改了**提交方向**（约束 + prepare RPC），完全没有碰**回写方向**。
--- ##  跨币种 attempt 一旦建立，下面这条链会全线失败：
+-- ##  首版只改了提交方向（约束 + prepare RPC），完全没碰回写方向，被审核以两条
+-- ##  P1 驳回。教训已记为 home_account_book docs/lessons.md **E9**：
+-- ##  跨库 saga 要双向 trace，回写链和提交链一样长。
+-- ##
+-- ##  本版把下面这条链一并改掉，六个对象放在同一个事务里：
 -- ##
 -- ##    school_mark_cash_fixed_expense_request_submitted_v2
 -- ##    school_mark_cash_fixed_expense_rejected_v2
 -- ##      → school_apply_expense_cash_fixed_attempt_transition_v2
 -- ##        → school_apply_expense_cash_fixed_callback_v3
 -- ##
--- ##  P1-1 中间层把结算金额/币种同时传给 original 与 settlement 两组参数
--- ##       （phase3d_20260819.sql:511），跨币种时回调收到 original=8000 CNY 而
--- ##       attempt 存的是 original=166100 JPY → SCHOOL_EXPENSE_CASH_FIXED_PAYLOAD_CONFLICT。
--- ##       **submitted 标不了，rejected 也回写不了**，所以本文件正文里写的
--- ##       「填错就 Cash 拒绝后重新提交」对跨币种根本不成立。
+-- ##  P1-1 attempt_transition_v2 把结算金额/币种**同时**传给 callback 的 original
+-- ##       与 settlement 两组槽位，跨币种时回调收到 original=8000 CNY 而 attempt
+-- ##       存的是 original=166100 JPY → SCHOOL_EXPENSE_CASH_FIXED_PAYLOAD_CONFLICT。
+-- ##       submitted 标不了、rejected 也回写不了。
+-- ##  P1-2 callback_v3 的 approved 分支锁死三条：固定项币种必须 JPY、原币必须等于
+-- ##       结算币、原币金额必须等于结算金额。**后果是 Cash 已批准而 School 无法
+-- ##       确认，而 Cash 批准不可逆**——正好推进到最不该到达的状态。
 -- ##
--- ##  P1-2 callback_v3 的 approved 分支仍锁死三条（phase3d_20260819.sql:360）：
--- ##       fixed_item_currency 必须 JPY、original_currency 必须等于 settlement、
--- ##       original_amount 必须等于 settlement_amount。
--- ##       **后果是 Cash 已批准而 School 无法确认，而 Cash 批准不可逆。**
--- ##       即使 P1-1 修好，这条仍独立存在。
+-- ##  本版覆盖的六个对象（同一事务）：
+-- ##    1. school_expense_cash_attempts_route_contract_check   删两条等值
+-- ##    2. school_request_cash_fixed_expense_payment_confirmation_v2  +2 参数
+-- ##    3. school_apply_expense_cash_fixed_callback_v3         approved 分支放三条锁
+-- ##    4. school_apply_expense_cash_fixed_attempt_transition_v2      +2 参数
+-- ##    5. school_mark_cash_fixed_expense_request_submitted_v2        +2 参数
+-- ##    6. school_mark_cash_fixed_expense_rejected_v2                 +2 参数
 -- ##
--- ##  修法：回写链那三个函数必须与本文件同一个事务改完。等生产基线。
+-- ##  **school_mark_cash_fixed_expense_approved_v2 有意不改**：它是回写链的第五个
+-- ##  入口、直接调 callback 不经过 transition，而且**签名里第 12/13 位本来就是
+-- ##  p_original_amount / p_original_currency**，正文原样转发。原设计预见了批准
+-- ##  证据要带原币，只是没预见 submitted/rejected 也要。本文件第 0 步断言它未漂移。
 -- ###########################################################################
 
 -- School 侧支持跨币种固定信用卡请求 —— 工行卡（JPY 消费 / CNY 结算）
@@ -190,6 +200,39 @@ begin
   if v_actual is distinct from '3a0fb26fe42a33ed4f6c4148a603d9a1' then
     raise exception 'ABORT: prepare RPC 已漂移，期望 3a0fb26fe42a33ed4f6c4148a603d9a1，实际 %', v_actual;
   end if;
+
+  -- 0a2. 回写链五个函数的正文与基线一致。
+  --      前四个本文件要改；approved 那个**有意不改**，断言它未漂移是因为本文件
+  --      的正确性依赖「它已经在传原币」这个事实。
+  for v_actual in
+    select unnest(array[
+      'school_apply_expense_cash_fixed_callback_v3|b340e9ab01ed2782338e291fed3493c6',
+      'school_apply_expense_cash_fixed_attempt_transition_v2|52e2cd3118dd83a46e742f6aca88fc0d',
+      'school_mark_cash_fixed_expense_request_submitted_v2|a68166c95e6e4393812dabb3ef539db8',
+      'school_mark_cash_fixed_expense_rejected_v2|6956666215bd73de86d370cc623d6cae',
+      'school_mark_cash_fixed_expense_approved_v2|2ef9bd847a521737bea7a8cf5100049a'
+    ])
+  loop
+    declare
+      v_name text := split_part(v_actual, '|', 1);
+      v_expected text := split_part(v_actual, '|', 2);
+      v_found text;
+      v_overloads integer;
+    begin
+      select count(*) into v_overloads
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = v_name;
+      if v_overloads <> 1 then
+        raise exception 'ABORT: % 有 % 个重载，本文件假定唯一', v_name, v_overloads;
+      end if;
+      select md5(p.prosrc) into v_found
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public' and p.proname = v_name;
+      if v_found is distinct from v_expected then
+        raise exception 'ABORT: % 已漂移，期望 %，实际 %', v_name, v_expected, v_found;
+      end if;
+    end;
+  end loop;
 
   -- 0b. 待改约束与基线一致
   select md5(pg_get_constraintdef(oid)) into v_actual
@@ -636,6 +679,485 @@ grant execute on function public.school_request_cash_fixed_expense_payment_confi
   uuid, uuid, uuid, date, date, date, date, text, text, text, uuid, text, text, uuid, text, numeric, text
 ) to service_role;
 
+-- ---------------------------------------------------------------------------
+-- 4. 回写核心 callback_v3：approved 分支放开三条锁
+--
+-- **签名逐字未变**，所以用 create or replace，不需要 DROP，ACL 自动保留
+-- （postgres-only）。
+--
+-- 与基线的差异恰好 3 处，全部在 approved 分支：
+--   ① p_fixed_item_currency is distinct from 'JPY'
+--        → is distinct from v_currency
+--      Cash 侧的固定项现在按**结算币种**创建（工行卡 CNY、西武卡 JPY），
+--      写死 JPY 会让所有 CNY 批准证据被拒。
+--   ② 删 v_original_currency is distinct from v_currency      ← 跨币种禁令本身
+--   ③ 删 p_original_amount is distinct from p_settlement_amount
+--
+-- **p_fixed_item_amount is distinct from p_settlement_amount 要留着**——
+-- 固定项金额本来就该等于结算额，这条不是跨币种障碍。
+--
+-- 公共校验段（第 82-97 行那块）**一行不改**：它本来就分别核对 original 与
+-- payment，不要求两组相等，天生支持跨币种。原币的合法性也由它保证——
+-- v_attempt.original_amount 是 NOT NULL 列，传 NULL 或 0 都会在这里
+-- PAYLOAD_CONFLICT，所以不需要在 EVIDENCE_REQUIRED 段额外加检查。
+--
+-- 其余逐字未改：Gate、action 校验、身份契约、状态契约、行锁、指纹重算、
+-- submitted/rejected 两个分支的全部转移规则、幂等与 prepared 恢复、返回段。
+-- ---------------------------------------------------------------------------
+
+create or replace function public.school_apply_expense_cash_fixed_callback_v3(
+  p_action text, p_expense_record_id uuid, p_cash_request_id uuid, p_cash_request_status text,
+  p_payment_route text, p_external_source text, p_request_event_id uuid, p_idempotency_key text,
+  p_external_reference_type text, p_external_reference_id uuid, p_request_type text,
+  p_transaction_type text, p_original_amount numeric, p_original_currency text,
+  p_settlement_amount numeric, p_settlement_currency text, p_card_instrument_id uuid,
+  p_charge_date date, p_suggested_fixed_month date, p_target_fixed_month date,
+  p_funding_date date, p_account_id uuid, p_funding_account_id uuid,
+  p_request_payload_fingerprint text,
+  p_cash_transaction_id uuid default null::uuid,
+  p_fixed_projection_id uuid default null::uuid,
+  p_projection_status text default null::text,
+  p_projection_version integer default null::integer,
+  p_projection_funding_status text default null::text,
+  p_projection_funding_channel_id uuid default null::uuid,
+  p_projection_funding_transaction_id uuid default null::uuid,
+  p_fixed_item_id uuid default null::uuid,
+  p_fixed_item_template_id uuid default null::uuid,
+  p_fixed_item_scope text default null::text,
+  p_fixed_item_currency text default null::text,
+  p_fixed_item_direction text default null::text,
+  p_fixed_item_amount numeric default null::numeric,
+  p_fixed_item_month_key text default null::text,
+  p_fixed_item_due_date date default null::date,
+  p_fixed_item_payment_group text default null::text,
+  p_fixed_item_status text default null::text,
+  p_fixed_item_account_id uuid default null::uuid,
+  p_fixed_item_linked_jpy_transaction_id uuid default null::uuid,
+  p_fixed_item_linked_cny_transaction_id uuid default null::uuid,
+  p_approved_actor uuid default null::uuid,
+  p_result_at timestamp with time zone default null::timestamp with time zone,
+  p_rejected_reason text default null::text
+)
+returns table(expense_id uuid, expense_status text, cash_request_id uuid, cash_request_status text, cash_transaction_id uuid, fixed_projection_id uuid, fixed_item_id uuid, attempt_id uuid, attempt_status text, attempt_version integer, callback_recovered_from_prepared boolean, idempotent boolean, message text)
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+declare
+  v_action text := lower(nullif(trim(coalesce(p_action,'')),''));
+  v_status text := lower(nullif(trim(coalesce(p_cash_request_status,'')),''));
+  v_original_currency text := upper(nullif(trim(coalesce(p_original_currency,'')),''));
+  v_currency text := upper(nullif(trim(coalesce(p_settlement_currency,'')),''));
+  v_reason text := nullif(trim(coalesce(p_rejected_reason,'')),'');
+  v_now timestamptz := coalesce(p_result_at,statement_timestamp());
+  v_expense public.school_expense_records%rowtype;
+  v_attempt public.school_expense_cash_attempts%rowtype;
+  v_expected_fingerprint text;
+  v_idempotent boolean := false;
+  v_recovered boolean := false;
+begin
+  if not exists (
+    select 1 from public.school_feature_gates g
+    where g.feature_key='cash_expense_attempt_writer_v2_enabled' and g.state='enabled'
+  ) then
+    raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_ATTEMPT_V2_DISABLED';
+  end if;
+  -- The fixed Gate intentionally is not read here. It gates only new prepare.
+  if v_action not in ('submitted','approved','rejected') then
+    raise exception using errcode='22023', message='SCHOOL_EXPENSE_CASH_FIXED_ACTION_INVALID';
+  end if;
+  if p_expense_record_id is null or p_cash_request_id is null or p_request_event_id is null
+     or p_external_reference_id is null or p_card_instrument_id is null
+     or p_charge_date is null or p_suggested_fixed_month is null
+     or p_target_fixed_month is null or p_funding_date is null
+     or coalesce(p_settlement_amount,0)<=0 or nullif(trim(coalesce(p_idempotency_key,'')),'') is null
+     or nullif(trim(coalesce(p_request_payload_fingerprint,'')),'') is null then
+    raise exception using errcode='22023', message='SCHOOL_EXPENSE_CASH_FIXED_EVIDENCE_REQUIRED';
+  end if;
+  if p_payment_route is distinct from 'fixed_credit_card'
+     or p_external_source is distinct from 'aozora_school'
+     or p_external_reference_type is distinct from 'school_expense_records'
+     or p_external_reference_id is distinct from p_expense_record_id
+     or p_request_type is distinct from 'expense_paid'
+     or p_transaction_type is distinct from 'expense'
+     or p_account_id is not null or p_funding_account_id is not null
+     or v_original_currency not in ('JPY','CNY') or v_currency not in ('JPY','CNY') then
+    raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_EXTERNAL_IDENTITY_CONFLICT';
+  end if;
+  if (v_action='submitted' and v_status<>'pending')
+     or (v_action='approved' and v_status<>'approved')
+     or (v_action='rejected' and v_status<>'rejected') then
+    raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_STATUS_CONFLICT';
+  end if;
+
+  select * into v_expense from public.school_expense_records e
+  where e.id=p_expense_record_id and e.app_type='school' for update;
+  if not found then raise exception using errcode='P0002', message='SCHOOL_EXPENSE_RECORD_NOT_FOUND'; end if;
+  select * into v_attempt from public.school_expense_cash_attempts a
+  where a.expense_id=p_expense_record_id and a.request_event_id=p_request_event_id for update;
+  if not found then raise exception using errcode='P0002', message='SCHOOL_EXPENSE_CASH_ATTEMPT_NOT_FOUND'; end if;
+
+  v_expected_fingerprint := public.school_expense_cash_attempt_payload_fingerprint_v3(
+    v_attempt.expense_id,v_attempt.attempt_no,v_attempt.request_type,
+    v_attempt.payment_route,v_attempt.request_event_id,v_attempt.idempotency_key,
+    v_attempt.original_amount,v_attempt.original_currency,v_attempt.payment_amount,
+    v_attempt.payment_currency,v_attempt.cash_funding_account_id,
+    v_attempt.cash_card_instrument_id,v_attempt.charge_date,
+    v_attempt.suggested_fixed_month,v_attempt.target_fixed_month,v_attempt.funding_date
+  );
+  if v_attempt.payment_route<>'fixed_credit_card'
+     or v_attempt.idempotency_key is distinct from p_idempotency_key
+     or v_attempt.original_amount is distinct from p_original_amount
+     or v_attempt.original_currency is distinct from v_original_currency
+     or v_attempt.payment_amount is distinct from p_settlement_amount
+     or v_attempt.payment_currency is distinct from v_currency
+     or v_attempt.cash_funding_account_id is not null
+     or v_attempt.cash_card_instrument_id is distinct from p_card_instrument_id
+     or v_attempt.charge_date is distinct from p_charge_date
+     or v_attempt.suggested_fixed_month is distinct from p_suggested_fixed_month
+     or v_attempt.target_fixed_month is distinct from p_target_fixed_month
+     or v_attempt.funding_date is distinct from p_funding_date
+     or v_attempt.request_payload_fingerprint is distinct from v_expected_fingerprint
+     or v_attempt.request_payload_fingerprint is distinct from p_request_payload_fingerprint then
+    raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_PAYLOAD_CONFLICT';
+  end if;
+  if v_attempt.cash_request_id is not null and v_attempt.cash_request_id is distinct from p_cash_request_id then
+    raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_ATTEMPT_REQUEST_ID_CONFLICT';
+  end if;
+  if v_expense.cash_request_event_id is distinct from v_attempt.request_event_id
+     or v_expense.cash_request_attempt_no is distinct from v_attempt.attempt_no
+     or v_expense.cash_payment_amount is distinct from v_attempt.payment_amount
+     or v_expense.cash_payment_currency is distinct from v_attempt.payment_currency then
+    raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_ATTEMPT_LATEST_STATE_CONFLICT';
+  end if;
+
+  if v_action='submitted' then
+    if p_cash_transaction_id is not null or p_fixed_projection_id is not null or p_fixed_item_id is not null then
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_DOWNSTREAM_FACT_FORBIDDEN';
+    end if;
+    if v_attempt.attempt_status='submitted' then
+      if v_attempt.cash_request_id is distinct from p_cash_request_id
+         or v_expense.cash_request_id is distinct from p_cash_request_id
+         or v_expense.cash_request_status is distinct from 'pending' then
+        raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_SUBMITTED_REPLAY_CONFLICT';
+      end if;
+      v_idempotent := true;
+    elsif v_attempt.attempt_status<>'prepared' then
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_SUBMITTED_TRANSITION_FORBIDDEN';
+    else
+      if v_expense.cash_request_status is distinct from 'pending_cash_request'
+         or v_expense.cash_request_id is not null or v_expense.cash_transaction_id is not null then
+        raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_ATTEMPT_PREPARED_LATEST_STATE_CONFLICT';
+      end if;
+      update public.school_expense_cash_attempts a set
+        cash_request_id=p_cash_request_id,submitted_at=v_now,attempt_status='submitted',
+        latest_error_code=null,latest_error_message=null,version=a.version+1
+      where a.id=v_attempt.id returning * into v_attempt;
+      update public.school_expense_records e set
+        cash_request_id=p_cash_request_id,cash_request_status='pending',
+        cash_requested_at=coalesce(e.cash_requested_at,v_now),cash_error_message=null,updated_at=v_now
+      where e.id=v_expense.id returning * into v_expense;
+    end if;
+  elsif v_action='approved' then
+    -- ①②③ 三处改动全在这个 if 里，其余逐字未改
+    if p_cash_transaction_id is not null or p_fixed_projection_id is null or p_fixed_item_id is null
+       or p_projection_status is distinct from 'projected' or p_projection_version<>1
+       or p_projection_funding_status is distinct from 'unfunded'
+       or p_projection_funding_channel_id is null
+       or p_projection_funding_transaction_id is not null
+       or p_fixed_item_template_id is not null or p_fixed_item_scope is distinct from 'school'
+       or p_fixed_item_currency is distinct from v_currency or p_fixed_item_direction is distinct from 'expense'
+       or p_fixed_item_amount is distinct from p_settlement_amount
+       or p_fixed_item_month_key is distinct from to_char(p_target_fixed_month,'YYYY-MM')
+       or p_fixed_item_due_date is distinct from p_funding_date
+       or nullif(trim(coalesce(p_fixed_item_payment_group,'')),'') is null
+       or p_fixed_item_status is distinct from 'unpaid'
+       or p_fixed_item_account_id is not null
+       or p_fixed_item_linked_jpy_transaction_id is not null
+       or p_fixed_item_linked_cny_transaction_id is not null
+       or p_approved_actor is null or p_result_at is null
+       or p_suggested_fixed_month is distinct from p_target_fixed_month
+       or v_expense.expense_date is distinct from p_charge_date then
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_APPROVAL_EVIDENCE_CONFLICT';
+    end if;
+    if exists (
+      select 1 from public.school_expense_cash_attempts a
+      where a.id<>v_attempt.id and (
+        a.cash_request_id=p_cash_request_id
+        or a.cash_fixed_projection_id=p_fixed_projection_id
+        or a.cash_fixed_item_id=p_fixed_item_id
+      )
+    ) then
+      raise exception using errcode='23505', message='SCHOOL_EXPENSE_CASH_FIXED_APPROVAL_IDENTITY_ALREADY_USED';
+    end if;
+    if v_attempt.attempt_status='approved_fixed' then
+      if v_attempt.cash_request_id is distinct from p_cash_request_id
+         or v_attempt.cash_fixed_projection_id is distinct from p_fixed_projection_id
+         or v_attempt.cash_fixed_item_id is distinct from p_fixed_item_id
+         or v_attempt.approved_at is distinct from p_result_at
+         or v_expense.status is distinct from 'paid'
+         or v_expense.cash_request_status is distinct from 'approved'
+         or v_expense.cash_request_id is distinct from p_cash_request_id
+         or v_expense.cash_transaction_id is not null then
+        raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_APPROVED_REPLAY_CONFLICT';
+      end if;
+      v_idempotent := true;
+    elsif v_attempt.attempt_status='rejected' then
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_REJECTED_CANNOT_APPROVE';
+    elsif v_attempt.attempt_status='prepared' then
+      if v_expense.cash_request_status is distinct from 'pending_cash_request'
+         or v_expense.cash_request_id is not null then
+        raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_APPROVED_RECOVERY_EVIDENCE_REQUIRED';
+      end if;
+      v_recovered := true;
+      update public.school_expense_cash_attempts a set
+        cash_request_id=p_cash_request_id,submitted_at=v_now,
+        cash_fixed_projection_id=p_fixed_projection_id,cash_fixed_item_id=p_fixed_item_id,
+        approved_at=v_now,attempt_status='approved_fixed',
+        callback_recovered_from_prepared=true,callback_recovered_at=v_now,
+        callback_recovery_source='sync-cash-request-result-v2',
+        latest_error_code=null,latest_error_message=null,version=a.version+2
+      where a.id=v_attempt.id returning * into v_attempt;
+    elsif v_attempt.attempt_status='submitted' then
+      update public.school_expense_cash_attempts a set
+        cash_fixed_projection_id=p_fixed_projection_id,cash_fixed_item_id=p_fixed_item_id,
+        approved_at=v_now,attempt_status='approved_fixed',
+        latest_error_code=null,latest_error_message=null,version=a.version+1
+      where a.id=v_attempt.id returning * into v_attempt;
+    else
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_APPROVED_TRANSITION_FORBIDDEN';
+    end if;
+    if not v_idempotent then
+      update public.school_expense_records e set
+        status='paid',cash_request_id=p_cash_request_id,cash_request_status='approved',
+        cash_transaction_id=null,cash_synced_at=v_now,cash_error_message=null,updated_at=v_now
+      where e.id=v_expense.id returning * into v_expense;
+    end if;
+  else
+    if p_cash_transaction_id is not null or p_fixed_projection_id is not null or p_fixed_item_id is not null then
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_REJECTED_DOWNSTREAM_FACT_FORBIDDEN';
+    end if;
+    if v_attempt.attempt_status='rejected' then
+      if v_attempt.cash_request_id is distinct from p_cash_request_id
+         or v_attempt.rejected_at is distinct from p_result_at
+         or v_expense.cash_request_status is distinct from 'rejected'
+         or v_expense.cash_request_id is distinct from p_cash_request_id
+         or v_expense.cash_transaction_id is not null then
+        raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_REJECTED_REPLAY_CONFLICT';
+      end if;
+      v_idempotent := true;
+    elsif v_attempt.attempt_status='approved_fixed' then
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_APPROVED_CANNOT_REJECT';
+    elsif v_attempt.attempt_status='prepared' then
+      if v_expense.cash_request_status is distinct from 'pending_cash_request'
+         or v_expense.cash_request_id is not null then
+        raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_REJECTED_RECOVERY_EVIDENCE_REQUIRED';
+      end if;
+      v_recovered := true;
+      update public.school_expense_cash_attempts a set
+        cash_request_id=p_cash_request_id,submitted_at=v_now,rejected_at=v_now,
+        attempt_status='rejected',callback_recovered_from_prepared=true,
+        callback_recovered_at=v_now,callback_recovery_source='sync-cash-request-result-v2',
+        latest_error_code='CASH_REQUEST_REJECTED',
+        latest_error_message=coalesce(v_reason,'Cash request rejected'),version=a.version+2
+      where a.id=v_attempt.id returning * into v_attempt;
+    elsif v_attempt.attempt_status='submitted' then
+      update public.school_expense_cash_attempts a set
+        rejected_at=v_now,attempt_status='rejected',latest_error_code='CASH_REQUEST_REJECTED',
+        latest_error_message=coalesce(v_reason,'Cash request rejected'),version=a.version+1
+      where a.id=v_attempt.id returning * into v_attempt;
+    else
+      raise exception using errcode='55000', message='SCHOOL_EXPENSE_CASH_FIXED_REJECTED_TRANSITION_FORBIDDEN';
+    end if;
+    if not v_idempotent then
+      update public.school_expense_records e set
+        cash_request_id=p_cash_request_id,cash_request_status='rejected',
+        cash_synced_at=v_now,cash_error_message=coalesce(v_reason,'Cash request rejected'),updated_at=v_now
+      where e.id=v_expense.id returning * into v_expense;
+    end if;
+  end if;
+
+  return query select v_expense.id,v_expense.status,v_expense.cash_request_id,
+    v_expense.cash_request_status,v_expense.cash_transaction_id,
+    v_attempt.cash_fixed_projection_id,v_attempt.cash_fixed_item_id,v_attempt.id,
+    v_attempt.attempt_status,v_attempt.version,v_attempt.callback_recovered_from_prepared,
+    v_idempotent,case
+      when v_idempotent then format('fixed Cash expense attempt %s callback already applied',v_action)
+      when v_recovered then format('fixed Cash expense attempt recovered from prepared and marked %s',v_action)
+      else format('fixed Cash expense attempt marked %s',v_action) end;
+end;
+$function$;
+
+-- ---------------------------------------------------------------------------
+-- 5. attempt_transition_v2 —— P1-1 的病灶所在
+--
+-- 基线正文里这一行把结算值塞进了 callback 的 original 与 settlement 两组槽位：
+--
+--     p_settlement_amount,p_settlement_currency,p_settlement_amount,p_settlement_currency,
+--
+-- 同币种时看不出问题（两组本来就相等），跨币种时 callback 收到的 original 与
+-- attempt 存的对不上，直接 PAYLOAD_CONFLICT。
+--
+-- 加两个参数、按 default null 回落到结算值（与文件头「甲案」同一套理由：
+-- 不传时行为与今天逐字相同，Edge 可以后跟）。
+--
+-- **ACL 是 postgres-only**，与另外两个 wrapper 不同，DROP 后不要照抄它们的模板。
+-- ---------------------------------------------------------------------------
+
+drop function public.school_apply_expense_cash_fixed_attempt_transition_v2(
+  text, uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, timestamptz, text
+);
+
+create function public.school_apply_expense_cash_fixed_attempt_transition_v2(
+  p_action text, p_expense_record_id uuid, p_cash_request_id uuid, p_cash_request_status text,
+  p_payment_route text, p_external_source text, p_request_event_id uuid, p_idempotency_key text,
+  p_external_reference_type text, p_external_reference_id uuid, p_request_type text,
+  p_transaction_type text, p_settlement_amount numeric, p_settlement_currency text,
+  p_card_instrument_id uuid, p_charge_date date, p_suggested_fixed_month date,
+  p_target_fixed_month date, p_funding_date date, p_account_id uuid, p_funding_account_id uuid,
+  p_request_payload_fingerprint text,
+  p_cash_transaction_id uuid default null::uuid,
+  p_fixed_projection_id uuid default null::uuid,
+  p_result_at timestamp with time zone default null::timestamp with time zone,
+  p_rejected_reason text default null::text,
+  p_original_amount numeric default null::numeric,
+  p_original_currency text default null::text
+)
+returns table(expense_id uuid, expense_status text, cash_request_id uuid, cash_request_status text, attempt_id uuid, attempt_status text, attempt_version integer, idempotent boolean, message text)
+language sql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+  select x.expense_id,x.expense_status,x.cash_request_id,x.cash_request_status,
+    x.attempt_id,x.attempt_status,x.attempt_version,x.idempotent,x.message
+  from public.school_apply_expense_cash_fixed_callback_v3(
+    p_action,p_expense_record_id,p_cash_request_id,p_cash_request_status,
+    p_payment_route,p_external_source,p_request_event_id,p_idempotency_key,
+    p_external_reference_type,p_external_reference_id,p_request_type,p_transaction_type,
+    coalesce(p_original_amount,p_settlement_amount),
+    coalesce(p_original_currency,p_settlement_currency),
+    p_settlement_amount,p_settlement_currency,
+    p_card_instrument_id,p_charge_date,p_suggested_fixed_month,p_target_fixed_month,
+    p_funding_date,p_account_id,p_funding_account_id,p_request_payload_fingerprint,
+    p_cash_transaction_id,p_fixed_projection_id,
+    null::text,null::integer,null::text,null::uuid,null::uuid,
+    null::uuid,null::uuid,null::text,null::text,null::text,null::numeric,
+    null::text,null::date,null::text,null::text,null::uuid,null::uuid,null::uuid,
+    null::uuid,p_result_at,p_rejected_reason
+  ) x;
+$function$;
+
+revoke all on function public.school_apply_expense_cash_fixed_attempt_transition_v2(
+  text, uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, timestamptz, text, numeric, text
+) from public, anon, authenticated, service_role;
+
+-- 不 grant 给任何角色：基线 ACL 就是 {postgres=X/postgres}，它只被两个
+-- SECURITY DEFINER wrapper 以 postgres 身份调用（lessons A3「内部 helper」）。
+
+-- ---------------------------------------------------------------------------
+-- 6. mark_submitted_v2 / mark_rejected_v2
+--
+-- 两者都是薄转发层，各加两个参数并往下传。**ACL 带 service_role**（Edge 直接调）。
+--
+-- 注意：mark_approved_v2 不在这里——它签名里本来就有原币两参、直接调 callback，
+-- 本文件不碰它。
+-- ---------------------------------------------------------------------------
+
+drop function public.school_mark_cash_fixed_expense_request_submitted_v2(
+  uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid
+);
+
+create function public.school_mark_cash_fixed_expense_request_submitted_v2(
+  p_expense_record_id uuid, p_cash_request_id uuid, p_cash_request_status text,
+  p_payment_route text, p_external_source text, p_request_event_id uuid,
+  p_idempotency_key text, p_external_reference_type text, p_external_reference_id uuid,
+  p_request_type text, p_transaction_type text, p_settlement_amount numeric,
+  p_settlement_currency text, p_card_instrument_id uuid, p_charge_date date,
+  p_suggested_fixed_month date, p_target_fixed_month date, p_funding_date date,
+  p_account_id uuid, p_funding_account_id uuid, p_request_payload_fingerprint text,
+  p_cash_transaction_id uuid default null::uuid,
+  p_fixed_projection_id uuid default null::uuid,
+  p_original_amount numeric default null::numeric,
+  p_original_currency text default null::text
+)
+returns table(expense_id uuid, expense_status text, cash_request_id uuid, cash_request_status text, attempt_id uuid, attempt_status text, attempt_version integer, idempotent boolean, message text)
+language sql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+  select * from public.school_apply_expense_cash_fixed_attempt_transition_v2(
+    'submitted', p_expense_record_id, p_cash_request_id, p_cash_request_status,
+    p_payment_route, p_external_source, p_request_event_id, p_idempotency_key,
+    p_external_reference_type, p_external_reference_id, p_request_type,
+    p_transaction_type, p_settlement_amount, p_settlement_currency,
+    p_card_instrument_id, p_charge_date, p_suggested_fixed_month,
+    p_target_fixed_month, p_funding_date, p_account_id, p_funding_account_id,
+    p_request_payload_fingerprint, p_cash_transaction_id,
+    p_fixed_projection_id, null, null, p_original_amount, p_original_currency
+  );
+$function$;
+
+revoke all on function public.school_mark_cash_fixed_expense_request_submitted_v2(
+  uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, numeric, text
+) from public, anon, authenticated, service_role;
+
+grant execute on function public.school_mark_cash_fixed_expense_request_submitted_v2(
+  uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, numeric, text
+) to service_role;
+
+drop function public.school_mark_cash_fixed_expense_rejected_v2(
+  uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, text, timestamptz
+);
+
+create function public.school_mark_cash_fixed_expense_rejected_v2(
+  p_expense_record_id uuid, p_cash_request_id uuid, p_cash_request_status text,
+  p_payment_route text, p_external_source text, p_request_event_id uuid,
+  p_idempotency_key text, p_external_reference_type text, p_external_reference_id uuid,
+  p_request_type text, p_transaction_type text, p_settlement_amount numeric,
+  p_settlement_currency text, p_card_instrument_id uuid, p_charge_date date,
+  p_suggested_fixed_month date, p_target_fixed_month date, p_funding_date date,
+  p_account_id uuid, p_funding_account_id uuid, p_request_payload_fingerprint text,
+  p_cash_transaction_id uuid default null::uuid,
+  p_fixed_projection_id uuid default null::uuid,
+  p_rejected_reason text default null::text,
+  p_rejected_at timestamp with time zone default null::timestamp with time zone,
+  p_original_amount numeric default null::numeric,
+  p_original_currency text default null::text
+)
+returns table(expense_id uuid, expense_status text, cash_request_id uuid, cash_request_status text, attempt_id uuid, attempt_status text, attempt_version integer, idempotent boolean, message text)
+language sql
+security definer
+set search_path to 'pg_catalog', 'public'
+as $function$
+  select * from public.school_apply_expense_cash_fixed_attempt_transition_v2(
+    'rejected', p_expense_record_id, p_cash_request_id, p_cash_request_status,
+    p_payment_route, p_external_source, p_request_event_id, p_idempotency_key,
+    p_external_reference_type, p_external_reference_id, p_request_type,
+    p_transaction_type, p_settlement_amount, p_settlement_currency,
+    p_card_instrument_id, p_charge_date, p_suggested_fixed_month,
+    p_target_fixed_month, p_funding_date, p_account_id, p_funding_account_id,
+    p_request_payload_fingerprint, p_cash_transaction_id,
+    p_fixed_projection_id, p_rejected_at, p_rejected_reason,
+    p_original_amount, p_original_currency
+  );
+$function$;
+
+revoke all on function public.school_mark_cash_fixed_expense_rejected_v2(
+  uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, text, timestamptz, numeric, text
+) from public, anon, authenticated, service_role;
+
+grant execute on function public.school_mark_cash_fixed_expense_rejected_v2(
+  uuid, uuid, text, text, text, uuid, text, text, uuid, text, text, numeric, text,
+  uuid, date, date, date, date, uuid, uuid, text, uuid, uuid, text, timestamptz, numeric, text
+) to service_role;
+
 commit;
 
 -- ===========================================================================
@@ -658,10 +1180,31 @@ commit;
 --     c. 把某一列改成可空 → ABORT: 四个金额/币种列中只有 3 个仍是 NOT NULL
 --     d. disable school_guard_expense_cash_attempt_v1 → ABORT: … 不存在或已禁用
 --
+-- 零之二、五个函数的基线断言也要能证伪
+--   逐个改一下 callback_v3 / transition / submitted / rejected / **approved** 的正文，
+--   确认各自报 ABORT: … 已漂移。
+--   **approved 那条尤其要验**：本文件不改它，断言它未漂移是因为整个方案依赖
+--   「它已经在传原币」这个事实——这条断言失效了，方案的前提就没人守。
+--
 -- 一、逐行 diff（E2）
---   函数与 ~/aozora-security-20260827/cash-baseline/
---   school_request_cash_fixed_expense_payment_confirmation_v2-production-20260904-0921.sql
---   比，期望恰好 6 处功能改动（注释与换行重排另计）。**出现第 7 处即为转录错误。**
+--   五个函数分别与 ~/aozora-security-20260827/cash-baseline/ 下的导出比：
+--
+--   | 函数 | 基线文件 | 期望功能改动 |
+--   |---|---|---|
+--   | prepare_..._v2 | ...-production-20260904-0921.sql | **5 处** |
+--   | callback_v3 | ...-production-20260904-1346.sql | **3 处**（全在 approved 分支） |
+--   | attempt_transition_v2 | 同上 | **2 处**（签名 +2 参、original 两槽改 coalesce） |
+--   | mark_submitted_v2 | 同上 | **2 处**（签名 +2 参、转发多传两个） |
+--   | mark_rejected_v2 | 同上 | **2 处**（同上） |
+--   | mark_approved_v2 | ...-production-20260904-1443.sql | **0 处，本文件不碰** |
+--
+--   **任一函数出现计划外差异即为我的转录错误，立即回滚。**
+--   callback_v3 是 250 行 45 参数全文转录，最可能藏错；重点看 submitted 与
+--   rejected 两个分支——那两段我一行没打算改。
+--
+--   ⚠️ **单独确认 classroom 分类检查仍在部署后的 prosrc 里。**
+--      这是本文件最高风险的回归项：那段 09-02 11:21 才进生产，而我手上一度只有
+--      11:06 的归档。见 home_account_book docs/lessons.md E8。
 --
 --   ⚠️ **单独确认 classroom 分类检查仍在部署后的 prosrc 里。**
 --      这是本文件最高风险的回归项：那段 09-02 11:21 才进生产，而我手上一度只有
@@ -672,10 +1215,29 @@ commit;
 --   `(original_currency = payment_currency)` 两个合取项，其余逐字相同**。
 --   部署前 canonical md5 = d3c9df090b4ed7ab7828c412f3205c7e。
 --
--- 二、结构与权限（A3）
---   1. 该函数名下**有且仅有一个重载**，17 个参数
---   2. **proacl 精确等于 {postgres=X/postgres,service_role=X/postgres}**
---      —— 不要只查「有没有 anon」，三个角色任一残留都是权限边界变化
+-- 二、结构与权限（A3）—— **本文件最容易出错的地方**
+--
+--   四次 DROP + CREATE，四个目标 ACL 不完全一样。A3 那个模板在本项目已经被写错
+--   过三次，这一轮要连续用四次。**逐个精确比对，不要只查「有没有 anon」**——
+--   anon / authenticated / service_role 三个角色任一残留都是权限边界变化。
+--
+--   | 函数 | 重载数 | 参数 | 目标 proacl |
+--   |---|---|---|---|
+--   | prepare_..._v2 | 1 | 17 | `{postgres=X/postgres,service_role=X/postgres}` |
+--   | callback_v3 | 1 | 45 | `{postgres=X/postgres}`（未 DROP，应自动保留） |
+--   | attempt_transition_v2 | 1 | 28 | **`{postgres=X/postgres}`** ← 只撤不授 |
+--   | mark_submitted_v2 | 1 | 25 | `{postgres=X/postgres,service_role=X/postgres}` |
+--   | mark_rejected_v2 | 1 | 27 | `{postgres=X/postgres,service_role=X/postgres}` |
+--   | mark_approved_v2 | 1 | 45 | `{postgres=X/postgres,service_role=X/postgres}`（未动） |
+--
+--   五个函数的 owner 均为 postgres、prosecdef 均为 true、
+--   proconfig 均为 {search_path=pg_catalog, public}。
+--
+--   **transition 那条最容易搞错**：它是内部 helper，基线就是 postgres-only，
+--   只被两个 SECURITY DEFINER wrapper 以 postgres 身份调用。照抄另外两个的
+--   「grant to service_role」会凭空开一个外部入口。
+--
+--   附带（原第 1、2 条，针对 prepare）：
 --   3. owner = postgres、prosecdef = true、
 --      proconfig = {search_path=pg_catalog, public}
 --   4. 四列仍 NOT NULL；金额为正、币种限 JPY/CNY 的独立 CHECK 未变
