@@ -151,20 +151,55 @@
 -- 回滚
 -- ===========================================================================
 --
---   1. DROP 本文件建的 17 参数函数
---   2. 从 ~/aozora-security-20260827/cash-baseline/
---      school_request_cash_fixed_expense_payment_confirmation_v2-production-20260904-0921.sql
---      恢复 15 参数版本（该文件本身就是可执行的 CREATE OR REPLACE）
---   3. 恢复 ACL：revoke all from public, anon, authenticated, service_role;
---                grant execute to service_role;
---   4. 恢复约束：
---        alter table public.school_expense_cash_attempts
---          drop constraint school_expense_cash_attempts_route_contract_check;
---      再按 canonical md5 d3c9df090b4ed7ab7828c412f3205c7e 对应的定义重建
---      （源码形态见 sql/current/school_expense_cash_fixed_entry_phase3c3b_20260819.sql:169-210）
+-- **整套回滚必须在一个事务里**，理由与部署相同：中间态会出现「约束已恢复但
+-- writer 还是新版」或反过来，任一都比部署前更糟。
 --
---   **顺序不能反**：先恢复函数再恢复约束，否则 17 参数版本写出的跨币种 attempt
---   会让约束重建失败。回滚前须确认表内没有 original ≠ payment 的行。
+-- 回滚前先确认 `school_expense_cash_attempts` 里**没有 original ≠ payment 的行**。
+-- 若已经产生过跨币种 attempt，恢复旧约束会失败，必须先处理数据——那属于历史数据
+-- 修补，需另行批准，不在本回滚脚本范围内。
+--
+-- ```
+-- begin;
+--
+-- -- 1. 先恢复四个新签名的函数（DROP 新的，CREATE 旧的），顺序：叶子 → 根
+-- --    submitted / rejected 调 transition，transition 调 callback，
+-- --    所以恢复方向与调用方向相反才不会中途出现引用不存在签名的状态。
+--
+-- --  1a. mark_submitted_v2：DROP 25 参数版 → 恢复 23 参数版
+-- --      基线 ...school_mark_cash_fixed_expense_request_submitted_v2-production-20260904-1346.sql
+-- --      ACL: revoke all from public, anon, authenticated, service_role;
+-- --           grant execute to service_role;
+-- --  1b. mark_rejected_v2：DROP 27 参数版 → 恢复 25 参数版
+-- --      基线 ...school_mark_cash_fixed_expense_rejected_v2-production-20260904-1346.sql
+-- --      ACL 同 1a
+-- --  1c. attempt_transition_v2：DROP 28 参数版 → 恢复 26 参数版
+-- --      基线 ...school_apply_expense_cash_fixed_attempt_transition_v2-production-20260904-1346.sql
+-- --      **ACL：只 revoke，不 grant** —— 基线是 {postgres=X/postgres}
+-- --  1d. prepare_..._v2：DROP 17 参数版 → 恢复 15 参数版
+-- --      基线 ...-production-20260904-0921.sql
+-- --      ACL 同 1a
+--
+-- -- 2. callback_v3：签名未变，直接 create or replace 回基线
+-- --    基线 ...school_apply_expense_cash_fixed_callback_v3-production-20260904-1346.sql
+-- --    **不要 DROP** —— 它没被 DROP 过，ACL 一直是 {postgres=X/postgres}，
+-- --    多此一举地 DROP 反而要重建 ACL，多一个出错点。
+--
+-- -- 3. 最后恢复约束
+-- alter table public.school_expense_cash_attempts
+--   drop constraint school_expense_cash_attempts_route_contract_check;
+-- -- 再按 canonical md5 d3c9df090b4ed7ab7828c412f3205c7e 对应的定义重建
+-- -- （源码形态见 sql/current/school_expense_cash_fixed_entry_phase3c3b_20260819.sql:169-210）
+--
+-- commit;
+-- ```
+--
+-- **顺序不能反**：函数全部恢复完再恢复约束。反过来的话，约束已经禁止跨币种，
+-- 而新版 writer 还在，任何跨币种提交会以一个更难诊断的错误失败。
+--
+-- **回滚后同样要 `notify pgrst, 'reload schema';`** —— 四个签名又变回去了。
+--
+-- 五份基线文件的 prosrc md5 见本文件第 0 步断言，回滚后应逐个比对复原。
+-- mark_approved_v2 本文件未改，回滚也不碰。
 --
 -- ===========================================================================
 
@@ -1166,8 +1201,13 @@ commit;
 --
 --   notify pgrst, 'reload schema';
 --
--- 函数签名变了，PostgREST 的 schema 缓存不刷新会继续按 15 参数解析，
--- Edge 调用可能报 PGRST202 / 找不到函数。**这一步不做，提交路线会直接挂。**
+-- **本文件改了四个签名**（prepare 15→17、transition 26→28、submitted 23→25、
+-- rejected 25→27；callback_v3 与 mark_approved_v2 的签名未变）。
+-- 缓存不刷新，PostgREST 会继续按旧参数数解析，Edge 报 PGRST202 / 找不到函数。
+-- **这一步不做，提交与回写两条路线都会挂。**
+--
+-- 刷新之后要**实际调一次改过签名的 RPC** 才算验证。跑 preview / list 证明不了
+-- 什么——那两个 action 不经过本文件改动的任何一个函数。
 --
 -- ===========================================================================
 -- 部署后验证
@@ -1199,7 +1239,7 @@ commit;
 --   | mark_approved_v2 | ...-production-20260904-1443.sql | **0 处，本文件不碰** |
 --
 --   **任一函数出现计划外差异即为我的转录错误，立即回滚。**
---   callback_v3 是 250 行 45 参数全文转录，最可能藏错；重点看 submitted 与
+--   callback_v3 是 250 行 47 参数全文转录，最可能藏错；重点看 submitted 与
 --   rejected 两个分支——那两段我一行没打算改。
 --
 --   ⚠️ **单独确认 classroom 分类检查仍在部署后的 prosrc 里。**
@@ -1224,7 +1264,7 @@ commit;
 --   | 函数 | 重载数 | 参数 | 目标 proacl |
 --   |---|---|---|---|
 --   | prepare_..._v2 | 1 | 17 | `{postgres=X/postgres,service_role=X/postgres}` |
---   | callback_v3 | 1 | 45 | `{postgres=X/postgres}`（未 DROP，应自动保留） |
+--   | callback_v3 | 1 | 47 | `{postgres=X/postgres}`（未 DROP，应自动保留） |
 --   | attempt_transition_v2 | 1 | 28 | **`{postgres=X/postgres}`** ← 只撤不授 |
 --   | mark_submitted_v2 | 1 | 25 | `{postgres=X/postgres,service_role=X/postgres}` |
 --   | mark_rejected_v2 | 1 | 27 | `{postgres=X/postgres,service_role=X/postgres}` |
@@ -1280,6 +1320,46 @@ commit;
 --     4. **request_payload_fingerprint 与同一支出的同币种 attempt 不同**
 --        —— 指纹链覆盖了这四个字段，这一条能证明它确实生效
 --     5. cash_description 里的金额片段是「8000 CNY」
+--
+-- 五之二、**回写链回归（本轮新增的全部行为，必验）**
+--
+--   首版的验收清单只验到 prepare 就停了，而首版被驳回的两条 P1 恰恰都在回写链上。
+--   所以这一节不是补充，是这一版的主验收。全部 rollback-only，
+--   **不需要批准任何真实 Cash 请求**——直接调三个 mark 函数即可。
+--
+--   A. **JPY 旧调用兼容**（比跨币种跑通更重要）
+--      用今天 Edge 的原样参数（不传 p_original_*）依次调：
+--        mark_submitted_v2 → attempt 转 submitted、支出转 pending
+--        mark_rejected_v2  → attempt 转 rejected、支出转 rejected
+--      两者的 attempt version 递增、返回结构、message 文案与部署前逐字相同。
+--      **不传原币时 transition 回落到结算值，与基线行为等价——这条不过，
+--      说明 coalesce 那两行写错了。**
+--
+--   B. **CNY 双金额正确写回**
+--      用第五节造出的跨币种 attempt（original JPY 166100 / payment CNY 8000）：
+--        1. mark_submitted_v2 传 p_original_amount=166100 / p_original_currency='JPY'
+--           → 成功。**首版在这里必然 PAYLOAD_CONFLICT，这条就是 P1-1 的判据。**
+--        2. 同一 attempt 走 mark_rejected_v2 → 成功，attempt 转 rejected
+--        3. 用 Cash 的批准证据调 mark_approved_v2（该函数本轮未改，
+--           原币来自 Cash projection）→ 成功，固定项币种 CNY 被接受。
+--           **首版在这里必然 APPROVAL_EVIDENCE_CONFLICT，这条是 P1-2 的判据。**
+--
+--   C. **该失败的仍然失败**（错误码精确匹配）
+--        a. 传错的原币金额（如 999）        → SCHOOL_EXPENSE_CASH_FIXED_PAYLOAD_CONFLICT
+--        b. 传错的原币币种（如 'USD'）      → SCHOOL_EXPENSE_CASH_FIXED_EXTERNAL_IDENTITY_CONFLICT
+--        c. approved 证据里固定项币种与结算币种不符
+--                                           → SCHOOL_EXPENSE_CASH_FIXED_APPROVAL_EVIDENCE_CONFLICT
+--           ← 这条证明改动 ① 是**换了判据**而不是**拆掉判据**
+--        d. approved 证据里固定项金额 ≠ 结算金额 → 同上
+--           ← 这条证明 p_fixed_item_amount 那条锁我确实留着了
+--        e. 已 approved_fixed 再 rejected   → SCHOOL_EXPENSE_CASH_FIXED_APPROVED_CANNOT_REJECT
+--        f. 已 rejected 再 approved         → SCHOOL_EXPENSE_CASH_FIXED_REJECTED_CANNOT_APPROVE
+--           ← e/f 是我一行没改的分支，必须照旧
+--
+--   D. **幂等与 prepared 恢复**（同样是我没改的分支）
+--        精确重放 submitted / rejected / approved 各一次 → idempotent=true，不重复写
+--        从 prepared 直接 approved / rejected → callback_recovered_from_prepared=true，
+--        version +2
 --
 -- 六、跨库连通（可选，最后做）
 --   把第五节的 payload 喂给 Cash 的 home_create_external_fixed_transaction_request
