@@ -152,6 +152,10 @@ const fixedPrepared = {
   funding_date: "2099-02-25",
   settlement_amount: "5678",
   settlement_currency: "JPY",
+  // 同币种：原币等于结算。跨币种支持加进来之后，这条 fixture 同时充当
+  // 「西武卡行为未变」的回归基线。
+  original_amount: "5678",
+  original_currency: "JPY",
   request_payload_fingerprint: "c".repeat(64),
   cash_description: "教室费用 / codex-test / 2099-01 / 5678 JPY / 信用卡固定支出",
   cash_payload_snapshot: {
@@ -187,6 +191,8 @@ const fixedCashRequest = {
   transaction_type: "expense",
   amount: fixedPrepared.settlement_amount,
   currency: fixedPrepared.settlement_currency,
+  original_amount: fixedPrepared.original_amount,
+  original_currency: fixedPrepared.original_currency,
   account_id: null,
   funding_account_id: null,
   transacted_at: fixedPrepared.charge_date,
@@ -208,6 +214,47 @@ assert.equal(fixedEvidence.p_funding_account_id, null);
 assert.equal(fixedEvidence.p_funding_date, fixedPrepared.funding_date);
 assert.equal(fixedEvidence.p_cash_transaction_id, null);
 assert.equal(fixedEvidence.p_fixed_projection_id, null);
+
+// --- 跨币种（工行卡：JPY 消费 / CNY 结算），2026-09-04 -------------------------
+//
+// 改动前 School 的三个 wrapper 会把 settlement 复制成 original，同币种下看不出
+// 问题，跨币种下就是那条 P1：回调收到的 original 与 attempt 存的对不上。
+// 这几条断言锁住「两组金额各自独立传递」这个新行为。
+
+// 同币种时两组相等 —— 西武卡回归基线
+assert.equal(fixedEvidence.p_original_amount, fixedPrepared.original_amount);
+assert.equal(fixedEvidence.p_original_currency, "JPY");
+assert.equal(fixedEvidence.p_settlement_amount, fixedPrepared.settlement_amount);
+assert.equal(fixedEvidence.p_settlement_currency, "JPY");
+
+// 跨币种时两组各走各的
+const crossCurrencyCashRequest = {
+  ...fixedCashRequest,
+  amount: "8000",
+  currency: "CNY",
+  original_amount: "166100",
+  original_currency: "JPY",
+};
+const crossCurrencyEvidence = shared.buildSchoolExpenseFixedCashEvidence(
+  crossCurrencyCashRequest,
+);
+assert.equal(crossCurrencyEvidence.p_original_amount, "166100");
+assert.equal(crossCurrencyEvidence.p_original_currency, "JPY");
+assert.equal(crossCurrencyEvidence.p_settlement_amount, "8000");
+assert.equal(crossCurrencyEvidence.p_settlement_currency, "CNY");
+
+// 缺原币两列必须失败关闭 —— 漏改 select 清单时就是这个形态
+for (const missing of ["original_amount", "original_currency"]) {
+  assert.throws(
+    () => {
+      const broken = { ...fixedCashRequest };
+      delete broken[missing];
+      return shared.buildSchoolExpenseFixedCashEvidence(broken);
+    },
+    new RegExp(missing),
+    `缺少 ${missing} 时 builder 必须抛错`,
+  );
+}
 assert.throws(
   () => shared.buildSchoolExpenseFixedCashEvidence({
     ...fixedCashRequest,

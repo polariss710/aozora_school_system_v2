@@ -310,6 +310,23 @@ function optionalPositiveNumber(value: unknown, fieldName: string): number | nul
   return requirePositiveNumber(value, fieldName);
 }
 
+// 固定路线用：结算币种可省略（省略时 prepare 回落到原币），给了就必须合法。
+// 不复用 requireCurrency —— 那个的报错文案写死了 actual_payment_currency，
+// 是即时账户路线的字段名。
+function optionalCurrency(value: unknown, fieldName: string): string | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new Error(`${fieldName} must be a string`);
+  }
+  const currency = value.trim().toUpperCase();
+  if (!SUPPORTED_CURRENCIES.has(currency)) {
+    throw new Error(`${fieldName} must be JPY or CNY`);
+  }
+  return currency;
+}
+
 function requireCurrency(value: unknown): string {
   if (typeof value !== "string") {
     throw new Error("actual_payment_currency is required");
@@ -629,6 +646,82 @@ Deno.serve(async (request: Request): Promise<Response> => {
         );
       }
 
+      // 结算金额：跨币种（工行卡 CNY）时由用户手工输入工行账单上的人民币数字。
+      // **不接受汇率**——原币与结算额都是已知事实，从两者反推的汇率没有业务用途，
+      // 多一个可写字段只会多一个权威冲突。这与即时账户路线不同，那条路线有
+      // exchange_rate / rounding_mode，因为它是「只填一个金额、后端算另一个」。
+      const settlementAmount = optionalPositiveNumber(
+        body.settlement_amount,
+        "settlement_amount",
+      );
+      const settlementCurrency = optionalCurrency(
+        body.settlement_currency,
+        "settlement_currency",
+      );
+
+      // 成对校验：只给一个视为调用方出错。prepare RPC 里也有同样一条
+      // （SCHOOL_EXPENSE_CASH_FIXED_SETTLEMENT_PAIR_REQUIRED），这里先挡是为了
+      // 在**写入 School attempt 之前**就失败。
+      if ((settlementAmount === null) !== (settlementCurrency === null)) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "SCHOOL_EXPENSE_CASH_FIXED_SETTLEMENT_PAIR_REQUIRED",
+            message: "结算金额与结算币种必须同时提供。",
+          },
+          400,
+        );
+      }
+
+      // 卡币种一致性 —— 这一条堵的是首轮审核指出的 P2。
+      //
+      // 若不在这里挡：CNY 卡漏传金额 → School 先落库一个 JPY 的 prepared attempt
+      // → Cash 以 HOME_FIXED_REQUEST_CARD_INVALID 拒绝、不创建请求 → 本函数返回
+      // 失败但**不撤销 prepare** → 用户补齐参数重试，被复用分支以
+      // PREPARE_PAYLOAD_CONFLICT 拒 → 没有 Cash 请求可以「拒绝后重提」，
+      // 而 attempt 的金额币种卡字段又被 school_guard_expense_cash_attempt_v1 冻结。
+      // 结果是一个走不通正常流程的 School attempt。
+      //
+      // prepare RPC 自己做不到这个校验：卡在 Cash 库，School 侧看不见它的币种。
+      // 而 schedule 的返回里就带 settlement_currency，此刻已经在手上。
+      // 要判断「不传结算币种时 prepare 会落成什么」，需要支出记录的币种。
+      // fixed 分支本来不读支出记录（prepare 内部读并加锁），这里只取一列做飞行前
+      // 检查——**它不是权威**，prepare 会在自己的事务里重新读。
+      const { data: expenseCurrencyRow, error: expenseCurrencyError } =
+        await schoolClient
+          .from("school_expense_records")
+          .select("currency")
+          .eq("id", expenseRecordId)
+          .eq("app_type", "school")
+          .single();
+      if (expenseCurrencyError || !expenseCurrencyRow) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "SCHOOL_EXPENSE_RECORD_NOT_FOUND",
+            message: "支出记录不存在或无法读取。",
+            details: expenseCurrencyError?.message ?? null,
+          },
+          404,
+        );
+      }
+      const effectiveSettlementCurrency = settlementCurrency ??
+        String((expenseCurrencyRow as { currency?: unknown }).currency ?? "").toUpperCase();
+      if (
+        typeof schedule.settlement_currency === "string" &&
+        schedule.settlement_currency.toUpperCase() !== effectiveSettlementCurrency
+      ) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "SCHOOL_EXPENSE_CASH_FIXED_CARD_CURRENCY_MISMATCH",
+            message:
+              `结算币种与该卡不符：卡为 ${schedule.settlement_currency}，本次提交为 ${effectiveSettlementCurrency}。`,
+          },
+          400,
+        );
+      }
+
       if (!await requireCurrentActiveAdmin(userScopedSchoolClient, schoolUser.id)) {
         return jsonResponse(
           { ok: false, code: "P0G1_ACTIVE_ADMIN_REQUIRED", message: "管理员权限已失效，未创建固定支付attempt。" },
@@ -653,6 +746,9 @@ Deno.serve(async (request: Request): Promise<Response> => {
             p_external_reference_id: expenseRecordId,
             p_request_type: CASH_REQUEST_TYPE,
             p_transaction_type: CASH_TRANSACTION_TYPE,
+            // 两者同时为 null 时，prepare 内部回落到原币，与本次改动前逐字相同。
+            p_payment_amount: settlementAmount,
+            p_payment_currency: settlementCurrency,
           },
         );
       if (fixedPrepareError) {
@@ -736,7 +832,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
           .select([
             "id", "external_source", "external_event_id", "external_reference_type",
             "external_reference_id", "request_type", "transaction_type", "currency",
-            "amount", "account_id", "transacted_at", "status", "idempotency_key",
+            "amount",
+            // 2026-09-04 加：跨币种的原币事实。buildSchoolExpenseFixedCashEvidence
+            // 从这两列取 p_original_*，漏掉会在 requiredAmount 处抛错。
+            "original_amount", "original_currency",
+            "account_id", "transacted_at", "status", "idempotency_key",
             "payload_snapshot", "payment_route", "card_instrument_id", "charge_date",
             "suggested_fixed_month", "target_fixed_month", "funding_account_id",
             "fixed_projection_id", "created_transaction_id",

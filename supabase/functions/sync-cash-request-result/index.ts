@@ -460,6 +460,11 @@ Deno.serve(async (request: Request): Promise<Response> => {
             "transaction_type",
             "currency",
             "amount",
+            // 2026-09-04 加：跨币种的原币事实。buildSchoolExpenseFixedCashEvidence
+            // 从这两列取 p_original_*，漏掉会在 requiredAmount 处抛错。
+            // immediate 路线这两列恒为 NULL，但那条路线不走这个 builder。
+            "original_amount",
+            "original_currency",
             "account_id",
             "transacted_at",
             "status",

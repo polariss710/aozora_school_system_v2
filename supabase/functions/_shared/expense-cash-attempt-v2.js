@@ -240,6 +240,20 @@ export function buildSchoolExpenseFixedCashEvidence(cashRequest) {
     p_transaction_type: requiredText(cashRequest.transaction_type, "transaction_type"),
     p_settlement_amount: requiredAmount(cashRequest.amount, "amount"),
     p_settlement_currency: requiredText(cashRequest.currency, "currency").toUpperCase(),
+    // 原币事实取自 Cash 请求行的 original_* 两列（2026-09-04 加）。
+    //
+    // 不从 payload_snapshot 取，虽然那里也有：Cash 侧的
+    // home_validate_external_request_payment_route 已经把这两列与快照绑定，
+    // 而列是有类型、被触发器冻结的，快照只是 jsonb。同一事实优先读强的那份。
+    //
+    // 跨币种时它们与 settlement 不同（工行卡：JPY 消费 / CNY 结算）；
+    // 同币种时相等，与本函数改动前的行为一致——改动前 School 的三个 wrapper
+    // 会把 settlement 复制成 original，同币种下结果相同，跨币种下就是那条 P1。
+    p_original_amount: requiredAmount(cashRequest.original_amount, "original_amount"),
+    p_original_currency: requiredText(
+      cashRequest.original_currency,
+      "original_currency",
+    ).toUpperCase(),
     p_card_instrument_id: requiredUuid(cashRequest.card_instrument_id, "card_instrument_id"),
     p_charge_date: requiredDate(cashRequest.charge_date, "charge_date"),
     p_suggested_fixed_month: requiredDate(
@@ -297,6 +311,16 @@ export function buildSchoolExpenseFixedApprovedEvidence(cashRequest, approvalEvi
 
   return {
     ...base,
+    // 批准时原币以 **projection 的值** 为准，覆盖 base 从请求行取的那份。
+    // 两者由 Cash 侧构造上必然相等（批准核心把 request.original_* 原样写进
+    // projection），但 projection 是这次批准实际落库的那一行，语义上更近。
+    //
+    // 这里**有意不加 exact() 交叉核对**：本文件的 exact 是严格 !==，而 numeric
+    // 列经 PostgREST 回来可能是字符串（"166100.00" vs 166100），拿它比金额会
+    // 误报——这也是现有代码里 amount / currency 一律不走 exact 的原因。
+    // 真正的核对在 DB：callback_v3 用
+    // `v_attempt.original_amount is distinct from p_original_amount`
+    // 对着 NOT NULL 的 attempt 列比，numeric 对 numeric，不受序列化格式影响。
     p_original_amount: requiredAmount(approvalEvidence.original_amount, "original_amount"),
     p_original_currency: requiredText(approvalEvidence.original_currency, "original_currency").toUpperCase(),
     p_cash_transaction_id: requiredNullableUuid(
