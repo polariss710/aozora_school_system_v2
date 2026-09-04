@@ -1,3 +1,29 @@
+-- ###########################################################################
+-- ##  不完整，禁止部署 —— 2026-09-04 审核驳回（P1-1 / P1-2）
+-- ##
+-- ##  本文件只改了**提交方向**（约束 + prepare RPC），完全没有碰**回写方向**。
+-- ##  跨币种 attempt 一旦建立，下面这条链会全线失败：
+-- ##
+-- ##    school_mark_cash_fixed_expense_request_submitted_v2
+-- ##    school_mark_cash_fixed_expense_rejected_v2
+-- ##      → school_apply_expense_cash_fixed_attempt_transition_v2
+-- ##        → school_apply_expense_cash_fixed_callback_v3
+-- ##
+-- ##  P1-1 中间层把结算金额/币种同时传给 original 与 settlement 两组参数
+-- ##       （phase3d_20260819.sql:511），跨币种时回调收到 original=8000 CNY 而
+-- ##       attempt 存的是 original=166100 JPY → SCHOOL_EXPENSE_CASH_FIXED_PAYLOAD_CONFLICT。
+-- ##       **submitted 标不了，rejected 也回写不了**，所以本文件正文里写的
+-- ##       「填错就 Cash 拒绝后重新提交」对跨币种根本不成立。
+-- ##
+-- ##  P1-2 callback_v3 的 approved 分支仍锁死三条（phase3d_20260819.sql:360）：
+-- ##       fixed_item_currency 必须 JPY、original_currency 必须等于 settlement、
+-- ##       original_amount 必须等于 settlement_amount。
+-- ##       **后果是 Cash 已批准而 School 无法确认，而 Cash 批准不可逆。**
+-- ##       即使 P1-1 修好，这条仍独立存在。
+-- ##
+-- ##  修法：回写链那三个函数必须与本文件同一个事务改完。等生产基线。
+-- ###########################################################################
+
 -- School 侧支持跨币种固定信用卡请求 —— 工行卡（JPY 消费 / CNY 结算）
 --
 -- 日期：2026-09-04
@@ -66,9 +92,27 @@
 --
 --   这个默认**不是在推导新的业务事实**，而是原样保留今天的行为：现有 Edge 不传
 --   金额，今天的函数就是把 v_expense.amount 同时写进 original 与 payment 两组列。
---   唯一危险场景——CNY 卡漏传金额——是**失败关闭**的：settlement 会落成 JPY，
---   而 Cash 侧创建器有 `v_card.settlement_currency is distinct from v_currency`
+--   唯一危险场景——CNY 卡漏传金额——**对 Cash 是失败关闭的**：settlement 会落成
+--   JPY，而 Cash 侧创建器有 `v_card.settlement_currency is distinct from v_currency`
 --   → HOME_FIXED_REQUEST_CARD_INVALID，写不进去。
+--
+--   ⚠️ **但这个论证只覆盖 Cash，不覆盖 School**（审核 P2，2026-09-04）。
+--   实际序列是：
+--
+--     1. School 先落库一个 JPY 的 prepared attempt
+--     2. Cash 返回 CARD_INVALID，没有创建请求
+--     3. 当前 Edge 直接返回失败，**不撤销 prepare**
+--     4. 补齐 CNY 参数重试 → 被复用分支以 PREPARE_PAYLOAD_CONFLICT 拒绝
+--     5. 没有 Cash 请求可以「拒绝后重提」，而 attempt 的金额币种卡字段又被
+--        school_guard_expense_cash_attempt_v1 冻结
+--
+--   → **不会写出错误的 Cash 请求，但会留下一个走不通正常流程的 School attempt。**
+--
+--   修法（待定，与回写链一并处理）：在 prepare 落库**之前**校验卡币种与结算输入
+--   一致。可行位置是 Edge——它在调 prepare 之前已经调过
+--   home_get_school_fixed_card_schedule，而那个函数的返回里就带 settlement_currency
+--   （supabase/functions/request-cash-expense-confirmation/index.ts:599-604）。
+--   prepare RPC 自己做不到：卡在 Cash 库，School 侧看不见它的币种。
 --
 -- 同币种时强制两个金额相等（见函数内 v_payment_* 校验段）：与 Cash 侧
 -- home_external_requests_original_amount_contract_check 的同一条不变式对齐。
@@ -241,13 +285,16 @@ alter table public.school_expense_cash_attempts
 -- ---------------------------------------------------------------------------
 -- 2. prepare RPC：DROP 旧的 15 参数版本，建 17 参数版本
 --
--- 与基线的差异共 6 处：
+-- 与基线的差异共 5 处：
 --   ① 签名末尾追加 p_payment_amount / p_payment_currency，均 default null
 --   ② 新增两个局部变量
 --   ③ 载入支出记录后解析并校验结算金额（不传则等于原币）
 --   ④ 复用分支的四处比对改为对照解析后的结算值
 --   ⑤ 新建 attempt 的 insert：payment 两列取解析值
---   ⑥ 回写支出记录：cash_payment 两列取解析值
+--
+--   订正（审核 2026-09-04）：初稿写「6 处」，把「回写支出记录的 cash_payment 两列」
+--   也算了进去。**那一处其实没有功能变化**——生产本来就取 v_attempt.payment_*，
+--   我这版也是，逐字相同。多报一处改动会让审核去找一个不存在的差异。
 --
 -- 其余逐字未改：两道 Gate、入参校验、外部身份校验、行锁读取、reversed 检查、
 -- **classroom 分类检查**、source_type 分支、状态冲突检查、复用判定、
@@ -708,16 +755,20 @@ commit;
 --
 -- 3b. **顺带发现：这个「原币 JPY / 结算 CNY」的形状，生产里早就有了。**
 --
---    school_personal_cash_income_linkage_events（学生收入侧）上有同名的
---    original_* 与 payment_* 两组列，且
+--    school_personal_cash_income_linkage_events（学生收入侧）上有两组金额列，且
 --    school_get_student_monthly_settlement_historical_completion_candidate
 --    明确要求 `v_cash_original_currency <> 'JPY'` /
 --    `v_cash_payment_currency <> 'CNY'` 时报错
 --    （school_historical_zero_carry_completion_rpcs_20260809.sql:256-259）。
 --
---    也就是说本文件**不是引入新模型，是把收入侧已有的模式补到支出侧**，
---    两侧的列名与语义一致。审核时可以拿它做对照：若两侧对「original 是消费币种、
---    payment 是结算币种」的理解出现分歧，说明我这边写反了。
+--    **列名订正（审核 2026-09-04）**：收入侧那张表用的是
+--    `amount` / `currency` + `payment_amount` / `payment_currency`，
+--    **不是**两组同名的 `original_*`——我初稿写错了。语义仍然对得上：
+--    前者被解释为原币 JPY，后者为结算 CNY。
+--
+--    所以本文件**不是引入新模型，是把收入侧已有的模式补到支出侧**。
+--    审核时可以拿它做对照：若两侧对「第一组是消费币种、第二组是结算币种」的
+--    理解出现分歧，说明我这边写反了。
 --
 -- 4. **request_payload_fingerprint 的生成列**在跨币种下是否正常重算。
 --    审核上一轮确认过指纹函数覆盖 original/settlement 四字段，
