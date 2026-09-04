@@ -5,3 +5,17 @@ supabase/.temp/
 docs/*.csv
 docs/*.xls
 docs/*.xlsx
+
+# 2026-09-01 从公开历史清理掉的安全材料，磁盘副本仍在 docs/ 下（未跟踪）。
+# 归档在本机 ~/aozora-security-20260827/，逐份核过 SHA-256。
+#
+# 这个仓库是 PUBLIC 的，而上面那几条只挡表格文件，挡不住 .md/.txt——
+# 一次 `git add docs/` 或 `git add -A` 就会把它们原样送回公开历史。
+# 2026-08-28 本仓库已经因为 `git add docs/` 误提交过 8 个无关文件，那次没人拦。
+#
+# 内容分别是：Phase D 的绕过路径与生产权限细节、V1 下线安全审计、
+# lesson-clearance 验证材料、以及一份完整 git diff 存档。
+docs/school-v1-decommission-*
+docs/school-v2-settlement-phase-d-*
+docs/school-v2-lesson-clearance-*
+docs/*.txt
