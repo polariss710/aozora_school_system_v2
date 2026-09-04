@@ -688,9 +688,36 @@ commit;
 --    有别的缓存层（比如 Edge Function 侧的连接池预处理语句）。
 --    部署后应实际调一次 Edge 的 preview / list action 确认没坏。
 --
--- 3. **谁还在读 cash_payment_amount。** 该列以前恒等于支出记录金额，现在跨币种时
---    不再相等。年度页、支出列表、撤销 RPC 是否有地方假定了相等，我没有全查。
---    **这一条最可能藏问题**，请用 catalog + 仓库 grep 双向查一遍。
+-- 3. **谁还在读 cash_payment_amount。** 该列以前恒等于支出记录金额，跨币种后不再
+--    相等。**仓库侧已查清（2026-09-04），只剩生产 DB 侧未查。**
+--
+--    仓库侧结论：
+--      · 把 cash_payment_amount 与 v_expense.amount 直接比较的，全项目只有两处，
+--        且都是 prepare RPC 自己复用分支的历史版本
+--        （phase3c3b_20260819.sql:551、category_restriction_20260902.sql:180），
+--        即本文件已经改掉的那两行。**没有第三处。**
+--      · 前端只有四个引用点。渲染走 formatCashPaymentAmount()
+--        （js/pages/expense-detail-page.js:1829-1835），它用
+--        `cash_payment_currency || expense.currency`，跨币种会按结算币种渲染，
+--        不会把 CNY 金额贴上 JPY 符号。列表页只 select 不渲染。
+--
+--    **仍需 Codex 用 catalog 查生产**：磁盘 SQL 不等于生产（lessons B1），
+--    可能存在未进仓库的函数引用这两列。查法：
+--      select p.proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+--      where n.nspname='public' and p.prosrc ~ 'cash_payment_amount';
+--
+-- 3b. **顺带发现：这个「原币 JPY / 结算 CNY」的形状，生产里早就有了。**
+--
+--    school_personal_cash_income_linkage_events（学生收入侧）上有同名的
+--    original_* 与 payment_* 两组列，且
+--    school_get_student_monthly_settlement_historical_completion_candidate
+--    明确要求 `v_cash_original_currency <> 'JPY'` /
+--    `v_cash_payment_currency <> 'CNY'` 时报错
+--    （school_historical_zero_carry_completion_rpcs_20260809.sql:256-259）。
+--
+--    也就是说本文件**不是引入新模型，是把收入侧已有的模式补到支出侧**，
+--    两侧的列名与语义一致。审核时可以拿它做对照：若两侧对「original 是消费币种、
+--    payment 是结算币种」的理解出现分歧，说明我这边写反了。
 --
 -- 4. **request_payload_fingerprint 的生成列**在跨币种下是否正常重算。
 --    审核上一轮确认过指纹函数覆盖 original/settlement 四字段，
