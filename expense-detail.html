@@ -349,6 +349,16 @@
             <span>信用卡</span>
             <select id="cashExpenseCardSelect"></select>
           </label>
+          <!-- 跨币种结算金额。只在固定路线、且所选卡的结算币种与支出记录币种不同时
+               显示（工行卡：JPY 消费 / CNY 结算）。同币种（西武卡）时整个字段隐藏，
+               结算额等于支出记录金额，提交内容与本次改动前逐字相同。
+
+               与上面「实际支付金额」是两个字段，不复用：那个属于即时账户路线，
+               带汇率与取整；这里填的是信用卡账单上印的数字，没有汇率概念。 -->
+          <label class="field is-hidden" data-cash-expense-field="settlementAmount" data-cash-expense-route="fixed_credit_card">
+            <span id="cashExpenseSettlementAmountLabel">结算金额</span>
+            <input id="cashExpenseSettlementAmountInput" type="number" step="0.01" min="0" inputmode="decimal">
+          </label>
           <label class="field expense-create-wide-field" data-cash-expense-field="note">
             <span>备注</span>
             <textarea id="cashExpenseNoteInput" rows="3"></textarea>

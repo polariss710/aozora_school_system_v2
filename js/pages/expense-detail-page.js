@@ -200,6 +200,11 @@ function cacheDom() {
   dom.cashExpensePaymentRouteSelect = document.querySelector("#cashExpensePaymentRouteSelect");
   dom.cashExpensePaymentRouteField = document.querySelector('[data-cash-expense-field="paymentRoute"]');
   dom.cashExpenseCardSelect = document.querySelector("#cashExpenseCardSelect");
+  dom.cashExpenseSettlementAmountInput = document.querySelector("#cashExpenseSettlementAmountInput");
+  dom.cashExpenseSettlementAmountLabel = document.querySelector("#cashExpenseSettlementAmountLabel");
+  dom.cashExpenseSettlementAmountField = document.querySelector(
+    '[data-cash-expense-field="settlementAmount"]',
+  );
   dom.cashExpenseActualDateLabel = document.querySelector("#cashExpenseActualDateLabel");
   dom.cashExpenseNoteInput = document.querySelector("#cashExpenseNoteInput");
   dom.cashExpenseRequestPreview = document.querySelector("#cashExpenseRequestPreview");
@@ -264,6 +269,7 @@ function bindEvents() {
     [dom.cashExpenseActualCurrencySelect, "actualCurrency"],
     [dom.cashExpenseAccountSelect, "cashAccount"],
     [dom.cashExpenseCardSelect, "cardInstrument"],
+    [dom.cashExpenseSettlementAmountInput, "settlementAmount"],
     [dom.cashExpenseNoteInput, "note"],
   ]) {
     const onChange = async () => {
@@ -282,7 +288,14 @@ function bindEvents() {
         if (currentCashExpenseRoute() === "fixed_credit_card") {
           await ensureCashFixedRouteCards();
           renderCashExpenseCardOptions();
+          // 卡列表刚渲染完可能自动选中了唯一可用的一张，而结算金额字段的显隐
+          // 取决于选中的是哪张卡，所以要再跑一次。
+          updateCashExpenseRouteMode();
         }
+      }
+      // 换卡会改变「是否跨币种」，进而改变结算金额字段的显隐与 label。
+      if (input === dom.cashExpenseCardSelect) {
+        updateCashExpenseRouteMode();
       }
       updateCashExpenseRequestPreview();
       // 目标固定月只取决于卡与刷卡日，其余字段变化不必重新拉取。
@@ -1105,32 +1118,56 @@ async function ensureCashFixedRouteCards() {
   }
 }
 
-// 一张卡不可选可能有三种原因，逐一给出而不是笼统禁用：
+// 一张卡不可选现在只剩一种原因：
 //
-//   cash_route_enabled=false  Cash 侧路线 Gate 未开（当前西武卡即是）
-//   币种与支出记录不符        卡的结算币种决定了这笔支出的币种，无法换算
-//   币种尚未支持              CNY 卡的提交路径没打通——prepare RPC 接不了金额，
-//                             而人民币账单需要填实际金额
+//   cash_route_enabled=false  Cash 侧路线 Gate 未开
 //
-// 不可选的卡仍然列出并标注原因，不从列表里去掉。Gate 未开时若直接过滤，列表会
+// 2026-09-04 删掉了另外两条：
+//
+//   ~~币种与支出记录不符~~  当时的理由是「卡的结算币种决定了这笔支出的币种，
+//                          无法换算」。跨币种打通后这条不成立了——原币是支出
+//                          记录的金额，结算额由用户按信用卡账单手工填，不需要
+//                          换算，也不引入汇率。
+//   ~~币种尚未支持~~        当时 prepare RPC 接不了金额，现在能了。
+//
+// 跨币种时改为**要求填结算金额**，而不是禁用整张卡。判定在
+// isCrossCurrencyCard()，字段显隐在 updateCashExpenseRouteMode()。
+//
+// 不可用的卡仍然列出并标注原因，不从列表里去掉。Gate 未开时若直接过滤，列表会
 // 是空的，无从区分「没有卡」与「卡还没启用」。
-function cashCardUnavailableReason(card, expenseCurrency) {
+function cashCardUnavailableReason(card) {
   if (!card.cash_route_enabled) {
     return "Cash 侧未启用";
-  }
-  if (card.settlement_currency !== expenseCurrency) {
-    return `币种不符（${card.settlement_currency}）`;
-  }
-  if (card.settlement_currency !== "JPY") {
-    return "该币种的提交路径尚未启用";
   }
   return null;
 }
 
+// 所选卡是否跨币种。跨币种时结算金额必填，同币种时该字段整体隐藏、
+// 结算额等于支出记录金额（提交内容与 2026-09-04 之前逐字相同）。
+function isCrossCurrencyCard(card, expenseCurrency) {
+  if (!card || !card.settlement_currency) {
+    return false;
+  }
+  return card.settlement_currency !== expenseCurrency;
+}
+
+function selectedCashFixedCard() {
+  const cardId = dom.cashExpenseCardSelect?.value || "";
+  return cashFixedRouteCards.find((item) => item.card_instrument_id === cardId) || null;
+}
+
 function cashCardLabel(card, expenseCurrency) {
   const base = `${card.name || "未命名卡"}（${card.settlement_currency}）`;
-  const reason = cashCardUnavailableReason(card, expenseCurrency);
-  return reason ? `${base} · ${reason}` : base;
+  const reason = cashCardUnavailableReason(card);
+  if (reason) {
+    return `${base} · ${reason}`;
+  }
+  // 跨币种的卡现在是可选的，但要让人在选之前就知道还得填一个金额，
+  // 而不是选完才发现凭空多出一个必填字段。
+  if (isCrossCurrencyCard(card, expenseCurrency)) {
+    return `${base} · 需填结算金额`;
+  }
+  return base;
 }
 
 function renderCashExpenseCardOptions() {
@@ -1141,7 +1178,7 @@ function renderCashExpenseCardOptions() {
   let availableCount = 0;
 
   for (const card of cashFixedRouteCards) {
-    const unavailable = cashCardUnavailableReason(card, expenseCurrency) !== null;
+    const unavailable = cashCardUnavailableReason(card) !== null;
     if (!unavailable) {
       onlyAvailableId = card.card_instrument_id;
       availableCount += 1;
@@ -1177,6 +1214,26 @@ function updateCashExpenseRouteMode() {
   dom.cashExpenseActualDateLabel.textContent = route === "fixed_credit_card"
     ? "刷卡日"
     : "实际支付日（Cash流水日）";
+
+  // 结算金额是固定路线里唯一不只看路线的字段：还要看所选卡是否跨币种。
+  // 上面那个循环已经按路线把它显示出来了，这里再按卡收回去。
+  //
+  // 同币种（西武卡）时隐藏并清空——留着一个填过的值不显示，提交时会被当成
+  // 用户的意图传出去，那是最难查的一类 bug。
+  const expenseCurrency = detailData?.expense?.currency || "JPY";
+  const crossCurrency = route === "fixed_credit_card"
+    && isCrossCurrencyCard(selectedCashFixedCard(), expenseCurrency);
+  if (dom.cashExpenseSettlementAmountField) {
+    dom.cashExpenseSettlementAmountField.classList.toggle("is-hidden", !crossCurrency);
+  }
+  if (!crossCurrency && dom.cashExpenseSettlementAmountInput) {
+    dom.cashExpenseSettlementAmountInput.value = "";
+  }
+  if (crossCurrency && dom.cashExpenseSettlementAmountLabel) {
+    const card = selectedCashFixedCard();
+    dom.cashExpenseSettlementAmountLabel.textContent =
+      `结算金额（${card.settlement_currency}，按信用卡账单填）`;
+  }
 }
 
 // 拉取目标固定月预览。卡或刷卡日变化时调用。
@@ -1194,7 +1251,7 @@ async function refreshCashFixedSchedulePreview() {
   if (
     currentCashExpenseRoute() !== "fixed_credit_card"
     || !card
-    || cashCardUnavailableReason(card, expenseCurrency) !== null
+    || cashCardUnavailableReason(card) !== null
     || !/^\d{4}-\d{2}-\d{2}$/.test(chargeDate || "")
   ) {
     cashFixedSchedulePreviewSeq += 1;
@@ -1241,9 +1298,21 @@ function updateCashExpenseRequestPreview() {
     const card = cashFixedRouteCards.find(
       (item) => item.card_instrument_id === dom.cashExpenseCardSelect.value,
     );
-    const fixedAmountText = expense?.amount != null
+    // 跨币种时两个金额都要显示：左边是原币（租金合同金额），右边是结算额
+    // （信用卡账单上的数字）。只显示一个的话，用户无从判断自己填的那个数
+    // 有没有被采纳。同币种时两者相等，仍按原来的单值显示。
+    const originalAmountText = expense?.amount != null
       ? formatCurrency(Number(expense.amount), expense.currency || "JPY")
       : "-";
+    const settlementRaw = Number(dom.cashExpenseSettlementAmountInput?.value);
+    const crossCurrency = isCrossCurrencyCard(card, expense?.currency || "JPY");
+    const fixedAmountText = crossCurrency
+      ? `${originalAmountText} → ${
+        Number.isFinite(settlementRaw) && settlementRaw > 0
+          ? formatCurrency(settlementRaw, card.settlement_currency)
+          : `? ${card.settlement_currency}`
+      }`
+      : originalAmountText;
     // 目标固定月来自 Cash 侧，不在前端计算。cashFixedSchedulePreview 为空时（尚未
     // 拉取、卡不可用、或拉取失败）只回显输入，不显示一个猜出来的月份。
     const scheduleText = cashFixedSchedulePreview
@@ -1320,10 +1389,31 @@ function readCashExpenseRequestPayload() {
     // 再查一次可用性。不可用的卡在下拉里是 disabled 的，正常点不中，但 value 能被
     // 直接改。真正的拒绝在 Cash 侧（HOME_FIXED_CARD_ROUTE_DISABLED 等），这里只是
     // 让原因就地显示，省掉一趟往返。
-    const unavailableReason = cashCardUnavailableReason(card, expense.currency || "JPY");
+    const unavailableReason = cashCardUnavailableReason(card);
     if (unavailableReason) {
       showCashExpenseRequestError(`该信用卡当前不可用：${unavailableReason}。`, ["cardInstrument"]);
       return null;
+    }
+
+    // 跨币种（工行卡：JPY 消费 / CNY 结算）时必须填结算金额；同币种时这个字段
+    // 是隐藏的，两个值都不传，Edge 与 prepare 会回落到原币——提交内容与
+    // 2026-09-04 之前逐字相同。
+    //
+    // 这里**不算汇率**。原币与结算额都是已知事实：前者是租金合同金额，后者是
+    // 信用卡账单上印的数字。反推出来的汇率没有业务用途，多传一个字段只会多一个
+    // 权威冲突。
+    let settlementAmount = null;
+    let settlementCurrency = null;
+    if (isCrossCurrencyCard(card, expense.currency || "JPY")) {
+      settlementAmount = Number(dom.cashExpenseSettlementAmountInput.value);
+      if (!Number.isFinite(settlementAmount) || settlementAmount <= 0) {
+        showCashExpenseRequestError(
+          `请填写该卡的结算金额（${card.settlement_currency}，按信用卡账单）。`,
+          ["settlementAmount"],
+        );
+        return null;
+      }
+      settlementCurrency = card.settlement_currency;
     }
 
     return {
@@ -1331,6 +1421,8 @@ function readCashExpenseRequestPayload() {
       paymentRoute: "fixed_credit_card",
       cardInstrumentId: cardId,
       chargeDate,
+      settlementAmount,
+      settlementCurrency,
       note: buildCashFixedExpenseRequestNote(expense, chargeDate, card),
     };
   }
@@ -1403,8 +1495,16 @@ function buildCashFixedExpenseRequestNote(expense, chargeDate, card) {
   const amountText = expense.amount != null
     ? formatCurrency(Number(expense.amount), expense.currency || "JPY")
     : "-";
+  // 跨币种时把结算额也写进备注。这条备注会跟着请求进 Cash，是对方审批时唯一
+  // 能一眼看到「这笔原币多少、账单多少」的地方。
+  const settlementRaw = Number(dom.cashExpenseSettlementAmountInput?.value);
+  const settlementText =
+    isCrossCurrencyCard(card, expense.currency || "JPY")
+      && Number.isFinite(settlementRaw) && settlementRaw > 0
+      ? `，账单${formatCurrency(settlementRaw, card.settlement_currency)}`
+      : "";
   const requiredText = `${displayValue(expense.payee_name_snapshot || expense.description)}，`
-    + `${card.name || "信用卡"}刷卡日${chargeDate}，${amountText}`;
+    + `${card.name || "信用卡"}刷卡日${chargeDate}，${amountText}${settlementText}`;
   if (!base) {
     return requiredText;
   }

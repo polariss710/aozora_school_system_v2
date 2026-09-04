@@ -320,6 +320,11 @@ export async function requestCashExpenseConfirmation(payload) {
         payment_route: "fixed_credit_card",
         card_instrument_id: payload.cardInstrumentId,
         charge_date: payload.chargeDate,
+        // 跨币种时是信用卡账单上的结算金额与币种；同币种时两者都是 null，
+        // Edge 与 prepare 会回落到原币，请求体与 2026-09-04 之前逐字相同。
+        // 成对传递：Edge 有一条 SETTLEMENT_PAIR_REQUIRED 挡只给一个的情况。
+        settlement_amount: payload.settlementAmount ?? null,
+        settlement_currency: payload.settlementCurrency ?? null,
         note: payload.note || null,
       }
     : {
