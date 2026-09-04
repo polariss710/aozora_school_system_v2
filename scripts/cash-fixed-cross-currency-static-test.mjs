@@ -92,4 +92,26 @@ assert.match(shared, /p_original_currency: requiredText\(\s*cashRequest\.origina
 // approved 分支仍以 Cash 批准证据为准
 assert.match(shared, /p_original_amount: requiredAmount\(approvalEvidence\.original_amount/);
 
+// --- 6. 缓存版本链三段必须一致 ---------------------------------------------
+//
+// 项目用 `?v=<slug>` 做缓存击穿。改了 page 或 api 却不动版本串，浏览器会拿旧
+// 缓存：新 HTML 配旧 JS，或新页面配旧 API——后者会**静默丢掉结算参数**，
+// 表现是「填了金额但没生效」，极难查。
+//
+// 2026-09-04 首轮审核就是被这条拦下的：page 与 api 都改了，三段版本串一个没动。
+const appEntry = readFileSync("js/expense-detail-app.js", "utf8");
+const chain = [
+  ["HTML → app", html.match(/expense-detail-app\.js\?v=([a-z0-9-]+)/)?.[1]],
+  ["app → page", appEntry.match(/expense-detail-page\.js\?v=([a-z0-9-]+)/)?.[1]],
+  ["page → api", detailPage.match(/expense-detail-api\.js\?v=([a-z0-9-]+)/)?.[1]],
+];
+for (const [hop, version] of chain) {
+  assert.ok(version, `${hop} 找不到版本串`);
+}
+assert.equal(
+  new Set(chain.map(([, v]) => v)).size,
+  1,
+  `缓存版本链三段不一致：${chain.map(([hop, v]) => `${hop}=${v}`).join("  ")}`,
+);
+
 console.log("cash-fixed-cross-currency-static-test: 全部通过");

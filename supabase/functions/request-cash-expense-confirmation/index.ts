@@ -29,6 +29,8 @@ type RequestBody = {
   payment_route?: string;
   card_instrument_id?: string;
   charge_date?: string;
+  settlement_amount?: number | string | null;
+  settlement_currency?: string | null;
   cash_account_id?: string;
   actual_payment_amount?: number | string;
   actual_payment_currency?: string;
@@ -650,14 +652,29 @@ Deno.serve(async (request: Request): Promise<Response> => {
       // **不接受汇率**——原币与结算额都是已知事实，从两者反推的汇率没有业务用途，
       // 多一个可写字段只会多一个权威冲突。这与即时账户路线不同，那条路线有
       // exchange_rate / rounding_mode，因为它是「只填一个金额、后端算另一个」。
-      const settlementAmount = optionalPositiveNumber(
-        body.settlement_amount,
-        "settlement_amount",
-      );
-      const settlementCurrency = optionalCurrency(
-        body.settlement_currency,
-        "settlement_currency",
-      );
+      // 两个解析器都会 throw。不就地接住的话会一路落到外层 catch 变成 500，
+      // 而「用户填了个非数字」是调用方输入问题，应当是 400。
+      let settlementAmount: number | null;
+      let settlementCurrency: string | null;
+      try {
+        settlementAmount = optionalPositiveNumber(
+          body.settlement_amount,
+          "settlement_amount",
+        );
+        settlementCurrency = optionalCurrency(
+          body.settlement_currency,
+          "settlement_currency",
+        );
+      } catch (error) {
+        return jsonResponse(
+          {
+            ok: false,
+            code: "SCHOOL_EXPENSE_CASH_FIXED_SETTLEMENT_INPUT_INVALID",
+            message: error instanceof Error ? error.message : "结算金额或币种无效。",
+          },
+          400,
+        );
+      }
 
       // 成对校验：只给一个视为调用方出错。prepare RPC 里也有同样一条
       // （SCHOOL_EXPENSE_CASH_FIXED_SETTLEMENT_PAIR_REQUIRED），这里先挡是为了

@@ -13,7 +13,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=fixed-card-hidden-class-fix-20260902-1";
+} from "../api/expense-detail-api.js?v=fixed-card-cross-currency-20260904-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -1528,6 +1528,7 @@ function clearCashExpenseRequestErrors() {
     "actualCurrency",
     "cashAccount",
     "cardInstrument",
+    "settlementAmount",
     "note",
   ].forEach((fieldId) => {
     setCashExpenseFieldInvalid(fieldId, false);
