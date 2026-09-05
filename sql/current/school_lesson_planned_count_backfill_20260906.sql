@@ -85,7 +85,7 @@ begin
 
   -- 修复前应为 3 条候选 / JPY 54,000
   select * into strict v_snapshot
-  from public.school_build_student_tuition_generation_snapshot(v_student,'2026-08',0.0415);
+  from public.school_build_student_tuition_generation_snapshot(v_student,'2026-08',0.042);
   if v_snapshot.candidate_count<>3 or v_snapshot.total_fee_jpy<>54000 then
     raise exception 'LESSON_BACKFILL_PRECONDITION_SNAPSHOT_UNEXPECTED: count=% fee=%',
       v_snapshot.candidate_count,v_snapshot.total_fee_jpy;
@@ -167,7 +167,7 @@ begin
 
   -- 目的达成判定：候选 4 条 / JPY 72,000
   select * into strict v_snapshot
-  from public.school_build_student_tuition_generation_snapshot(v_student,'2026-08',0.0415);
+  from public.school_build_student_tuition_generation_snapshot(v_student,'2026-08',0.042);
   if v_snapshot.candidate_count<>4 or v_snapshot.total_fee_jpy<>72000 then
     raise exception 'LESSON_BACKFILL_SNAPSHOT_NOT_REPAIRED: count=% fee=%',
       v_snapshot.candidate_count,v_snapshot.total_fee_jpy;
@@ -186,7 +186,7 @@ order by lesson_date;
 select candidate_count,total_lesson_count,total_fee_jpy,
        generation_manifest_sha256
 from public.school_build_student_tuition_generation_snapshot(
-  'be7effdf-b1eb-4c3d-a24e-0085cc032195','2026-08',0.0415);
+  'be7effdf-b1eb-4c3d-a24e-0085cc032195','2026-08',0.042);
 
 \if :lesson_count_backfill_commit
   commit;

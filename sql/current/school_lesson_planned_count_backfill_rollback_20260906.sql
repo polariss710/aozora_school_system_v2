@@ -113,7 +113,7 @@ order by lesson_date;
 
 select candidate_count,total_lesson_count,total_fee_jpy
 from public.school_build_student_tuition_generation_snapshot(
-  'be7effdf-b1eb-4c3d-a24e-0085cc032195','2026-08',0.0415);
+  'be7effdf-b1eb-4c3d-a24e-0085cc032195','2026-08',0.042);
 
 \if :lesson_count_rollback_commit
   commit;
