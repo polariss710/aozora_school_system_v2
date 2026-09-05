@@ -6,6 +6,12 @@ docs/*.csv
 docs/*.xls
 docs/*.xlsx
 
+# Tabular exports can contain student/teacher rosters and financial evidence.
+# Keep the broad suffix rule and the two known report locations explicit.
+*.tsv
+docs/*.tsv
+sql/current/*.tsv
+
 # 2026-09-01 从公开历史清理掉的安全材料，磁盘副本仍在 docs/ 下（未跟踪）。
 # 归档在本机 ~/aozora-security-20260827/，逐份核过 SHA-256。
 #
