@@ -1,3 +1,27 @@
+-- ⚠️⚠️ 本脚本已作废，不可执行。2026-09-06 交叉审核在排练前拦下。
+--
+-- 不可行的原因（两道，缺一都能挡住）：
+--   1. school_update_lesson_record_guarded_with_venue 显式拒绝已有 actual 关联的
+--      planned 课时：'该预定课时已有 actual 关联，不能编辑。'
+--      见 sql/current/school_update_lesson_record_guarded_rpc.sql:291-299
+--   2. 表级触发器 school_tuition_p0b1_lesson_financial_authority 的 v_relation_frozen
+--      命中同一条件抛 LESSON_FINANCIAL_FACT_IMMUTABLE，**绕过 RPC 直接 UPDATE 同样不行**
+--      见 sql/current/school_tuition_p0b1_lesson_authority_rpc_only_20260803.sql:251-253
+--   本脚本的两条目标课时都已有 completed actual 关联，因此排练都进不去。
+--   且 actual 侧全部 writer 均为 create_*，无 delete / unlink 入口，
+--   「解绑 actual 再改 planned」这条路同样不存在。
+--
+-- 同轮审核发现的第二处缺陷（即使上面两道不存在，本脚本也是错的）：
+--   后置断言**未覆盖 year_month**。core 的更新分支会赋自然月 2026-09，
+--   而 980f3039 当前是计费月 2026-08。脚本若执行，会把一条正确的数据改成
+--   与出问题那条相同的错误状态，而断言不会发现。
+--   —— 全字段回填时，未被断言覆盖的字段会被静默改掉（lessons E8 同族）。
+--
+-- 保留本文件作为「该路径不可行」的记录。实际采用的方案是放宽候选判定中的
+-- lesson_count 必填要求（该字段不参与金额计算）。
+--
+-- ================== 以下为作废前的原始内容 ==================
+--
 -- 预定课时 lesson_count 回填，2026-09-06
 --
 -- 背景：某学生 2026-08 计费周期有 4 节预定课，但只有 3 节进入计费候选。
