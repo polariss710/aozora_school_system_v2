@@ -27,8 +27,25 @@
 --   psql "$DB_URL" -v mode=commit    -v scope=full            -f <本文件>
 --   默认 mode=rehearsal、scope=generation_only（两个默认值都取更保守的一侧）。
 --
+-- 【必填参数：已认可的 v2 canonical md5】
+--   本脚本拒绝在不知道「生产当前应该长什么样」的情况下运行。
+--   六个值取自部署脚本输出的 §10(e) 的「后」列，逐一传入：
+--     -v v2md5_candidates=<md5>            -v v2md5_build=<md5>
+--     -v v2md5_validator=<md5>             -v v2md5_base_core_v1=<md5>
+--     -v v2md5_next_revision_core=<md5>    -v v2md5_next_revision_p0e_core=<md5>
+--   缺任何一个 → LC2_V2_BASELINE_NOT_SUPPLIED；与生产当前不符 →
+--   LC2_V2_BASELINE_DRIFT。后者意味着部署之后有人改过函数，
+--   **不要改期望值让脚本跑过**，先查清那次改动是什么——否则这次回滚会把它整体覆盖。
+--   只核标记挡不住这种情况：热修复只要保留那几个子串就能通过标记检查。
+--
 -- 【还原保真度】被还原的函数正文是生产 2026-09-06 12:05:12 JST 的原文逐字节副本，
 --   脚本末尾断言 md5(pg_get_functiondef(oid)) 精确等于审查报告 Appendix C 的值。
+--   每份定义之后的分号在美元引用之外，不参与该比对。
+--
+-- 【scope=full 的 v2 零计数只是检查那一刻的快照】
+--   它不是整个事务期间的不变量。从「数到 0」到「旧 validator 生效」之间若有
+--   在途 v2 writer 提交，回滚后那张账单就会失配。**排空在途生成调用是脚本外的前提**，
+--   15s lock_timeout 只给失败上限，不建立排空机制。
 -- ===========================================================================
 
 \set ON_ERROR_STOP on
@@ -47,9 +64,43 @@
 \echo '================================================================'
 \echo 'lesson_count 语义修复  回滚'
 \echo 'mode =' :mode '/ scope =' :scope
+
+-- 必须由操作者提供「已认可的 v2 canonical md5」六个值，取自部署脚本
+-- rehearsal/commit 输出的 §10(e)。没有默认值：未提供即硬停止。
+\if :{?v2md5_candidates}
+\else
+\set v2md5_candidates REQUIRED
+\endif
+\if :{?v2md5_build}
+\else
+\set v2md5_build REQUIRED
+\endif
+\if :{?v2md5_validator}
+\else
+\set v2md5_validator REQUIRED
+\endif
+\if :{?v2md5_base_core_v1}
+\else
+\set v2md5_base_core_v1 REQUIRED
+\endif
+\if :{?v2md5_next_revision_core}
+\else
+\set v2md5_next_revision_core REQUIRED
+\endif
+\if :{?v2md5_next_revision_p0e_core}
+\else
+\set v2md5_next_revision_p0e_core REQUIRED
+\endif
+
 \echo '================================================================'
 
-BEGIN;
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+-- REPEATABLE READ：部署前后两次全量扫描因此看到同一份业务数据快照，
+-- 两次结果的差异只可能来自本事务替换的六个函数，而不是并发业务写入
+-- （READ COMMITTED 下每条语句取新快照，归因会被并发污染）。
+-- 本事务自己的 CREATE OR REPLACE 对自己始终可见；plpgsql 按 pg_proc 的
+-- xmin/tid 判断函数是否被改过，同事务内替换后会重新编译，第二次扫描
+-- 用的是新定义。
 SET LOCAL statement_timeout = '300s';
 SET LOCAL lock_timeout = '15s';
 SET LOCAL idle_in_transaction_session_timeout = '600s';
@@ -148,6 +199,64 @@ INSERT INTO lc2_marker(fn_key,variant,needle,must_exist) VALUES
   ('next_revision_p0e_core','v1','lesson_count_semantics',false);
 
 -- ---------------------------------------------------------------------------
+-- §3 前置断言 A-0：完整定义漂移保护
+--   只核标记是不够的：某个部署后打的热修复只要保留这些子串就能通过标记检查，
+--   随后被回滚整体覆盖，而「已回到旧基线」的后置断言照样通过。
+--   所以这里要求操作者把**已认可的 v2 canonical md5**六个值带进来，
+--   与生产当前逐一比对。没有默认值，缺一个就停。
+--
+--   取值来源：部署脚本输出的 §10(e)「六函数 md5：部署前 → 部署后」的「后」列。
+--   若这六个值与生产当前不符，说明部署之后有人改过函数——
+--   **此时不要改这里的期望值来让脚本跑过**，先查清那次改动是什么。
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE lc2_expect_v2(fn_key text PRIMARY KEY, expect_md5 text NOT NULL)
+  ON COMMIT DROP;
+
+INSERT INTO lc2_expect_v2(fn_key,expect_md5) VALUES
+  ('candidates',            :'v2md5_candidates'),
+  ('build',                 :'v2md5_build'),
+  ('validator',             :'v2md5_validator'),
+  ('base_core_v1',          :'v2md5_base_core_v1'),
+  ('next_revision_core',    :'v2md5_next_revision_core'),
+  ('next_revision_p0e_core',:'v2md5_next_revision_p0e_core');
+
+DO $do$
+DECLARE r record; v_cur text; v_missing text := ''; v_bad text := '';
+BEGIN
+  FOR r IN
+    SELECT e.fn_key, e.expect_md5, t.signature
+    FROM lc2_expect_v2 e JOIN lc2_target t USING (fn_key)
+    ORDER BY e.fn_key
+  LOOP
+    IF r.expect_md5 = 'REQUIRED' THEN
+      v_missing := v_missing || format(E'
+  -v v2md5_%s=<md5>', r.fn_key);
+      CONTINUE;
+    END IF;
+    IF to_regprocedure(r.signature) IS NULL THEN
+      RAISE EXCEPTION 'LC2_FUNCTION_MISSING: % 在生产不存在', r.signature;
+    END IF;
+    v_cur := md5(pg_get_functiondef(to_regprocedure(r.signature)::oid));
+    IF v_cur IS DISTINCT FROM r.expect_md5 THEN
+      v_bad := v_bad || format(E'
+  %s
+    认可的 v2 基线 %s
+    生产当前       %s',
+                               r.signature, r.expect_md5, v_cur);
+    END IF;
+  END LOOP;
+  IF v_missing <> '' THEN
+    RAISE EXCEPTION 'LC2_V2_BASELINE_NOT_SUPPLIED: 缺少已认可的 v2 canonical md5，'
+      '无法判断生产是否在部署之后又被改过。请补齐以下参数：%', v_missing;
+  END IF;
+  IF v_bad <> '' THEN
+    RAISE EXCEPTION 'LC2_V2_BASELINE_DRIFT: 生产当前定义不等于已认可的 v2 基线，'
+      '说明部署之后函数被改过。回滚会整体覆盖那次改动，停止。%', v_bad;
+  END IF;
+END
+$do$;
+
+-- ---------------------------------------------------------------------------
 -- §3 前置断言 A：当前必须处于已部署 v2 的状态
 --   这里不核 md5——部署后的 md5 我在离线状态下算不出来，
 --   写死一个猜的值就是把未知量当断言（lessons E10 第三次发作）。
@@ -233,7 +342,8 @@ FROM lc2_target t
 JOIN pg_proc p ON p.oid = to_regprocedure(t.signature)::oid;
 
 \echo '--- ACL / owner 回滚前快照 ---'
-SELECT fn_key, owner, prosecdef, provolatile, acl FROM lc2_acl_before ORDER BY fn_key;
+SELECT fn_key, owner, prosecdef AS secdef, provolatile AS vol, proconfig AS cfg, acl
+FROM lc2_acl_before ORDER BY fn_key;
 
 -- ---------------------------------------------------------------------------
 -- §6 回滚前：全量账单校验扫描
@@ -241,8 +351,9 @@ SELECT fn_key, owner, prosecdef, provolatile, acl FROM lc2_acl_before ORDER BY f
 --   判据是「不新增失败」而不是「全部通过」——生产可能本来就有失败项，
 --   拿绝对值当断言会制造假阳性硬停止（lessons E10 第三次发作）。
 -- ---------------------------------------------------------------------------
-CREATE TEMP TABLE lc2_validation_before(bill_id uuid PRIMARY KEY, ok boolean NOT NULL, err text)
-  ON COMMIT DROP;
+CREATE TEMP TABLE lc2_validation_before(
+  bill_id uuid PRIMARY KEY, ok boolean NOT NULL, sqlstate text, err text
+) ON COMMIT DROP;
 
 DO $do$
 DECLARE r record;
@@ -250,9 +361,9 @@ BEGIN
   FOR r IN SELECT b.id FROM public.school_student_tuition_bills b ORDER BY b.id LOOP
     BEGIN
       PERFORM public.school_validate_tuition_bill_lessons_for_bill(r.id);
-      INSERT INTO lc2_validation_before(bill_id,ok,err) VALUES (r.id,true,NULL);
+      INSERT INTO lc2_validation_before(bill_id,ok,sqlstate,err) VALUES (r.id,true,NULL,NULL);
     EXCEPTION WHEN OTHERS THEN
-      INSERT INTO lc2_validation_before(bill_id,ok,err) VALUES (r.id,false,SQLERRM);
+      INSERT INTO lc2_validation_before(bill_id,ok,sqlstate,err) VALUES (r.id,false,SQLSTATE,SQLERRM);
     END;
   END LOOP;
 END
@@ -263,7 +374,7 @@ SELECT count(*) FILTER (WHERE ok)     AS "通过",
        count(*) FILTER (WHERE NOT ok) AS "失败",
        count(*)                       AS "总数"
 FROM lc2_validation_before;
-SELECT bill_id, err FROM lc2_validation_before WHERE NOT ok ORDER BY bill_id;
+SELECT bill_id, sqlstate AS "SQLSTATE", err FROM lc2_validation_before WHERE NOT ok ORDER BY bill_id;
 
 -- ---------------------------------------------------------------------------
 -- §7 还原（正文为 2026-09-06 12:05:12 JST 生产原文的逐字节副本）
@@ -493,7 +604,7 @@ BEGIN
      OR classified.reason_code = 'candidate'
   ORDER BY classified.billing_week_start_date,classified.lesson_date,classified.id;
 END
-$function$
+$function$;
 
 -- ---- 还原 public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)
 CREATE OR REPLACE FUNCTION public.school_build_student_tuition_generation_snapshot(p_student_id uuid, p_billing_month text, p_billing_exchange_rate numeric)
@@ -707,7 +818,7 @@ BEGIN
     p_billing_exchange_rate,v_amount_cny,v_uuid_md5,v_candidate_manifest,
     v_generation_manifest,v_candidates;
 END
-$function$
+$function$;
 
 -- validator 只在 scope=full 时还原；generation_only 保留兼容版本
 \if :lc2_restore_validator
@@ -875,7 +986,7 @@ BEGIN
     END IF;
   END IF;
 END
-$function$
+$function$;
 \endif
 
 -- ---- 还原 public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text)
@@ -1259,7 +1370,7 @@ BEGIN
     v_snapshot.previous_carryover_cny,v_snapshot.billing_amount_cny,
     v_bill.status,v_income.status,false,'atomic tuition bill, identity, relations and pending income created'::text;
 END
-$function$
+$function$;
 
 -- ---- 还原 public.school_generate_student_tuition_next_revision_core(uuid,uuid,uuid,text,numeric,text,text,text)
 CREATE OR REPLACE FUNCTION public.school_generate_student_tuition_next_revision_core(p_generation_identity_id uuid, p_previous_revision_id uuid, p_student_id uuid, p_billing_month text, p_billing_exchange_rate numeric, p_expected_generation_manifest_sha256 text, p_note text, p_test_fail_after_step text)
@@ -1420,7 +1531,7 @@ begin
     v_snapshot.billing_exchange_rate,v_snapshot.previous_carryover_cny,v_snapshot.billing_amount_cny,
     v_bill.status,v_income.status,false,'atomic tuition revision created'::text;
 end;
-$function$
+$function$;
 
 -- ---- 还原 public.school_generate_student_tuition_next_revision_p0e_core(uuid,uuid,uuid,text,numeric,text,text,text)
 CREATE OR REPLACE FUNCTION public.school_generate_student_tuition_next_revision_p0e_core(p_generation_identity_id uuid, p_previous_revision_id uuid, p_student_id uuid, p_billing_month text, p_billing_exchange_rate numeric, p_expected_generation_manifest_sha256 text, p_note text, p_test_fail_after_step text)
@@ -1607,7 +1718,7 @@ begin
     v_snapshot.billing_exchange_rate,v_snapshot.previous_carryover_cny,v_snapshot.billing_amount_cny,
     v_bill.status,v_income.status,false,'atomic tuition revision created'::text;
 end;
-$function$
+$function$;
 
 -- ---------------------------------------------------------------------------
 -- §8 回滚后：全量账单校验扫描
@@ -1615,8 +1726,9 @@ $function$
 --   判据是「不新增失败」而不是「全部通过」——生产可能本来就有失败项，
 --   拿绝对值当断言会制造假阳性硬停止（lessons E10 第三次发作）。
 -- ---------------------------------------------------------------------------
-CREATE TEMP TABLE lc2_validation_after(bill_id uuid PRIMARY KEY, ok boolean NOT NULL, err text)
-  ON COMMIT DROP;
+CREATE TEMP TABLE lc2_validation_after(
+  bill_id uuid PRIMARY KEY, ok boolean NOT NULL, sqlstate text, err text
+) ON COMMIT DROP;
 
 DO $do$
 DECLARE r record;
@@ -1624,9 +1736,9 @@ BEGIN
   FOR r IN SELECT b.id FROM public.school_student_tuition_bills b ORDER BY b.id LOOP
     BEGIN
       PERFORM public.school_validate_tuition_bill_lessons_for_bill(r.id);
-      INSERT INTO lc2_validation_after(bill_id,ok,err) VALUES (r.id,true,NULL);
+      INSERT INTO lc2_validation_after(bill_id,ok,sqlstate,err) VALUES (r.id,true,NULL,NULL);
     EXCEPTION WHEN OTHERS THEN
-      INSERT INTO lc2_validation_after(bill_id,ok,err) VALUES (r.id,false,SQLERRM);
+      INSERT INTO lc2_validation_after(bill_id,ok,sqlstate,err) VALUES (r.id,false,SQLSTATE,SQLERRM);
     END;
   END LOOP;
 END
@@ -1637,7 +1749,7 @@ SELECT count(*) FILTER (WHERE ok)     AS "通过",
        count(*) FILTER (WHERE NOT ok) AS "失败",
        count(*)                       AS "总数"
 FROM lc2_validation_after;
-SELECT bill_id, err FROM lc2_validation_after WHERE NOT ok ORDER BY bill_id;
+SELECT bill_id, sqlstate AS "SQLSTATE", err FROM lc2_validation_after WHERE NOT ok ORDER BY bill_id;
 
 -- ---------------------------------------------------------------------------
 -- §9 后置断言
@@ -1718,11 +1830,40 @@ BEGIN
 END
 $do$;
 
--- (d) 账单校验不得回归：原本通过的一张都不能变成失败
+-- (d0) 两次扫描必须覆盖同一批账单
+--   REPEATABLE READ 下这本应恒成立；不成立就说明快照假设被打破，
+--   此时任何「回归 / 未回归」的结论都失去归因基础，必须停。
+\echo '--- 两次扫描的账单集合对照 ---'
+SELECT
+  (SELECT count(*) FROM lc2_validation_before) AS "前扫描条数",
+  (SELECT count(*) FROM lc2_validation_after)  AS "后扫描条数",
+  (SELECT count(*) FROM lc2_validation_before b
+     WHERE NOT EXISTS (SELECT 1 FROM lc2_validation_after a WHERE a.bill_id=b.bill_id))
+     AS "仅出现在前",
+  (SELECT count(*) FROM lc2_validation_after a
+     WHERE NOT EXISTS (SELECT 1 FROM lc2_validation_before b WHERE b.bill_id=a.bill_id))
+     AS "仅出现在后";
+
+DO $do$
+DECLARE v_only_before integer; v_only_after integer;
+BEGIN
+  SELECT count(*) INTO v_only_before FROM lc2_validation_before b
+   WHERE NOT EXISTS (SELECT 1 FROM lc2_validation_after a WHERE a.bill_id=b.bill_id);
+  SELECT count(*) INTO v_only_after FROM lc2_validation_after a
+   WHERE NOT EXISTS (SELECT 1 FROM lc2_validation_before b WHERE b.bill_id=a.bill_id);
+  IF v_only_before <> 0 OR v_only_after <> 0 THEN
+    RAISE EXCEPTION 'LC2_SWEEP_SET_DRIFT: 两次扫描的账单集合不同（仅前 % / 仅后 %）。'
+      'REPEATABLE READ 事务内不应发生，快照假设已被打破，回归判据失去归因基础。',
+      v_only_before, v_only_after;
+  END IF;
+END
+$do$;
+
+-- (d1) 账单校验不得回归：原本通过的一张都不能变成失败
 DO $do$
 DECLARE v_regressed integer; v_detail text;
 BEGIN
-  SELECT count(*), string_agg(format(E'\n  %s → %s', b.bill_id, a.err), '')
+  SELECT count(*), string_agg(format(E'\n  %s  %s  %s', b.bill_id, a.sqlstate, a.err), '')
   INTO v_regressed, v_detail
   FROM lc2_validation_before b JOIN lc2_validation_after a USING (bill_id)
   WHERE b.ok AND NOT a.ok;
@@ -1733,8 +1874,19 @@ BEGIN
 END
 $do$;
 
+-- (d2) 观测项，不参与判定：本来就失败、但失败方式变了的账单
+--   「原本失败的仍然失败」不等于「没受影响」，SQLSTATE 或原因变了要人来看。
+\echo '--- 失败原因发生变化的账单（观测项）---'
+SELECT b.bill_id,
+       b.sqlstate AS "前 SQLSTATE", a.sqlstate AS "后 SQLSTATE",
+       b.err AS "前原因", a.err AS "后原因"
+FROM lc2_validation_before b JOIN lc2_validation_after a USING (bill_id)
+WHERE NOT b.ok AND NOT a.ok
+  AND (b.sqlstate,b.err) IS DISTINCT FROM (a.sqlstate,a.err)
+ORDER BY b.bill_id;
+
 \echo '--- 由失败转为通过的账单（观测项，不参与判定）---'
-SELECT b.bill_id, b.err AS "原失败原因"
+SELECT b.bill_id, b.sqlstate AS "原 SQLSTATE", b.err AS "原失败原因"
 FROM lc2_validation_before b JOIN lc2_validation_after a USING (bill_id)
 WHERE NOT b.ok AND a.ok
 ORDER BY b.bill_id;

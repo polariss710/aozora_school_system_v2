@@ -84,6 +84,28 @@ p0e_core L115），序号在 builder 补好即自动正确。
 `school_import_historical_part_time_work_batch` L93 的
 `sum(expected_lesson_count)` 是外部导入的预期记录数，与本序号无关，**不改**。
 
+### 4.4 builder 的全部直接调用方：9 个（2026-09-06 13:46 复核修正）
+
+第二稿只列了两个 preview 连带点，**那是错的**。生产 public 正文扫描得到的
+builder 直接调用方共 9 个，全部会拿到新的 `total_lesson_count` 与重编序号：
+
+| 类别 | 函数 | 处置 |
+|---|---|---|
+| preview | `school_get_student_tuition_validation_preview_details` | 行为自动变化，不改代码 |
+| preview | `school_get_atomic_tuition_reissue_preview_p0e` | 同上 |
+| preview（封存） | `school_p0c_baseline_tuition_preview_details` | L234 调 builder、L246 透传总值，**本次不改** |
+| writer | `..._atomic_base_core_v1` / `..._next_revision_core` / `..._next_revision_p0e_core` | 本次修改对象 |
+| reissue 中间层 | `school_reissue_atomic_student_tuition_generation_local` | 先构造 snapshot 比对预期再委托 atomic core，**不是漏标 writer** |
+| reissue 中间层 | `school_p0e_base_reissue_local` | 同上 |
+| 封存 writer | `school_p0c_baseline_generate_atomic_core` | L260/L349 仍写无版本键快照，本次不改 |
+
+⚠️ 「封存」不等于「完全无依赖」。若绕过封存约定去调
+`school_p0c_baseline_generate_atomic_core`，它会用**新 builder 的输出**配**旧标记方式**，
+产出一张 `total = count` 却不带版本键的账单——兼容 validator 会按 v1 用序号和去校验它。
+本次依既定范围不改它，但这是必须记下的剩余风险。
+
+⚠️ public 正文扫描**不覆盖**外部运维脚本与动态拼接的调用字符串。
+
 ## 5. builder 改法
 
 `candidate_rows` 当前只投影 `teacher_id` / `subject_id` / `updated_at` /
