@@ -1,318 +1,334 @@
-# 学费候选与总课次数的 lesson_count 语义修复 —— 设计（2026-09-06）
+# 学费候选与总课次数的 lesson_count 语义修复 —— 设计（2026-09-06，第二稿）
+
+> 第一稿（commit `2191430`）经交叉审查**不通过**，基础路线可行、六处需修订。
+> 本稿为修订版。审查报告：
+> `~/aozora-security-20260827/lesson-count-design-review-20260906-12:05-report.md`
+>
+> **所有行号以单个 `pg_get_functiondef(oid)` 从 1 起算**（第一稿用错了另一份导出的偏移）。
 
 ## 1. 问题
 
-`lesson_count`（回数）是**排序用的组内序号**，却在三处被当作数量使用，
-导致两类缺陷：
+`lesson_count`（回数）是**排序用的组内序号**，却在三处被当作数量：
 
 | # | 位置 | 现状 | 后果 |
 |---|---|---|---|
-| 1 | 候选判定 `school_list_student_tuition_candidates` L172-173 | 要求 `IS NOT NULL AND > 0` | 缺该字段的课时**被排除出账单**，无任何报错 |
-| 2 | builder `school_build_student_tuition_generation_snapshot` L150 | `coalesce(sum(detail.lesson_count),0)` → `total_lesson_count` | 把序号求和当次数 |
-| 3 | validator `school_validate_tuition_bill_lessons_for_bill` L30/L119 | `sum(rel.lesson_count_snapshot)` 且与快照 total **强制相等** | 使 #2 无法单独修改 |
+| 1 | `school_list_student_tuition_candidates` L172-173 | 要求 `IS NOT NULL AND > 0` | 缺该字段的课时**被排除出账单**，无报错 |
+| 2 | builder `school_build_student_tuition_generation_snapshot` **L150** | `coalesce(sum(detail.lesson_count),0)` | 把序号求和当次数 |
+| 3 | validator `school_validate_tuition_bill_lessons_for_bill` **L30 / L119** | `sum(rel.lesson_count_snapshot)` 且与快照 total 强制相等 | 使 #2 无法单独修改 |
 
 前端 `js/pages/income-page.js:1958` 并排显示
-`${candidate_count} 条 / ${total_lesson_count} 次`——两个数本该相等。
-目标学生 `be7effdf-…` 现在显示「3 条 / 4 次」，即缺陷的直接体现。
+`${candidate_count} 条 / ${total_lesson_count} 次`，两数本应相等。
 
-另见 `js/utils/tuition-validation-preview.js:87`、`js/pages/income-page.js:2027`。
-三处**均为内部管理页面，不是对外账单**。
+**佐证**：`school_get_atomic_tuition_void_preflight` L1220 对同名展示值用的是
+`count(*)::integer`——本次修复是**向系统内既有正确实现对齐**，不是引入新语义。
 
-## 2. 回数的业务语义（业务负责人 2026-09-06 确认）
+## 2. 回数的业务语义（业务负责人确认）
 
-- **只用于排序**，不参与任何计算
-- 作用域是**同一周内的同一门课**：一周两次的课才有第 1、2 回，
-  下一周重新从第 1 回开始
-- 一周只有一次的课，**每周都是第 1 回**
-- 曾设想按月累计（第 1～8 回），因难以计算而放弃
+- **仅用于排序**，不参与任何计算
+- 作用域：**同一学生、同一周、同一科目**。一周两次的课得第 1、2 回，
+  下一周重新开始；一周一次的永远是第 1 回
+- 曾设想按月累计（1～8 回），因难以计算而放弃
 
-因此 `sum(lesson_count)` 无论如何都不等于课次数：
-一周两次的课贡献 1+2=3，而实际是 2 次。
+`subject_id` 是正确的分组维度，**不应额外按 `teacher_id` 分组**
+（否则同科换老师会重新编号）。若业务另有「科目下独立课程/班次」的定义，
+那是另一件事，不能凭当前样本推定。
 
-## 3. 成因
+## 3. 影响面（2026-09-06 生产实测）
 
-`lesson_count` 在若干历史创建路径下未被填写。已确认的路径至少三种：
-批量排课生成器、Excel 导入、单条创建。
-
-批量生成器 `school_generate_planned_lessons_batch_r1d_f1_legacy_core` L425-432
-仍存在 NULL 分支（`occurrence_count = 1` 且 pattern 未填回数时写 NULL），
-但当前 UI 的「每周次数 / 起始回数」均有默认值，该分支在现行入口下走不到。
-**历史数据缺该字段属于功能逐步演进的正常结果，不作为本次必修项。**
-
-## 4. 影响面（2026-09-06 生产实测）
-
-放宽判定后会新进候选的课时共 **5 条**，均满足其余全部必填条件、
-且**从未被任何账单关联**：
+放宽判定后新进候选 **5 条**，均满足其余全部必填条件、从未被任何账单关联：
 
 | billing_month | 条数 | 合计 JPY |
 |---|---:|---:|
 | 2026-04 | 2 | 36,000 |
 | 2026-06 | 2 | 47,375 |
 | 2026-08 | 1 | 18,000 |
-| 合计 | 5 | 101,375 |
 
-历史账单中「序号和 ≠ 条数」的共 **8 张**，其中 active **5 张**
-——这 5 张是将来真会走 Reissue / next revision 的部分，
-也是版本兼容机制要覆盖的范围。
+**这四个「学生 × 月份」组合均无账单**，其学费已由其他方式收讫，
+不构成欠款（业务负责人确认；不可由「无账单」推断「未付款」）。
 
-## 5. 设计
+## 4. 改动范围
 
-### 5.1 候选判定：去掉必填
+### 4.1 正常路径六个函数
+
+| # | 函数 | 改动 | 位置 |
+|---|---|---|---|
+| 1 | `school_list_student_tuition_candidates` | 删两行必填判定 | L172-173 |
+| 2 | `school_build_student_tuition_generation_snapshot` | 新增 `ranked_candidates` CTE；L126 换序号；L150 改 `count(*)` | 见 §5 |
+| 3 | `school_validate_tuition_bill_lessons_for_bill` | 版本分支 + 版本契约校验 | L101 之后 |
+| 4 | `..._atomic_base_core_v1` | bill/income 两处快照加 `lesson_count_semantics` | L258 / L347 |
+| 5 | `..._next_revision_core` | 同上 | L73 / L128 |
+| 6 | `..._next_revision_p0e_core` | 同上 | L89 / L144 |
+
+**三个 writer 的明细 INSERT 不改**：均读 `v_snapshot.candidates` 的
+`v_line->>'lesson_count'`（base_core_v1 L307、next_revision_core L99、
+p0e_core L115），序号在 builder 补好即自动正确。
+
+⚠️ **不要给 `relation.source_snapshot` 单独加版本键**——validator L90-93
+要求它去掉两个 manifest 键后与 `candidate_line` **整体相等**，加键即破坏该检查。
+
+### 4.2 baseline 函数：封存，不改
+
+`school_p0c_baseline_generate_atomic_core`（L260/L349）、
+`school_p0c_baseline_validate_tuition_bill_lessons_for_bill`（L24/L116）、
+`school_p0c_baseline_list_student_tuition_candidates` 含同样的旧逻辑。
+
+三者 ACL 均为 `postgres=X/postgres`，生产 public 正文与 `pg_depend`
+均未发现调用者。**本次不改、不动其 ACL**，但设计上必须写明：
+
+> **baseline 系列为封存基线，不用于真实生成，也不用于新版本验收。**
+> 不可宣称「全库只有一个旧 sum validator」——外部 postgres 运维代码若调用它，
+> 行为仍是 v1。
+
+### 4.3 不属于本次范围
+
+`school_import_historical_part_time_work_batch` L93 的
+`sum(expected_lesson_count)` 是外部导入的预期记录数，与本序号无关，**不改**。
+
+## 5. builder 改法
+
+`candidate_rows` 当前只投影 `teacher_id` / `subject_id` / `updated_at` /
+空调与场地字段，**没有 `start_time`**（第一稿凭空使用了它）。
 
 ```sql
--- school_list_student_tuition_candidates，删除这两行
-AND evidence.lesson_count IS NOT NULL
-AND evidence.lesson_count > 0
-```
+-- ① candidate_rows 增加投影
+lesson.start_time AS source_start_time
 
-**不要改写成 `coalesce(lesson_count, 1)`** ——那会让 `sum` 多算 1，
-在 5.2 落地前反而把 `total_lesson_count` 弄错。
+-- ② candidate_rows 之后、canonical_lines 之前，新增
+ranked_candidates AS (
+  SELECT detail.*,
+    row_number() OVER (
+      PARTITION BY detail.student_id, detail.subject_id,
+                   detail.billing_week_start_date
+      ORDER BY detail.lesson_date,
+               nullif(btrim(detail.source_start_time), '')::time NULLS LAST,
+               detail.planned_lesson_id
+    )::integer AS bill_lesson_ordinal
+  FROM candidate_rows detail
+)
 
-其余必填条件全部保留。金额相关的三项
-（`duration_hours > 0`、`unit_price` 非空且 > 0、`lesson_fee` 非空且 > 0）
-仍在，因此**不会放过任何算不出钱的课时**。
+-- ③ canonical_lines 改为 FROM ranked_candidates detail
+--    L126 的 JSON 值换成：
+'lesson_count', detail.bill_lesson_ordinal
 
-### 5.2 builder：改为条数，并标记语义版本
-
-```sql
--- L150
+-- ④ aggregated L150
 coalesce(sum(detail.lesson_count),0)::integer  →  count(*)::integer
 ```
 
-同时在写入 `source_snapshot` 时加入：
+**保留原始 `detail.lesson_count`，另起 `bill_lesson_ordinal`**，
+避免 `SELECT *` 产生同名列。`row_number()` 返回 bigint，转 integer 与明细列契约一致。
 
-```json
-"lesson_count_semantics": "v2"
+### 5.1 start_time 的空值处理（必须写死）
+
+生产 515 条 planned 中 **373 条 `start_time` 为 NULL、2 条为空串**，
+其余符合 `HH:MM` 或 `HH:MM:SS`；该列为 `text` 且**无 CHECK**。
+直接 `::time` 会在空串处报错。
+
+规则：**空白（NULL 或空串）视为缺失并排在最后**（`NULLS LAST`），不改源事实。
+UUID 仅作为同刻或缺刻时的稳定次序，**不代表真实时间先后**。
+
+未来若出现非法的非空文本，**不得静默过滤丢课**——应显式失败或另行定义，
+本设计不引入新的隐式排除条件。
+
+### 5.2 返回数组顺序不改（前端契约）
+
+builder L157-163 的 `string_agg` / `jsonb_agg` 均按
+**周 → 日期 → UUID** 排序，而前端
+`js/utils/tuition-validation-preview.js:71-77` 强制校验同一次序，违反即拒绝显示。
+
+**本次只计算编号，不动数组排序。** 窗口 `ORDER BY` 不会替代聚合 `ORDER BY`。
+
+副作用：同日不同时刻且 UUID 反序时，数组里可能出现「回数 2 排在回数 1 之前」。
+若业务要求展示也按时刻排列，需另行纳入数组排序与前端校验契约，
+届时六函数范围不再够用。
+
+新增 CTE 与调整 SELECT 列的物理顺序**不改变 hash**：hash 输入是显式构造的
+`canonical_line::text`，不是 `to_jsonb(detail)`；`source_start_time` 等辅助列不会进入 JSON。
+
+## 6. validator 改法
+
+`v_lesson_count` 除声明外只在 L99（聚合 `INTO`）与 L119（比较）出现，
+`v_count` 在同一 `INTO` 已赋值。
+
+**插入点：L101 分号之后、L103 candidate_manifest SELECT 之前**
+（不能插在 `INTO` 与 `FROM/WHERE` 之间）。且必须留在
+`atomic_generation_v1` 分支内，不进入 historical_registration 的 ELSE。
+
+### 6.1 版本识别必须严格（第一稿的三行不够）
+
+`coalesce(key,'v1')='v2'` 不是严格识别：缺键与 JSON null 都回落到 v1，
+拼写错误、数字、对象等未知值会**静默走旧算法**。
+
+契约：
+
+```
+缺键                        → v1（历史账单）
+显式值 'v1' / 'v2'          → 按值
+其他任何情况
+  （未知字符串 / JSON null /
+    非字符串类型）          → 拒绝，抛错
 ```
 
-第八轮已确认：`school_student_tuition_bills.source_snapshot` 顶层
-**无键集合 CHECK**，且普通 atomic 的 hash 只取指定字段与候选行、
-**不整体纳入 source_snapshot**，故新增该键不影响任何既有 hash 计算方式。
+### 6.2 bill/income 版本一致性必须校验
 
-### 5.3 validator：按版本分支（比原设想简单得多）
+**第一稿「漏一处就会当场失败」是错的**：
 
-读生产定义后发现：validator **已经同时算了条数和序号和**，只是分别赋给两个变量。
+- 拟议逻辑只读 bill 的版本；**income 漏标不会被发现**
+  （bill-income validator 只检查 1:1 关联，不比较版本）
+- **bill 漏标而该组恰好 `sum = count` 时，v1 算法也能通过**
 
-```sql
-SELECT count(*)::integer, coalesce(sum(rel.lesson_count_snapshot),0)::integer, ...
-  INTO v_count, v_lesson_count, ...
+因此必须显式校验 **bill 与 income 两份 `lesson_count_semantics` 相等**，
+不一致即抛错。该检查可并入现有 validator，无需新函数。
 
--- 判定段
-OR (source_snapshot->>'candidate_count')::integer   IS DISTINCT FROM v_count
-OR (source_snapshot->>'total_lesson_count')::integer IS DISTINCT FROM v_lesson_count
-```
+> 「10 处」是概念计数，**不是禁止补充必要检查的上限**。
 
-因此**不需要改聚合语句，也不需要改判定语句**，只在两者之间插入三行：
+## 7. 历史账单为何不受影响（已验证）
 
-```sql
-IF coalesce(v_bill.source_snapshot->>'lesson_count_semantics','v1') = 'v2' THEN
-  v_lesson_count := v_count;
-END IF;
-```
+validator 的重算全部基于**冻结数据**，无一处调用当前 builder / 候选 reader：
 
-`v_lesson_count` 在该函数内仅有「聚合赋值」与「判定比较」两处使用，
-插入点安全。**这比改写聚合表达式风险低一个量级。**
-
-#### 佐证：系统内已有正确实现
-
-`school_get_atomic_tuition_void_preflight` L1220 计算同名展示值时用的是：
-
-```sql
-select count(*)::integer into v_lesson_count
-```
-
-即 **Void 预检页面显示的「课次数」一直是条数**，只有 builder 与 validator
-在用序号和。本次修复不是引入新语义，而是把这两处对齐到系统内已存在的正确做法。
-
-### 5.4 writer：三个，不是一个
-
-生产中有**三个** writer 各自构造 `source_snapshot` 并插入 `bill_lessons`：
-
-| 函数 | 角色 |
+| 位置 | 数据来源 |
 |---|---|
-| `school_generate_student_tuition_bill_atomic_base_core_v1` | 首次生成 |
-| `school_generate_student_tuition_next_revision_core` | 下一版 revision |
-| `school_generate_student_tuition_next_revision_p0e_core` | P0-E forward adjustment 版 |
+| L30-34 | `bill_lessons` 冻结明细的序号和 / 小时 / 费用 |
+| L81-85 | 冻结 `candidate_line` 去掉行 hash 后的整体 SHA256 |
+| L103-108 | bill 自己的冻结 `candidate_lines`，有序拼接行 hash |
+| revision validator | atomic 比较存储的 manifest；historical_registration 重算整行；P0-E 依据冻结数据重算 |
 
-**三个都要改，各两处**：`source_snapshot` 加 `lesson_count_semantics`、
-`bill_lessons` 补 `lesson_count_snapshot`。漏掉任何一个，
-该路径生成的账单就会带着 v1 语义却是 v2 的数据，validator 当场失配。
+`complete_row_hash` 同样不从当前源课时重算。
 
-### 5.5 三个 writer 的插入语句不需要改
+**前提**：旧快照与明细不动、v1 分支持续可用、版本判定正确。
 
-读生产定义后发现，三处 `bill_lessons` 插入取的都是同一个来源：
+⚠️ **不得给 historical_registration 的旧快照补 v1 键**——它的 manifest 是
+整行 `to_jsonb` 的 hash，加键会改变结果。
 
-```sql
-FOR v_line IN SELECT value FROM jsonb_array_elements(v_snapshot.candidates) LOOP
-  ...
-  (v_line->>'lesson_count')::integer,   -- 三处写法完全一致
-```
+另注：旧账单能过 validator **不等于**能 Void/Reissue，收款与下游事实仍有独立阻挡。
 
-（首次生成那处用大写 `INSERT INTO`，另两处小写；按小写 grep 会漏掉它。）
+## 8. preview manifest 的失效范围（修正）
 
-因此**序号只要在 builder 构造 `candidates` 时补好，三个 writer 的插入
-自动得到正确值，insert 语句一行都不用改**。
+`candidate_line_hash` 的输入是 22 个显式键，**确实包含 `lesson_count`**
+（builder L117-140），整体经 L144 SHA256；普通 generation hash 还直接含
+`v_lesson_count`（L200）。
 
-builder 内相关结构：
+但**「所有旧 preview 必失效」不成立**：若某组只有一条、源序号已为 1、
+其他输入未变，则行 hash、总次数、generation hash 可以全部不变。
+顶层 `lesson_count_semantics` 不在任何 hash 输入中。
 
-```
-L129  'lesson_count', detail.lesson_count        → 进入 canonical_line
-L148  AS candidate_line_hash                     → 基于 canonical_line 计算
-L153  coalesce(sum(detail.lesson_count),0)       → total_lesson_count
-L163  jsonb_agg(detail.canonical_line || ...)    → 组成 candidates
-```
+P0-E 的最终 manifest 由专用 helper 计算，取的是 candidate manifest、
+来源 revision、结转与调整等，**不直接含 `total_lesson_count`**，
+不能把普通 builder 的 hash 输入套用到它。
 
-所以 builder 内需改两处：**L129 补序号**、**L153 改 `count(*)`**。
+**结论**：部署后应作为**流程要求**重新预览（而非「DB 保证旧凭证必被拒」）。
+若要后者，需把版本绑定进 manifest 协议并覆盖 P0-E，那超出「不改 hash 契约」
+的前提，需另行设计。
 
-### 5.6 历史账单为何不受影响（已验证）
+## 9. 部署与回滚（第一稿此节整体作废）
 
-validator 重算 `candidate_manifest` 用的是**账单自己的冻结快照**：
+### 9.1 部署：六个函数同一事务
 
-```sql
-FROM jsonb_array_elements(v_bill.source_snapshot->'candidate_lines')
-```
+分批会产生真实的错误中间态：
 
-**不是**重新调用 builder。因此改动 builder 的构造方式**不会**使历史账单的
-重算结果发生变化——每张账单始终用自己那份快照自洽。
+| 分批方式 | 后果 |
+|---|---|
+| 候选先放宽 | NULL 序号进入明细 `NOT NULL` 路径**失败** |
+| builder 先改、writer 未标 | count 4 / sum 6 按 v1 校验**失败**；恰好相等时**静默存下漏标账单** |
+| writer 先标 v2、builder 仍求和 | 旧 validator 可能**放行语义错误的账单** |
 
-这一条与 5.3 的版本分支合起来，构成「历史一行不动」的完整保证。
+兼容 validator 可以在**专门设计的两阶段发布**中先上线，但这不等于任意拆批安全。
 
-### 5.7 副作用：preview 显示的回数会变
+同事务只消除「已提交目录的中间态」，**不足以隔离在途调用**——
+部署还需排空生成调用，或经核验的同锁协调 / 维护窗口。
 
-L129 补序号后，`candidates` 里的 `lesson_count` 是**重算值**而非源课时值，
-因此学费生成预览页面显示的回数，可能与课时管理列表显示的不同
-（仅当源课时缺值或同周同科目内序号不连续时）。
+### 9.2 回滚：有 v2 数据后不能简单还原
 
-这是 B 方案的必然结果，也是它相对 A 的代价。判断依据是
-§2 中「回数只用于排序」——账单明细内排序自洽比与源课时逐字一致更重要。
+**第一稿称「回滚不产生数据不一致」是错的。**
 
-同时 `candidate_line_hash` 会因此变化，进而改变新账单的
-`candidate_manifest_sha256` / `generation_manifest_sha256`。
-**这不影响正确性**（preview 与 generate 用同一份代码、同一时刻计算），
-但意味着：**改动部署后，此前 preview 拿到的 manifest 全部作废，必须重新预览。**
+v2 账单的明细序号被重编为周内 1/2，例如目标四行为 **1、2、1、2**：
+**条数 4、序号和 6**。原样恢复旧 sum validator 后，它会要求 `4 = 6`。
 
-### 5.8 改动点总表（最终）
+失败**不限于 Reissue**——普通 generate 的幂等返回校验、Void preflight
+等任何触发 validator 的路径都会失败。
 
-| # | 函数 | 改动 | 处数 |
-|---|---|---|---|
-| 1 | `school_list_student_tuition_candidates` | 删两行必填判定 | 1 |
-| 2 | `school_build_student_tuition_generation_snapshot` | L129 补序号；L153 `sum` → `count(*)` | 2 |
-| 3 | `school_validate_tuition_bill_lessons_for_bill` | 插三行版本分支 | 1 |
-| 4 | `..._atomic_base_core_v1` | `source_snapshot` 加 `lesson_count_semantics` | 2 |
-| 5 | `..._next_revision_core` | 同上 | 2 |
-| 6 | `..._next_revision_p0e_core` | 同上 | 2 |
+回退矩阵：
 
-共 **6 个函数 / 10 处**。三个 writer 各有两处 `total_lesson_count` 构造
-（bill 与 income 的快照各一份），**两处都要加键**，漏一处即产生
-「标记为 v1 却装着 v2 数据」的账单。
+| 状态 | 可行动作 |
+|---|---|
+| **尚无 v2 持久化账单**，且已排空在途调用 | 可完整还原六个函数的旧定义 |
+| **已有 v2 账单** | **保留 v1/v2 兼容 validator**，仅停用或回退有问题的新生成路径；writer 的标记必须与所用算法对应 |
 
-### 5.6 lesson_count_snapshot 的补值规则（B 方案，已确认）
+个别 v2 账单恰好 `sum = count`，**不能**据此证明整体回退安全。
+**不接受用「人工处理」替代兼容契约。**
 
-```sql
-row_number() over (
-  partition by student_id, subject_id, billing_week_start_date
-  order by lesson_date, start_time, planned_lesson_id
-)
-```
+## 10. 已收款课时的排除机制（修正）
 
-**周内按科目重置**，与 §2 的业务规则一致：一周两次的课得第 1、2 回，
-下一周重新开始，一周一次的永远是第 1 回。
+**第一稿称「系统无此表达，只能靠操作纪律」不准确。** 机制存在：
 
-采用 **B（全部重算）** 而非仅补 NULL：v2 语义下该字段不参与计算，
-唯一用途是账单明细内的排序；仅补 NULL 会在同周同科目内产生重复序号
-（例：某学生物理 09-03 补 1、09-04 源值也是 1），排序依然是乱的。
+- 表 `school_student_tuition_historical_lesson_exclusions`，当前 **106 行**
+- 候选 reader L123-142 **优先返回** `historical_paid_exclusion`
 
-**历史账单一行都不用改**：快照里没有该键即走旧算法，与其冻结的
-`total_lesson_count` 依然相等，那 8 张失配账单将来走 Reissue 也不会失败。
+但**不能直接追加那 4 条**：
 
-这条是本设计能够避免触碰冻结快照的关键——参照 P0-E 的先例
-（宁可 forward adjustment 也不回写历史事实）。
+- INSERT guard 无条件抛 `TUITION_HISTORICAL_LESSON_EXCLUSION_INSERT_RETIRED`
+- UPDATE / DELETE / TRUNCATE 受 immutable guard 阻断
+- CHECK 将 report / manifest / approval_source / profile 绑定旧批准清单
+- `service_role` 对该表仅有 SELECT
 
-### 5.4 writer：补 `lesson_count_snapshot`
+两条可评估方向（**均为选项，未获授权**）：
 
-`school_student_tuition_bill_lessons.lesson_count_snapshot` 为
-**NOT NULL 且要求 > 0**，源课时为 NULL 时直接插入会失败，
-故 5.1 无法单独实施。
+1. 沿用既有排除语义，增加**经批准的**证据登记路径（范围窄，不动冻结 lesson）
+2. 在 preview/generation 边界增加**经批准的**历史月份限制
+   （影响所有历史月份的合法首开/重开，须明确例外规则）
 
-按 §2 的业务规则生成：
+**禁止**：冒用旧批准清单常量、解除 retired guard、
+或把新排除规则夹带进本次六函数修复。
 
-```sql
-row_number() over (
-  partition by student_id, subject_id, billing_week_start_date
-  order by lesson_date, start_time, planned_lesson_id
-)
-```
+若业务选择仅靠操作纪律，应表述为**主动接受的剩余风险**，
+而不是「系统没有相应概念」。
 
-**待定选项**（需业务负责人确认其一）：
+## 11. 验证清单
 
-- **A. 仅对源值为 NULL 的补** —— 改动最小，但同周同科目内可能出现重复序号
-  （例：骆同学物理 09/03 补 1、09/04 源值也是 1），账单明细排序仍然乱
-- **B. 全部按规则重算** —— 明细内排序保证正确，但明细值可能与源课时不同
+### 11.1 历史兼容性（成功用例，非「该失败的」）
 
-倾向 **B**：v2 语义下该字段不参与计算，其唯一用途就是账单明细内的排序；
-源课时的 `lesson_count` 服务于课时列表排序，两者用途本就不同。
+样本必须是：**atomic + canonical_charge + 无版本键 + `total = sum ≠ count`**。
+不能选 `total = count` 的样本（无法区分新旧算法），
+也不能用无 revision / billing_role 的行。
 
-## 6. 已知缺口（必须记录）
+已取得改前基线（bill `013a7766-…`）：active、`atomic_generation_v1`、
+`canonical_charge`、缺版本键、frozen total = 35、冻结序号和 = 35、明细条数 = 30，
+只读调用当前 validator **成功**。
 
-**修复后，2026-08 之前那 4 条历史课时会成为合法候选。**
+⚠️ 这只证明**改前旧函数通过**。部署后须对同一对象重新核对：
+条件不变、完整 validator 成功、冻结内容未变——届时 `35 ≠ 30` 才能区分分支。
 
-它们的费用**已通过其他方式收讫**（业务负责人确认：
-`cff85c52-…` 的 2026-04 与 5 月合并收取；另两名学生所属月份早于学费账单功能上线）。
-系统中不存在「此课时已用其他方式结清」的表达方式，
-现在把它们挡在账单外的，恰恰是本次要修的这个缺陷。
+建议只读覆盖全部 **8 张 atomic 差异账单**（active + voided）
+与 **7 张 historical_registration**，**不改任何真实历史行来造证据**。
 
-`is_billable = false` 这条常规出路**不可行**：该字段同属 P0-B1 保护的财务字段，
-而这 4 条均已有 actual 关联、永久冻结。
+### 11.2 必须补充的场景
 
-**因此只能依靠操作纪律：修复后不要为 2026-08 之前的月份生成学费账单。**
-实际风险低（无人会回头为历史月份开账单），但这是本次修复引入的已知缺口，
-不应被遗忘。
+1. 三个 writer **分别**验证：bill/income 双份 v2、`total = count`、
+   JSON 与 normalized 明细一致。不能只测首次生成
+2. 新样本用 **1/2 + 1/2（count 4 / sum 6）**；全为 1 的样本无法区分新旧算法
+3. 跨周、跨科目、同科换老师、同日不同时刻、同刻 UUID tie、
+   NULL / 空串时刻、同周部分课时被 claim
+4. total 错值、单行序号 / 行 hash / manifest 不一致**应失败**；
+   未知版本、JSON null、非字符串、bill/income 版本不同**应按契约失败**
+5. 金额必填缺失、voided / 非 planned / 非 billable **仍被排除**
+6. 删除 `> 0` 条件后，源序号为 0 或负数**不应仅因该字段被排除**，
+   账单内重编号为正数——**须明确写出预期值**，不写「符合预期」
+7. active canonical claim 的实际原因是 `already_canonical_charged`；
+   `incident_history` / `legacy_history` 另有分支，
+   `existing_bill_lesson_history` 是兜底。voided 历史关联可释放，不等于 active claim
+8. 旧 preview 输入**已变**时应拒绝；输入**完全未变**时按 §8 所选策略验收
+9. 费用 / 汇率 / 结转与候选集合不变时，候选数与金额不变；
+   `total_lesson_count` **仅在旧 sum ≠ count 时变**，不是人人必变
+10. 若改数组顺序则补前端验证；不改则明确「编号 ≠ 全局 line_no」
+11. **已持久化 v2 后的回退**与**整个测试事务 ROLLBACK** 是两个不同场景，分别覆盖
 
-## 7. 验证清单
+涉及写入的测试须在**独立获授权阶段**安排。
 
-### 7.1 该成功的
+## 12. 本次不做
 
-1. 目标学生 `be7effdf-…` / 2026-08 / 汇率 0.042：
-   `candidate_count` 3 → **4**，`total_fee_jpy` 54000 → **72000**，
-   `billing_amount_cny` 2268.00 → **3024.00**
-2. `total_lesson_count` = **4**（等于 `candidate_count`，不再是序号和）
-3. 生成账单成功，`bill_lessons` 4 条，`lesson_count_snapshot` 均非空且 > 0
-4. 新账单 `source_snapshot` 含 `"lesson_count_semantics": "v2"`
-5. validator 对该新账单通过
-
-### 7.2 该失败的（更重要，见 lessons E4）
-
-1. **历史账单仍能通过 validator** —— 取 §4 那 8 张失配账单中的任意一张，
-   验证其仍走 `v1` 分支且校验通过。**这是版本兼容机制的核心证据。**
-2. 缺 `unit_price` / `lesson_fee` / `duration_hours` 的课时**仍被排除**
-   —— 证明放宽只放过了序号缺失，没有放过算不出钱的数据
-3. `voided_at` 非空、`status <> 'planned'`、`is_billable = false`
-   的课时**仍被排除**
-4. `lesson_count = 0` 或负数的课时（若存在）行为符合预期
-5. 已被其他账单 claim 的课时**仍走 `existing_bill_lesson_history` 分支**
-
-### 7.3 回归
-
-- 未受影响的学生（`lesson_count` 全部正常）的 snapshot
-  `candidate_count` / `total_fee_jpy` / `billing_amount_cny` **逐字未变**
-- 但注意 `total_lesson_count` 会变（序号和 → 条数），
-  这是预期内的修正，需逐个学生记录改动前后值
-
-## 8. 本次不做
-
-- 不修改任何历史账单或其冻结快照
-- 不回填历史课时的 `lesson_count`（有 actual 关联者永久冻结，改不了）
+- 不改任何历史账单或其冻结快照
+- 不回填历史课时的 `lesson_count`（有 actual 关联者永久冻结）
 - 不补建 2026-08 之前月份的账单
-- 不修批量生成器的 NULL 分支（现行 UI 走不到，另行排期）
-- 不动 `student_tuition_generate` gate（该 gate 的解冻是独立事项）
-
-## 9. 回滚
-
-四处改动均为函数体替换，回滚脚本按生产当前定义逐个还原，
-执行前以 `md5(pg_get_functiondef(oid))`（单参数 canonical）做基线断言。
-
-`source_snapshot` 中已写入 `lesson_count_semantics` 的账单在回滚后仍带该键，
-但 v1 validator 会忽略它——**回滚不产生数据不一致**。
-唯一残留是那些在 v2 期间生成的账单，其 `total_lesson_count` 为条数而非序号和；
-若回滚后需要对它们做 Reissue，validator 会失配，需要人工处理。
-**这是回滚的已知限制，回滚前应确认 v2 期间是否已生成账单。**
+- 不改 baseline 系列函数及其 ACL
+- 不改 `student_tuition_generate` gate（独立事项）
+- 不动数组排序与前端校验契约
+- 不追加历史排除记录、不解除 retired guard
