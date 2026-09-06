@@ -89,16 +89,81 @@ coalesce(sum(detail.lesson_count),0)::integer  →  count(*)::integer
 **无键集合 CHECK**，且普通 atomic 的 hash 只取指定字段与候选行、
 **不整体纳入 source_snapshot**，故新增该键不影响任何既有 hash 计算方式。
 
-### 5.3 validator：按版本分支
+### 5.3 validator：按版本分支（比原设想简单得多）
+
+读生产定义后发现：validator **已经同时算了条数和序号和**，只是分别赋给两个变量。
 
 ```sql
--- school_validate_tuition_bill_lessons_for_bill
-if coalesce(v_bill.source_snapshot->>'lesson_count_semantics','v1') = 'v2' then
-  v_lesson_count := count(*);                                  -- 新账单
-else
-  v_lesson_count := coalesce(sum(rel.lesson_count_snapshot),0); -- 历史账单，原样
-end if;
+SELECT count(*)::integer, coalesce(sum(rel.lesson_count_snapshot),0)::integer, ...
+  INTO v_count, v_lesson_count, ...
+
+-- 判定段
+OR (source_snapshot->>'candidate_count')::integer   IS DISTINCT FROM v_count
+OR (source_snapshot->>'total_lesson_count')::integer IS DISTINCT FROM v_lesson_count
 ```
+
+因此**不需要改聚合语句，也不需要改判定语句**，只在两者之间插入三行：
+
+```sql
+IF coalesce(v_bill.source_snapshot->>'lesson_count_semantics','v1') = 'v2' THEN
+  v_lesson_count := v_count;
+END IF;
+```
+
+`v_lesson_count` 在该函数内仅有「聚合赋值」与「判定比较」两处使用，
+插入点安全。**这比改写聚合表达式风险低一个量级。**
+
+#### 佐证：系统内已有正确实现
+
+`school_get_atomic_tuition_void_preflight` L1220 计算同名展示值时用的是：
+
+```sql
+select count(*)::integer into v_lesson_count
+```
+
+即 **Void 预检页面显示的「课次数」一直是条数**，只有 builder 与 validator
+在用序号和。本次修复不是引入新语义，而是把这两处对齐到系统内已存在的正确做法。
+
+### 5.4 writer：三个，不是一个
+
+生产中有**三个** writer 各自构造 `source_snapshot` 并插入 `bill_lessons`：
+
+| 函数 | 角色 |
+|---|---|
+| `school_generate_student_tuition_bill_atomic_base_core_v1` | 首次生成 |
+| `school_generate_student_tuition_next_revision_core` | 下一版 revision |
+| `school_generate_student_tuition_next_revision_p0e_core` | P0-E forward adjustment 版 |
+
+**三个都要改，各两处**：`source_snapshot` 加 `lesson_count_semantics`、
+`bill_lessons` 补 `lesson_count_snapshot`。漏掉任何一个，
+该路径生成的账单就会带着 v1 语义却是 v2 的数据，validator 当场失配。
+
+### 5.5 改动点总表（6 个函数 / 8 处）
+
+| # | 函数 | 改动 |
+|---|---|---|
+| 1 | `school_list_student_tuition_candidates` | 删两行必填判定 |
+| 2 | `school_build_student_tuition_generation_snapshot` | `sum` → `count(*)` |
+| 3 | `school_validate_tuition_bill_lessons_for_bill` | 插三行版本分支 |
+| 4 | `..._atomic_base_core_v1` | snapshot 加键 + 明细补序号 |
+| 5 | `..._next_revision_core` | 同上 |
+| 6 | `..._next_revision_p0e_core` | 同上 |
+
+### 5.6 lesson_count_snapshot 的补值规则（B 方案，已确认）
+
+```sql
+row_number() over (
+  partition by student_id, subject_id, billing_week_start_date
+  order by lesson_date, start_time, planned_lesson_id
+)
+```
+
+**周内按科目重置**，与 §2 的业务规则一致：一周两次的课得第 1、2 回，
+下一周重新开始，一周一次的永远是第 1 回。
+
+采用 **B（全部重算）** 而非仅补 NULL：v2 语义下该字段不参与计算，
+唯一用途是账单明细内的排序；仅补 NULL 会在同周同科目内产生重复序号
+（例：某学生物理 09-03 补 1、09-04 源值也是 1），排序依然是乱的。
 
 **历史账单一行都不用改**：快照里没有该键即走旧算法，与其冻结的
 `total_lesson_count` 依然相等，那 8 张失配账单将来走 Reissue 也不会失败。
