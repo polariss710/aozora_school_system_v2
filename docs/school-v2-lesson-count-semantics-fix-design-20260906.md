@@ -138,16 +138,73 @@ select count(*)::integer into v_lesson_count
 `bill_lessons` 补 `lesson_count_snapshot`。漏掉任何一个，
 该路径生成的账单就会带着 v1 语义却是 v2 的数据，validator 当场失配。
 
-### 5.5 改动点总表（6 个函数 / 8 处）
+### 5.5 三个 writer 的插入语句不需要改
 
-| # | 函数 | 改动 |
-|---|---|---|
-| 1 | `school_list_student_tuition_candidates` | 删两行必填判定 |
-| 2 | `school_build_student_tuition_generation_snapshot` | `sum` → `count(*)` |
-| 3 | `school_validate_tuition_bill_lessons_for_bill` | 插三行版本分支 |
-| 4 | `..._atomic_base_core_v1` | snapshot 加键 + 明细补序号 |
-| 5 | `..._next_revision_core` | 同上 |
-| 6 | `..._next_revision_p0e_core` | 同上 |
+读生产定义后发现，三处 `bill_lessons` 插入取的都是同一个来源：
+
+```sql
+FOR v_line IN SELECT value FROM jsonb_array_elements(v_snapshot.candidates) LOOP
+  ...
+  (v_line->>'lesson_count')::integer,   -- 三处写法完全一致
+```
+
+（首次生成那处用大写 `INSERT INTO`，另两处小写；按小写 grep 会漏掉它。）
+
+因此**序号只要在 builder 构造 `candidates` 时补好，三个 writer 的插入
+自动得到正确值，insert 语句一行都不用改**。
+
+builder 内相关结构：
+
+```
+L129  'lesson_count', detail.lesson_count        → 进入 canonical_line
+L148  AS candidate_line_hash                     → 基于 canonical_line 计算
+L153  coalesce(sum(detail.lesson_count),0)       → total_lesson_count
+L163  jsonb_agg(detail.canonical_line || ...)    → 组成 candidates
+```
+
+所以 builder 内需改两处：**L129 补序号**、**L153 改 `count(*)`**。
+
+### 5.6 历史账单为何不受影响（已验证）
+
+validator 重算 `candidate_manifest` 用的是**账单自己的冻结快照**：
+
+```sql
+FROM jsonb_array_elements(v_bill.source_snapshot->'candidate_lines')
+```
+
+**不是**重新调用 builder。因此改动 builder 的构造方式**不会**使历史账单的
+重算结果发生变化——每张账单始终用自己那份快照自洽。
+
+这一条与 5.3 的版本分支合起来，构成「历史一行不动」的完整保证。
+
+### 5.7 副作用：preview 显示的回数会变
+
+L129 补序号后，`candidates` 里的 `lesson_count` 是**重算值**而非源课时值，
+因此学费生成预览页面显示的回数，可能与课时管理列表显示的不同
+（仅当源课时缺值或同周同科目内序号不连续时）。
+
+这是 B 方案的必然结果，也是它相对 A 的代价。判断依据是
+§2 中「回数只用于排序」——账单明细内排序自洽比与源课时逐字一致更重要。
+
+同时 `candidate_line_hash` 会因此变化，进而改变新账单的
+`candidate_manifest_sha256` / `generation_manifest_sha256`。
+**这不影响正确性**（preview 与 generate 用同一份代码、同一时刻计算），
+但意味着：**改动部署后，此前 preview 拿到的 manifest 全部作废，必须重新预览。**
+
+### 5.8 改动点总表（最终）
+
+| # | 函数 | 改动 | 处数 |
+|---|---|---|---|
+| 1 | `school_list_student_tuition_candidates` | 删两行必填判定 | 1 |
+| 2 | `school_build_student_tuition_generation_snapshot` | L129 补序号；L153 `sum` → `count(*)` | 2 |
+| 3 | `school_validate_tuition_bill_lessons_for_bill` | 插三行版本分支 | 1 |
+| 4 | `..._atomic_base_core_v1` | `source_snapshot` 加 `lesson_count_semantics` | 2 |
+| 5 | `..._next_revision_core` | 同上 | 2 |
+| 6 | `..._next_revision_p0e_core` | 同上 | 2 |
+
+共 **6 个函数 / 10 处**。三个 writer 各有两处 `total_lesson_count` 构造
+（bill 与 income 的快照各一份），**两处都要加键**，漏一处即产生
+「标记为 v1 却装着 v2 数据」的账单。
 
 ### 5.6 lesson_count_snapshot 的补值规则（B 方案，已确认）
 
