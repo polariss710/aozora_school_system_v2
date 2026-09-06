@@ -27,25 +27,36 @@
 --   psql "$DB_URL" -v mode=commit    -v scope=full            -f <本文件>
 --   默认 mode=rehearsal、scope=generation_only（两个默认值都取更保守的一侧）。
 --
--- 【必填参数：已认可的 v2 canonical md5】
---   本脚本拒绝在不知道「生产当前应该长什么样」的情况下运行。
---   六个值取自部署脚本输出的 §10(e) 的「后」列，逐一传入：
---     -v v2md5_candidates=<md5>            -v v2md5_build=<md5>
---     -v v2md5_validator=<md5>             -v v2md5_base_core_v1=<md5>
---     -v v2md5_next_revision_core=<md5>    -v v2md5_next_revision_p0e_core=<md5>
---   缺任何一个 → LC2_V2_BASELINE_NOT_SUPPLIED；与生产当前不符 →
---   LC2_V2_BASELINE_DRIFT。后者意味着部署之后有人改过函数，
---   **不要改期望值让脚本跑过**，先查清那次改动是什么——否则这次回滚会把它整体覆盖。
---   只核标记挡不住这种情况：热修复只要保留那几个子串就能通过标记检查。
+-- 【已认可的 v2 基线：写死在 §3 A-0，不是运行时参数】
+--   本脚本拒绝在不知道「生产当前应该长什么样」的情况下运行。六个
+--   v2 canonical md5 作为经审查的常量内嵌，**没有 -v 传参入口**。
+--
+--   为什么不做成参数：做成参数的话，操作者在慌乱时最省事的一步就是
+--   把生产当前的 md5 抄进命令行，闸门当场失效。写死之后，改基线必须改文件、
+--   会出现在 git diff 里、必须重新过审。
+--
+--   常量来源：2026-09-06 16:44:36 JST 生产 rehearsal（已 ROLLBACK）事务内的
+--   md5(pg_get_functiondef(oid))，对应部署脚本 commit 4328194。
+--   ⚠️ 部署脚本一旦变动，这六个值即失效，须由新的 rehearsal 重取并重审。
+--   ⚠️ 正式部署提交后应把读回的实际值与内嵌常量比对；不一致要重审，不要就地改。
+--   只核标记挡不住热修复：它只要保留那几个子串就能通过标记检查。
 --
 -- 【还原保真度】被还原的函数正文是生产 2026-09-06 12:05:12 JST 的原文逐字节副本，
 --   脚本末尾断言 md5(pg_get_functiondef(oid)) 精确等于审查报告 Appendix C 的值。
 --   每份定义之后的分号在美元引用之外，不参与该比对。
 --
--- 【scope=full 的 v2 零计数只是检查那一刻的快照】
---   它不是整个事务期间的不变量。从「数到 0」到「旧 validator 生效」之间若有
---   在途 v2 writer 提交，回滚后那张账单就会失配。**排空在途生成调用是脚本外的前提**，
---   15s lock_timeout 只给失败上限，不建立排空机制。
+-- 【scope=full 的 v2 零计数是「事务快照时点」的事实，不是实时屏障】
+--   本脚本运行在 REPEATABLE READ 下，那条计数读的是**事务开始时建立的快照**。
+--   即使某个 v2 writer 在计数语句执行之前就已提交，只要它晚于快照建立，
+--   这里也看不到它。
+--
+--   所以顺序只能是：**先排空，再开事务**。
+--   不能开了事务再等 writer 结束，指望同一事务里重查能补救旧快照——补不了。
+--
+--   排空要覆盖全部真实入口（页面、服务端、定时任务、重试队列、直接运维连接），
+--   并持续阻断到结果验证结束。一次 pg_stat_activity 空列表不能阻止下一秒的新调用。
+--   若改用数据库锁协调，必须先证明它与所有相关 writer 用的是同一个锁域。
+--   15s lock_timeout 只给失败上限，**不建立任何排空机制**。
 -- ===========================================================================
 
 \set ON_ERROR_STOP on
@@ -64,34 +75,6 @@
 \echo '================================================================'
 \echo 'lesson_count 语义修复  回滚'
 \echo 'mode =' :mode '/ scope =' :scope
-
--- 必须由操作者提供「已认可的 v2 canonical md5」六个值，取自部署脚本
--- rehearsal/commit 输出的 §10(e)。没有默认值：未提供即硬停止。
-\if :{?v2md5_candidates}
-\else
-\set v2md5_candidates REQUIRED
-\endif
-\if :{?v2md5_build}
-\else
-\set v2md5_build REQUIRED
-\endif
-\if :{?v2md5_validator}
-\else
-\set v2md5_validator REQUIRED
-\endif
-\if :{?v2md5_base_core_v1}
-\else
-\set v2md5_base_core_v1 REQUIRED
-\endif
-\if :{?v2md5_next_revision_core}
-\else
-\set v2md5_next_revision_core REQUIRED
-\endif
-\if :{?v2md5_next_revision_p0e_core}
-\else
-\set v2md5_next_revision_p0e_core REQUIRED
-\endif
-
 \echo '================================================================'
 
 BEGIN ISOLATION LEVEL REPEATABLE READ;
@@ -202,23 +185,37 @@ INSERT INTO lc2_marker(fn_key,variant,needle,must_exist) VALUES
 -- §3 前置断言 A-0：完整定义漂移保护
 --   只核标记是不够的：某个部署后打的热修复只要保留这些子串就能通过标记检查，
 --   随后被回滚整体覆盖，而「已回到旧基线」的后置断言照样通过。
---   所以这里要求操作者把**已认可的 v2 canonical md5**六个值带进来，
---   与生产当前逐一比对。没有默认值，缺一个就停。
 --
---   取值来源：部署脚本输出的 §10(e)「六函数 md5：部署前 → 部署后」的「后」列。
---   若这六个值与生产当前不符，说明部署之后有人改过函数——
---   **此时不要改这里的期望值来让脚本跑过**，先查清那次改动是什么。
+--   下面六个期望值是**写死的经审查常量**，不是运行时参数。
+--   这样做是刻意的：如果做成 -v 传参，操作者在慌乱时最省事的做法就是
+--   把生产当前的 md5 直接抄进命令行，闸门当场失效。写死之后，
+--   改基线就必须改这个文件，会出现在 git diff 里，必须重新过审。
+--
+--   来源与凭据（改动这六个值必须同时更新这一段）：
+--     取自 2026-09-06 16:44:36 JST 生产 rehearsal（已 ROLLBACK）事务内的
+--     md5(pg_get_functiondef(oid))，部署脚本 commit 4328194。
+--     证据：lesson-count-scripts-review-round2-20260906-16:44-report.md 附录 A
+--          lesson-count-scripts-review-round2-20260906-16:44-v2-md5-parameters.json
+--
+--   绑定的是这六个 canonical md5 本身，**不是部署脚本的文件 sha256**。
+--   文件 sha256 会因为改注释而变，而函数正文没变时 canonical md5 不变——
+--   拿文件哈希当绑定会制造大量假失效。判据要落在被保护的东西上。
+--   反过来：只要有任何一份函数正文变了，对应的 canonical md5 必然变，
+--   这六个常量就当场失效，必须重新 rehearsal 取值并重审。
+--
+--   ⚠️ 部署脚本一旦变动，这六个值即失效，必须由新的 rehearsal 重新取得并重审。
+--   ⚠️ 正式部署提交后应把读回的实际值与这里比对；不一致要重审，不要就地改这里。
 -- ---------------------------------------------------------------------------
 CREATE TEMP TABLE lc2_expect_v2(fn_key text PRIMARY KEY, expect_md5 text NOT NULL)
   ON COMMIT DROP;
 
 INSERT INTO lc2_expect_v2(fn_key,expect_md5) VALUES
-  ('candidates',            :'v2md5_candidates'),
-  ('build',                 :'v2md5_build'),
-  ('validator',             :'v2md5_validator'),
-  ('base_core_v1',          :'v2md5_base_core_v1'),
-  ('next_revision_core',    :'v2md5_next_revision_core'),
-  ('next_revision_p0e_core',:'v2md5_next_revision_p0e_core');
+  ('candidates',            'ea2055afeb66c784eb496cdfc7063b23'),
+  ('build',                 'efa51498e77b515b6f67fc4be599a1b8'),
+  ('validator',             'fc99fe1399711d85c345951c4ab8d605'),
+  ('base_core_v1',          'a8ea31ced7f054d0b7ca4306dda1d3d8'),
+  ('next_revision_core',    '54ba2360eae9abfa740f539cb2ffb4ab'),
+  ('next_revision_p0e_core','3408161f5db5a6dc60a91e8702b34b23');
 
 DO $do$
 DECLARE r record; v_cur text; v_missing text := ''; v_bad text := '';
@@ -228,9 +225,9 @@ BEGIN
     FROM lc2_expect_v2 e JOIN lc2_target t USING (fn_key)
     ORDER BY e.fn_key
   LOOP
-    IF r.expect_md5 = 'REQUIRED' THEN
+    IF r.expect_md5 !~ '^[0-9a-f]{32}$' THEN
       v_missing := v_missing || format(E'
-  -v v2md5_%s=<md5>', r.fn_key);
+  %s = %L', r.fn_key, r.expect_md5);
       CONTINUE;
     END IF;
     IF to_regprocedure(r.signature) IS NULL THEN
@@ -246,21 +243,24 @@ BEGIN
     END IF;
   END LOOP;
   IF v_missing <> '' THEN
-    RAISE EXCEPTION 'LC2_V2_BASELINE_NOT_SUPPLIED: 缺少已认可的 v2 canonical md5，'
-      '无法判断生产是否在部署之后又被改过。请补齐以下参数：%', v_missing;
+    RAISE EXCEPTION 'LC2_V2_BASELINE_MALFORMED: 内嵌的 v2 基线常量不是 32 位十六进制，'
+      '脚本被改坏了，停止。%', v_missing;
   END IF;
   IF v_bad <> '' THEN
-    RAISE EXCEPTION 'LC2_V2_BASELINE_DRIFT: 生产当前定义不等于已认可的 v2 基线，'
-      '说明部署之后函数被改过。回滚会整体覆盖那次改动，停止。%', v_bad;
+    RAISE EXCEPTION 'LC2_V2_BASELINE_DRIFT: 生产当前定义不等于本脚本内嵌的 v2 基线。'
+      '这**只**说明两者不符，不等于「部署后一定有人改过函数」——也可能是选错了'
+      '脚本版本、生产根本还没部署这一版 v2、或者部署的是另一个 commit。'
+      '先核对版本与参数来源、查清实际差异是什么，再决定要不要回滚。'
+      '不要就地改内嵌常量来让脚本跑过。%', v_bad;
   END IF;
 END
 $do$;
 
 -- ---------------------------------------------------------------------------
 -- §3 前置断言 A：当前必须处于已部署 v2 的状态
---   这里不核 md5——部署后的 md5 我在离线状态下算不出来，
---   写死一个猜的值就是把未知量当断言（lessons E10 第三次发作）。
---   改为核对 v2 的正/负标记，判据落在「被保护的性质」上。
+--   在 A-0 的完整 md5 之上**再加**一层结构检查，不是它的替代。
+--   md5 相等已蕴含标记相符；保留这一层，是为了在 md5 因无害重排而变化时，
+--   仍能给出「具体哪个特征不对」这种可读的定位信息。
 -- ---------------------------------------------------------------------------
 DO $do$
 DECLARE r record; v_def text; v_hit boolean; v_bad text := '';
