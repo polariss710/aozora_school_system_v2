@@ -2023,6 +2023,9 @@ BEGIN
   -- mix_v1builder_v2writer
   --   builder 回 v1（total=源序号和 28）+ writer 仍标 v2（validator 按条数 24 校验）
   BEGIN
+    -- 先恢复延迟约束态：完整生成需要「bill 已插入、revision 尚未注册」这个
+    -- 设计允许的中间态；IMMEDIATE 下它会被身份约束当成违规（假失败）。
+    SET CONSTRAINTS ALL DEFERRED;
     SELECT * INTO STRICT s
     FROM public.school_build_student_tuition_generation_snapshot(
       '7aef8061-7037-4881-a847-a2cdb031c0f4'::uuid, '2026-09', v_rate);
@@ -2030,6 +2033,8 @@ BEGIN
     FROM public.school_generate_student_tuition_bill_atomic_core(
       '7aef8061-7037-4881-a847-a2cdb031c0f4'::uuid, '2026-09', v_rate, s.generation_manifest_sha256,
       'lesson_count v2 negative case (rollback-only)', NULL);
+    -- 生成居然返回了 —— 在同一子事务内刷新约束，给延迟触发器最后一次机会
+    SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'LC2W_SENTINEL_NOT_REJECTED';
   EXCEPTION WHEN OTHERS THEN
     INSERT INTO lc2w_neg(case_name,description,expect_needle,rejected,sqlstate,err)
@@ -2038,6 +2043,10 @@ BEGIN
   END;
 END
 $do$;
+
+-- 子事务回滚会带走它内部的 SET CONSTRAINTS，这里在顶层显式恢复 IMMEDIATE，
+-- 不依赖回滚的副作用。
+SET CONSTRAINTS ALL IMMEDIATE;
 
 -- 恢复 public.school_build_student_tuition_generation_snapshot(uuid,text,numeric) 为 v2
 CREATE OR REPLACE FUNCTION public.school_build_student_tuition_generation_snapshot(p_student_id uuid, p_billing_month text, p_billing_exchange_rate numeric)
@@ -3003,6 +3012,9 @@ BEGIN
   -- mix_v2builder_v1writer
   --   builder 用 v2（total=条数 24）+ writer 回 v1 不标版本键（validator 按序号和 28 校验）
   BEGIN
+    -- 先恢复延迟约束态：完整生成需要「bill 已插入、revision 尚未注册」这个
+    -- 设计允许的中间态；IMMEDIATE 下它会被身份约束当成违规（假失败）。
+    SET CONSTRAINTS ALL DEFERRED;
     SELECT * INTO STRICT s
     FROM public.school_build_student_tuition_generation_snapshot(
       '7aef8061-7037-4881-a847-a2cdb031c0f4'::uuid, '2026-10', v_rate);
@@ -3010,6 +3022,8 @@ BEGIN
     FROM public.school_generate_student_tuition_bill_atomic_core(
       '7aef8061-7037-4881-a847-a2cdb031c0f4'::uuid, '2026-10', v_rate, s.generation_manifest_sha256,
       'lesson_count v2 negative case (rollback-only)', NULL);
+    -- 生成居然返回了 —— 在同一子事务内刷新约束，给延迟触发器最后一次机会
+    SET CONSTRAINTS ALL IMMEDIATE;
     RAISE EXCEPTION 'LC2W_SENTINEL_NOT_REJECTED';
   EXCEPTION WHEN OTHERS THEN
     INSERT INTO lc2w_neg(case_name,description,expect_needle,rejected,sqlstate,err)
@@ -3018,6 +3032,10 @@ BEGIN
   END;
 END
 $do$;
+
+-- 子事务回滚会带走它内部的 SET CONSTRAINTS，这里在顶层显式恢复 IMMEDIATE，
+-- 不依赖回滚的副作用。
+SET CONSTRAINTS ALL IMMEDIATE;
 
 -- 恢复 public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text) 为 v2
 CREATE OR REPLACE FUNCTION public.school_generate_student_tuition_bill_atomic_base_core_v1(p_student_id uuid, p_billing_month text, p_billing_exchange_rate numeric, p_expected_generation_manifest_sha256 text, p_note text DEFAULT NULL::text, p_test_fail_after_step text DEFAULT NULL::text)
@@ -3802,16 +3820,32 @@ BEGIN
 END
 $do$;
 
--- (N4) 负例目标不得留下任何行
+-- (N4) 负例目标不得留下任何行 —— 五类对象 + writer_context 全查，
+--   不只是账单（上一轮审查指出只查 bill 兑现不了「不留任何行」这个标题）
 DO $do$
-DECLARE v_bad integer;
+DECLARE v_bill int; v_ident int; v_gen int; v_rev int; v_rel int; v_ctx int;
 BEGIN
-  SELECT count(*) INTO v_bad FROM public.school_student_tuition_bills b
+  SELECT count(*) INTO v_bill FROM public.school_student_tuition_bills b
    WHERE b.student_id='7aef8061-7037-4881-a847-a2cdb031c0f4'
      AND b.billing_month IN ('2026-09','2026-10');
-  IF v_bad <> 0 THEN
-    RAISE EXCEPTION 'LC2W_N4_NEG_ROW_LEAKED: 负例目标残留 % 行账单，'
-      '子事务没有回滚干净。', v_bad;
+  SELECT count(*) INTO v_ident FROM public.school_student_tuition_billing_identities i
+   WHERE i.student_id='7aef8061-7037-4881-a847-a2cdb031c0f4'
+     AND i.billing_month IN ('2026-09','2026-10');
+  SELECT count(*) INTO v_gen FROM public.school_student_tuition_generation_identities g
+   WHERE g.student_id='7aef8061-7037-4881-a847-a2cdb031c0f4'
+     AND to_char(g.billing_month,'YYYY-MM') IN ('2026-09','2026-10');
+  SELECT count(*) INTO v_rev FROM public.school_student_tuition_generation_revisions r
+   JOIN public.school_student_tuition_bills b ON b.id=r.tuition_bill_id
+   WHERE b.student_id='7aef8061-7037-4881-a847-a2cdb031c0f4'
+     AND b.billing_month IN ('2026-09','2026-10');
+  SELECT count(*) INTO v_rel FROM public.school_student_tuition_bill_lessons rel
+   WHERE rel.student_id_snapshot='7aef8061-7037-4881-a847-a2cdb031c0f4'
+     AND rel.billing_month_snapshot IN ('2026-09','2026-10');
+  SELECT count(*) INTO v_ctx FROM public.school_tuition_atomic_writer_context;
+  IF (v_bill,v_ident,v_gen,v_rev,v_rel,v_ctx) IS DISTINCT FROM (0,0,0,0,0,0) THEN
+    RAISE EXCEPTION 'LC2W_N4_NEG_ROW_LEAKED: 负例目标残留 —— '
+      'bill=% identity=% gen=% revision=% 明细=% writer_context=%。'
+      '子事务没有回滚干净。', v_bill,v_ident,v_gen,v_rev,v_rel,v_ctx;
   END IF;
 END
 $do$;
