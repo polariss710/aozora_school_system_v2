@@ -165,8 +165,21 @@ CREATE TEMP TABLE lc2v_snap(
   ok boolean NOT NULL, sqlstate text, err text,
   candidate_count integer, total_lesson_count integer,
   total_duration_hours numeric, total_base numeric, total_aircon numeric,
-  total_fee numeric, uuid_md5 text, candidate_manifest text,
+  total_fee numeric, billing_amount_cny numeric,
+  uuid_md5 text, candidate_manifest text,
   generation_manifest text, candidates jsonb,
+  PRIMARY KEY (phase, student_id, billing_month)
+) ON COMMIT DROP;
+
+-- 候选 reader 的采集结果**独立记录**。
+-- 上一轮我用「reader 失败时 builder 必然也失败」把它的异常吞掉了，那条推理是错的：
+-- builder 走 charge reader（include_excluded=false），这里直接调底层 reader
+-- （include_excluded=true），是两条不同语句；而且 builder 遇到目标月已锁会在
+-- 到达 reader 之前就退出。builder 的错误解释不了 reader 有没有跑成功。
+CREATE TEMP TABLE lc2v_collect(
+  phase text, student_id uuid, billing_month text,
+  ok boolean NOT NULL, sqlstate text, err text,
+  returned_rows integer, inserted_rows integer,
   PRIMARY KEY (phase, student_id, billing_month)
 ) ON COMMIT DROP;
 
@@ -181,6 +194,7 @@ CREATE TEMP TABLE lc2v_cand(
 -- ---------------------------------------------------------------------------
 DO $do$
 DECLARE p record; s record; v_rate numeric;
+  v_returned integer; v_inserted integer;
 BEGIN
   SELECT rate INTO v_rate FROM lc2v_run;
   FOR p IN SELECT * FROM lc2v_pair ORDER BY student_id, billing_month LOOP
@@ -191,20 +205,30 @@ BEGIN
       INSERT INTO lc2v_snap VALUES ('v1',p.student_id,p.billing_month,true,NULL,NULL,
         s.candidate_count,s.total_lesson_count,s.total_duration_hours,
         s.total_base_lesson_fee_jpy,s.total_aircon_fee_jpy,s.total_fee_jpy,
-        s.candidate_uuid_md5,s.candidate_manifest_sha256,
+        s.billing_amount_cny,s.candidate_uuid_md5,s.candidate_manifest_sha256,
         s.generation_manifest_sha256,s.candidates);
     EXCEPTION WHEN OTHERS THEN
       INSERT INTO lc2v_snap VALUES ('v1',p.student_id,p.billing_month,false,
-        SQLSTATE,SQLERRM,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+        SQLSTATE,SQLERRM,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
     END;
     BEGIN
-      INSERT INTO lc2v_cand
-      SELECT 'v1',p.student_id,p.billing_month,c.planned_lesson_id,
-             c.lesson_count,c.candidate_status,c.exclusion_reason
+      CREATE TEMP TABLE lc2v_raw ON COMMIT DROP AS
+      SELECT c.planned_lesson_id, c.lesson_count, c.candidate_status, c.exclusion_reason
       FROM public.school_list_student_tuition_candidates(
-        p.student_id,p.business_entity_id,p.billing_month,true) c
+        p.student_id,p.business_entity_id,p.billing_month,true) c;
+      SELECT count(*) INTO v_returned FROM lc2v_raw;
+      INSERT INTO lc2v_cand
+      SELECT 'v1',p.student_id,p.billing_month,r.planned_lesson_id,
+             r.lesson_count,r.candidate_status,r.exclusion_reason
+      FROM lc2v_raw r
       ON CONFLICT DO NOTHING;
-    EXCEPTION WHEN OTHERS THEN NULL;
+      GET DIAGNOSTICS v_inserted = ROW_COUNT;
+      DROP TABLE lc2v_raw;
+      INSERT INTO lc2v_collect VALUES ('v1',p.student_id,p.billing_month,
+        true,NULL,NULL,v_returned,v_inserted);
+    EXCEPTION WHEN OTHERS THEN
+      INSERT INTO lc2v_collect VALUES ('v1',p.student_id,p.billing_month,
+        false,SQLSTATE,SQLERRM,NULL,NULL);
     END;
   END LOOP;
 END
@@ -1621,6 +1645,7 @@ $function$;
 -- ---------------------------------------------------------------------------
 DO $do$
 DECLARE p record; s record; v_rate numeric;
+  v_returned integer; v_inserted integer;
 BEGIN
   SELECT rate INTO v_rate FROM lc2v_run;
   FOR p IN SELECT * FROM lc2v_pair ORDER BY student_id, billing_month LOOP
@@ -1631,20 +1656,30 @@ BEGIN
       INSERT INTO lc2v_snap VALUES ('v2',p.student_id,p.billing_month,true,NULL,NULL,
         s.candidate_count,s.total_lesson_count,s.total_duration_hours,
         s.total_base_lesson_fee_jpy,s.total_aircon_fee_jpy,s.total_fee_jpy,
-        s.candidate_uuid_md5,s.candidate_manifest_sha256,
+        s.billing_amount_cny,s.candidate_uuid_md5,s.candidate_manifest_sha256,
         s.generation_manifest_sha256,s.candidates);
     EXCEPTION WHEN OTHERS THEN
       INSERT INTO lc2v_snap VALUES ('v2',p.student_id,p.billing_month,false,
-        SQLSTATE,SQLERRM,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
+        SQLSTATE,SQLERRM,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL);
     END;
     BEGIN
-      INSERT INTO lc2v_cand
-      SELECT 'v2',p.student_id,p.billing_month,c.planned_lesson_id,
-             c.lesson_count,c.candidate_status,c.exclusion_reason
+      CREATE TEMP TABLE lc2v_raw ON COMMIT DROP AS
+      SELECT c.planned_lesson_id, c.lesson_count, c.candidate_status, c.exclusion_reason
       FROM public.school_list_student_tuition_candidates(
-        p.student_id,p.business_entity_id,p.billing_month,true) c
+        p.student_id,p.business_entity_id,p.billing_month,true) c;
+      SELECT count(*) INTO v_returned FROM lc2v_raw;
+      INSERT INTO lc2v_cand
+      SELECT 'v2',p.student_id,p.billing_month,r.planned_lesson_id,
+             r.lesson_count,r.candidate_status,r.exclusion_reason
+      FROM lc2v_raw r
       ON CONFLICT DO NOTHING;
-    EXCEPTION WHEN OTHERS THEN NULL;
+      GET DIAGNOSTICS v_inserted = ROW_COUNT;
+      DROP TABLE lc2v_raw;
+      INSERT INTO lc2v_collect VALUES ('v2',p.student_id,p.billing_month,
+        true,NULL,NULL,v_returned,v_inserted);
+    EXCEPTION WHEN OTHERS THEN
+      INSERT INTO lc2v_collect VALUES ('v2',p.student_id,p.billing_month,
+        false,SQLSTATE,SQLERRM,NULL,NULL);
     END;
   END LOOP;
 END
@@ -1653,6 +1688,13 @@ $do$;
 \echo '--- v2 相 builder 结果 ---'
 SELECT count(*) FILTER (WHERE ok) AS "成功", count(*) FILTER (WHERE NOT ok) AS "失败"
 FROM lc2v_snap WHERE phase='v2';
+\echo '--- v2 相失败原因分布（与 v1 逐类对照；上一轮漏了这张表）---'
+SELECT coalesce(a.err, b.err) AS "原因",
+       count(a.*) AS "v1", count(b.*) AS "v2"
+FROM (SELECT * FROM lc2v_snap WHERE phase='v1' AND NOT ok) a
+FULL OUTER JOIN (SELECT * FROM lc2v_snap WHERE phase='v2' AND NOT ok) b
+  ON b.student_id=a.student_id AND b.billing_month=a.billing_month
+GROUP BY 1 ORDER BY 1;
 
 -- ---------------------------------------------------------------------------
 -- §8 断言
@@ -1738,7 +1780,11 @@ BEGIN
 END
 $do$;
 
--- (D) 【场景 6】新进候选必须**恰好**是那些源序号为 NULL 或 <= 0 的
+-- (D) 【场景 6】新进候选的**必要条件**：其 v1 源序号必须是 NULL 或 <= 0
+--   ⚠️ 这是单向必要条件，**不是「恰好等于」**。
+--   它证明「没有不该进来的进来了」，不证明「所有该进来的都进来了」——
+--   其余排除原因、历史关联、历史已付排除仍可能合法挡住 NULL/<=0 的行。
+--   要做双向差集，得先把预期集合完整定义出来，那超出本脚本范围。
 DO $do$
 DECLARE v_bad integer; v_detail text;
 BEGIN
@@ -1755,6 +1801,7 @@ BEGIN
      AND v1.billing_month=v2.billing_month AND v1.planned_lesson_id=v2.planned_lesson_id
     WHERE v2.phase='v2' AND v2.candidate_status='candidate'
       AND coalesce(v1.candidate_status,'') <> 'candidate'
+      AND v1.planned_lesson_id IS NOT NULL          -- 缺行的情况由 (I) 单独处理
       AND (v1.lesson_count IS NOT NULL AND v1.lesson_count > 0)
   ) unexpected;
   IF v_bad > 0 THEN
@@ -1768,6 +1815,7 @@ $do$;
 -- (E) 候选集完全相同的组合：金额与时长必须逐分不变
 --     注意 candidate_manifest **允许**变：它 hash 了 candidate_line，
 --     而 line 里的 lesson_count 已由源序号换成账单内序号。这是有意的。
+--     billing_amount_cny 也纳入比较：两相用同一个占位汇率，它不该变。
 DO $do$
 DECLARE v_bad integer; v_detail text;
 BEGIN
@@ -1776,6 +1824,7 @@ BEGIN
            a.total_duration_hours AS h1, b.total_duration_hours AS h2,
            a.total_base AS b1, b.total_base AS b2,
            a.total_aircon AS c1, b.total_aircon AS c2,
+           a.billing_amount_cny AS y1, b.billing_amount_cny AS y2,
            a.uuid_md5 AS u1, b.uuid_md5 AS u2
     FROM lc2v_snap a JOIN lc2v_snap b
       ON b.phase='v2' AND b.student_id=a.student_id AND b.billing_month=a.billing_month
@@ -1785,7 +1834,7 @@ BEGIN
            student_id, billing_month, f1, f2, h1, h2), '')
   INTO v_bad, v_detail
   FROM same_set
-  WHERE (f1,h1,b1,c1) IS DISTINCT FROM (f2,h2,b2,c2);
+  WHERE (f1,h1,b1,c1,y1) IS DISTINCT FROM (f2,h2,b2,c2,y2);
   IF v_bad > 0 THEN
     RAISE EXCEPTION 'LC2V_E_AMOUNT_DRIFT: 候选集未变却有 % 个组合金额或时长变了。%',
       v_bad, v_detail;
@@ -1821,6 +1870,113 @@ BEGIN
 END
 $do$;
 
+
+-- (G) 候选采集必须全部成功
+--   上一轮这些异常被 WHEN OTHERS THEN NULL 吞掉了，于是「0 条候选」既可能是
+--   真的没课时，也可能是采集炸了——两者无法区分。现在独立记录并硬停止。
+DO $do$
+DECLARE v_bad integer; v_detail text;
+BEGIN
+  SELECT count(*), string_agg(format(E'
+  %s %s %s: %s %s',
+           phase, student_id, billing_month, sqlstate, err), '')
+  INTO v_bad, v_detail FROM lc2v_collect WHERE NOT ok;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'LC2V_G_COLLECT_FAILED: % 次候选采集失败，'
+      '本轮的候选相关结论全部不可信。%', v_bad, v_detail;
+  END IF;
+END
+$do$;
+
+-- (H) 候选 reader 不得返回重复的 planned_lesson_id
+--   ON CONFLICT DO NOTHING 会把重复静默折叠掉，看起来一切正常。
+--   这里比对「返回行数」与「实际插入行数」，让折叠现形。
+DO $do$
+DECLARE v_bad integer; v_detail text;
+BEGIN
+  SELECT count(*), string_agg(format(E'
+  %s %s %s: 返回 %s 行，插入 %s 行',
+           phase, student_id, billing_month, returned_rows, inserted_rows), '')
+  INTO v_bad, v_detail FROM lc2v_collect
+  WHERE ok AND returned_rows IS DISTINCT FROM inserted_rows;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'LC2V_H_DUPLICATE_CANDIDATE_ROW: % 个组合的候选 reader '
+      '返回了重复的 planned_lesson_id。%', v_bad, v_detail;
+  END IF;
+END
+$do$;
+
+-- (I) v2 有候选、而该行在 v1 相**整行缺失**
+--   与 (D) 的「字段为 NULL」是两回事：整行缺失说明两相看到的行集合本身不同，
+--   那已经不是「放宽判定」能解释的，必须人来看。
+DO $do$
+DECLARE v_bad integer; v_detail text;
+BEGIN
+  SELECT count(*), string_agg(format(E'
+  %s %s %s',
+           v2.student_id, v2.billing_month, v2.planned_lesson_id), '')
+  INTO v_bad, v_detail
+  FROM lc2v_cand v2
+  LEFT JOIN lc2v_cand v1
+    ON v1.phase='v1' AND v1.student_id=v2.student_id
+   AND v1.billing_month=v2.billing_month AND v1.planned_lesson_id=v2.planned_lesson_id
+  WHERE v2.phase='v2' AND v1.planned_lesson_id IS NULL;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'LC2V_I_ROW_ONLY_IN_V2: % 条课时只在 v2 相出现、v1 相整行没有。'
+      '两相读的是同一个事务快照，行集合本不该不同。%', v_bad, v_detail;
+  END IF;
+END
+$do$;
+
+-- (J) builder 成功却返回空 candidates 数组
+--   (A2) 用 CROSS JOIN 展开数组，空数组样本会直接从比较里消失——
+--   于是一个「成功但没有明细」的坏结果可以静悄悄通过。这里单独堵上。
+DO $do$
+DECLARE v_bad integer; v_detail text;
+BEGIN
+  SELECT count(*), string_agg(format(E'
+  %s %s %s: candidates=%s',
+           phase, student_id, billing_month,
+           coalesce(jsonb_typeof(candidates),'<NULL>')), '')
+  INTO v_bad, v_detail FROM lc2v_snap
+  WHERE ok AND coalesce(jsonb_array_length(candidates), 0) = 0;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'LC2V_J_EMPTY_CANDIDATES: % 个组合 builder 报成功却没有明细。%',
+      v_bad, v_detail;
+  END IF;
+END
+$do$;
+
+-- (K) 【重编号的核心性质】v2 每个「学生 × 周 × 科目」分组内，
+--   账单内序号必须恰好是 1..n 的连续正整数，不重不漏。
+--   (F) 只验数组次序，验不到编号本身对不对。
+DO $do$
+DECLARE v_bad integer; v_detail text;
+BEGIN
+  WITH grp AS (
+    SELECT s.student_id, s.billing_month,
+           line->>'billing_week_start_date' AS wk,
+           line->>'subject_id' AS subj,
+           count(*)::integer AS n,
+           count(DISTINCT (line->>'lesson_count')::integer)::integer AS distinct_ord,
+           min((line->>'lesson_count')::integer) AS min_ord,
+           max((line->>'lesson_count')::integer) AS max_ord
+    FROM lc2v_snap s CROSS JOIN LATERAL jsonb_array_elements(s.candidates) line
+    WHERE s.phase='v2' AND s.ok
+    GROUP BY 1,2,3,4
+  )
+  SELECT count(*), string_agg(format(E'
+  %s %s 周%s 科目%s: n=%s 不同序号=%s 范围=%s..%s',
+           student_id, billing_month, wk, subj, n, distinct_ord, min_ord, max_ord), '')
+  INTO v_bad, v_detail FROM grp
+  WHERE distinct_ord <> n OR min_ord <> 1 OR max_ord <> n;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'LC2V_K_ORDINAL_NOT_DENSE: % 个「学生×周×科目」分组的账单内序号'
+      '不是 1..n 的连续正整数。%', v_bad, v_detail;
+  END IF;
+END
+$do$;
+
 \echo ''
 \echo '>>> §8 全部断言通过'
 
@@ -1843,9 +1999,13 @@ ORDER BY 1,2;
 \echo '--- O2 新进候选的课时明细（场景 6：源序号为 NULL / 0 / 负数）---'
 SELECT v2.student_id AS "学生", v2.billing_month AS "月份",
        v2.planned_lesson_id AS "课时",
-       coalesce(v1.lesson_count::text,'<该相无此行>') AS "v1 源序号",
-       coalesce(v1.exclusion_reason,'<该相无此行>') AS "v1 排除原因",
-       v2.lesson_count AS "v2 源序号"
+       CASE WHEN v1.planned_lesson_id IS NULL THEN '<v1 相整行缺失>'
+            WHEN v1.lesson_count IS NULL THEN '<NULL>'
+            ELSE v1.lesson_count::text END AS "v1 源序号",
+       CASE WHEN v1.planned_lesson_id IS NULL THEN '<v1 相整行缺失>'
+            ELSE coalesce(v1.exclusion_reason,'<候选>') END AS "v1 排除原因",
+       CASE WHEN v2.lesson_count IS NULL THEN '<NULL>'
+            ELSE v2.lesson_count::text END AS "v2 源序号"
 FROM lc2v_cand v2
 LEFT JOIN lc2v_cand v1
   ON v1.phase='v1' AND v1.student_id=v2.student_id
@@ -1893,7 +2053,10 @@ FROM ord o
 WHERE o.max_ord >= 2
 ORDER BY (o.sum_ord <> o.cnt) DESC, o.cnt DESC, 1, 2;
 
-\echo '--- R2 侦察：v2 成功且当前无 active 账单的组合（可用于 rollback-only 首次生成测试）---'
+\echo '--- R2 侦察：v2 成功、且未查到与 active revision 相连的账单 ---'
+\echo '     ⚠️ 仅此而已。**不证明**从无任何 bill / identity / voided revision，'
+\echo '     也没查 writer gate、幂等状态、收款、权限。是待进一步核对的候选，'
+\echo '     不是「可用于首次生成」的结论，更不是写入授权。'
 SELECT s.student_id AS "学生", s.billing_month AS "月份",
        s.candidate_count AS "条数", s.total_lesson_count AS "总次数",
        s.total_fee AS "金额 JPY"
@@ -1906,7 +2069,9 @@ WHERE s.phase='v2' AND s.ok
     WHERE bill.student_id=s.student_id AND bill.billing_month=s.billing_month)
 ORDER BY 2 DESC, 1;
 
-\echo '--- R3 侦察：已有 active 账单的组合（可用于 next_revision / P0-E 路径测试）---'
+\echo '--- R3 侦察：存在 active revision 的账单 ---'
+\echo '     ⚠️ 未查收款状态、void/reissue preflight、下游消耗、可用调整事实、'
+\echo '     writer 入参。active 本身不是 next revision 可立即执行的前提。'
 SELECT bill.student_id AS "学生", bill.billing_month AS "月份",
        rev.manifest_kind AS "manifest 种类", rev.revision_no AS "修订号",
        (bill.source_snapshot->>'total_lesson_count')::integer AS "冻结总次数",
@@ -1918,17 +2083,31 @@ JOIN public.school_student_tuition_generation_revisions rev
 ORDER BY 2 DESC, 1;
 
 \echo '--- R4 侦察：历史兼容样本（设计 §11.1 要 total = sum ≠ count）---'
-SELECT bill.id AS "账单", bill.billing_month AS "月份",
-       (bill.source_snapshot->>'total_lesson_count')::integer AS "冻结总次数",
-       jsonb_array_length(bill.source_snapshot->'candidate_lines') AS "冻结条数",
-       rev.manifest_kind AS "manifest 种类", bill.billing_role AS "billing_role"
-FROM public.school_student_tuition_bills bill
-JOIN public.school_student_tuition_generation_revisions rev
-  ON rev.tuition_bill_id=bill.id
-WHERE rev.manifest_kind='atomic_generation_v1'
-  AND (bill.source_snapshot->>'total_lesson_count')::integer
-      IS DISTINCT FROM jsonb_array_length(bill.source_snapshot->'candidate_lines')
-ORDER BY 2 DESC, 1;
+\echo '     「序号和」由冻结 candidate_lines 现算，用来实证 total 确实等于 sum；'
+\echo '     「版本键」列出实际值而不只是有无。**本脚本不调用 validator**，'
+\echo '     所以这里只完成取样，不构成 §11.1 的完整证据。'
+WITH b AS (
+  SELECT bill.id, bill.billing_month, bill.billing_role, rev.manifest_kind,
+         (bill.source_snapshot->>'total_lesson_count')::integer AS frozen_total,
+         jsonb_array_length(bill.source_snapshot->'candidate_lines') AS frozen_count,
+         (SELECT coalesce(sum((line->>'lesson_count')::integer),0)
+            FROM jsonb_array_elements(bill.source_snapshot->'candidate_lines') line)
+           AS frozen_sum,
+         bill.source_snapshot->'lesson_count_semantics' AS semantics
+  FROM public.school_student_tuition_bills bill
+  JOIN public.school_student_tuition_generation_revisions rev
+    ON rev.tuition_bill_id=bill.id
+  WHERE rev.manifest_kind='atomic_generation_v1'
+)
+SELECT b.id AS "账单", b.billing_month AS "月份",
+       b.frozen_total AS "冻结总次数", b.frozen_sum AS "冻结序号和",
+       b.frozen_count AS "冻结条数",
+       (b.frozen_total = b.frozen_sum) AS "total=sum",
+       (b.frozen_total <> b.frozen_count) AS "sum<>count",
+       coalesce(b.semantics::text,'<缺键>') AS "版本键",
+       b.billing_role AS "billing_role"
+FROM b ORDER BY (b.frozen_total = b.frozen_sum AND b.frozen_total <> b.frozen_count) DESC,
+                b.billing_month DESC, b.id;
 
 -- ---------------------------------------------------------------------------
 -- §10 收尾：无条件 ROLLBACK
