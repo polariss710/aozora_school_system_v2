@@ -1661,10 +1661,25 @@ async function handleLockSubmit() {
   });
 }
 
+// 锁定成功后刷新列表。这里必须用 runQuery 重跑「当前已应用的查询」：
+// loadInitialData 会连学生主数据一起重取并回落到 initialFilters，applyQuery 则
+// 读 DOM 并改 URL——两者都可能把用户正在看的筛选换掉。
+//
+// 顺序是先刷新、后提示：runQuery 成功时自己会 showMessage("…已加载。")，
+// 放在前面会把「月结已正式锁定」盖掉。
+//
+// 2026-09-07 修：此处原本调用 loadSettlements()，而该函数全仓库既无定义也无导入。
+// 于是每次锁定成功后都抛 ReferenceError，被外层 catch 接进 recoverFromLockFailure；
+// 后者判定 CONFIRMED 后又调回本函数，第二次抛出并穿透整个处理链。表现为
+// 「绿条出现、弹窗关闭、列表不刷新、且没有任何报错」。锁定本身是成功的。
+// 真正的危险在于：一旦 afterStatus 读取失败而被判成 RETRIABLE，界面会显示
+// 「本次请求未写入任何数据，可以再次提交」——而数据其实已经写入。
 async function finishLockSuccess() {
-  showMessage("success", "月结已正式锁定。");
   closeLockDialog(true);
-  await loadSettlements();
+  if (appliedFilters) {
+    await runQuery(appliedFilters, { updateUrl: false });
+  }
+  showMessage("success", "月结已正式锁定。");
 }
 
 // 失败一律经 classifyLockFailure 分流。此处不自行判断能否重试——
