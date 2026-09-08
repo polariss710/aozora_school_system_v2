@@ -35,7 +35,7 @@ BEGIN
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)','40ef9ec344623bb7c02bf8aea670ad52','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.'),
     ('C','public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text,text)','dad1d0512d44114aed0d9c2a3b61480e','{postgres=X/postgres}','R2-F-C owner-only atomic tuition core. New generation holds fixed-order SHARE table locks on lesson and settlement evidence tables until transaction end; public wrapper remains R0 blocked.'),
     ('F','public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text,text)','8b9b4fd5079a2794aa15c223bbbf9ffc','{postgres=X/postgres}',NULL),
-    ('N','public.school_generate_student_tuition_next_revision_core(uuid,uuid,uuid,text,numeric,text,text,text,text)','fe21ba4af0face413ffbf998e3d86a8e','{postgres=X/postgres}',NULL)
+    ('N','public.school_generate_student_tuition_next_revision_core(uuid,uuid,uuid,text,numeric,text,text,text,text)','06262763ce6c223e1b271e2be005fdbb','{postgres=X/postgres}',NULL)
   ) AS t(code,sig,md5,acl,cmt) LOOP
     v_oid := to_regprocedure(r.sig);
     IF v_oid IS NULL THEN
@@ -59,7 +59,15 @@ END $lc$;
 -- -----------------------------------------------------------------------------
 -- §2 审计事实保护
 --     已有 ack 事件时 DROP 表会销毁审计事实 —— 那不是无损回滚。
+--
+--     ⚠️ COUNT 与 DROP 之间若无排他保护，存在并发窗口：
+--        ① 本事务 COUNT 得 0 → ② 另一事务提交账单与 ack → ③ 本事务 DROP。
+--        即使 allow_ack_loss=no，也会删掉检查之后新增的审计事实。
+--        DROP 最终取得的锁【不会追溯保护先前的 COUNT】。
+--     故先取 ACCESS EXCLUSIVE 锁并持有到事务结束，再 COUNT。
 -- -----------------------------------------------------------------------------
+LOCK TABLE public.school_student_tuition_generation_ordering_ack_events IN ACCESS EXCLUSIVE MODE;
+
 SELECT count(*) AS og_ack_rows FROM public.school_student_tuition_generation_ordering_ack_events \gset
 SELECT (:og_ack_rows > 0 AND :'allow_ack_loss' <> 'yes') AS og_blocked \gset
 \if :og_blocked

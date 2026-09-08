@@ -26,7 +26,11 @@
 \else
   \set mode 'rehearsal'
 \endif
-\echo '=== 顺序守卫部署，mode =' :mode '==='
+\if :{?p0e_adjustment_type}
+\else
+  \set p0e_adjustment_type 'forward_adjustment'
+\endif
+\echo '=== 顺序守卫部署，mode =' :mode '  P0-E 调整类型 =' :p0e_adjustment_type '==='
 
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 SET LOCAL statement_timeout = '600s';
@@ -105,26 +109,59 @@ UNION
 SELECT DISTINCT b.student_id, b.billing_month, 0.042::numeric
 FROM public.school_student_tuition_bills b;
 
+CREATE TEMP TABLE og_p0e ON COMMIT DROP AS
+SELECT r.generation_identity_id, r.id AS previous_revision_id,
+       g.student_id, g.business_entity_id,
+       to_char(g.billing_month,'YYYY-MM') AS billing_month
+FROM public.school_student_tuition_generation_revisions r
+JOIN public.school_student_tuition_generation_identities g ON g.id = r.generation_identity_id
+WHERE r.lifecycle_status = 'voided' AND r.manifest_kind = 'atomic_generation_v1';
+
+SELECT set_config('og.p0e_adjustment_type',
+                  coalesce(current_setting('og.p0e_adjustment_type',true),
+                           :'p0e_adjustment_type'), false);
+
 CREATE OR REPLACE FUNCTION pg_temp.og_scan(p_phase text) RETURNS void
 LANGUAGE plpgsql AS $lc$
 DECLARE c record; v jsonb;
 BEGIN
   FOR c IN SELECT * FROM og_combo LOOP
+    -- INTO STRICT：零行不得被记成 ok=true / payload=NULL，那会削弱覆盖率门槛
     BEGIN
-      SELECT to_jsonb(s) INTO v FROM public.school_build_student_tuition_generation_snapshot(
+      SELECT to_jsonb(s) INTO STRICT v
+      FROM public.school_build_student_tuition_generation_snapshot(
         c.student_id,c.billing_month,c.rate) s;
       INSERT INTO og_sweep VALUES(p_phase,'B',c.student_id,c.billing_month,true,NULL,NULL,v);
     EXCEPTION WHEN OTHERS THEN
+      -- 同为 P0001 的不同业务错误必须区分，故一并记录错误码前缀
       INSERT INTO og_sweep VALUES(p_phase,'B',c.student_id,c.billing_month,false,
-        SQLSTATE,SQLERRM,NULL);
+        SQLSTATE,split_part(SQLERRM,':',1),NULL);
     END;
     BEGIN
-      SELECT to_jsonb(s) INTO v FROM public.school_get_student_tuition_validation_preview_details(
+      SELECT to_jsonb(s) INTO STRICT v
+      FROM public.school_get_student_tuition_validation_preview_details(
         c.student_id,c.billing_month,c.rate) s;
       INSERT INTO og_sweep VALUES(p_phase,'V',c.student_id,c.billing_month,true,NULL,NULL,v);
     EXCEPTION WHEN OTHERS THEN
       INSERT INTO og_sweep VALUES(p_phase,'V',c.student_id,c.billing_month,false,
-        SQLSTATE,SQLERRM,NULL);
+        SQLSTATE,split_part(SQLERRM,':',1),NULL);
+    END;
+  END LOOP;
+
+  -- EP（P0-E 重发预览）：金额最不该变的一条路径，必须一并扫。
+  -- adjustment_type 由调用方经 -v p0e_adjustment_type=... 指定；
+  -- 若取值不适用，EP 会前后一致地失败，覆盖率门槛会把它标为【未验证】。
+  FOR c IN SELECT * FROM og_p0e LOOP
+    BEGIN
+      SELECT to_jsonb(s) INTO STRICT v
+      FROM public.school_get_atomic_tuition_reissue_preview_p0e(
+        c.generation_identity_id,c.previous_revision_id,c.student_id,
+        c.business_entity_id,c.billing_month,0.042,
+        current_setting('og.p0e_adjustment_type',true),'og sweep probe') s;
+      INSERT INTO og_sweep VALUES(p_phase,'EP',c.student_id,c.billing_month,true,NULL,NULL,v);
+    EXCEPTION WHEN OTHERS THEN
+      INSERT INTO og_sweep VALUES(p_phase,'EP',c.student_id,c.billing_month,false,
+        SQLSTATE,split_part(SQLERRM,':',1),NULL);
     END;
   END LOOP;
 END $lc$;
@@ -1225,7 +1262,11 @@ begin
     v_snapshot.candidate_count,v_snapshot.total_lesson_count,v_snapshot.total_duration_hours,
     v_snapshot.total_base_lesson_fee_jpy,v_snapshot.total_aircon_fee_jpy,v_snapshot.total_fee_jpy,
     v_snapshot.billing_exchange_rate,v_snapshot.previous_carryover_cny,v_snapshot.billing_amount_cny,
-    v_bill.status,v_income.status,false,'atomic tuition revision created'::text;
+    v_bill.status,v_income.status,false,'atomic tuition revision created'::text,
+    v_revision_id,v_ack_consumed,
+    case when v_ack_consumed then v_operator end,
+    case when v_ack_consumed then v_operator_source end,
+    v_ack_precondition;
 end;
 $function$
 ;
@@ -1250,7 +1291,7 @@ BEGIN
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)','40ef9ec344623bb7c02bf8aea670ad52','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.'),
     ('C','public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text,text)','dad1d0512d44114aed0d9c2a3b61480e','{postgres=X/postgres}','R2-F-C owner-only atomic tuition core. New generation holds fixed-order SHARE table locks on lesson and settlement evidence tables until transaction end; public wrapper remains R0 blocked.'),
     ('F','public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text,text)','8b9b4fd5079a2794aa15c223bbbf9ffc','{postgres=X/postgres}',NULL),
-    ('N','public.school_generate_student_tuition_next_revision_core(uuid,uuid,uuid,text,numeric,text,text,text,text)','fe21ba4af0face413ffbf998e3d86a8e','{postgres=X/postgres}',NULL)
+    ('N','public.school_generate_student_tuition_next_revision_core(uuid,uuid,uuid,text,numeric,text,text,text,text)','06262763ce6c223e1b271e2be005fdbb','{postgres=X/postgres}',NULL)
   ) AS t(code,sig,md5,acl,cmt) LOOP
     v_oid := to_regprocedure(r.sig);
     IF v_oid IS NULL THEN RAISE EXCEPTION 'OG_POST_MISSING: %', r.code; END IF;
@@ -1275,25 +1316,38 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 5.3 对外返回契约：G 与 C 必须仍是 20 列（F/N 已扩到 25，不得外泄）
+  -- 5.3 对外返回契约：G 与 C 的返回签名必须【逐字节】等于基线。
+  --     只数逗号是不够的——同列数、不同名称或类型也能通过。
   FOR r IN SELECT * FROM (VALUES
-    ('public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)'),('public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text,text)')
-  ) AS t(sig) LOOP
-    IF (length(pg_get_function_result(to_regprocedure(r.sig)))
-        - length(replace(pg_get_function_result(to_regprocedure(r.sig)),',',''))) + 1 <> 20 THEN
-      RAISE EXCEPTION 'OG_RESULT_SHAPE_CHANGED: %  ← 前端契约被改变', r.sig;
+    ('public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)','TABLE(tuition_bill_id uuid, billing_identity_id uuid, income_record_id uuid, student_id uuid, business_entity_id uuid, billing_month text, generation_manifest_sha256 text, candidate_count integer, total_lesson_count integer, total_duration_hours numeric, total_base_lesson_fee_jpy numeric, total_aircon_fee_jpy numeric, total_fee_jpy numeric, billing_exchange_rate numeric, previous_carryover_cny numeric, billing_amount_cny numeric, bill_status text, income_status text, idempotent boolean, message text)'),
+    ('public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text,text)','TABLE(tuition_bill_id uuid, billing_identity_id uuid, income_record_id uuid, student_id uuid, business_entity_id uuid, billing_month text, generation_manifest_sha256 text, candidate_count integer, total_lesson_count integer, total_duration_hours numeric, total_base_lesson_fee_jpy numeric, total_aircon_fee_jpy numeric, total_fee_jpy numeric, billing_exchange_rate numeric, previous_carryover_cny numeric, billing_amount_cny numeric, bill_status text, income_status text, idempotent boolean, message text)')
+  ) AS t(sig,expected) LOOP
+    IF pg_get_function_result(to_regprocedure(r.sig)) IS DISTINCT FROM r.expected THEN
+      RAISE EXCEPTION 'OG_RESULT_SHAPE_CHANGED: %  ← 前端契约被改变%  实际: %',
+        r.sig, chr(10), pg_get_function_result(to_regprocedure(r.sig));
     END IF;
   END LOOP;
 
-  -- 5.4 同输入同输出：允许差异仅限 carryover_evidence 的六个新键与两个 manifest
+  -- 5.4 同输入同输出。允许差异【仅限】carryover_evidence 的六个新键与
+  --     由其派生的 generation_manifest_sha256；其余字段与错误码必须完全一致。
+  --     注意：不能把整个 carryover_evidence 从比对里剔除——那样原有键
+  --     （mode / authority / settlement_month / locked_settlement_count /
+  --      carryover_amount_cny）被改动也查不出来。
   SELECT count(*) INTO v_bad FROM og_sweep a JOIN og_sweep b
     ON b.phase='after' AND a.phase='before' AND a.fn=b.fn
    AND a.student_id=b.student_id AND a.billing_month=b.billing_month
   WHERE a.ok <> b.ok
      OR a.sqlstate IS DISTINCT FROM b.sqlstate
+     OR a.errmsg   IS DISTINCT FROM b.errmsg          -- 错误码前缀也须一致
      OR (a.ok AND (
-           (a.payload - 'carryover_evidence' - 'generation_manifest_sha256')
-        <> (b.payload - 'carryover_evidence' - 'generation_manifest_sha256')));
+              (a.payload - 'carryover_evidence' - 'generation_manifest_sha256')
+           <> (b.payload - 'carryover_evidence' - 'generation_manifest_sha256')))
+     OR (a.ok AND a.payload ? 'carryover_evidence' AND (
+              (a.payload->'carryover_evidence')
+           IS DISTINCT FROM ((b.payload->'carryover_evidence')
+                - 'settlement_effective_complete' - 'settlement_effective_status'
+                - 'settlement_source_type' - 'settlement_source_id'
+                - 'settlement_provenance_carry_cny' - 'settlement_blocker_code')));
   IF v_bad > 0 THEN
     RAISE EXCEPTION 'OG_SWEEP_DIVERGED: % 个组合的非豁免字段或错误码发生变化', v_bad;
   END IF;
@@ -1325,16 +1379,34 @@ BEGIN
     SELECT (SELECT settlement_effective_complete
               FROM public.school_get_tuition_generation_ordering_state(s.student_id,s.billing_month)) AS rd
   ) x
-  WHERE s.phase='after' AND s.fn='B' AND s.ok AND x.rd IS NOT NULL
+  WHERE s.phase='after' AND s.fn='B' AND s.ok
     AND x.rd IS DISTINCT FROM (s.payload->'carryover_evidence'->>'settlement_effective_complete')::boolean;
-  IF v_bad > 0 THEN RAISE EXCEPTION 'OG_READER_DIVERGED: % 个组合 reader 与 B 结论不一致', v_bad; END IF;
+  -- 不排除 rd IS NULL：B 成功而 reader 给不出结论，本身就是分叉，不能静默跳过。
+  IF v_bad > 0 THEN RAISE EXCEPTION 'OG_READER_DIVERGED: % 个组合 reader 与 B 结论不一致或 reader 无结论', v_bad; END IF;
 
-  -- 5.8 覆盖率门槛：成功样本为 0 即【验收无效】，不是通过
-  SELECT count(*) FILTER (WHERE ok), count(*) FILTER (WHERE NOT ok)
-    INTO v_ok, v_fail FROM og_sweep WHERE phase='after' AND fn='B';
-  RAISE NOTICE 'OG: B 扫描 成功=% 失败=%', v_ok, v_fail;
+  -- 5.8 覆盖率门槛，【逐函数】施加：某函数成功样本为 0 ⇒ 它的比对是真空的。
+  -- 显式枚举三个被验收函数：某函数【一行都没扫到】与【扫了全失败】
+  -- 在报告里必须能区分开，否则又是「缺席被当成没问题」。
+  FOR r IN
+    SELECT e.fn,
+           count(s.*) FILTER (WHERE s.ok)     AS n_ok,
+           count(s.*) FILTER (WHERE NOT s.ok) AS n_fail,
+           count(s.*)                          AS n_total
+    FROM (VALUES ('B'),('V'),('EP')) AS e(fn)
+    LEFT JOIN og_sweep s ON s.fn = e.fn AND s.phase='after'
+    GROUP BY e.fn ORDER BY e.fn
+  LOOP
+    RAISE NOTICE 'OG: % 扫描 组合=% 成功=% 失败=%', r.fn, r.n_total, r.n_ok, r.n_fail;
+    IF r.n_total = 0 THEN
+      RAISE WARNING 'OG_COVERAGE_ABSENT: % 一个组合都没扫到，该函数【完全未被验收】', r.fn;
+    ELSIF r.n_ok = 0 THEN
+      RAISE WARNING 'OG_COVERAGE_VACUOUS: % 成功样本为 0，前后比对不构成验收', r.fn;
+    END IF;
+  END LOOP;
+
+  SELECT count(*) FILTER (WHERE ok) INTO v_ok FROM og_sweep WHERE phase='after' AND fn='B';
   IF v_ok = 0 THEN
-    RAISE EXCEPTION 'OG_COVERAGE_VACUOUS: B 成功样本为 0，本次比对不构成验收';
+    RAISE EXCEPTION 'OG_COVERAGE_VACUOUS_B: B 成功样本为 0，本次比对不构成验收';
   END IF;
 END $lc$;
 
