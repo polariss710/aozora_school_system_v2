@@ -800,8 +800,10 @@ function readCashIncomeRequestPayload() {
   if (isTuition) {
     const cashAccount = cashEligibleAccounts.find((account) => account.id === cashAccountId);
     const preflight = detailData.cashSubmissionPreflight;
+    // 取自 preflight 的当前 active revision，不再取 income snapshot 的冻结值。
+    // 账单在提交 Cash 前可以作废重生成，绑生成时刻本身不现实。
     const expectedRevisionId = safeText(
-      income.source_snapshot?.generation_revision_id
+      preflight?.active_generation_revision_id
     ).trim();
     const expectedBillId = safeText(income.source_id).trim();
     const expectedPaymentCurrency = safeText(preflight?.payment_currency).trim();

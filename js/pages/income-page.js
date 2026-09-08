@@ -1229,7 +1229,7 @@ async function buildFreshCashSubmissionConfirmation(payloads) {
       fresh.payment_currency !== item.payload.expectedPaymentCurrency ||
       Number(fresh.payment_amount) !== item.payload.expectedPaymentAmount ||
       income.source_id !== item.payload.expectedTuitionBillId ||
-      income.source_snapshot?.generation_revision_id !==
+      fresh.active_generation_revision_id !==
         item.payload.expectedGenerationRevisionId
     ) {
       throw new Error("学费账单、收入、金额或active revision已变化，请刷新页面后重新核对。");
@@ -1277,8 +1277,9 @@ function readBatchCashIncomePayloads() {
 
     if (income.source_type === "student_tuition_bill") {
       const cashAccount = cashEligibleAccounts.find((account) => account.id === state.accountId);
+      // 同详情页：取当前 active revision，不取 snapshot 冻结值。
       const expectedRevisionId = safeText(
-        income.source_snapshot?.generation_revision_id
+        income.cashSubmissionPreflight?.active_generation_revision_id
       ).trim();
       const expectedBillId = safeText(income.source_id).trim();
       const expectedPaymentCurrency = safeText(

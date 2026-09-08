@@ -88,6 +88,9 @@ type CashSubmissionPreflightRow = {
   gate_state: string;
   payment_currency: string | null;
   payment_amount: number | string | null;
+  // 该 bill 当前 lifecycle_status='active' 的 revision id。
+  // 只读事实，由 preflight 从 revision 表 join 得来；不改变任何 writer 的权威。
+  active_generation_revision_id: string | null;
 };
 
 class PublicRequestError extends Error {
@@ -377,7 +380,10 @@ function requireTuitionExpectedFacts(
     incomeData.settlement_month !== expectedMonth ||
     incomeData.source_id !== expectedBillId ||
     incomeData.tuition_bill_id !== expectedBillId ||
-    snapshot.generation_revision_id !== expectedRevisionId ||
+    // 与【服务端此刻的 active revision】比对，不再与 income snapshot 的同名字段比对。
+    // 旧写法是把客户端回传值与它自己的来源字段相比 —— 字段存在则恒真，
+    // 字段不存在（首次生成的账单从来没有该键）则前端更早拒绝，从未真正生效。
+    preflight.active_generation_revision_id !== expectedRevisionId ||
     preflight.income_record_id !== incomeData.id ||
     preflight.classification !== "ELIGIBLE_FOR_CASH_SUBMIT" ||
     preflight.eligible !== true ||
