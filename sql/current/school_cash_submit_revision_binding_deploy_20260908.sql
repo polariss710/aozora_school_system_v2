@@ -91,19 +91,22 @@ WHERE i.source_type = 'student_tuition_bill'
 DO $cb$
 DECLARE v_n bigint; v_bad bigint;
 BEGIN
-  -- 每笔 income 必须【恰好一个】 active revision：零行或多行都停。
+  -- 锚点必须是【全部 pending 学费 income】，bill 与 revision 都只是【被核对的关联】。
+  -- 若从 income JOIN bill 起算，source_id / tuition_bill_id 有问题或 bill 行缺失的
+  -- income 会在统计前就消失，永远不会被判成「零条 active revision」—— 那是静默漏检。
   SELECT count(*) INTO v_bad FROM (
     SELECT i.id
     FROM public.school_income_records i
-    JOIN public.school_student_tuition_bills b
+    LEFT JOIN public.school_student_tuition_bills b
       ON b.id = i.source_id AND b.id = i.tuition_bill_id
     LEFT JOIN public.school_student_tuition_generation_revisions r
       ON r.tuition_bill_id = b.id AND r.lifecycle_status = 'active'
     WHERE i.source_type = 'student_tuition_bill' AND i.status = 'pending'
-    GROUP BY i.id HAVING count(r.id) <> 1
+    GROUP BY i.id
+    HAVING count(DISTINCT b.id) <> 1 OR count(DISTINCT r.id) <> 1
   ) x;
   IF v_bad > 0 THEN
-    RAISE EXCEPTION 'CB_BASELINE_REVISION_CARDINALITY: % 笔 pending income 的 active revision 不是恰好一个', v_bad;
+    RAISE EXCEPTION 'CB_BASELINE_CARDINALITY: % 笔 pending 学费 income 不是「恰好一张 bill + 恰好一条 active revision」', v_bad;
   END IF;
 
   SELECT count(*) INTO v_n FROM cb_baseline;
@@ -307,10 +310,30 @@ BEGIN
     RAISE EXCEPTION 'CB_EXISTING_COLUMNS_CHANGED: % 笔的原有 10 列取值发生变化', v_bad;
   END IF;
 
-  -- 4.2 前后笔数必须一致（漏笔也是变化）
-  IF (SELECT count(*) FROM cb_sweep WHERE phase='before')
-     <> (SELECT count(*) FROM cb_sweep WHERE phase='after') THEN
-    RAISE EXCEPTION 'CB_SWEEP_COUNT_CHANGED';
+  -- 4.2 【ID 集合完整性】。上面的比较都是 inner join：若 preflight 前后都只返回
+  --     baseline 的一个子集，笔数相同、已返回者取值正确，整体就会通过，
+  --     而缺失的那些【从未被验收】。故必须逐向比对集合，并要求每个 ID 恰好一行。
+  IF EXISTS (SELECT income_id FROM cb_baseline
+             EXCEPT SELECT income_id FROM cb_sweep WHERE phase='before') THEN
+    RAISE EXCEPTION 'CB_BEFORE_MISSING_IDS: preflight（部署前）未返回全部基线 ID';
+  END IF;
+  IF EXISTS (SELECT income_id FROM cb_sweep WHERE phase='before'
+             EXCEPT SELECT income_id FROM cb_baseline) THEN
+    RAISE EXCEPTION 'CB_BEFORE_EXTRA_IDS: preflight（部署前）返回了基线之外的 ID';
+  END IF;
+  IF EXISTS (SELECT income_id FROM cb_baseline
+             EXCEPT SELECT income_id FROM cb_sweep WHERE phase='after') THEN
+    RAISE EXCEPTION 'CB_AFTER_MISSING_IDS: preflight（部署后）未返回全部基线 ID';
+  END IF;
+  IF EXISTS (SELECT income_id FROM cb_sweep WHERE phase='after'
+             EXCEPT SELECT income_id FROM cb_baseline) THEN
+    RAISE EXCEPTION 'CB_AFTER_EXTRA_IDS: preflight（部署后）返回了基线之外的 ID';
+  END IF;
+  SELECT count(*) INTO v_bad FROM (
+    SELECT income_id FROM cb_sweep WHERE phase='after'
+    GROUP BY income_id HAVING count(*) <> 1) x;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'CB_AFTER_DUPLICATE_ROWS: % 个基线 ID 的返回行数不是恰好一行', v_bad;
   END IF;
 
   -- 4.3 新列必须【逐笔等于当次基线】（基线来自 revision 表，非本函数输出）

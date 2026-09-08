@@ -59,21 +59,21 @@ WHERE i.source_type = 'student_tuition_bill' AND i.status = 'pending';
 DO $cb$
 DECLARE v_n bigint; v_bad bigint;
 BEGIN
-  -- 每笔 income 必须【恰好一个】 active revision。
-  -- 缺了这条，两个 active revision 时 cv_base 会出两行，
-  -- 配对比较照样「相等」—— 那是真空通过。
+  -- 锚点是【全部 pending 学费 income】；bill 与 revision 都是被核对的关联。
+  -- 从 income JOIN bill 起算会让关联损坏的 income 在统计前消失 —— 静默漏检。
   SELECT count(*) INTO v_bad FROM (
     SELECT i.id
     FROM public.school_income_records i
-    JOIN public.school_student_tuition_bills b
+    LEFT JOIN public.school_student_tuition_bills b
       ON b.id = i.source_id AND b.id = i.tuition_bill_id
     LEFT JOIN public.school_student_tuition_generation_revisions r
       ON r.tuition_bill_id = b.id AND r.lifecycle_status = 'active'
     WHERE i.source_type = 'student_tuition_bill' AND i.status = 'pending'
-    GROUP BY i.id HAVING count(r.id) <> 1
+    GROUP BY i.id
+    HAVING count(DISTINCT b.id) <> 1 OR count(DISTINCT r.id) <> 1
   ) x;
   IF v_bad > 0 THEN
-    RAISE EXCEPTION 'CV_REVISION_CARDINALITY: % 笔 pending income 的 active revision 不是恰好一个', v_bad;
+    RAISE EXCEPTION 'CV_CARDINALITY: % 笔 pending 学费 income 不是「恰好一张 bill + 恰好一条 active revision」', v_bad;
   END IF;
 
   SELECT count(*) INTO v_n FROM cv_base;
@@ -81,6 +81,29 @@ BEGIN
   IF v_n = 0 THEN
     RAISE WARNING 'CV_COVERAGE_ABSENT: 无 pending 样本，【值正确性未验证】（不是通过）';
     RETURN;
+  END IF;
+
+  -- 【ID 集合完整性】先于取值比对：inner join 会让 preflight 漏返回的 ID
+  -- 整个消失，最后靠一条非空结果宣布「逐笔一致」—— 那是真空通过。
+  IF EXISTS (SELECT income_id FROM cv_base
+             EXCEPT SELECT income_record_id
+               FROM public.school_get_cash_income_submission_preflight(
+                      (SELECT array_agg(income_id) FROM cv_base))) THEN
+    RAISE EXCEPTION 'CV_MISSING_IDS: preflight 未返回全部 pending 学费 income';
+  END IF;
+  IF EXISTS (SELECT income_record_id
+               FROM public.school_get_cash_income_submission_preflight(
+                      (SELECT array_agg(income_id) FROM cv_base))
+             EXCEPT SELECT income_id FROM cv_base) THEN
+    RAISE EXCEPTION 'CV_EXTRA_IDS: preflight 返回了基线之外的 ID';
+  END IF;
+  SELECT count(*) INTO v_bad FROM (
+    SELECT pf.income_record_id
+    FROM public.school_get_cash_income_submission_preflight(
+           (SELECT array_agg(income_id) FROM cv_base)) pf
+    GROUP BY pf.income_record_id HAVING count(*) <> 1) x;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'CV_DUPLICATE_ROWS: % 个 ID 的返回行数不是恰好一行', v_bad;
   END IF;
 
   SELECT count(*) INTO v_bad

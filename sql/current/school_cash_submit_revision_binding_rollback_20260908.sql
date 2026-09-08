@@ -2,29 +2,72 @@
 -- Cash 提交 revision 绑定：回滚（SQL 层）
 --
 -- ⚠️ 回滚顺序是【前端 → Edge → SQL】。本文件是最后一步。
---    先回退前端与 Edge，再执行本文件。
 --
--- ⛔ 本文件只还原【函数定义】。它【不还原业务事实】：
---    若期间已产生真实 Cash request / School linkage / income 状态变化，
---    那些是真实业务事实，回滚函数定义【不会撤销它们】。
---    见 §1 的检查与停止条件。
+-- ⛔ 本文件只还原【函数定义与属性】。它【不还原业务事实】。
+--
+-- ⛔ 两个必填参数，缺一不可（缺失 / 空 / 非法一律非零退出）：
+--
+--   -v deployed_at='YYYY-MM-DD HH:MM:SS+09'
+--       部署时刻。用于盘点其后是否产生了 School linkage。
+--
+--   -v cash_inventory='<两库盘点结论的说明>'
+--       ⚠️ 本脚本【只连 School 库】，School linkage 为零【只能证明 School 侧】。
+--          Cash 库的 request / transaction 盘点【必须在本脚本之外独立完成】，
+--          并把结论写进本参数。没有这份两库证据，不得执行定义回滚。
+--       写 'skip' 视为未完成盘点，脚本拒绝执行。
 --
 -- 用法：
---   psql -v ON_ERROR_STOP=1 -f <本文件>
---   psql -v ON_ERROR_STOP=1 -v deployed_at='YYYY-MM-DD HH:MM:SS+09' -f <本文件>
+--   psql -v ON_ERROR_STOP=1 \
+--        -v deployed_at='2026-09-08 20:00:00+09' \
+--        -v cash_inventory='Cash 库 request=0 transaction=0，20:31 只读核对，业务负责人确认' \
+--        -f <本文件>
 -- =============================================================================
 \set ON_ERROR_STOP on
 \if :{?deployed_at}
 \else
   \set deployed_at ''
 \endif
+\if :{?cash_inventory}
+\else
+  \set cash_inventory ''
+\endif
 
 BEGIN;
 SET LOCAL statement_timeout = '300s';
 SET LOCAL lock_timeout = '15s';
 
+-- psql 不在美元引号内做变量插值 ⇒ 先经 set_config 交给会话
+SELECT set_config('cbr.deployed_at',    :'deployed_at',    true),
+       set_config('cbr.cash_inventory', :'cash_inventory', true);
+
 -- -----------------------------------------------------------------------------
--- §1 前置：当前必须是本次部署的结果；并检查期间是否已产生业务事实
+-- §1 必填参数（缺失一律【抛异常】，不用 \quit —— 那个退出码是 0，
+--     会把「拒绝回滚」记成「回滚成功」）
+-- -----------------------------------------------------------------------------
+DO $cb$
+DECLARE v_at text := nullif(btrim(current_setting('cbr.deployed_at')),'');
+        v_inv text := nullif(btrim(current_setting('cbr.cash_inventory')),'');
+        v_ts timestamptz;
+BEGIN
+  IF v_at IS NULL THEN
+    RAISE EXCEPTION 'CBR_DEPLOYED_AT_REQUIRED: 必须 -v deployed_at=...；'
+      '缺省会让 linkage 计数恒为 0，等于绕过业务事实盘点';
+  END IF;
+  BEGIN
+    v_ts := v_at::timestamptz;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'CBR_DEPLOYED_AT_INVALID: 无法解析为时间戳: %', v_at;
+  END;
+  IF v_inv IS NULL OR lower(v_inv) IN ('skip','no','none','n/a') THEN
+    RAISE EXCEPTION 'CBR_CASH_INVENTORY_REQUIRED: 必须 -v cash_inventory=<两库盘点结论>。'
+      '本脚本只连 School 库，School linkage 为零【只能证明 School 侧】；'
+      'Cash 库的 request / transaction 盘点须在本脚本之外独立完成。';
+  END IF;
+  RAISE NOTICE 'CBR: 部署时刻 %；Cash 侧盘点结论已提供（外部证据，本脚本不复核其真伪）', v_ts;
+END $cb$;
+
+-- -----------------------------------------------------------------------------
+-- §2 当前必须是本次部署的结果
 -- -----------------------------------------------------------------------------
 DO $cb$
 DECLARE
@@ -59,30 +102,25 @@ BEGIN
   RAISE NOTICE 'CBR: 当前确为本次部署的状态';
 END $cb$;
 
-\if :{?deployed_at}
-\endif
--- ⚠️ 不能写 :'deployed_at'::timestamptz —— 空串的转型在【常量折叠】阶段就会抛错，
---    外层的 CASE 拦不住。用 nullif 先化为 NULL 再转型。
-SELECT coalesce((
-  SELECT count(*) FROM public.school_personal_cash_income_linkage_events
-   WHERE nullif(:'deployed_at','') IS NOT NULL
-     AND created_at >= nullif(:'deployed_at','')::timestamptz), 0) AS cbr_new_linkage \gset
-
-\if :{?cbr_new_linkage}
-\endif
-SELECT (:cbr_new_linkage > 0) AS cbr_blocked \gset
-\if :cbr_blocked
-  \echo '⛔ 部署之后已产生' :cbr_new_linkage '条 School linkage 事件。'
-  \echo '   回滚【只还原函数定义，不撤销这些业务事实】。'
-  \echo '   请先逐笔列出已产生的 linkage / Cash request / transaction，'
-  \echo '   交业务负责人判断后再决定是否继续。'
-  \echo '   ⚠️ 继续回滚后，【不得】把整体状态描述为「恢复到部署前」。'
-  ROLLBACK;
-  \quit
-\endif
+-- -----------------------------------------------------------------------------
+-- §3 School 侧业务事实盘点（发现即【抛异常】停止）
+-- -----------------------------------------------------------------------------
+DO $cb$
+DECLARE v_n bigint;
+BEGIN
+  SELECT count(*) INTO v_n FROM public.school_personal_cash_income_linkage_events
+   WHERE created_at >= current_setting('cbr.deployed_at')::timestamptz;
+  RAISE NOTICE 'CBR: 部署后新增 School linkage 事件 % 条', v_n;
+  IF v_n > 0 THEN
+    RAISE EXCEPTION 'CBR_BUSINESS_FACTS_EXIST: 部署后已产生 % 条 School linkage 事件。'
+      '回滚【只还原函数定义，不撤销这些业务事实】。'
+      '请逐笔列出 linkage / Cash request / transaction 交业务负责人判断；'
+      '若仍决定继续，事后【不得】把整体状态描述为「恢复到部署前」。', v_n;
+  END IF;
+END $cb$;
 
 -- -----------------------------------------------------------------------------
--- §2 还原定义（DROP + CREATE）与全部属性
+-- §4 还原定义与全部属性
 -- -----------------------------------------------------------------------------
 DROP FUNCTION IF EXISTS public.school_get_cash_income_submission_preflight(uuid[]);
 
@@ -206,7 +244,7 @@ GRANT EXECUTE ON FUNCTION public.school_get_cash_income_submission_preflight(uui
 COMMENT ON FUNCTION public.school_get_cash_income_submission_preflight(uuid[]) IS 'Read-only server-authoritative Cash submission classification and frozen tuition payment display facts.';
 
 -- -----------------------------------------------------------------------------
--- §3 后置断言：必须逐字节回到部署前
+-- §5 后置断言：必须逐字节回到部署前
 -- -----------------------------------------------------------------------------
 DO $cb$
 DECLARE
@@ -244,4 +282,5 @@ END $cb$;
 SELECT pg_notify('pgrst','reload schema');
 COMMIT;
 \echo '=== SQL 层回滚完成。'
-\echo '⚠️ 本次只还原了函数定义与属性；业务事实不在回滚范围内。'
+\echo '⚠️ 只还原了函数定义与属性。业务事实不在回滚范围内，'
+\echo '   且 Cash 侧的盘点由外部提供，本脚本未复核。'

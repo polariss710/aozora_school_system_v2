@@ -370,11 +370,6 @@ function requireTuitionExpectedFacts(
     body.expected_payment_amount,
     "expected_payment_amount",
   );
-  const snapshot = incomeData.source_snapshot &&
-      typeof incomeData.source_snapshot === "object"
-    ? incomeData.source_snapshot as Record<string, unknown>
-    : {};
-
   if (
     incomeData.student_id !== expectedStudentId ||
     incomeData.settlement_month !== expectedMonth ||

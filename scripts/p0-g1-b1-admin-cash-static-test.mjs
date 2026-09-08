@@ -31,7 +31,18 @@ assert.ok(
   "non-admin callers must fail before service-role clients are created"
 );
 assert.match(edge, /TUITION_CASH_EXPECTED_FACTS_STALE/);
-assert.match(edge, /snapshot\.generation_revision_id !== expectedRevisionId/);
+// revision 绑定改为「当前 active」后，下列五条共同锁定新契约。
+// 旧契约是把客户端回传值与它自己的来源字段（income snapshot）相比 ——
+// 字段存在则恒真，字段不存在则前端更早拒绝，从未真正生效。
+assert.match(edge, /preflight\.active_generation_revision_id !== expectedRevisionId/);
+assert.doesNotMatch(edge, /snapshot\.generation_revision_id/);
+assert.match(detailPage, /preflight\?\.active_generation_revision_id/);
+assert.match(incomePage, /income\.cashSubmissionPreflight\?\.active_generation_revision_id/);
+// 最终确认必须用【本轮重新取得的】preflight，不是页面加载时的旧值 ——
+// 陈旧拦截的意义全在这个区别上。
+assert.match(incomePage, /fresh\.active_generation_revision_id !==/);
+assert.doesNotMatch(incomePage, /source_snapshot\?\.generation_revision_id/);
+assert.doesNotMatch(detailPage, /source_snapshot\?\.generation_revision_id/);
 assert.match(edge, /preflight\.eligible !== true/);
 assert.match(edge, /preflight\.gate_state !== "enabled"/);
 assert.doesNotMatch(edge, /body\.(?:user_id|email|role|membership)/);
