@@ -482,7 +482,7 @@ Deno.serve(async (request: Request): Promise<Response> => {
 
       const { data: incomeData, error: incomeError } = await schoolClient
         .from("school_income_records")
-        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_type,source_id,source_label,source_snapshot,tuition_bill_id,currency,amount,amount_jpy,status")
+        .select("id,income_date,settlement_month,business_entity_id,student_id,income_category,description,note,source_type,source_id,source_label,tuition_bill_id,currency,amount,amount_jpy,status")
         .eq("id", existingIncomeRecordId)
         .maybeSingle();
 
