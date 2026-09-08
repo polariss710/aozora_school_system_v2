@@ -126,33 +126,77 @@ BEGIN
   IF to_regclass('public.school_student_tuition_generation_ordering_ack_events') IS NULL THEN
     RAISE EXCEPTION 'VR_ACK_TABLE_MISSING'; END IF;
 
-  -- 只数个数不够：约束可能被同名替换、触发器可能被禁用而个数不变。
-  -- 逐个核对【名称 + 类型】。
-  SELECT string_agg(conname||':'||contype::text, ',' ORDER BY conname) INTO v_txt
-    FROM pg_constraint
-   WHERE conrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass;
+  -- 只核名称与类型不够：同名而约束列、CHECK 表达式、FK 目标或删除行为不同，
+  -- 仍会通过。逐条核对【实际定义】+ 已验证 / 可延迟 / 默认延迟状态。
+  SELECT string_agg(conname||' | '||pg_get_constraintdef(oid)||' | '
+                    ||convalidated::text||condeferrable::text||condeferred::text,
+                    E'\n' ORDER BY conname) INTO v_txt
+    FROM pg_constraint WHERE conrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass;
   IF v_txt IS DISTINCT FROM
-     'tuition_ordering_ack_bill_fkey:f,tuition_ordering_ack_bill_key:u,'
-     'tuition_ordering_ack_events_pkey:p,tuition_ordering_ack_identity_fkey:f,'
-     'tuition_ordering_ack_income_fkey:f,tuition_ordering_ack_income_key:u,'
-     'tuition_ordering_ack_manifest_check:c,tuition_ordering_ack_operator_check:c,'
-     'tuition_ordering_ack_operator_source_check:c,tuition_ordering_ack_precondition_check:c,'
-     'tuition_ordering_ack_reason_check:c,tuition_ordering_ack_result_check:c,'
-     'tuition_ordering_ack_revision_fkey:f,tuition_ordering_ack_revision_key:u' THEN
-    RAISE EXCEPTION 'VR_ACK_CONSTRAINTS: %', v_txt;
+'tuition_ordering_ack_bill_fkey | FOREIGN KEY (tuition_bill_id) REFERENCES school_student_tuition_bills(id) ON DELETE RESTRICT | truefalsefalse
+tuition_ordering_ack_bill_key | UNIQUE (tuition_bill_id) | truefalsefalse
+tuition_ordering_ack_events_pkey | PRIMARY KEY (id) | truefalsefalse
+tuition_ordering_ack_identity_fkey | FOREIGN KEY (generation_identity_id) REFERENCES school_student_tuition_generation_identities(id) ON DELETE RESTRICT | truefalsefalse
+tuition_ordering_ack_income_fkey | FOREIGN KEY (income_record_id) REFERENCES school_income_records(id) ON DELETE RESTRICT | truefalsefalse
+tuition_ordering_ack_income_key | UNIQUE (income_record_id) | truefalsefalse
+tuition_ordering_ack_manifest_check | CHECK ((expected_generation_manifest_sha256 ~ ''^[0-9a-f]{64}$''::text)) | truefalsefalse
+tuition_ordering_ack_operator_check | CHECK ((btrim(operator_authority) <> ''''::text)) | truefalsefalse
+tuition_ordering_ack_operator_source_check | CHECK ((operator_authority_source = ANY (ARRAY[''request_jwt_claim_sub''::text, ''tuition_operator_authority''::text, ''fallback_current_user''::text, ''fallback_literal''::text]))) | truefalsefalse
+tuition_ordering_ack_precondition_check | CHECK ((jsonb_typeof(precondition_evidence) = ''object''::text)) | truefalsefalse
+tuition_ordering_ack_reason_check | CHECK ((btrim(reason) <> ''''::text)) | truefalsefalse
+tuition_ordering_ack_result_check | CHECK ((jsonb_typeof(result_evidence) = ''object''::text)) | truefalsefalse
+tuition_ordering_ack_revision_fkey | FOREIGN KEY (generation_revision_id) REFERENCES school_student_tuition_generation_revisions(id) ON DELETE RESTRICT | truefalsefalse
+tuition_ordering_ack_revision_key | UNIQUE (generation_revision_id) | truefalsefalse' THEN
+    RAISE EXCEPTION 'VR_ACK_CONSTRAINT_DEFS:%s%s', chr(10), v_txt;
+  END IF;
+  -- ⑤ 的结构半边就在上面这份里：revision_key 必须是 UNIQUE (generation_revision_id)。
+  -- 写路径的负例只能证明「某个 UNIQUE 拦住了」，证明不了是哪一列。
+
+  -- 列：类型 / NOT NULL / 默认值（全列 NOT NULL 且无 DEFAULT，照抄 void_events）
+  SELECT string_agg(a.attname||' '||format_type(a.atttypid,a.atttypmod)||' '
+                    ||a.attnotnull::text||' '||coalesce(pg_get_expr(d.adbin,d.adrelid),'-'),
+                    E'\n' ORDER BY a.attnum) INTO v_txt
+    FROM pg_attribute a
+    LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
+   WHERE a.attrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass AND a.attnum>0 AND NOT a.attisdropped;
+  IF v_txt IS DISTINCT FROM
+'id uuid true -
+generation_identity_id uuid true -
+generation_revision_id uuid true -
+tuition_bill_id uuid true -
+income_record_id uuid true -
+expected_generation_manifest_sha256 text true -
+reason text true -
+operator_authority text true -
+operator_authority_source text true -
+precondition_evidence jsonb true -
+result_evidence jsonb true -
+created_at timestamp with time zone true -' THEN
+    RAISE EXCEPTION 'VR_ACK_COLUMNS:%s%s', chr(10), v_txt;
   END IF;
 
-  -- tgenabled='O' 即「按 session_replication_role 的默认值启用」。
-  -- 触发器被 DISABLE 后个数不变，只有这个字段会变。
-  SELECT string_agg(tgname||':'||tgenabled::text, ',' ORDER BY tgname) INTO v_txt
-    FROM pg_trigger
-   WHERE tgrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass
-     AND NOT tgisinternal;
+  -- 触发器：实际定义 + 启用状态（tgenabled='O' 才是启用）
+  SELECT string_agg(pg_get_triggerdef(oid)||' ||enabled='||tgenabled::text,
+                    E'\n' ORDER BY tgname) INTO v_txt
+    FROM pg_trigger WHERE tgrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass AND NOT tgisinternal;
   IF v_txt IS DISTINCT FROM
-     'school_tuition_ordering_ack_event_delete_statement_guard:O,'
-     'school_tuition_ordering_ack_event_immutable:O,'
-     'school_tuition_ordering_ack_event_truncate_forbidden:O' THEN
-    RAISE EXCEPTION 'VR_ACK_TRIGGERS: %  ← 名称或启用状态不符', v_txt;
+'CREATE TRIGGER school_tuition_ordering_ack_event_delete_statement_guard BEFORE DELETE ON public.school_student_tuition_generation_ordering_ack_events FOR EACH STATEMENT EXECUTE FUNCTION school_guard_tuition_ordering_ack_event_delete() ||enabled=O
+CREATE TRIGGER school_tuition_ordering_ack_event_immutable BEFORE DELETE OR UPDATE ON public.school_student_tuition_generation_ordering_ack_events FOR EACH ROW EXECUTE FUNCTION school_guard_tuition_ordering_ack_event_immutable() ||enabled=O
+CREATE TRIGGER school_tuition_ordering_ack_event_truncate_forbidden BEFORE TRUNCATE ON public.school_student_tuition_generation_ordering_ack_events FOR EACH STATEMENT EXECUTE FUNCTION school_guard_tuition_ordering_ack_event_delete() ||enabled=O' THEN
+    RAISE EXCEPTION 'VR_ACK_TRIGGER_DEFS:%s%s', chr(10), v_txt;
+  END IF;
+
+  -- 触发器所调用的两个守卫函数本身也要核 —— 触发器挂着而函数被改写，
+  -- 上面的定义比对不会有任何变化。写路径只能证明三种语句被拒，
+  -- 【证明不了每个分支都执行过】，未执行的分支由这里的结构断言兜住。
+  SELECT string_agg(proname||' '||md5(pg_get_functiondef(oid)), E'\n' ORDER BY proname)
+    INTO v_txt FROM pg_proc
+   WHERE proname IN ('school_guard_tuition_ordering_ack_event_immutable',
+                     'school_guard_tuition_ordering_ack_event_delete');
+  IF v_txt IS DISTINCT FROM
+'school_guard_tuition_ordering_ack_event_delete 8c8bd6cc922216de7c28eab67360e96f
+school_guard_tuition_ordering_ack_event_immutable c54ee90eec419fee635ef577626e2695' THEN
+    RAISE EXCEPTION 'VR_ACK_GUARD_FUNCTIONS:%s%s', chr(10), v_txt;
   END IF;
 
   -- 授权照抄 void_events：service_role 只读，authenticated / anon 无权限
@@ -191,7 +235,7 @@ BEGIN
   IF v_txt <> 'search_path=pg_catalog, public' THEN
     RAISE EXCEPTION 'VR_READER_PROCONFIG: %', v_txt; END IF;
 
-  RAISE NOTICE 'VR §3: ack 表 14 约束 / 3 触发器 / 授权 / RLS 零策略 / reader —— 通过';
+  RAISE NOTICE 'VR §3: ack 表约束定义 / 列定义 / 触发器定义与启用 / 守卫函数指纹 / 授权 / RLS / reader —— 通过';
 END $vr$;
 
 -- -----------------------------------------------------------------------------

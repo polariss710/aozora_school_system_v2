@@ -1474,7 +1474,8 @@ BEGIN
   END IF;
 
   -- 非预期数据库错误不得混入「一致失败」而被当成正常。
-  -- 允许的业务失败集之外的错误码，逐一列出供人判断。
+  -- 允许的业务失败集之外的错误码 ⇒ commit 模式【硬失败】。
+  -- allow_incomplete_coverage 只豁免【样本覆盖不足】，【不豁免非预期异常】。
   SELECT count(*) INTO v_bad FROM og_sweep
   WHERE phase='after' AND NOT ok
     AND errcode NOT IN (
@@ -1484,7 +1485,14 @@ BEGIN
       'R2_F_B_DUPLICATE_CANDIDATE_UUID','R2_F_B_CANDIDATE_CONTRACT_MISMATCH',
       'TUITION_P0E_PREVIEW_INPUT_INVALID','TUITION_P0E_HISTORICAL_CARRY_REQUIRED');
   IF v_bad > 0 THEN
-    RAISE WARNING 'OG_UNEXPECTED_ERRORS: % 个样本的错误码不在允许的业务失败集内，见下方明细', v_bad;
+    IF current_setting('og.mode',true) = 'commit' THEN
+      RAISE EXCEPTION 'OG_UNEXPECTED_ERRORS: % 个样本的错误码不在允许的业务失败集内，'
+        '正式提交不放行。allow_incomplete_coverage 不豁免本项 —— '
+        '它只豁免样本覆盖不足。明细见下方按函数与错误码的分类。', v_bad;
+    ELSE
+      RAISE WARNING 'OG_UNEXPECTED_ERRORS: % 个样本的错误码不在允许的业务失败集内 —— '
+        '排练继续收集，但本次验收【不通过】，见下方明细', v_bad;
+    END IF;
   END IF;
 END $lc$;
 
