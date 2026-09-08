@@ -5,7 +5,7 @@
 -- 部署   sql/current/school_tuition_generation_ordering_guard_deploy_20260908.sql
 --
 -- 【纯只读】。不写业务数据、不调 writer、不改任何定义。
--- 唯一的写入是 TEMP 表（ON COMMIT DROP），不触及任何业务表。
+-- 唯一的写入是 TEMP 表，不触及任何业务表。
 --
 -- 用法：
 --   psql -v ON_ERROR_STOP=1 -f <本文件>
@@ -20,7 +20,10 @@
 -- 临时表须在 READ ONLY 事务【之外】创建：READ ONLY 禁止 CREATE TABLE，
 -- 但【允许】向临时表 INSERT。这样既能留住 READ ONLY 这个机器强制的保证，
 -- 又能落扫描结果。
-DROP TABLE IF EXISTS vr_scan;
+-- 【必须限定 pg_temp】：未限定的 DROP 会命中搜索路径上的同名【永久】表，
+-- 而它在 BEGIN 之前执行、自动提交，READ ONLY 与末尾 ROLLBACK 都保护不了。
+-- 新连接上尚无临时 schema 时，本语句只打一条 notice 并跳过。
+DROP TABLE IF EXISTS pg_temp.vr_scan;
 CREATE TEMP TABLE vr_scan(
   student_id uuid, billing_month text, ok boolean, sqlstate text, errcode text,
   eff_status text, eff_complete boolean, reader_complete boolean, has_keys boolean
@@ -123,14 +126,34 @@ BEGIN
   IF to_regclass('public.school_student_tuition_generation_ordering_ack_events') IS NULL THEN
     RAISE EXCEPTION 'VR_ACK_TABLE_MISSING'; END IF;
 
-  SELECT count(*) INTO v_n FROM pg_constraint
+  -- 只数个数不够：约束可能被同名替换、触发器可能被禁用而个数不变。
+  -- 逐个核对【名称 + 类型】。
+  SELECT string_agg(conname||':'||contype::text, ',' ORDER BY conname) INTO v_txt
+    FROM pg_constraint
    WHERE conrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass;
-  IF v_n <> 14 THEN RAISE EXCEPTION 'VR_ACK_CONSTRAINTS: 得 % 期望 14', v_n; END IF;
+  IF v_txt IS DISTINCT FROM
+     'tuition_ordering_ack_bill_fkey:f,tuition_ordering_ack_bill_key:u,'
+     'tuition_ordering_ack_events_pkey:p,tuition_ordering_ack_identity_fkey:f,'
+     'tuition_ordering_ack_income_fkey:f,tuition_ordering_ack_income_key:u,'
+     'tuition_ordering_ack_manifest_check:c,tuition_ordering_ack_operator_check:c,'
+     'tuition_ordering_ack_operator_source_check:c,tuition_ordering_ack_precondition_check:c,'
+     'tuition_ordering_ack_reason_check:c,tuition_ordering_ack_result_check:c,'
+     'tuition_ordering_ack_revision_fkey:f,tuition_ordering_ack_revision_key:u' THEN
+    RAISE EXCEPTION 'VR_ACK_CONSTRAINTS: %', v_txt;
+  END IF;
 
-  SELECT count(*) INTO v_n FROM pg_trigger
+  -- tgenabled='O' 即「按 session_replication_role 的默认值启用」。
+  -- 触发器被 DISABLE 后个数不变，只有这个字段会变。
+  SELECT string_agg(tgname||':'||tgenabled::text, ',' ORDER BY tgname) INTO v_txt
+    FROM pg_trigger
    WHERE tgrelid='public.school_student_tuition_generation_ordering_ack_events'::regclass
      AND NOT tgisinternal;
-  IF v_n <> 3 THEN RAISE EXCEPTION 'VR_ACK_TRIGGERS: 得 % 期望 3（UPDATE·DELETE / DELETE 语句级 / TRUNCATE）', v_n; END IF;
+  IF v_txt IS DISTINCT FROM
+     'school_tuition_ordering_ack_event_delete_statement_guard:O,'
+     'school_tuition_ordering_ack_event_immutable:O,'
+     'school_tuition_ordering_ack_event_truncate_forbidden:O' THEN
+    RAISE EXCEPTION 'VR_ACK_TRIGGERS: %  ← 名称或启用状态不符', v_txt;
+  END IF;
 
   -- 授权照抄 void_events：service_role 只读，authenticated / anon 无权限
   SELECT coalesce(relacl::text,'') INTO v_txt FROM pg_class
@@ -156,6 +179,13 @@ BEGIN
    WHERE oid=to_regprocedure('public.school_get_tuition_generation_ordering_state(uuid,text)');
   IF v_txt <> '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}' THEN
     RAISE EXCEPTION 'VR_READER_ACL: %', v_txt; END IF;
+  -- ACL 与 search_path 之外，定义本身与执行属性也要核：
+  -- 一个被改写的 reader 仍可能保有正确的授权。
+  SELECT md5(pg_get_functiondef(oid))||' secdef='||prosecdef::text||' vol='||provolatile::text
+    INTO v_txt FROM pg_proc
+   WHERE oid=to_regprocedure('public.school_get_tuition_generation_ordering_state(uuid,text)');
+  IF v_txt IS DISTINCT FROM '6ff6f2b1b7ba79249a8467beb7c9561a secdef=true vol=s' THEN
+    RAISE EXCEPTION 'VR_READER_DEFINITION: %', v_txt; END IF;
   SELECT coalesce(array_to_string(proconfig,','),'') INTO v_txt FROM pg_proc
    WHERE oid=to_regprocedure('public.school_get_tuition_generation_ordering_state(uuid,text)');
   IF v_txt <> 'search_path=pg_catalog, public' THEN
@@ -180,14 +210,27 @@ BEGIN
       SELECT to_jsonb(s) INTO STRICT v
       FROM public.school_build_student_tuition_generation_snapshot(c.sid,c.m,0.042) s;
     EXCEPTION WHEN OTHERS THEN
+      -- 缺样本可以报「未验证」，但【非预期数据库异常必须失败】：
+      -- 把程序缺陷（如返回结构错误）记成「一致的业务失败」等于放行。
+      IF split_part(SQLERRM,':',1) NOT IN (
+        'R2_F_B_CANDIDATES_EMPTY','R2_F_B_TARGET_SETTLEMENT_LOCKED',
+        'R2_F_B_STUDENT_NOT_FOUND','R2_F_B_BUSINESS_ENTITY_REQUIRED',
+        'R2_F_B_MULTIPLE_PREVIOUS_LOCKED_SETTLEMENTS','R2_F_B_BILLING_AMOUNT_INVALID',
+        'R2_F_B_DUPLICATE_CANDIDATE_UUID','R2_F_B_CANDIDATE_CONTRACT_MISMATCH') THEN
+        RAISE EXCEPTION 'VR_UNEXPECTED_BUILDER_ERROR (% %): %',
+          c.sid, c.m, SQLERRM;
+      END IF;
       INSERT INTO vr_scan VALUES(c.sid,c.m,false,SQLSTATE,split_part(SQLERRM,':',1),
         NULL,NULL,NULL,NULL);
       CONTINUE;
     END;
+    -- reader 的失败集应是 builder 的子集：builder 成功时 reader 不该抛。
     BEGIN
-      SELECT settlement_effective_complete INTO v_rd
+      SELECT settlement_effective_complete INTO STRICT v_rd
       FROM public.school_get_tuition_generation_ordering_state(c.sid,c.m);
-    EXCEPTION WHEN OTHERS THEN v_rd := NULL;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE EXCEPTION 'VR_READER_RAISED (% %): builder 成功而 reader 抛出 %',
+        c.sid, c.m, SQLERRM;
     END;
     INSERT INTO vr_scan VALUES(c.sid,c.m,true,NULL,NULL,
       v->'carryover_evidence'->>'settlement_effective_status',
@@ -207,15 +250,22 @@ BEGIN
     RAISE EXCEPTION 'VR_COVERAGE_VACUOUS_B: builder 无成功样本，本节比对不构成验收';
   END IF;
 
-  SELECT count(*) INTO v_bad FROM vr_scan WHERE ok AND NOT has_keys;
+  -- has_keys 为 NULL 时 NOT has_keys 得 NULL，不会被计入 —— 用 IS NOT TRUE
+  SELECT count(*) INTO v_bad FROM vr_scan WHERE ok AND has_keys IS NOT TRUE;
   IF v_bad > 0 THEN RAISE EXCEPTION 'VR_EVIDENCE_KEYS_MISSING: % 个组合缺六个新键', v_bad; END IF;
 
   -- 同源断言：reader 与 builder 的结论必须一致。
   -- 【不排除 reader 返回 NULL】——builder 成功而 reader 给不出结论本身就是分叉。
+  -- 两边都为 NULL 时 IS DISTINCT FROM 判为「相同」，会把「双方都无结论」
+  -- 当成一致 —— 故先单独把 reader 无结论判失败。
+  SELECT count(*) INTO v_bad FROM vr_scan WHERE ok AND reader_complete IS NULL;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'VR_READER_NO_VERDICT: % 个组合 builder 成功而 reader 无结论', v_bad;
+  END IF;
   SELECT count(*) INTO v_bad FROM vr_scan
    WHERE ok AND reader_complete IS DISTINCT FROM eff_complete;
   IF v_bad > 0 THEN
-    RAISE EXCEPTION 'VR_READER_DIVERGED: % 个组合 reader 与 builder 不一致或 reader 无结论', v_bad;
+    RAISE EXCEPTION 'VR_READER_DIVERGED: % 个组合 reader 与 builder 结论不一致', v_bad;
   END IF;
 
   RAISE NOTICE 'VR §4: 成功样本 % 个，六个新键齐全，reader 与 builder 结论一致 —— 通过', v_ok;
@@ -249,12 +299,36 @@ BEGIN
     RAISE EXCEPTION 'VR_ACK_MONTH_NULL: % 条事件缺 previous_settlement_month  ← 键名映射错误', v_bad;
   END IF;
 
-  -- 关联的 revision 必须存在（FK 保证）且事件与 revision 一一对应（UNIQUE 保证）
+  -- 【四个 ID 必须同属一次生成】。外键只保证各自存在，不保证它们指向同一次。
   SELECT count(*) INTO v_bad
     FROM public.school_student_tuition_generation_ordering_ack_events e
     LEFT JOIN public.school_student_tuition_generation_revisions r ON r.id = e.generation_revision_id
-   WHERE r.id IS NULL;
-  IF v_bad > 0 THEN RAISE EXCEPTION 'VR_ACK_ORPHAN: % 条', v_bad; END IF;
+    LEFT JOIN public.school_student_tuition_bills b ON b.id = e.tuition_bill_id
+   WHERE r.id IS NULL
+      OR r.generation_identity_id IS DISTINCT FROM e.generation_identity_id
+      OR r.tuition_bill_id        IS DISTINCT FROM e.tuition_bill_id
+      OR b.id IS NULL
+      OR b.income_record_id       IS DISTINCT FROM e.income_record_id;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'VR_ACK_IDS_INCOHERENT: % 条事件的四个 ID 不属于同一次生成', v_bad;
+  END IF;
+
+  -- manifest 必须等于该 revision 冻结的 manifest
+  SELECT count(*) INTO v_bad
+    FROM public.school_student_tuition_generation_ordering_ack_events e
+    JOIN public.school_student_tuition_generation_revisions r ON r.id = e.generation_revision_id
+   WHERE e.expected_generation_manifest_sha256 IS DISTINCT FROM r.generation_manifest_sha256;
+  IF v_bad > 0 THEN RAISE EXCEPTION 'VR_ACK_MANIFEST_MISMATCH: % 条', v_bad; END IF;
+
+  -- 【月份非空还不够】：记错月份同样通不过。必须等于账单冻结的上月。
+  SELECT count(*) INTO v_bad
+    FROM public.school_student_tuition_generation_ordering_ack_events e
+    JOIN public.school_student_tuition_bills b ON b.id = e.tuition_bill_id
+   WHERE e.precondition_evidence->>'previous_settlement_month'
+         IS DISTINCT FROM b.previous_settlement_month;
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'VR_ACK_MONTH_MISMATCH: % 条事件的上月与账单冻结值不符', v_bad;
+  END IF;
 
   RAISE NOTICE 'VR §5: ack 事件内容完整性 —— 通过';
 END $vr$;
@@ -283,7 +357,7 @@ FROM public.school_student_tuition_generation_ordering_ack_events
 GROUP BY 1,2 ORDER BY 3 DESC;
 
 ROLLBACK;
-DROP TABLE IF EXISTS vr_scan;
+DROP TABLE IF EXISTS pg_temp.vr_scan;
 \echo ''
 \echo '=== 只读验收结束（事务已 ROLLBACK，未写入任何业务数据）==='
 \echo '⚠️ 仍未由本脚本覆盖：HTTP 层重载解析、并发窗口、P0-E 写路径。'
