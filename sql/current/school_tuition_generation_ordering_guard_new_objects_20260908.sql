@@ -60,17 +60,17 @@ CREATE TABLE public.school_student_tuition_generation_ordering_ack_events (
   result_evidence                     jsonb       NOT NULL,
   created_at                          timestamptz NOT NULL,
 
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_pkey
+  CONSTRAINT tuition_ordering_ack_events_pkey
     PRIMARY KEY (id),
 
   -- 「一个 revision / bill / income 最多一条 ack」的结构保证。
   -- 幂等的第一道防线不是这里，而是 C 的幂等分支（已有 active revision 时
   -- 不进入 F/N，故不会重复消费 ack）。本约束是兜底，照抄 void 先例。
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_revision_key
+  CONSTRAINT tuition_ordering_ack_revision_key
     UNIQUE (generation_revision_id),
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_bill_key
+  CONSTRAINT tuition_ordering_ack_bill_key
     UNIQUE (tuition_bill_id),
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_income_key
+  CONSTRAINT tuition_ordering_ack_income_key
     UNIQUE (income_record_id),
 
   -- 立即检查，不可延迟。
@@ -78,33 +78,33 @@ CREATE TABLE public.school_student_tuition_generation_ordering_ack_events (
   -- 与 revision 均已创建/取得之后才插入，被引用行必然已存在。
   -- 若改在 F 内插入则不可行——C 在 F 返回后才 gen_random_uuid()，
   -- F 连 UUID 都还没有，延迟外键只延迟存在性检查，不会填入后来产生的 ID。
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_identity_fkey
+  CONSTRAINT tuition_ordering_ack_identity_fkey
     FOREIGN KEY (generation_identity_id)
     REFERENCES public.school_student_tuition_generation_identities(id)
     ON DELETE RESTRICT,
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_revision_fkey
+  CONSTRAINT tuition_ordering_ack_revision_fkey
     FOREIGN KEY (generation_revision_id)
     REFERENCES public.school_student_tuition_generation_revisions(id)
     ON DELETE RESTRICT,
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_bill_fkey
+  CONSTRAINT tuition_ordering_ack_bill_fkey
     FOREIGN KEY (tuition_bill_id)
     REFERENCES public.school_student_tuition_bills(id)
     ON DELETE RESTRICT,
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_income_fkey
+  CONSTRAINT tuition_ordering_ack_income_fkey
     FOREIGN KEY (income_record_id)
     REFERENCES public.school_income_records(id)
     ON DELETE RESTRICT,
 
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_manifest_check
+  CONSTRAINT tuition_ordering_ack_manifest_check
     CHECK (expected_generation_manifest_sha256 ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_reason_check
+  CONSTRAINT tuition_ordering_ack_reason_check
     CHECK (btrim(reason) <> ''),
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_operator_check
+  CONSTRAINT tuition_ordering_ack_operator_check
     CHECK (btrim(operator_authority) <> ''),
 
   -- 来源标签由【身份取值实际走的分支】决定，不由 trim 结果决定。
   -- trim 只作用于 ack 理由；身份逐字沿用所在函数既有的 nullif(...,'') 不 trim 逻辑。
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_operator_src_check
+  CONSTRAINT tuition_ordering_ack_operator_source_check
     CHECK (operator_authority_source IN (
       'request_jwt_claim_sub',        -- F 路径，JWT 有值
       'tuition_operator_authority',   -- N 路径，事务上下文有值
@@ -112,9 +112,9 @@ CREATE TABLE public.school_student_tuition_generation_ordering_ack_events (
       'fallback_literal'              -- N 路径回退（service_role_v2_operations_v1）
     )),
 
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_precond_check
+  CONSTRAINT tuition_ordering_ack_precondition_check
     CHECK (jsonb_typeof(precondition_evidence) = 'object'),
-  CONSTRAINT school_student_tuition_generation_ordering_ack_events_result_check
+  CONSTRAINT tuition_ordering_ack_result_check
     CHECK (jsonb_typeof(result_evidence) = 'object')
 );
 
