@@ -33,8 +33,11 @@
 --   若确要在缺样本时也成功退出，须显式 -v og_collect_only=yes；
 --   那种成功退出【不代表验收通过】。
 --
--- 【限 harness】：本脚本含 TRUNCATE 负例，且经真实 writer 生成账单。
---   必须 -v og_scope=harness，否则拒绝执行。生产验收只跑 verify_readonly。
+-- 【要求显式声明 harness】：本脚本含 TRUNCATE 负例，且经真实 writer 生成账单。
+--   必须 -v og_scope=harness，否则拒绝执行。
+--   ⚠️ 该参数是【调用者的声明】，脚本无法验证连接确实属于 harness ——
+--      连接隔离由执行流程保证，不要当成数据库身份已被核实。
+--   生产验收只跑 verify_readonly。
 -- =============================================================================
 \set ON_ERROR_STOP on
 
@@ -72,8 +75,9 @@ SELECT set_config('og.scope',            :'og_scope',            false),
 
 DO $pre$
 BEGIN
-  -- 【本脚本限 harness 运行】。它包含 TRUNCATE 负例，
-  -- 且会经真实 writer 生成账单（虽末尾回滚）。
+  -- 【要求显式声明 harness】。本参数是【调用者的范围声明】，
+  -- 脚本无法自行识别连接是否真的属于 harness —— 连接隔离由执行流程保证。
+  -- 它包含 TRUNCATE 负例，且会经真实 writer 生成账单（虽末尾回滚）。
   -- 本轮约定：生产只运行 verify_readonly。
   IF current_setting('og.scope') <> 'harness' THEN
     RAISE EXCEPTION 'VW_SCOPE_REQUIRED: 必须 -v og_scope=harness。'
@@ -114,6 +118,9 @@ DECLARE
   v_msg text; v_constraint text; v_path text;
   v_n int; v_seq int := 0;
   v_fired boolean; v_idem boolean; v_revno int; v_ack_before bigint;
+  -- 调用【前】已存在的 bill / revision ID 集合。
+  -- revision_no 是序号，不是「本轮新增」的证据 —— 必须用集合排除。
+  v_bills_before uuid[]; v_revs_before uuid[]; v_rev_of_bill uuid; v_gen_of_rev uuid;
   -- 生成链上【允许】的业务失败集。此集之外的异常一律判失败，
   -- 不得降级为「未验证」——那会把程序缺陷放行。
   c_allowed text[] := ARRAY[
@@ -176,6 +183,14 @@ BEGIN
   -- ② 上月未完成 + 传理由 ⇒ 放行，并写下一条内容正确的 ack 事件
   -- ---------------------------------------------------------------------------
   v_seq := v_seq + 1;
+  SELECT coalesce(array_agg(b.id),'{}'::uuid[]) INTO v_bills_before
+    FROM public.school_student_tuition_bills b
+   WHERE b.student_id=v_sid AND b.business_entity_id=v_entity AND b.billing_month=v_m_inc;
+  SELECT coalesce(array_agg(r.id),'{}'::uuid[]) INTO v_revs_before
+    FROM public.school_student_tuition_generation_revisions r
+    JOIN public.school_student_tuition_generation_identities g ON g.id=r.generation_identity_id
+   WHERE g.student_id=v_sid AND g.business_entity_id=v_entity
+     AND g.billing_month=to_date(v_m_inc||'-01','YYYY-MM-DD');
   SELECT s.generation_manifest_sha256 INTO v_manifest
   FROM public.school_build_student_tuition_generation_snapshot(v_sid, v_m_inc, 0.042) s;
   SELECT g.tuition_bill_id, g.income_record_id, g.idempotent
@@ -213,10 +228,25 @@ BEGIN
     RAISE EXCEPTION 'VW_ACK_REASON_ALTERED'; END IF;
   v_rev := v_evt.generation_revision_id;
 
+  -- 【本轮新增】：返回的 bill 与其 revision 都不得出现在调用前的集合里。
+  IF v_bill = ANY(v_bills_before) THEN
+    RAISE EXCEPTION 'VW_BILL_NOT_NEW: 返回的 bill 调用前已存在 —— 未发生新生成'; END IF;
+  IF v_rev = ANY(v_revs_before) THEN
+    RAISE EXCEPTION 'VW_REVISION_NOT_NEW: 返回的 revision 调用前已存在'; END IF;
+
   -- 路径结论以【实际生成结果】为准：revision_no=1 ⇒ F，>1 ⇒ N。
   -- 调用前「有没有 identity」只是预测，不能当证据。
-  SELECT r.revision_no INTO STRICT v_revno
+  -- 同时核对 revision 与 bill 的关联，以及 revision 归属的 generation 就是本组合。
+  SELECT r.revision_no, r.generation_identity_id INTO STRICT v_revno, v_gen_of_rev
     FROM public.school_student_tuition_generation_revisions r WHERE r.id = v_rev;
+  IF (SELECT r.tuition_bill_id FROM public.school_student_tuition_generation_revisions r
+       WHERE r.id = v_rev) IS DISTINCT FROM v_bill THEN
+    RAISE EXCEPTION 'VW_REVISION_BILL_UNLINKED'; END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.school_student_tuition_generation_identities g
+                  WHERE g.id=v_gen_of_rev AND g.student_id=v_sid
+                    AND g.business_entity_id=v_entity
+                    AND g.billing_month=to_date(v_m_inc||'-01','YYYY-MM-DD')) THEN
+    RAISE EXCEPTION 'VW_REVISION_WRONG_GENERATION'; END IF;
   IF (v_revno = 1) <> (v_path = 'F') THEN
     RAISE EXCEPTION 'VW_PATH_MISMATCH: 预测 % 但实际 revision_no=%', v_path, v_revno;
   END IF;
@@ -224,6 +254,7 @@ BEGIN
 
   INSERT INTO vw_result VALUES(v_seq,'② 未完成+有理由 ⇒ 放行并留痕','通过',
     '路径='||v_path||'(revision_no='||v_revno||')  bill='||left(v_bill::text,8)
+    ||'  调用前 bill/rev='||cardinality(v_bills_before)||'/'||cardinality(v_revs_before)
     ||'  身份='||v_evt.operator_authority||'('||v_evt.operator_authority_source||')');
 
   -- ---------------------------------------------------------------------------
@@ -237,6 +268,14 @@ BEGIN
       '未指定 og_month_complete —— 【误报分支未被验收】');
   ELSE
     SELECT count(*) INTO v_ack_before FROM public.school_student_tuition_generation_ordering_ack_events;
+    SELECT coalesce(array_agg(b.id),'{}'::uuid[]) INTO v_bills_before
+      FROM public.school_student_tuition_bills b
+     WHERE b.student_id=v_sid AND b.business_entity_id=v_entity AND b.billing_month=v_m_cmp;
+    SELECT coalesce(array_agg(r.id),'{}'::uuid[]) INTO v_revs_before
+      FROM public.school_student_tuition_generation_revisions r
+      JOIN public.school_student_tuition_generation_identities g ON g.id=r.generation_identity_id
+     WHERE g.student_id=v_sid AND g.business_entity_id=v_entity
+       AND g.billing_month=to_date(v_m_cmp||'-01','YYYY-MM-DD');
     SELECT s.generation_manifest_sha256 INTO v_manifest
     FROM public.school_build_student_tuition_generation_snapshot(v_sid, v_m_cmp, 0.042) s;
     v_fired := false; v_msg := NULL; v_bill := NULL; v_idem := NULL;
@@ -263,15 +302,32 @@ BEGIN
       INSERT INTO vw_result VALUES(v_seq,'③ 已完成+无理由 ⇒ 不误拦','未验证',
         'idempotent=true —— 返回的是已有账单，未发生新生成');
     ELSE
-      SELECT r.revision_no INTO STRICT v_revno
+      -- 【本轮新增】：idempotent=false 只排除了正常的幂等返回，
+      -- revision_no 是序号不是新增证据。必须用调用前的 ID 集合排除。
+      IF v_bill = ANY(v_bills_before) THEN
+        INSERT INTO vw_result VALUES(v_seq,'③ 已完成+无理由 ⇒ 不误拦','失败',
+          '返回的 bill 调用前已存在 —— 未发生新生成');
+        RAISE EXCEPTION 'VW_BILL_NOT_NEW'; END IF;
+      SELECT r.id, r.revision_no, r.generation_identity_id
+        INTO STRICT v_rev_of_bill, v_revno, v_gen_of_rev
         FROM public.school_student_tuition_generation_revisions r
        WHERE r.tuition_bill_id = v_bill;
+      IF v_rev_of_bill = ANY(v_revs_before) THEN
+        INSERT INTO vw_result VALUES(v_seq,'③ 已完成+无理由 ⇒ 不误拦','失败',
+          '返回 bill 对应的 revision 调用前已存在');
+        RAISE EXCEPTION 'VW_REVISION_NOT_NEW'; END IF;
+      IF NOT EXISTS (SELECT 1 FROM public.school_student_tuition_generation_identities g
+                      WHERE g.id=v_gen_of_rev AND g.student_id=v_sid
+                        AND g.business_entity_id=v_entity
+                        AND g.billing_month=to_date(v_m_cmp||'-01','YYYY-MM-DD')) THEN
+        RAISE EXCEPTION 'VW_REVISION_WRONG_GENERATION'; END IF;
       IF (SELECT count(*) FROM public.school_student_tuition_generation_ordering_ack_events)
          <> v_ack_before THEN
         RAISE EXCEPTION 'VW_SPURIOUS_ACK: 上月已完成却写了 ack 事件'; END IF;
       INSERT INTO vw_result VALUES(v_seq,'③ 已完成+无理由 ⇒ 不误拦','通过',
-        '新生成 bill='||left(v_bill::text,8)||' revision_no='||v_revno
-        ||'（idempotent=false），ack 未增加');
+        '新增 bill='||left(v_bill::text,8)||' + revision='||left(v_rev_of_bill::text,8)
+        ||'  调用前集合 bill/rev='||cardinality(v_bills_before)||'/'||cardinality(v_revs_before)
+        ||'（均不在其中，revision_no='||v_revno||'，idempotent=false），ack 未增加');
     END IF;
   END IF;
 
