@@ -39,7 +39,19 @@ BEGIN
   IF v_leak   IS NOT FALSE           THEN RAISE EXCEPTION 'CB_POST_LEAKPROOF: %', v_leak; END IF;
   IF v_cost   <> 100                 THEN RAISE EXCEPTION 'CB_POST_COST: %', v_cost; END IF;
   IF v_rows   <> 1000                THEN RAISE EXCEPTION 'CB_POST_ROWS: %', v_rows; END IF;
-  IF v_acl    <> '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}'            THEN RAISE EXCEPTION 'CB_POST_ACL: %', v_acl; END IF;
+  IF v_acl <> '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}' THEN
+    -- 区分两种失败：权限【集合】变了（真问题），还是只是数组【顺序】不同
+    -- （DROP 后默认授权回流所致）。上一轮就是后者，而报错只说「实际/期望」，
+    -- 盯了几秒才看出来 —— 同一个断言下次再响时要能一眼分辨。
+    IF EXISTS (SELECT unnest(string_to_array(btrim(v_acl,'{}'), ','))
+               EXCEPT SELECT unnest(string_to_array(btrim('{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','{}'), ',')))
+       OR EXISTS (SELECT unnest(string_to_array(btrim('{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','{}'), ','))
+                  EXCEPT SELECT unnest(string_to_array(btrim(v_acl,'{}'), ','))) THEN
+      RAISE EXCEPTION 'CB_POST_ACL_SET: 权限集合与基线不同  实际 %  期望 %', v_acl, '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}';
+    ELSE
+      RAISE EXCEPTION 'CB_POST_ACL_ORDER: 集合相同但数组顺序不同  实际 %  期望 %', v_acl, '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}';
+    END IF;
+  END IF;
   IF v_cmt IS DISTINCT FROM 'Read-only server-authoritative Cash submission classification and frozen tuition payment display facts.' THEN RAISE EXCEPTION 'CB_POST_COMMENT: %', coalesce(v_cmt,'<NULL>'); END IF;
   IF v_res    <> 'TABLE(income_record_id uuid, classification text, eligible boolean, gate_state text, payment_currency text, payment_amount numeric, payment_exchange_rate numeric, previous_carryover_cny numeric, latest_linkage_status text, latest_cash_request_status text, active_generation_revision_id uuid)'            THEN RAISE EXCEPTION 'CB_POST_RESULT: %', v_res; END IF;
 
