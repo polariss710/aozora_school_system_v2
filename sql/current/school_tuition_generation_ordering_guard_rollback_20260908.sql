@@ -20,7 +20,10 @@
   \set allow_ack_loss 'no'
 \endif
 
-BEGIN;
+-- 显式 READ COMMITTED：§2 取锁后的 COUNT 必须能看到等锁期间提交的 ack。
+-- 若沿用会话默认而它是 REPEATABLE READ，§1 建立的旧快照会看不到，
+-- 审计事实保护就失效了。不能把结论建立在会话默认值上。
+BEGIN TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET LOCAL statement_timeout = '600s';
 SET LOCAL lock_timeout = '15s';
 

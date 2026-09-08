@@ -28,7 +28,11 @@
 \endif
 \if :{?p0e_adjustment_type}
 \else
-  \set p0e_adjustment_type 'forward_adjustment'
+  \set p0e_adjustment_type 'neutralize_historical_carryover_v1'
+\endif
+\if :{?allow_incomplete_coverage}
+\else
+  \set allow_incomplete_coverage 'no'
 \endif
 \echo '=== 顺序守卫部署，mode =' :mode '  P0-E 调整类型 =' :p0e_adjustment_type '==='
 
@@ -94,9 +98,15 @@ END $lc$;
 --     验收判据是「同输入 → 同输出」，不是「存量行没变」——
 --     存量账单本来就不会被 UPDATE，只比对它们是【真空通过】。
 -- -----------------------------------------------------------------------------
+-- in_key 是【完整输入向量】的文本表示：
+--   B / V  -> student|month
+--   EP     -> generation_identity|previous_revision|student|month
+-- 前后比对按 in_key 配对。EP 的输入含 generation 与 previous revision，
+-- 只用 学生+月份 会在同月存在多个 voided revision 时产生交叉配对，
+-- 那就不是「同输入对同输入」了。
 CREATE TEMP TABLE og_sweep(
-  phase text, fn text, student_id uuid, billing_month text,
-  ok boolean, sqlstate text, errmsg text, payload jsonb
+  phase text, fn text, in_key text, student_id uuid, billing_month text,
+  ok boolean, sqlstate text, errcode text, payload jsonb
 ) ON COMMIT DROP;
 
 CREATE TEMP TABLE og_combo(student_id uuid, billing_month text, rate numeric)
@@ -117,50 +127,56 @@ FROM public.school_student_tuition_generation_revisions r
 JOIN public.school_student_tuition_generation_identities g ON g.id = r.generation_identity_id
 WHERE r.lifecycle_status = 'voided' AND r.manifest_kind = 'atomic_generation_v1';
 
-SELECT set_config('og.p0e_adjustment_type',
-                  coalesce(current_setting('og.p0e_adjustment_type',true),
-                           :'p0e_adjustment_type'), false);
+-- 无条件设置：coalesce 既有会话值会让 -v 传入的新值被旧值遮蔽，
+-- 且日志打印的参数就不是实际调用值。
+SELECT set_config('og.p0e_adjustment_type', :'p0e_adjustment_type', false);
 
 CREATE OR REPLACE FUNCTION pg_temp.og_scan(p_phase text) RETURNS void
 LANGUAGE plpgsql AS $lc$
-DECLARE c record; v jsonb;
+DECLARE c record; v jsonb; k text;
 BEGIN
   FOR c IN SELECT * FROM og_combo LOOP
+    k := c.student_id::text || '|' || c.billing_month;
     -- INTO STRICT：零行不得被记成 ok=true / payload=NULL，那会削弱覆盖率门槛
     BEGIN
       SELECT to_jsonb(s) INTO STRICT v
       FROM public.school_build_student_tuition_generation_snapshot(
         c.student_id,c.billing_month,c.rate) s;
-      INSERT INTO og_sweep VALUES(p_phase,'B',c.student_id,c.billing_month,true,NULL,NULL,v);
+      INSERT INTO og_sweep VALUES(p_phase,'B',k,c.student_id,c.billing_month,true,NULL,NULL,v);
     EXCEPTION WHEN OTHERS THEN
       -- 同为 P0001 的不同业务错误必须区分，故一并记录错误码前缀
-      INSERT INTO og_sweep VALUES(p_phase,'B',c.student_id,c.billing_month,false,
+      INSERT INTO og_sweep VALUES(p_phase,'B',k,c.student_id,c.billing_month,false,
         SQLSTATE,split_part(SQLERRM,':',1),NULL);
     END;
     BEGIN
       SELECT to_jsonb(s) INTO STRICT v
       FROM public.school_get_student_tuition_validation_preview_details(
         c.student_id,c.billing_month,c.rate) s;
-      INSERT INTO og_sweep VALUES(p_phase,'V',c.student_id,c.billing_month,true,NULL,NULL,v);
+      INSERT INTO og_sweep VALUES(p_phase,'V',k,c.student_id,c.billing_month,true,NULL,NULL,v);
     EXCEPTION WHEN OTHERS THEN
-      INSERT INTO og_sweep VALUES(p_phase,'V',c.student_id,c.billing_month,false,
+      INSERT INTO og_sweep VALUES(p_phase,'V',k,c.student_id,c.billing_month,false,
         SQLSTATE,split_part(SQLERRM,':',1),NULL);
     END;
   END LOOP;
 
-  -- EP（P0-E 重发预览）：金额最不该变的一条路径，必须一并扫。
-  -- adjustment_type 由调用方经 -v p0e_adjustment_type=... 指定；
-  -- 若取值不适用，EP 会前后一致地失败，覆盖率门槛会把它标为【未验证】。
+  -- EP（P0-E 重发预览）：金额最不该变的一条路径。
+  -- adjustment_type 由 -v p0e_adjustment_type=... 指定，默认
+  -- neutralize_historical_carryover_v1；取值不适用时 EP 会前后一致地失败，
+  -- 覆盖率门槛会把它标为未验证。
+  -- ⚠️ EP 还要求该 generation 没有 active revision，故并非每个 voided
+  --    revision 都能产出成功样本。
   FOR c IN SELECT * FROM og_p0e LOOP
+    k := c.generation_identity_id::text || '|' || c.previous_revision_id::text
+         || '|' || c.student_id::text || '|' || c.billing_month;
     BEGIN
       SELECT to_jsonb(s) INTO STRICT v
       FROM public.school_get_atomic_tuition_reissue_preview_p0e(
         c.generation_identity_id,c.previous_revision_id,c.student_id,
         c.business_entity_id,c.billing_month,0.042,
         current_setting('og.p0e_adjustment_type',true),'og sweep probe') s;
-      INSERT INTO og_sweep VALUES(p_phase,'EP',c.student_id,c.billing_month,true,NULL,NULL,v);
+      INSERT INTO og_sweep VALUES(p_phase,'EP',k,c.student_id,c.billing_month,true,NULL,NULL,v);
     EXCEPTION WHEN OTHERS THEN
-      INSERT INTO og_sweep VALUES(p_phase,'EP',c.student_id,c.billing_month,false,
+      INSERT INTO og_sweep VALUES(p_phase,'EP',k,c.student_id,c.billing_month,false,
         SQLSTATE,split_part(SQLERRM,':',1),NULL);
     END;
   END LOOP;
@@ -1278,12 +1294,14 @@ REVOKE ALL ON FUNCTION public.school_generate_student_tuition_next_revision_core
 -- -----------------------------------------------------------------------------
 -- §5 后置断言
 -- -----------------------------------------------------------------------------
+SELECT set_config('og.mode', :'mode', false);
+SELECT set_config('og.allow_incomplete_coverage', :'allow_incomplete_coverage', false);
 SELECT pg_temp.og_scan('after');
 
 DO $lc$
 DECLARE
   r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text;
-  v_ok int; v_fail int; v_bad int;
+  v_ok int; v_fail int; v_bad int; v_incomplete int := 0;
 BEGIN
   -- 5.1 新定义、ACL、proconfig、COMMENT
   FOR r IN SELECT * FROM (VALUES
@@ -1328,17 +1346,15 @@ BEGIN
     END IF;
   END LOOP;
 
-  -- 5.4 同输入同输出。允许差异【仅限】carryover_evidence 的六个新键与
-  --     由其派生的 generation_manifest_sha256；其余字段与错误码必须完全一致。
-  --     注意：不能把整个 carryover_evidence 从比对里剔除——那样原有键
-  --     （mode / authority / settlement_month / locked_settlement_count /
-  --      carryover_amount_cny）被改动也查不出来。
+  -- 5.4 同输入同输出（B / V）。允许差异【仅限】carryover_evidence 的六个新键
+  --     与由其派生的 generation_manifest_sha256；其余字段与错误码必须完全一致。
+  --     不能把整个 carryover_evidence 剔除——那样原有键被改也查不出来。
   SELECT count(*) INTO v_bad FROM og_sweep a JOIN og_sweep b
-    ON b.phase='after' AND a.phase='before' AND a.fn=b.fn
-   AND a.student_id=b.student_id AND a.billing_month=b.billing_month
-  WHERE a.ok <> b.ok
+    ON b.phase='after' AND a.phase='before' AND a.fn=b.fn AND a.in_key=b.in_key
+  WHERE a.fn IN ('B','V')
+    AND (a.ok <> b.ok
      OR a.sqlstate IS DISTINCT FROM b.sqlstate
-     OR a.errmsg   IS DISTINCT FROM b.errmsg          -- 错误码前缀也须一致
+     OR a.errcode  IS DISTINCT FROM b.errcode
      OR (a.ok AND (
               (a.payload - 'carryover_evidence' - 'generation_manifest_sha256')
            <> (b.payload - 'carryover_evidence' - 'generation_manifest_sha256')))
@@ -1347,19 +1363,50 @@ BEGIN
            IS DISTINCT FROM ((b.payload->'carryover_evidence')
                 - 'settlement_effective_complete' - 'settlement_effective_status'
                 - 'settlement_source_type' - 'settlement_source_id'
-                - 'settlement_provenance_carry_cny' - 'settlement_blocker_code')));
+                - 'settlement_provenance_carry_cny' - 'settlement_blocker_code'))));
   IF v_bad > 0 THEN
-    RAISE EXCEPTION 'OG_SWEEP_DIVERGED: % 个组合的非豁免字段或错误码发生变化', v_bad;
+    RAISE EXCEPTION 'OG_SWEEP_DIVERGED: % 个 B/V 组合的非豁免字段或错误码发生变化', v_bad;
+  END IF;
+
+  -- 5.4b EP 用【它自己的】矩阵——B/V 那套用在 EP 上正好是反的：
+  --      base_generation_manifest_sha256  应【改变】（源自 B）
+  --      generation_manifest_sha256       应【不变】（P0-E 专用最终 manifest，
+  --                                        其计算不使用 B 的 carryover evidence）
+  --      line_manifest_sha256、四个金额、三个身份引用  应【不变】
+  --      EP 也不返回 carryover_evidence，剔除它毫无意义。
+  SELECT count(*) INTO v_bad FROM og_sweep a JOIN og_sweep b
+    ON b.phase='after' AND a.phase='before' AND a.fn=b.fn AND a.in_key=b.in_key
+  WHERE a.fn='EP'
+    AND (a.ok <> b.ok
+     OR a.sqlstate IS DISTINCT FROM b.sqlstate
+     OR a.errcode  IS DISTINCT FROM b.errcode
+     OR (a.ok AND ((a.payload - 'base_generation_manifest_sha256')
+                <> (b.payload - 'base_generation_manifest_sha256'))));
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'OG_EP_DIVERGED: % 个 EP 组合的应不变字段发生变化', v_bad;
+  END IF;
+
+  -- 5.4c EP 的 base manifest 【必须】改变——它源自 B，B 变了它不变才是异常
+  SELECT count(*) INTO v_bad FROM og_sweep a JOIN og_sweep b
+    ON b.phase='after' AND a.phase='before' AND a.fn='EP' AND b.fn='EP' AND a.in_key=b.in_key
+  WHERE a.ok AND b.ok
+    AND a.payload->>'base_generation_manifest_sha256'
+      = b.payload->>'base_generation_manifest_sha256';
+  IF v_bad > 0 THEN
+    RAISE EXCEPTION 'OG_EP_BASE_MANIFEST_UNCHANGED: % 个 EP 组合的 base manifest 未变  ← B 的改动未传导', v_bad;
   END IF;
 
   -- 5.5 【本次不改变任何金额】——出现差异即判失败
   SELECT count(*) INTO v_bad FROM og_sweep a JOIN og_sweep b
-    ON b.phase='after' AND a.phase='before' AND a.fn=b.fn
-   AND a.student_id=b.student_id AND a.billing_month=b.billing_month
+    ON b.phase='after' AND a.phase='before' AND a.fn=b.fn AND a.in_key=b.in_key
   WHERE a.ok AND b.ok
-    AND (a.payload->>'previous_carryover_cny' IS DISTINCT FROM b.payload->>'previous_carryover_cny'
-      OR a.payload->>'billing_amount_cny'    IS DISTINCT FROM b.payload->>'billing_amount_cny'
-      OR a.payload->>'previous_settlement_id' IS DISTINCT FROM b.payload->>'previous_settlement_id');
+    AND (a.payload->>'previous_carryover_cny'  IS DISTINCT FROM b.payload->>'previous_carryover_cny'
+      OR a.payload->>'billing_amount_cny'      IS DISTINCT FROM b.payload->>'billing_amount_cny'
+      OR a.payload->>'previous_settlement_id'  IS DISTINCT FROM b.payload->>'previous_settlement_id'
+      OR a.payload->>'exchange_amount_cny'          IS DISTINCT FROM b.payload->>'exchange_amount_cny'
+      OR a.payload->>'source_historical_carryover_cny' IS DISTINCT FROM b.payload->>'source_historical_carryover_cny'
+      OR a.payload->>'adjustment_amount_cny'        IS DISTINCT FROM b.payload->>'adjustment_amount_cny'
+      OR a.payload->>'final_billing_amount_cny'     IS DISTINCT FROM b.payload->>'final_billing_amount_cny');
   IF v_bad > 0 THEN
     RAISE EXCEPTION 'OG_AMOUNT_CHANGED: % 个组合金额或来源 ID 变化  ← 本次不应改变任何金额', v_bad;
   END IF;
@@ -1384,9 +1431,14 @@ BEGIN
   -- 不排除 rd IS NULL：B 成功而 reader 给不出结论，本身就是分叉，不能静默跳过。
   IF v_bad > 0 THEN RAISE EXCEPTION 'OG_READER_DIVERGED: % 个组合 reader 与 B 结论不一致或 reader 无结论', v_bad; END IF;
 
-  -- 5.8 覆盖率门槛，【逐函数】施加：某函数成功样本为 0 ⇒ 它的比对是真空的。
-  -- 显式枚举三个被验收函数：某函数【一行都没扫到】与【扫了全失败】
-  -- 在报告里必须能区分开，否则又是「缺席被当成没问题」。
+  -- 5.8 覆盖率门槛，【逐函数】施加，并显式枚举三个被验收函数：
+  --     「一行都没扫到」与「扫了全失败」必须能区分，否则又是缺席被当成没问题。
+  --
+  --     排练：WARNING，继续收集其余结果，但整体标为【验收不完整】。
+  --     正式提交：零成功【硬失败】。R2_F_B_ALREADY_BILLED 是正常业务结果，
+  --       允许单个样本失败；但它证明不了 V 的成功输出契约。
+  --       「全失败说明样本不适合验证」不等于「要求成功样本会误伤业务」——
+  --       这里拦的是部署验收，不是学生生成业务。
   FOR r IN
     SELECT e.fn,
            count(s.*) FILTER (WHERE s.ok)     AS n_ok,
@@ -1397,16 +1449,42 @@ BEGIN
     GROUP BY e.fn ORDER BY e.fn
   LOOP
     RAISE NOTICE 'OG: % 扫描 组合=% 成功=% 失败=%', r.fn, r.n_total, r.n_ok, r.n_fail;
-    IF r.n_total = 0 THEN
-      RAISE WARNING 'OG_COVERAGE_ABSENT: % 一个组合都没扫到，该函数【完全未被验收】', r.fn;
-    ELSIF r.n_ok = 0 THEN
-      RAISE WARNING 'OG_COVERAGE_VACUOUS: % 成功样本为 0，前后比对不构成验收', r.fn;
+    IF r.n_ok = 0 THEN
+      v_incomplete := v_incomplete + 1;
+      IF r.n_total = 0 THEN
+        RAISE WARNING 'OG_COVERAGE_ABSENT: % 一个组合都没扫到，该函数【完全未被验收】', r.fn;
+      ELSE
+        RAISE WARNING 'OG_COVERAGE_VACUOUS: % 成功样本为 0，前后比对不构成验收', r.fn;
+      END IF;
     END IF;
   END LOOP;
 
-  SELECT count(*) FILTER (WHERE ok) INTO v_ok FROM og_sweep WHERE phase='after' AND fn='B';
-  IF v_ok = 0 THEN
-    RAISE EXCEPTION 'OG_COVERAGE_VACUOUS_B: B 成功样本为 0，本次比对不构成验收';
+  IF v_incomplete > 0 THEN
+    IF current_setting('og.mode',true) = 'commit'
+       AND coalesce(current_setting('og.allow_incomplete_coverage',true),'no') <> 'yes' THEN
+      RAISE EXCEPTION 'OG_COVERAGE_INSUFFICIENT: % 个被验收函数零成功样本，'
+        '正式提交不放行。若已有独立的有效验收证据，请由业务负责人书面确认后'
+        '以 -v allow_incomplete_coverage=yes 重跑。', v_incomplete;
+    ELSIF current_setting('og.mode',true) = 'commit' THEN
+      RAISE WARNING 'OG: 已由 allow_incomplete_coverage=yes 放行，'
+        '% 个函数【未经本脚本验收】，须有独立证据支撑', v_incomplete;
+    ELSE
+      RAISE WARNING 'OG: 排练完成但【验收不完整】——% 个函数零成功样本', v_incomplete;
+    END IF;
+  END IF;
+
+  -- 非预期数据库错误不得混入「一致失败」而被当成正常。
+  -- 允许的业务失败集之外的错误码，逐一列出供人判断。
+  SELECT count(*) INTO v_bad FROM og_sweep
+  WHERE phase='after' AND NOT ok
+    AND errcode NOT IN (
+      'R2_F_B_CANDIDATES_EMPTY','R2_F_B_ALREADY_BILLED','R2_F_B_TARGET_SETTLEMENT_LOCKED',
+      'R2_F_B_STUDENT_NOT_FOUND','R2_F_B_BUSINESS_ENTITY_REQUIRED',
+      'R2_F_B_MULTIPLE_PREVIOUS_LOCKED_SETTLEMENTS','R2_F_B_BILLING_AMOUNT_INVALID',
+      'R2_F_B_DUPLICATE_CANDIDATE_UUID','R2_F_B_CANDIDATE_CONTRACT_MISMATCH',
+      'TUITION_P0E_PREVIEW_INPUT_INVALID','TUITION_P0E_HISTORICAL_CARRY_REQUIRED');
+  IF v_bad > 0 THEN
+    RAISE WARNING 'OG_UNEXPECTED_ERRORS: % 个样本的错误码不在允许的业务失败集内，见下方明细', v_bad;
   END IF;
 END $lc$;
 
@@ -1416,9 +1494,9 @@ SELECT payload->'carryover_evidence'->>'settlement_effective_status' AS effectiv
 FROM og_sweep WHERE phase='after' AND fn='B' AND ok
 GROUP BY 1 ORDER BY 2 DESC;
 
--- 失败样本按错误码分类（不得被笼统吞掉）
-SELECT sqlstate, split_part(errmsg,':',1) AS code, count(*)
-FROM og_sweep WHERE phase='after' AND NOT ok GROUP BY 1,2 ORDER BY 3 DESC;
+-- 失败样本按函数与错误码分类（不得被笼统吞掉）
+SELECT fn, sqlstate, errcode, count(*)
+FROM og_sweep WHERE phase='after' AND NOT ok GROUP BY 1,2,3 ORDER BY 4 DESC;
 
 -- -----------------------------------------------------------------------------
 -- §6 收尾
