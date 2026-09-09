@@ -108,6 +108,10 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
   let initialized = false;
   let loadRequestId = 0;
   let crossView = "source";
+  // 筛选候选的全集。学生是唯一在服务端生效的筛选，按学生查询后返回的行只剩这个人；
+  // 若照返回行重建下拉，它就会塌缩成一项，必须先重置才能换人查。
+  // 候选属于 auxiliary，不该由主结果派生 —— 见 docs/filter-query-reset-contract.md。
+  let filterOptions = null;
   const counters = { readers: 0, previews: 0, reversalPreviews: 0, createWriters: 0, reversalWriters: 0, renders: 0 };
 
   function cacheDom() {
@@ -176,6 +180,7 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
     loadRequestId += 1;
     state.clearSelection();
     state.data = state.emptyData();
+    filterOptions = null;
     dom.dialog.classList.add("is-hidden");
     dom.dialog.setAttribute("aria-hidden", "true");
     dom.content.classList.add("is-hidden");
@@ -203,17 +208,19 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
         api.fetchDashboardSummary({ studentId }),
         api.fetchHistory({ studentId }),
       ]);
-      if (requestId !== loadRequestId) return;
+      if (requestId !== loadRequestId) return false;
       state.setData({ pendingPayload, overagePayload, packagePayload, crossMonthPayload, summary, history });
       populateFilterOptions();
       syncFilterControls();
       renderAll();
       dom.content.classList.remove("is-hidden");
+      return true;
     } catch (error) {
-      if (requestId !== loadRequestId) return;
+      if (requestId !== loadRequestId) return false;
       state.data = state.emptyData();
       dom.content.classList.add("is-hidden");
       setMessage("error", `课时余额读取失败，当前结果不可用于清偿。${lessonClearanceErrorMessage(error)}`);
+      return false;
     } finally {
       if (requestId === loadRequestId) setLoading(false);
     }
@@ -238,19 +245,28 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
   }
 
   function populateFilterOptions() {
-    const rows = optionRows();
-    const students = new Map();
-    const months = new Set();
-    const evidence = new Set();
-    rows.forEach((row) => {
-      if (row.student_id) students.set(row.student_id, row.student_display_name || row.student_name || "名称不可用");
-      [row.source_year_month, row.student_settlement_month, row.actual_month, row.operational_year_month, row.financial_year_month]
-        .filter(Boolean).forEach((value) => months.add(value));
-      if (typeof row.evidence_status === "string") evidence.add(row.evidence_status);
-    });
-    populateSelect(dom.studentFilter, [...students].sort((a, b) => a[1].localeCompare(b[1], "zh-CN")), "全部学生");
-    populateSelect(dom.monthFilter, [...months].sort().reverse().map((value) => [value, value]), "全部月份");
-    populateSelect(dom.evidenceFilter, [...evidence].sort().map((value) => [value, evidenceLabel(value)]), "全部证据");
+    // openDialog 已把 appliedFilters 复位，所以打开后的首次加载必定未按学生筛选，
+    // 用它建立全集；此后按学生查询的加载不再改动候选。
+    if (!filterOptions || !state.appliedFilters.studentId) {
+      const rows = optionRows();
+      const students = new Map();
+      const months = new Set();
+      const evidence = new Set();
+      rows.forEach((row) => {
+        if (row.student_id) students.set(row.student_id, row.student_display_name || row.student_name || "名称不可用");
+        [row.source_year_month, row.student_settlement_month, row.actual_month, row.operational_year_month, row.financial_year_month]
+          .filter(Boolean).forEach((value) => months.add(value));
+        if (typeof row.evidence_status === "string") evidence.add(row.evidence_status);
+      });
+      filterOptions = {
+        students: [...students].sort((a, b) => a[1].localeCompare(b[1], "zh-CN")),
+        months: [...months].sort().reverse().map((value) => [value, value]),
+        evidence: [...evidence].sort().map((value) => [value, evidenceLabel(value)]),
+      };
+    }
+    populateSelect(dom.studentFilter, filterOptions.students, "全部学生");
+    populateSelect(dom.monthFilter, filterOptions.months, "全部月份");
+    populateSelect(dom.evidenceFilter, filterOptions.evidence, "全部证据");
   }
 
   function syncFilterControls() {
@@ -687,11 +703,21 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
     });
     state.selection.submitting = false;
     closeFinalDialog(true);
-    closeDialog(true);
+    // 工作区【不关闭】：连续清偿是常态，每清一笔就整个关掉会逼着重新打开、重新筛选。
+    // 但刚清掉的那笔必须从候选里消失，所以选择状态清空 + 重新读取余额，
+    // 否则留在屏幕上的是一份已经不成立的选择。
+    state.clearSelection();
+    dom.selectionPanel.replaceChildren();
+    dom.previewPanel.replaceChildren();
     try {
       await onCreateSuccess?.(completion);
     } catch (refreshError) {
       onCreateRefreshFailure?.(completion, refreshError);
+    }
+    // loadData 开头会清空提示，成功提示只能放在它之后；读取失败时它已写了自己的错误，
+    // 不能被这句盖掉。
+    if (await loadData()) {
+      setMessage("success", `已清偿 ${completion.allocatedMinutes} 分钟，可继续选择下一笔。`);
     }
   }
 

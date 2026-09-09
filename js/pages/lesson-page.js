@@ -30,7 +30,7 @@ import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=phase2c-d2-
 import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
 import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=lesson-time-grid-frontend-20260810-1";
 import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
-import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
+import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=clearance-continuous-20260909-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,

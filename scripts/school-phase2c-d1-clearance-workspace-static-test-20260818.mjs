@@ -66,4 +66,39 @@ assert.match(css, /@media \(max-width: 480px\)/);
 assert.match(css, /overflow-x: auto/);
 assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\) auto/);
 
+// 筛选候选是 auxiliary，不能由主结果派生。学生是唯一在服务端生效的筛选，
+// 按学生查询后返回的行只剩这个人；照返回行重建下拉，它就会塌缩成一项，
+// 逼着业务人员先重置才能换人查。
+const optionsBlock = component.match(/function populateFilterOptions\(\) \{[\s\S]*?\n  \}/)?.[0] || "";
+assert.match(optionsBlock, /!state\.appliedFilters\.studentId/);
+assert.match(optionsBlock, /filterOptions\.students/);
+const closeBlock = component.match(/function closeDialog\(force = false\) \{[\s\S]*?\n  \}/)?.[0] || "";
+assert.match(closeBlock, /filterOptions = null/);
+
+// 清偿成功后工作区【不关闭】：连续清偿是常态。但刚清掉的那笔必须从候选里消失，
+// 否则留在屏幕上的是一份已经不成立的选择。
+const successBlock = component.match(/async function completeCreateSuccess\([\s\S]*?\n  \}/)?.[0] || "";
+assert.doesNotMatch(successBlock, /closeDialog\(/);
+assert.match(successBlock, /closeFinalDialog\(true\)/);
+assert.match(successBlock, /state\.clearSelection\(\)/);
+// loadData 开头会清空提示；读取失败时它写的是自己的错误，成功提示不得盖掉它。
+assert.match(successBlock, /if \(await loadData\(\)\) \{/);
+
+// 三环缓存链必须同键。workspace 的 ?v= 写在 lesson-page.js 里，浏览器不重新取
+// lesson-page.js 就永远拿不到新的 workspace。部分升比整体不升更糟：新页面配旧组件，
+// 症状是改动「没生效」，而屏幕上没有任何线索指向缓存。
+const app = read("js/lesson-app.js");
+const versionChain = [
+  ["lesson.html → lesson-app.js", html, /\.\/js\/lesson-app\.js\?v=([^"']+)/],
+  ["lesson-app.js → lesson-page.js", app, /\.\/pages\/lesson-page\.js\?v=([^"']+)/],
+  ["lesson-page.js → lesson-clearance-workspace.js", page, /\.\.\/components\/lesson-clearance-workspace\.js\?v=([^"']+)/],
+].map(([link, source, pattern]) => {
+  const matched = pattern.exec(source);
+  assert.ok(matched, `${link}: 找不到 ?v= 缓存版本键`);
+  return [link, matched[1]];
+});
+for (const [link, key] of versionChain) {
+  assert.equal(key, versionChain[0][1], `${link} 的版本键与链上其余不一致 ⇒ 新页面会配到旧组件`);
+}
+
 console.log("SCHOOL_PHASE2C_D1_CLEARANCE_WORKSPACE_STATIC_PASS");
