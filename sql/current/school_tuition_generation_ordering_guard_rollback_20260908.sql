@@ -331,8 +331,14 @@ BEGIN
 END
 $function$
 ;
+-- ⚠️ 与 deploy 同理：DROP 后默认授权先放回 service_role，一条 GRANT 带两个角色
+--    会让数组变成 {postgres,service_role,authenticated}。逐条 GRANT，按基线顺序。
+--    2026-09-10 的 OGR_RESTORE_ACL 就是这么来的 —— 当时只修了 deploy，漏了这里。
 REVOKE ALL ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) FROM authenticated;
+REVOKE ALL ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) FROM service_role;
+GRANT EXECUTE ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) TO service_role;
 COMMENT ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text) IS 'R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.';
 
 -- ── C ──

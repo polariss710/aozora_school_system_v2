@@ -304,10 +304,20 @@ COMMENT ON FUNCTION public.school_get_tuition_generation_ordering_state(uuid,tex
   'Deliberately omits that function''s later checks (target month lock, candidates, amounts): '
   'this answers only the previous-month question, so its failure set is a subset.';
 
+-- ⚠️ 逐条 GRANT，且顺序即基线顺序。一条 GRANT 带两个角色不行：
+--    public schema 的默认授权会先把 service_role 放进 ACL 数组，
+--    随后追加 authenticated ⇒ 顺序颠倒，与基线不符。
+--    2026-09-10 的 VR_READER_ACL 就是这么来的。
 REVOKE ALL ON FUNCTION public.school_get_tuition_generation_ordering_state(uuid,text)
   FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.school_get_tuition_generation_ordering_state(uuid,text)
+  FROM authenticated;
+REVOKE ALL ON FUNCTION public.school_get_tuition_generation_ordering_state(uuid,text)
+  FROM service_role;
 GRANT EXECUTE ON FUNCTION public.school_get_tuition_generation_ordering_state(uuid,text)
-  TO authenticated, service_role;
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION public.school_get_tuition_generation_ordering_state(uuid,text)
+  TO service_role;
 
 -- =============================================================================
 -- 本文件到此为止。
