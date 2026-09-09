@@ -49,7 +49,7 @@ DECLARE
   r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','efa51498e77b515b6f67fc4be599a1b8','{postgres=X/postgres,service_role=X/postgres}',NULL),
+    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','efa51498e77b515b6f67fc4be599a1b8','{postgres=X/postgres,service_role=X/postgres}','Phase B3: existing tuition facts are governed by lesson, settlement, bill, income, immutable and Gate contracts; frozen legacy student status is not an eligibility authority.'),
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text)','36bdadc9af59637c9d336ce68d9afb4c','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.'),
     ('C','public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text)','95a68598215b61f55e5b63c74eeaa3f1','{postgres=X/postgres}','R2-F-C owner-only atomic tuition core. New generation holds fixed-order SHARE table locks on lesson and settlement evidence tables until transaction end; public wrapper remains R0 blocked.'),
     ('F','public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text)','a8ea31ced7f054d0b7ca4306dda1d3d8','{postgres=X/postgres}',NULL),
@@ -1300,12 +1300,12 @@ SELECT pg_temp.og_scan('after');
 
 DO $lc$
 DECLARE
-  r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text;
+  r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text; v_own text;
   v_ok int; v_fail int; v_bad int; v_incomplete int := 0;
 BEGIN
   -- 5.1 新定义、ACL、proconfig、COMMENT
   FOR r IN SELECT * FROM (VALUES
-    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','c456d247f804058e8ae29ef4ba419599','{postgres=X/postgres,service_role=X/postgres}',NULL),
+    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','c456d247f804058e8ae29ef4ba419599','{postgres=X/postgres,service_role=X/postgres}','Phase B3: existing tuition facts are governed by lesson, settlement, bill, income, immutable and Gate contracts; frozen legacy student status is not an eligibility authority.'),
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)','40ef9ec344623bb7c02bf8aea670ad52','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.'),
     ('C','public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text,text)','dad1d0512d44114aed0d9c2a3b61480e','{postgres=X/postgres}','R2-F-C owner-only atomic tuition core. New generation holds fixed-order SHARE table locks on lesson and settlement evidence tables until transaction end; public wrapper remains R0 blocked.'),
     ('F','public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text,text)','8b9b4fd5079a2794aa15c223bbbf9ffc','{postgres=X/postgres}',NULL),
@@ -1314,9 +1314,16 @@ BEGIN
     v_oid := to_regprocedure(r.sig);
     IF v_oid IS NULL THEN RAISE EXCEPTION 'OG_POST_MISSING: %', r.code; END IF;
     SELECT md5(pg_get_functiondef(v_oid)), coalesce(proacl::text,''),
-           coalesce(array_to_string(proconfig,','),''), obj_description(v_oid,'pg_proc')
-      INTO v_md5, v_acl, v_cfg, v_cmt FROM pg_proc WHERE oid = v_oid;
+           coalesce(array_to_string(proconfig,','),''), obj_description(v_oid,'pg_proc'),
+           pg_get_userbyid(proowner)
+      INTO v_md5, v_acl, v_cfg, v_cmt, v_own FROM pg_proc WHERE oid = v_oid;
     IF v_md5 <> r.md5 THEN RAISE EXCEPTION 'OG_POST_MD5: % 得 %', r.code, v_md5; END IF;
+    -- owner 不在函数定义的 md5 里。它【也不是】上面 ACL 断言漏掉的东西 ——
+    -- 改 owner 会把 ACL 里的授予者一并改掉（X/someone_else），实测由 ACL 断言先响。
+    -- 这条的价值是【诊断】：直接说出 owner 是谁，而不是让人去解码那串 ACL。
+    IF v_own <> 'postgres' THEN
+      RAISE EXCEPTION 'OG_POST_OWNER: % 的 owner 为 %（应为 postgres）'
+        '  ← 本脚本被非 postgres 角色执行过', r.code, v_own; END IF;
     IF v_acl <> r.acl THEN RAISE EXCEPTION 'OG_POST_ACL: % 得 %  ← 检查 REVOKE', r.code, v_acl; END IF;
     IF v_cfg <> 'search_path=pg_catalog, public' THEN
       RAISE EXCEPTION 'OG_POST_PROCONFIG: % 得 %', r.code, v_cfg; END IF;

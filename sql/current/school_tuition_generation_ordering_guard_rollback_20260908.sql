@@ -34,7 +34,7 @@ DO $lc$
 DECLARE r record; v_oid oid; v_md5 text;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','c456d247f804058e8ae29ef4ba419599','{postgres=X/postgres,service_role=X/postgres}',NULL),
+    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','c456d247f804058e8ae29ef4ba419599','{postgres=X/postgres,service_role=X/postgres}','Phase B3: existing tuition facts are governed by lesson, settlement, bill, income, immutable and Gate contracts; frozen legacy student status is not an eligibility authority.'),
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)','40ef9ec344623bb7c02bf8aea670ad52','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.'),
     ('C','public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text,text)','dad1d0512d44114aed0d9c2a3b61480e','{postgres=X/postgres}','R2-F-C owner-only atomic tuition core. New generation holds fixed-order SHARE table locks on lesson and settlement evidence tables until transaction end; public wrapper remains R0 blocked.'),
     ('F','public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text,text)','8b9b4fd5079a2794aa15c223bbbf9ffc','{postgres=X/postgres}',NULL),
@@ -1023,7 +1023,7 @@ DO $lc$
 DECLARE r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
-    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','efa51498e77b515b6f67fc4be599a1b8','{postgres=X/postgres,service_role=X/postgres}',NULL),
+    ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)','efa51498e77b515b6f67fc4be599a1b8','{postgres=X/postgres,service_role=X/postgres}','Phase B3: existing tuition facts are governed by lesson, settlement, bill, income, immutable and Gate contracts; frozen legacy student status is not an eligibility authority.'),
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text)','36bdadc9af59637c9d336ce68d9afb4c','{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}','R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.'),
     ('C','public.school_generate_student_tuition_bill_atomic_core(uuid,text,numeric,text,text,text)','95a68598215b61f55e5b63c74eeaa3f1','{postgres=X/postgres}','R2-F-C owner-only atomic tuition core. New generation holds fixed-order SHARE table locks on lesson and settlement evidence tables until transaction end; public wrapper remains R0 blocked.'),
     ('F','public.school_generate_student_tuition_bill_atomic_base_core_v1(uuid,text,numeric,text,text,text)','a8ea31ced7f054d0b7ca4306dda1d3d8','{postgres=X/postgres}',NULL),

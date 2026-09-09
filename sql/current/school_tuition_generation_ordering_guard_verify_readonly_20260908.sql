@@ -37,11 +37,12 @@ SET LOCAL statement_timeout = '600s';
 -- -----------------------------------------------------------------------------
 DO $vr$
 DECLARE
-  r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text;
+  r record; v_oid oid; v_md5 text; v_acl text; v_cfg text; v_cmt text; v_own text;
 BEGIN
   FOR r IN SELECT * FROM (VALUES
     ('B','public.school_build_student_tuition_generation_snapshot(uuid,text,numeric)',
-     'c456d247f804058e8ae29ef4ba419599','{postgres=X/postgres,service_role=X/postgres}',NULL),
+     'c456d247f804058e8ae29ef4ba419599','{postgres=X/postgres,service_role=X/postgres}',
+     'Phase B3: existing tuition facts are governed by lesson, settlement, bill, income, immutable and Gate contracts; frozen legacy student status is not an eligibility authority.'),
     ('G','public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text)',
      '40ef9ec344623bb7c02bf8aea670ad52',
      '{postgres=X/postgres,authenticated=X/postgres,service_role=X/postgres}',
@@ -57,8 +58,13 @@ BEGIN
     v_oid := to_regprocedure(r.sig);
     IF v_oid IS NULL THEN RAISE EXCEPTION 'VR_MISSING: % (%)', r.code, r.sig; END IF;
     SELECT md5(pg_get_functiondef(v_oid)), coalesce(proacl::text,''),
-           coalesce(array_to_string(proconfig,','),''), obj_description(v_oid,'pg_proc')
-      INTO v_md5, v_acl, v_cfg, v_cmt FROM pg_proc WHERE oid = v_oid;
+           coalesce(array_to_string(proconfig,','),''), obj_description(v_oid,'pg_proc'),
+           pg_get_userbyid(proowner)
+      INTO v_md5, v_acl, v_cfg, v_cmt, v_own FROM pg_proc WHERE oid = v_oid;
+    -- owner 不在定义 md5 里。实测改 owner 会先触发上面的 ACL 断言（授予者随之改变），
+    -- 故这条是【诊断】用：直接点名 owner，省去从 ACL 串里解码。
+    IF v_own <> 'postgres' THEN
+      RAISE EXCEPTION 'VR_OWNER: % 的 owner 为 %（应为 postgres）', r.code, v_own; END IF;
     IF v_md5 <> r.md5 THEN RAISE EXCEPTION 'VR_MD5: % 得 % 期望 %', r.code, v_md5, r.md5; END IF;
     -- C/F/N 若含 service_role 即为【权限扩大】：DROP 后重建时 public schema 的
     -- 默认授权会把它带回来，必须已被显式 REVOKE 掉。
