@@ -35,7 +35,13 @@ export PHASE2C_D2A_NODE_MODULES=/tmp/pw/node_modules
 export PHASE2C_D1_BROWSER_EXECUTABLE="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 export PHASE2C_D2A_BROWSER_EXECUTABLE="$PHASE2C_D1_BROWSER_EXECUTABLE"
 
-for t in scripts/*clearance*browser-test*.mjs; do node "$t"; done
+# ⚠️ 别写成 `for t in ...; do node "$t"; done` —— 循环只留下【最后一次】的退出码，
+#    前面失败、最后通过时整轮看起来是绿的。要累计失败并返回非零。
+fail=0
+for t in scripts/*clearance*browser-test*.mjs; do
+  if node "$t"; then echo "PASS $(basename "$t")"; else fail=$((fail+1)); echo "FAIL $(basename "$t")"; fi
+done
+echo "failed=$fail"; [ "$fail" -eq 0 ]
 ```
 
 ## 4. 当前状态（2026-09-10 首次在本机运行）
