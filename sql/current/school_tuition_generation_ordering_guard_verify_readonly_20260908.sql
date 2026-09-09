@@ -199,6 +199,34 @@ school_guard_tuition_ordering_ack_event_immutable c54ee90eec419fee635ef577626e26
     RAISE EXCEPTION 'VR_ACK_GUARD_FUNCTIONS:%s%s', chr(10), v_txt;
   END IF;
 
+  -- 五个写路径函数各自只能有一个重载。md5 比对走精确签名，
+  -- 多出来的同名重载它看不见，而 PostgREST 要到调用时才报
+  -- function ... is not unique —— 那时账单已经开不出来了。
+  SELECT string_agg(p.proname||' '||c.n::text, E'\n' ORDER BY p.proname) INTO v_txt
+    FROM (VALUES
+      ('school_build_student_tuition_generation_snapshot'),
+      ('school_generate_student_tuition_bill_atomic'),
+      ('school_generate_student_tuition_bill_atomic_core'),
+      ('school_generate_student_tuition_bill_atomic_base_core_v1'),
+      ('school_generate_student_tuition_next_revision_core')
+    ) AS p(proname)
+    CROSS JOIN LATERAL (
+      SELECT count(*) AS n FROM pg_proc pp
+        JOIN pg_namespace nn ON nn.oid = pp.pronamespace
+       WHERE nn.nspname = 'public' AND pp.proname = p.proname
+    ) c;
+  IF v_txt IS DISTINCT FROM
+'school_build_student_tuition_generation_snapshot 1
+school_generate_student_tuition_bill_atomic 1
+school_generate_student_tuition_bill_atomic_base_core_v1 1
+school_generate_student_tuition_bill_atomic_core 1
+school_generate_student_tuition_next_revision_core 1' THEN
+    -- 本文件其余断言写的是 '%s%s'，在 PL/pgSQL 里那是「% 代入 + 字面 s」，
+    -- 会在报文里多出一个 s。相邻的 %% 又是转义成字面 %，所以这里用
+    -- 单占位符 + 拼接。
+    RAISE EXCEPTION 'VR_OVERLOAD_NOT_UNIQUE:%', chr(10)||v_txt;
+  END IF;
+
   -- 授权照抄 void_events：service_role 只读，authenticated / anon 无权限
   SELECT coalesce(relacl::text,'') INTO v_txt FROM pg_class
    WHERE oid='public.school_student_tuition_generation_ordering_ack_events'::regclass;

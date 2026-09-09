@@ -1334,6 +1334,30 @@ BEGIN
     END IF;
   END LOOP;
 
+  -- 5.2b 五个函数名各自【只能有一个重载】。
+  --   上一条只查【已知的】四个旧签名，来历不明的第三个重载它看不见；
+  --   5.1 走 to_regprocedure(精确签名)，多出来的重载同样看不见。
+  --   ⇒ 五个 md5 断言可以全绿，而 PostgREST 在调用时才报
+  --     function ... is not unique。按【名字】数，才关得住这一类。
+  FOR r IN SELECT * FROM (VALUES
+    ('school_build_student_tuition_generation_snapshot'),
+    ('school_generate_student_tuition_bill_atomic'),
+    ('school_generate_student_tuition_bill_atomic_core'),
+    ('school_generate_student_tuition_bill_atomic_base_core_v1'),
+    ('school_generate_student_tuition_next_revision_core')
+  ) AS t(nm) LOOP
+    SELECT count(*) INTO v_bad FROM pg_proc p
+      JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname = 'public' AND p.proname = r.nm;
+    IF v_bad <> 1 THEN
+      RAISE EXCEPTION 'OG_OVERLOAD_NOT_UNIQUE: public.% 有 % 个重载（应为 1）%实际: %',
+        r.nm, v_bad, chr(10),
+        (SELECT string_agg(pg_get_function_identity_arguments(p2.oid), '  |  ' ORDER BY p2.oid)
+           FROM pg_proc p2 JOIN pg_namespace n2 ON n2.oid = p2.pronamespace
+          WHERE n2.nspname = 'public' AND p2.proname = r.nm);
+    END IF;
+  END LOOP;
+
   -- 5.3 对外返回契约：G 与 C 的返回签名必须【逐字节】等于基线。
   --     只数逗号是不够的——同列数、不同名称或类型也能通过。
   FOR r IN SELECT * FROM (VALUES
