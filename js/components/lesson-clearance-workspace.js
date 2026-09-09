@@ -245,9 +245,12 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
   }
 
   function populateFilterOptions() {
-    // openDialog 已把 appliedFilters 复位，所以打开后的首次加载必定未按学生筛选，
-    // 用它建立全集；此后按学生查询的加载不再改动候选。
-    if (!filterOptions || !state.appliedFilters.studentId) {
+    // 服务端生效的筛选有【两个】：studentId 影响全部六个 reader，
+    // settlementMonth 影响 fetchCrossMonthProjection —— 而它的 items 也进 optionRows()。
+    // 任一被应用，返回行就不再是全集，据此重建候选就会让它变窄。
+    // openDialog 已把 appliedFilters 复位，所以打开后的首次加载必定两者皆空。
+    if (!filterOptions
+        || (!state.appliedFilters.studentId && !state.appliedFilters.settlementMonth)) {
       const rows = optionRows();
       const students = new Map();
       const months = new Set();

@@ -70,7 +70,11 @@ assert.match(css, /grid-template-rows: auto minmax\(0, 1fr\) auto/);
 // 按学生查询后返回的行只剩这个人；照返回行重建下拉，它就会塌缩成一项，
 // 逼着业务人员先重置才能换人查。
 const optionsBlock = component.match(/function populateFilterOptions\(\) \{[\s\S]*?\n  \}/)?.[0] || "";
+// 两个筛选都在服务端生效：studentId 影响六个 reader，settlementMonth 影响
+// fetchCrossMonthProjection，而它的 items 也进 optionRows()。只守住其一，
+// 按月份查询照样会让候选变窄。
 assert.match(optionsBlock, /!state\.appliedFilters\.studentId/);
+assert.match(optionsBlock, /!state\.appliedFilters\.settlementMonth/);
 assert.match(optionsBlock, /filterOptions\.students/);
 const closeBlock = component.match(/function closeDialog\(force = false\) \{[\s\S]*?\n  \}/)?.[0] || "";
 assert.match(closeBlock, /filterOptions = null/);
