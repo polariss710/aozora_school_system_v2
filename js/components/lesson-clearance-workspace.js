@@ -707,11 +707,18 @@ export function createLessonClearanceWorkspace({ api, getRole, onCreateSuccess, 
     state.selection.submitting = false;
     closeFinalDialog(true);
     // 工作区【不关闭】：连续清偿是常态，每清一笔就整个关掉会逼着重新打开、重新筛选。
-    // 但刚清掉的那笔必须从候选里消失，所以选择状态清空 + 重新读取余额，
-    // 否则留在屏幕上的是一份已经不成立的选择。
+    //
+    // 但屏幕上那批候选此刻已经不成立——刚消耗掉的余额还在里面。下面要等
+    // onCreateSuccess（主页刷新）与 loadData（六个 reader）两轮网络往返，
+    // 慢网络下那是个能点下去的窗口。setLoading 只切一个指示器，拦不住点击。
+    // 故照 openDialog 的做法：新数据到位之前，不给旧结果留任何入口。
     state.clearSelection();
+    state.data = state.emptyData();
+    dom.tabPanel.replaceChildren();
     dom.selectionPanel.replaceChildren();
     dom.previewPanel.replaceChildren();
+    dom.content.classList.add("is-hidden");
+    setLoading(true);
     try {
       await onCreateSuccess?.(completion);
     } catch (refreshError) {

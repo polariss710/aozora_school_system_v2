@@ -34,6 +34,7 @@ async function createScenario(name) {
     };
     const metrics = { previewCalls: 0, createCalls: 0, reversalCalls: 0, historyReads: 0, dashboardReads: 0, mainRefreshes: 0, refreshFailures: 0 };
     let history = [];
+    let consumed = false;
     const clearanceId = "30000000-0000-4000-8000-000000000001";
     const createResult = (idempotentReplay = false) => ({
       clearance_id: clearanceId, pending_remaining_minutes: 0, overtime_remaining_minutes: 0,
@@ -49,8 +50,10 @@ async function createScenario(name) {
       input_manifest_sha256: "b".repeat(64), is_effective: true, is_reversed: false,
     });
     const api = {
-      fetchPendingBalances: async () => ({ items: [structuredClone(pending)], summary: {} }),
-      fetchAvailableOverages: async () => ({ items: [structuredClone(overage)], summary: {} }),
+      // 清偿成功后余额【真的会消失】。stub 必须照此行事，否则「重新读取把消耗掉的
+      // 那笔清出候选」这条契约在测试里根本无从验证。
+      fetchPendingBalances: async () => ({ items: consumed ? [] : [structuredClone(pending)], summary: {} }),
+      fetchAvailableOverages: async () => ({ items: consumed ? [] : [structuredClone(overage)], summary: {} }),
       fetchPackageCreditLots: async () => ({ items: [{ package_lot_id: "P002", student_id: "student-2", remaining_minutes: 1200, can_consume: false, can_be_candidate: false, read_only: true }], summary: {} }),
       fetchCrossMonthProjection: async () => ({ items: [], summary: {} }),
       fetchDashboardSummary: async () => { metrics.dashboardReads += 1; return { pending_source_count: 1, pending_remaining_minutes: 60, overage_source_count: 1, available_overtime_minutes: 60, package_lot_count: 1, package_remaining_minutes: 1200, history_count: history.length }; },
@@ -73,9 +76,10 @@ async function createScenario(name) {
         await new Promise((resolve) => setTimeout(resolve, 60));
         if (scenario === "stable-error") throw Object.assign(new Error("LESSON_CLEARANCE_PENDING_BALANCE_INSUFFICIENT"), { code: "P0001" });
         if (scenario === "network-missing") throw new TypeError("Failed to fetch");
-        if (scenario === "network-found") { history = [historyRow(input)]; throw new TypeError("Network timeout"); }
-        if (scenario === "idempotent-exact") { history = [historyRow(input)]; return [createResult(true)]; }
+        if (scenario === "network-found") { history = [historyRow(input)]; consumed = true; throw new TypeError("Network timeout"); }
+        if (scenario === "idempotent-exact") { history = [historyRow(input)]; consumed = true; return [createResult(true)]; }
         if (scenario === "idempotent-mismatch") { history = [historyRow(input, true)]; return [createResult(true)]; }
+        consumed = true;
         return [createResult(false)];
       },
       previewReversal: async () => { throw new Error("REVERSAL_NOT_CALLED"); },
@@ -173,7 +177,14 @@ async function openAndPrepare(page, { submit = false, doubleClick = false } = {}
 {
   const { page, consoleProblems } = await createScenario("success");
   await openAndPrepare(page, { submit: true, doubleClick: true });
-  await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceDialog")?.classList.contains("is-hidden"));
+  await page.waitForFunction(() => {
+    const dialog = document.querySelector("#lessonClearanceWorkspaceDialog");
+    const finalDialog = document.querySelector("#lessonClearanceFinalConfirmDialog");
+    const content = document.querySelector("#lessonClearanceWorkspaceContent");
+    return dialog && !dialog.classList.contains("is-hidden")
+      && finalDialog?.classList.contains("is-hidden")
+      && content && !content.classList.contains("is-hidden");
+  });
   const outcome = await page.evaluate(() => ({ metrics: globalThis.__A3__.metrics, message: document.querySelector("#lessonMessageArea")?.textContent, selection: globalThis.__A3__.controller.state.selection }));
   assert.equal(outcome.metrics.previewCalls, 1);
   assert.equal(outcome.metrics.createCalls, 1);
@@ -183,10 +194,13 @@ async function openAndPrepare(page, { submit = false, doubleClick = false } = {}
   assert.equal(outcome.selection.previewInputSnapshot, null);
   assert.equal(outcome.selection.requestIdentity, "");
   assert.equal(await page.locator("#lessonClearanceFinalConfirmDialog").getAttribute("aria-hidden"), "true");
-  const readsBeforeReopen = outcome.metrics.dashboardReads;
-  await page.click("#openLessonClearanceWorkspaceButton");
-  await page.waitForFunction((before) => globalThis.__A3__.metrics.dashboardReads === before + 1, readsBeforeReopen);
+  // 工作区成功后不再关闭，所以这里不重新打开；直接核对它已经就绪、可以接着清下一笔。
   assert.equal(await page.locator("#lessonClearancePendingSelect").inputValue(), "");
+  assert.ok(await page.locator("#lessonClearanceWorkspaceContent").isVisible());
+  // 刚消耗掉的余额必须已经从候选里消失 —— 否则留在屏幕上的是一份不成立的选择。
+  const pendingOptions = await page.locator("#lessonClearancePendingSelect option").allTextContents();
+  assert.equal(pendingOptions.some((text) => text.includes("待补")), false,
+    "consumed pending balance must be gone from the reloaded candidates");
   assert.deepEqual(consoleProblems, []);
   await page.close();
 }
@@ -194,10 +208,17 @@ async function openAndPrepare(page, { submit = false, doubleClick = false } = {}
 for (const scenario of ["idempotent-exact", "network-found"]) {
   const { page, consoleProblems } = await createScenario(scenario);
   await openAndPrepare(page, { submit: true });
-  await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceDialog")?.classList.contains("is-hidden"));
+  await page.waitForFunction(() => {
+    const dialog = document.querySelector("#lessonClearanceWorkspaceDialog");
+    const finalDialog = document.querySelector("#lessonClearanceFinalConfirmDialog");
+    const content = document.querySelector("#lessonClearanceWorkspaceContent");
+    return dialog && !dialog.classList.contains("is-hidden")
+      && finalDialog?.classList.contains("is-hidden")
+      && content && !content.classList.contains("is-hidden");
+  });
   const metrics = await page.evaluate(() => globalThis.__A3__.metrics);
   assert.equal(metrics.createCalls, 1);
-  assert.equal(metrics.historyReads, 2, `${scenario} includes initial History load plus one result confirmation read`);
+  assert.equal(metrics.historyReads, 3, `${scenario}: initial load + result confirmation read + the reload that follows a success`);
   assert.equal(metrics.mainRefreshes, 1);
   assert.deepEqual(consoleProblems, []);
   await page.close();
@@ -239,7 +260,14 @@ for (const scenario of ["idempotent-mismatch", "network-missing"]) {
 {
   const { page, consoleProblems } = await createScenario("refresh-failure");
   await openAndPrepare(page, { submit: true });
-  await page.waitForFunction(() => document.querySelector("#lessonClearanceWorkspaceDialog")?.classList.contains("is-hidden"));
+  await page.waitForFunction(() => {
+    const dialog = document.querySelector("#lessonClearanceWorkspaceDialog");
+    const finalDialog = document.querySelector("#lessonClearanceFinalConfirmDialog");
+    const content = document.querySelector("#lessonClearanceWorkspaceContent");
+    return dialog && !dialog.classList.contains("is-hidden")
+      && finalDialog?.classList.contains("is-hidden")
+      && content && !content.classList.contains("is-hidden");
+  });
   const result = await page.evaluate(() => ({ metrics: globalThis.__A3__.metrics, message: document.querySelector("#lessonMessageArea")?.textContent }));
   assert.equal(result.metrics.createCalls, 1);
   assert.equal(result.metrics.mainRefreshes, 1);
