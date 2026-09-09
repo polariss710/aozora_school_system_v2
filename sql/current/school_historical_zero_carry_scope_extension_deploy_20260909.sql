@@ -88,6 +88,23 @@ BEGIN
       v_own, v_sec, v_strict, v_par, v_leak, v_cost, v_rows;
   END IF;
 
+  -- §4 的闸门矩阵靠「core 第一步就校验 actor、校验不过不写任何东西」才成立零写入。
+  -- 那是 2026-09-10 00:13 的人工核实结论，会过期；钉成断言才不会。
+  -- core 一旦被改动，本脚本应当停下来重新确认那个顺序，而不是照跑。
+  SELECT count(*) INTO v_n FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public'
+     AND p.proname='school_create_student_monthly_settlement_historical_completion_';
+  IF v_n <> 1 THEN
+    RAISE EXCEPTION 'HZC_PRE_CORE_OVERLOAD: core 有 % 个重载（应为 1）', v_n; END IF;
+  SELECT md5(pg_get_functiondef(p.oid)) INTO v_md5 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public'
+     AND p.proname='school_create_student_monthly_settlement_historical_completion_';
+  IF v_md5 <> 'e3f3c9a6bab3f3ac54d0cfe1ed51d1c0' THEN
+    RAISE EXCEPTION 'HZC_PRE_CORE_MD5: 得 %  期望 e3f3c9a6bab3f3ac54d0cfe1ed51d1c0'
+      '  ← core 已变动，§4 探测的零写入前提需重新确认', v_md5;
+  END IF;
+
   -- 本次要新增的那一对，此刻【必须还没有】evidence。
   SELECT count(*) INTO v_n
     FROM public.school_student_monthly_settlement_historical_completion_evidence
@@ -178,21 +195,29 @@ $post$;
 -- -----------------------------------------------------------------------------
 -- §4 闸门行为矩阵
 --
---   十组，五放行五拒绝。放行组用【无效 actor】去撞 core —— core 先校验 actor
---   才插入，所以「打到了 core」这件事可观测，而且【不产生任何写入】。
---   拒绝组必须报 SCOPE_NOT_APPROVED。
+--   十二组：两组角色拒绝、五组放行、五组范围拒绝。
+--   放行组用 actor = NULL 去撞 core —— core 第一步就校验 actor，NULL 必然无匹配，
+--   所以「打到了 core」可观测，且在 candidate、advisory lock 与插入【之前】就返回。
+--   core 的定义已在 §1 钉成 md5 断言；它一变，这个前提就要重新确认。
+--
+--   ⚠️ 只有【精确认出的】三种异常才计入分类，其余一律 unclassified 并使整轮失败。
+--      早先的写法用 ELSE 'pass'，会把 core 缺失、权限异常、内部错误、
+--      乃至无异常返回统统算成「放行组通过」——那正是本矩阵要防的东西。
 --
 --   ⚠️ 交叉积那几组是这次改动的要害：原写法是「月份=2026-07 且 学生∈四人」，
 --      若直接把 2026-08 加进去，那四个人的八月会被一并放开。
 -- -----------------------------------------------------------------------------
 DO $gatecheck$
 DECLARE
-  r record; v_err text; v_got text; v_bad int := 0; v_before bigint; v_after bigint;
+  r record; v_err text; v_state text; v_got text; v_bad int := 0;
+  v_before bigint; v_after bigint;
 BEGIN
   SELECT count(*) INTO v_before
     FROM public.school_student_monthly_settlement_historical_completion_evidence;
 
   FOR r IN SELECT * FROM (VALUES
+    ('anon','2026-08','b17abc58-2f64-4bad-bf20-c9643ead60bc'::text,'role','非 service_role'),
+    ('','2026-07','eceb2c59-9689-4ec8-9d3f-799b90bfdb27'::text,'role','无角色'),
     ('service_role','2026-07','eceb2c59-9689-4ec8-9d3f-799b90bfdb27'::text,'pass','原四人之一 / 2026-07'),
     ('service_role','2026-07','881dd60c-b92b-44ae-98e1-98448567a8d2'::text,'pass','原四人之一 / 2026-07'),
     ('service_role','2026-07','a7b163a0-201e-4867-9b94-372343356a80'::text,'pass','原四人之一 / 2026-07'),
@@ -211,21 +236,31 @@ BEGIN
         r.student::uuid, r.month, '2cf7b72f-6e3c-4d09-80f7-7c58593cd466'::uuid,
         'deliberately-wrong-lesson-manifest', 'deliberately-wrong-makeup-manifest',
         NULL, NULL, NULL, NULL, NULL, NULL,
-        '00000000-0000-4000-8000-000000000009'::uuid, 'gate probe', 'gate probe', 'gate probe');
-      v_err := '<无异常 —— 不应发生>';
+        -- actor 用 NULL：core 的第一步就是查它是不是有效 admin/operator，
+        -- NULL 必然无匹配 ⇒ 必然抛 ACTOR_INVALID。用具体 UUID 则要额外假设
+        -- 「这个 UUID 恰好没有 membership」，那是个会过期的假设。
+        NULL, 'gate probe', 'gate probe', 'gate probe');
+      v_state := '<none>'; v_err := '<无异常返回>';
     EXCEPTION WHEN OTHERS THEN
-      v_err := SQLERRM;
+      v_state := SQLSTATE; v_err := SQLERRM;
     END;
 
+    -- 只有【精确认出的】异常才算数。把没分类的失败归成成功，正是这个矩阵
+    -- 想防的那类错误——core 缺失、权限异常、内部错误，乃至根本没抛异常，
+    -- 都必须落到 unclassified 并让整轮失败，不能被算作「打到了 core」。
     v_got := CASE
-      WHEN position('HISTORICAL_ZERO_CARRY_LOCAL_SCOPE_NOT_APPROVED' in v_err) > 0 THEN 'deny'
-      WHEN position('HISTORICAL_ZERO_CARRY_LOCAL_TRUSTED_ROLE_REQUIRED' in v_err) > 0 THEN 'role'
-      ELSE 'pass' END;
+      WHEN v_state = 'P0001' AND position('HISTORICAL_ZERO_CARRY_ACTOR_INVALID' in v_err) > 0
+        THEN 'pass'
+      WHEN v_state = 'P0001' AND position('HISTORICAL_ZERO_CARRY_LOCAL_SCOPE_NOT_APPROVED' in v_err) > 0
+        THEN 'deny'
+      WHEN v_state = 'P0001' AND position('HISTORICAL_ZERO_CARRY_LOCAL_TRUSTED_ROLE_REQUIRED' in v_err) > 0
+        THEN 'role'
+      ELSE 'unclassified' END;
 
     IF v_got <> r.expect THEN
       v_bad := v_bad + 1;
-      RAISE WARNING 'HZC_GATE_MISMATCH: % / % (%) 期望 % 实得 % —— %',
-        r.month, r.student, r.note, r.expect, v_got, v_err;
+      RAISE WARNING 'HZC_GATE_MISMATCH: % / % (%) 期望 % 实得 % [sqlstate %] —— %',
+        r.month, r.student, r.note, r.expect, v_got, v_state, v_err;
     END IF;
   END LOOP;
 
@@ -235,14 +270,16 @@ BEGIN
   SELECT count(*) INTO v_after
     FROM public.school_student_monthly_settlement_historical_completion_evidence;
   IF v_after <> v_before THEN
-    RAISE EXCEPTION 'HZC_GATE_WROTE_ROWS: 探测期间 evidence 由 % 变为 % —— 必须零写入',
+    RAISE EXCEPTION 'HZC_GATE_ROWS_CHANGED: 探测期间 evidence 由 % 变为 %。'
+      '（注：行数不变只说明没有【留下】新行，内层 EXCEPTION 会回滚子事务，'
+      '故它不证明从未尝试写入）',
       v_before, v_after;
   END IF;
 
   IF v_bad > 0 THEN
     RAISE EXCEPTION 'HZC_GATE_MATRIX: % 组与预期不符，见上方 WARNING', v_bad;
   END IF;
-  RAISE NOTICE 'HZC: 闸门矩阵 10 组全部符合预期，evidence 行数未变（% 行）', v_after;
+  RAISE NOTICE 'HZC: 闸门矩阵 12 组全部符合预期，evidence 行数未变（% 行）', v_after;
 END
 $gatecheck$;
 
