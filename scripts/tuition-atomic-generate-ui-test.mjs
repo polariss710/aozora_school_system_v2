@@ -65,6 +65,7 @@ assert.deepEqual(
     code: "TUITION_GENERATION_BLOCKED",
     message: "学费应收生成功能维护中，当前只能预览。",
     clearPreview: false,
+    needsOrderingAck: false,
   }
 );
 
@@ -106,12 +107,13 @@ refreshedMonths.push(selectedFilterMonth);
 assert.equal(selectedFilterMonth, "2026-06");
 assert.deepEqual(refreshedMonths, ["2026-06"]);
 
-// 13. The write payload contains only the five authorized inputs, no amounts or candidates.
+// 13. The write payload contains only the six authorized inputs, no amounts or candidates.
 assert.deepEqual(Object.keys(firstPayload).sort(), [
   "billingExchangeRate",
   "billingMonth",
   "expectedGenerationManifestSha256",
   "note",
+  "previousSettlementAbsenceAckReason",
   "studentId",
 ]);
 assert.equal(Object.hasOwn(firstPayload, "businessEntityId"), false);
@@ -142,7 +144,48 @@ assert.doesNotMatch(pageSource, /candidate\.duration_hours\s*\*|total_fee_jpy\s*
 assert.match(htmlSource, /确认生成学费应收/);
 assert.match(htmlSource, /一次性生成正式学费应收和待收款记录/);
 assert.match(pageSource, /tuitionBillGenerationState\.storePreview\(preview\)/);
-assert.match(pageSource, /buildAtomicTuitionGeneratePayload\(preview/);
+assert.match(pageSource, /buildAtomicTuitionGeneratePayload\(\s*preview/);
 assert.match(pageSource, /result\.generation_manifest_sha256 !== preview\.generation_manifest_sha256/);
 
-console.log("atomic tuition generate frontend state fixtures: 18/18 PASS");
+// 15. The ordering refusal is recognised, keeps the preview, and asks for a reason.
+const orderingError = mapAtomicTuitionGenerateError(new Error(
+  "TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE: student 11111111-1111-4111-8111-111111111111 "
+  + "period 2026-08 not settled (no_settlement)"
+));
+assert.equal(orderingError.code, "TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE");
+assert.equal(orderingError.needsOrderingAck, true);
+assert.equal(orderingError.clearPreview, false);
+// The month comes from the server text, never from arithmetic on the billing month.
+assert.match(orderingError.message, /2026-08/);
+assert.doesNotMatch(orderingError.message, /TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE|no_settlement|[0-9a-f]{8}-/i);
+
+// 16. An unparseable period degrades to a message without one, not to a guessed month.
+const orderingErrorNoPeriod = mapAtomicTuitionGenerateError(
+  new Error("TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE: 上游改了措辞")
+);
+assert.equal(orderingErrorNoPeriod.needsOrderingAck, true);
+assert.doesNotMatch(orderingErrorNoPeriod.message, /\d{4}-\d{2}/);
+
+// 17. The reason is passed through verbatim; blank means absent, not empty string.
+assert.equal(firstPayload.previousSettlementAbsenceAckReason, null);
+assert.equal(
+  buildAtomicTuitionGeneratePayload(preview, "备注", "  8月家长已付清，先出单  ")
+    .previousSettlementAbsenceAckReason,
+  "8月家长已付清，先出单"
+);
+assert.equal(
+  buildAtomicTuitionGeneratePayload(preview, "备注", "   ").previousSettlementAbsenceAckReason,
+  null
+);
+
+// 18. The reason field is revealed only because the server refused, and never persists
+//     across dialogs. The front end must not decide whether a settlement is complete.
+assert.match(apiSource, /p_previous_settlement_absence_ack_reason/);
+assert.match(htmlSource, /id="tuitionBillOrderingAckInput"/);
+assert.match(htmlSource, /tuitionBillOrderingAckBlock[\s\S]{0,200}required-mark/);
+assert.match(pageSource, /mapped\.needsOrderingAck[\s\S]{0,200}classList\.remove\("is-hidden"\)/);
+assert.match(pageSource, /function resetTuitionBillOrderingAck/);
+assert.equal((pageSource.match(/resetTuitionBillOrderingAck\(\);/g) || []).length, 2);
+assert.doesNotMatch(pageSource, /settlement_effective_complete|previous_settlement_month/);
+
+console.log("atomic tuition generate frontend state fixtures: 30/30 PASS");

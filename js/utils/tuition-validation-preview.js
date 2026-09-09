@@ -141,7 +141,7 @@ export function createTuitionAtomicGenerateState() {
   };
 }
 
-export function buildAtomicTuitionGeneratePayload(preview, note = "") {
+export function buildAtomicTuitionGeneratePayload(preview, note = "", orderingAckReason = "") {
   if (!preview || !/^[0-9a-f]{64}$/.test(String(preview.generation_manifest_sha256 || ""))) {
     throw new Error("缺少有效的学费生成manifest，请重新预览。");
   }
@@ -152,6 +152,8 @@ export function buildAtomicTuitionGeneratePayload(preview, note = "") {
     billingExchangeRate: preview.billing_exchange_rate,
     expectedGenerationManifestSha256: preview.generation_manifest_sha256,
     note: String(note || "").trim() || null,
+    // 原样上送。理由是否必需、是否足够，全由服务端判定。
+    previousSettlementAbsenceAckReason: String(orderingAckReason || "").trim() || null,
   };
 }
 
@@ -160,8 +162,26 @@ export function isAtomicTuitionGenerateEnabled(preview) {
     && preview?.generate_feature_state === "enabled";
 }
 
+// 服务端拒绝文本形如
+//   TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE: student <uuid> period 2026-08 not settled (no_settlement)
+// 只取其中的月份用于显示。取不到就退回不带月份的说法，不做任何推算。
+function orderingBlockMessage(rawMessage) {
+  const period = /period\s+(\d{4}-\d{2})\s+not settled/.exec(rawMessage)?.[1];
+  return period
+    ? `${period} 的结算尚未完成，现在生成会把「上月结转 0」永久冻结进这张账单。请先补结算；确有理由现在就生成的，请在下方写明。`
+    : "上月结算尚未完成，现在生成会把「上月结转 0」永久冻结进这张账单。请先补结算；确有理由现在就生成的，请在下方写明。";
+}
+
 export function mapAtomicTuitionGenerateError(error) {
   const rawMessage = String(error?.message || error || "");
+  if (rawMessage.includes("TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE")) {
+    return {
+      code: "TUITION_PREVIOUS_SETTLEMENT_INCOMPLETE",
+      message: orderingBlockMessage(rawMessage),
+      clearPreview: false,
+      needsOrderingAck: true,
+    };
+  }
   const mappings = [
     ["TUITION_GENERATION_BLOCKED", "学费应收生成功能维护中，当前只能预览。", false],
     ["R2_F_B_STALE_GENERATION_MANIFEST", "课程或收费数据已变化，请重新生成预览。", true],
@@ -172,12 +192,18 @@ export function mapAtomicTuitionGenerateError(error) {
   ];
   const matched = mappings.find(([code]) => rawMessage.includes(code));
   if (matched) {
-    return { code: matched[0], message: matched[1], clearPreview: matched[2] };
+    return {
+      code: matched[0],
+      message: matched[1],
+      clearPreview: matched[2],
+      needsOrderingAck: false,
+    };
   }
   return {
     code: "UNKNOWN",
     message: "学费应收生成失败，未写入成功状态。请检查网络或系统状态后重新预览。",
     clearPreview: false,
+    needsOrderingAck: false,
   };
 }
 

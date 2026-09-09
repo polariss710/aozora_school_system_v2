@@ -226,6 +226,8 @@ function cacheDom() {
   dom.confirmGenerateTuitionBillDialog = document.querySelector("#confirmGenerateTuitionBillDialog");
   dom.confirmGenerateTuitionBillError = document.querySelector("#confirmGenerateTuitionBillError");
   dom.confirmGenerateTuitionBillSummary = document.querySelector("#confirmGenerateTuitionBillSummary");
+  dom.tuitionBillOrderingAckBlock = document.querySelector("#tuitionBillOrderingAckBlock");
+  dom.tuitionBillOrderingAckInput = document.querySelector("#tuitionBillOrderingAckInput");
   dom.confirmGenerateTuitionBillCancelButton = document.querySelector("#confirmGenerateTuitionBillCancelButton");
   dom.confirmGenerateTuitionBillSubmitButton = document.querySelector("#confirmGenerateTuitionBillSubmitButton");
 }
@@ -2016,11 +2018,23 @@ function clearTuitionBillPreview({ invalidateRequest = true } = {}) {
   }
 }
 
+// 理由框只在服务端拒绝后出现。每次打开和关闭确认框都要收起并清空，
+// 否则上一个学生留下的理由会跟着下一张账单被送上去。
+function resetTuitionBillOrderingAck() {
+  if (!dom.tuitionBillOrderingAckBlock) {
+    return;
+  }
+  dom.tuitionBillOrderingAckBlock.classList.add("is-hidden");
+  dom.tuitionBillOrderingAckInput.value = "";
+  dom.confirmGenerateTuitionBillSubmitButton.textContent = "确认生成学费应收";
+}
+
 function openGenerateTuitionBillConfirmation(preview) {
   const student = students.find((row) => row.id === preview.student_id);
   const note = dom.tuitionBillNoteInput.value.trim() || "无";
   dom.confirmGenerateTuitionBillError.textContent = "";
   dom.confirmGenerateTuitionBillError.classList.add("is-hidden");
+  resetTuitionBillOrderingAck();
   dom.confirmGenerateTuitionBillSummary.innerHTML = `
     <div><dt>学生</dt><dd>${escapeHtml(student ? studentName(student) : "-")}</dd></div>
     <div><dt>学费月份</dt><dd>${escapeHtml(formatMonth(preview.billing_month))}</dd></div>
@@ -2049,6 +2063,7 @@ function closeGenerateTuitionBillConfirmation() {
   dom.confirmGenerateTuitionBillSummary.textContent = "";
   dom.confirmGenerateTuitionBillError.textContent = "";
   dom.confirmGenerateTuitionBillError.classList.add("is-hidden");
+  resetTuitionBillOrderingAck();
 }
 
 async function confirmGenerateTuitionBill() {
@@ -2068,7 +2083,11 @@ async function confirmGenerateTuitionBill() {
 
   setTuitionBillSubmitting(true);
   try {
-    const payload = buildAtomicTuitionGeneratePayload(preview, dom.tuitionBillNoteInput.value);
+    const payload = buildAtomicTuitionGeneratePayload(
+      preview,
+      dom.tuitionBillNoteInput.value,
+      dom.tuitionBillOrderingAckInput ? dom.tuitionBillOrderingAckInput.value : ""
+    );
     const result = await generateStudentTuitionBillAtomic(payload);
     if (result.student_id !== preview.student_id
         || result.billing_month !== preview.billing_month
@@ -2102,6 +2121,12 @@ async function confirmGenerateTuitionBill() {
     dom.confirmGenerateTuitionBillError.textContent = mapped.message;
     dom.confirmGenerateTuitionBillError.classList.remove("is-hidden");
     showTuitionBillError(mapped.message);
+    // 只有服务端说需要理由才把输入框亮出来；前端不判断结算是否完成。
+    if (mapped.needsOrderingAck && dom.tuitionBillOrderingAckBlock) {
+      dom.tuitionBillOrderingAckBlock.classList.remove("is-hidden");
+      dom.confirmGenerateTuitionBillSubmitButton.textContent = "填写理由后仍要生成";
+      dom.tuitionBillOrderingAckInput.focus();
+    }
     if (mapped.clearPreview) {
       clearTuitionBillPreview();
     }

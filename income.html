@@ -480,6 +480,13 @@
         <div id="confirmGenerateTuitionBillError" class="dialog-error is-hidden"></div>
         <div id="confirmGenerateTuitionBillSummary" class="dialog-summary tuition-bill-preview-summary" aria-live="polite"></div>
 
+        <!-- 只在服务端以「上月结算未完成」拒绝之后才显示。
+             是否需要理由由服务端决定，前端不判断结算状态。 -->
+        <label id="tuitionBillOrderingAckBlock" class="field is-hidden">
+          <span>仍要生成的理由 <b class="required-mark">必填</b></span>
+          <textarea id="tuitionBillOrderingAckInput" rows="3" placeholder="写明为什么在上月结算完成前就要生成。该理由会随账单永久留存。"></textarea>
+        </label>
+
         <div class="dialog-actions">
           <button class="button" id="confirmGenerateTuitionBillCancelButton" type="button">取消</button>
           <button class="button button-primary" id="confirmGenerateTuitionBillSubmitButton" type="button">确认生成学费应收</button>

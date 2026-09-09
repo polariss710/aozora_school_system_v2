@@ -138,6 +138,7 @@ export async function generateStudentTuitionBillAtomic(payload) {
     p_billing_exchange_rate: payload.billingExchangeRate,
     p_expected_generation_manifest_sha256: payload.expectedGenerationManifestSha256,
     p_note: payload.note || null,
+    p_previous_settlement_absence_ack_reason: payload.previousSettlementAbsenceAckReason || null,
   });
 
   if (error) {
