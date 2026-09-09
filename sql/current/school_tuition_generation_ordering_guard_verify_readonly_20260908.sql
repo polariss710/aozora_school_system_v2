@@ -68,7 +68,18 @@ BEGIN
     IF v_md5 <> r.md5 THEN RAISE EXCEPTION 'VR_MD5: % 得 % 期望 %', r.code, v_md5, r.md5; END IF;
     -- C/F/N 若含 service_role 即为【权限扩大】：DROP 后重建时 public schema 的
     -- 默认授权会把它带回来，必须已被显式 REVOKE 掉。
-    IF v_acl <> r.acl THEN RAISE EXCEPTION 'VR_ACL: % 得 % 期望 %', r.code, v_acl, r.acl; END IF;
+    IF v_acl <> r.acl THEN
+      -- 与 deploy 同一口径：集合不同和仅顺序不同是两回事，报文要分开。
+      -- 顺序那一类的成因是 DROP 后默认授权把 service_role 先放回数组。
+      IF EXISTS (SELECT unnest(string_to_array(btrim(v_acl,'{}'),','))
+                 EXCEPT SELECT unnest(string_to_array(btrim(r.acl,'{}'),',')))
+         OR EXISTS (SELECT unnest(string_to_array(btrim(r.acl,'{}'),','))
+                    EXCEPT SELECT unnest(string_to_array(btrim(v_acl,'{}'),','))) THEN
+        RAISE EXCEPTION 'VR_ACL_SET: % 权限集合与基线不同  实际 %  期望 %', r.code, v_acl, r.acl;
+      ELSE
+        RAISE EXCEPTION 'VR_ACL_ORDER: % 集合相同但数组顺序不同  实际 %  期望 %', r.code, v_acl, r.acl;
+      END IF;
+    END IF;
     IF v_cfg <> 'search_path=pg_catalog, public' THEN
       RAISE EXCEPTION 'VR_PROCONFIG: % 得 %', r.code, v_cfg; END IF;
     IF v_cmt IS DISTINCT FROM r.cmt THEN

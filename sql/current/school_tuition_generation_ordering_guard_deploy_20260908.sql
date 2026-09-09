@@ -12,6 +12,13 @@
 -- 本次【不改变任何金额】。IF FOUND / ELSE 结转分支一字未动。
 --   deploy 前后 previous_carryover_cny 出现任何差异 ⇒ 判部署失败。
 --
+-- ⚠️ 在 harness 上排练之前，harness 必须先具备与生产相同的默认授权：
+--      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO service_role;
+--    否则 DROP + CREATE 之后 service_role 【不会】回流，
+--    「ACL 集合相同而数组顺序不同」这一类问题在本地【复现不出来】。
+--    2026-09-09 的 Cash 部署与 2026-09-10 的本次部署都因此拖到生产 rehearsal 才暴露。
+--    注意顺序：重建库的脚本会清掉默认授权，须在重建【之后】设置。
+--
 -- 用法：
 --   排练  psql -v ON_ERROR_STOP=1 -v mode=rehearsal -f <本文件>
 --   正式  psql -v ON_ERROR_STOP=1 -v mode=commit    -f <本文件>
@@ -476,8 +483,17 @@ BEGIN
 END
 $function$
 ;
+-- ⚠️ DROP 之后 public schema 的默认授权会把 service_role 【先】放回 ACL 数组，
+--    随后的 GRANT 再追加 authenticated ⇒ 顺序成为
+--    {postgres,service_role,authenticated}，与基线的
+--    {postgres,authenticated,service_role} 不符 —— 权限集合相同，数组顺序不同。
+--    故先【显式清空】，再【按基线顺序逐条 GRANT】。
+--    2026-09-09 的 Cash 部署栽在同一处；那次修了 Cash，没回头查这个脚本。
 REVOKE ALL ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) FROM authenticated;
+REVOKE ALL ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) FROM service_role;
+GRANT EXECUTE ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) TO service_role;
 COMMENT ON FUNCTION public.school_generate_student_tuition_bill_atomic(uuid,text,numeric,text,text,text) IS 'R2-F-B authoritative atomic tuition writer. The public wrapper is R0-gated; clients submit no amounts or candidate details.';
 
 -- ── C ──
@@ -1324,7 +1340,20 @@ BEGIN
     IF v_own <> 'postgres' THEN
       RAISE EXCEPTION 'OG_POST_OWNER: % 的 owner 为 %（应为 postgres）'
         '  ← 本脚本被非 postgres 角色执行过', r.code, v_own; END IF;
-    IF v_acl <> r.acl THEN RAISE EXCEPTION 'OG_POST_ACL: % 得 %  ← 检查 REVOKE', r.code, v_acl; END IF;
+    IF v_acl <> r.acl THEN
+      -- 集合相同而仅顺序不同，与真的多/少了一个角色，是两回事。
+      -- 报文不分开，收到的人得自己逐字符比对才知道是哪一种。
+      IF EXISTS (SELECT unnest(string_to_array(btrim(v_acl,'{}'),','))
+                 EXCEPT SELECT unnest(string_to_array(btrim(r.acl,'{}'),',')))
+         OR EXISTS (SELECT unnest(string_to_array(btrim(r.acl,'{}'),','))
+                    EXCEPT SELECT unnest(string_to_array(btrim(v_acl,'{}'),','))) THEN
+        RAISE EXCEPTION 'OG_POST_ACL_SET: % 权限集合与基线不同  实际 %  期望 %',
+          r.code, v_acl, r.acl;
+      ELSE
+        RAISE EXCEPTION 'OG_POST_ACL_ORDER: % 集合相同但数组顺序不同  实际 %  期望 %',
+          r.code, v_acl, r.acl;
+      END IF;
+    END IF;
     IF v_cfg <> 'search_path=pg_catalog, public' THEN
       RAISE EXCEPTION 'OG_POST_PROCONFIG: % 得 %', r.code, v_cfg; END IF;
     IF v_cmt IS DISTINCT FROM r.cmt THEN
