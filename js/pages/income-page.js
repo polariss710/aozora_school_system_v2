@@ -14,7 +14,7 @@ import {
   fetchStudentTuitionValidationPreviewDetails,
   generateStudentTuitionBillAtomic,
   requestCashIncomeConfirmationForRecord,
-} from "../api/income-api.js?v=phase-b4-finance-20260807-1";
+} from "../api/income-api.js?v=ordering-ack-20260909-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { fetchLessonSubjects, fetchLessonTeachers } from "../api/lesson-api.js";
 import {
@@ -38,7 +38,7 @@ import {
   mapAtomicTuitionGenerateError,
   mapTuitionValidationPreviewError,
   validateTuitionValidationPreviewDetails,
-} from "../utils/tuition-validation-preview.js?v=v2.115.2-tuition-duplicate-message";
+} from "../utils/tuition-validation-preview.js?v=ordering-ack-20260909-1";
 import {
   requirePrimarySchoolBusinessEntityId,
 } from "../utils/business-entity-policy.js?v=be-ui-20260806-1";

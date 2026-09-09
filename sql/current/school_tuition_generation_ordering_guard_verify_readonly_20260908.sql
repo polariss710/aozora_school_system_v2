@@ -224,7 +224,20 @@ school_generate_student_tuition_next_revision_core 1' THEN
     -- 本文件其余断言写的是 '%s%s'，在 PL/pgSQL 里那是「% 代入 + 字面 s」，
     -- 会在报文里多出一个 s。相邻的 %% 又是转义成字面 %，所以这里用
     -- 单占位符 + 拼接。
-    RAISE EXCEPTION 'VR_OVERLOAD_NOT_UNIQUE:%', chr(10)||v_txt;
+    --
+    -- 比对只按「名字 + 数量」，签名【只进报文不进基线】：签名基线已由
+    -- §1 的 md5 与返回契约断言各自守着，在这里再钉一份只会重复且更脆。
+    -- 但只报「有 2 个」，看到的人还得自己再查一次才知道多出来的是什么。
+    RAISE EXCEPTION 'VR_OVERLOAD_NOT_UNIQUE:%', chr(10)||v_txt||chr(10)||'实际签名:'||chr(10)||
+      (SELECT string_agg(pp.proname||'('||pg_get_function_identity_arguments(pp.oid)||')',
+                         chr(10) ORDER BY pp.proname, pp.oid)
+         FROM pg_proc pp JOIN pg_namespace nn ON nn.oid = pp.pronamespace
+        WHERE nn.nspname = 'public' AND pp.proname IN (
+          'school_build_student_tuition_generation_snapshot',
+          'school_generate_student_tuition_bill_atomic',
+          'school_generate_student_tuition_bill_atomic_core',
+          'school_generate_student_tuition_bill_atomic_base_core_v1',
+          'school_generate_student_tuition_next_revision_core'));
   END IF;
 
   -- 授权照抄 void_events：service_role 只读，authenticated / anon 无权限

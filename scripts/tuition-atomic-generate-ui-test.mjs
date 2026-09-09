@@ -188,4 +188,23 @@ assert.match(pageSource, /function resetTuitionBillOrderingAck/);
 assert.equal((pageSource.match(/resetTuitionBillOrderingAck\(\);/g) || []).length, 2);
 assert.doesNotMatch(pageSource, /settlement_effective_complete|previous_settlement_month/);
 
-console.log("atomic tuition generate frontend state fixtures: 30/30 PASS");
+// 19. The four cache-buster links must carry the same key. A partial bump is
+//     worse than none: the page can load a new income-page.js beside an old
+//     income-api.js, which drops the reason on the floor and refuses again
+//     with nothing on screen to explain why.
+const appSource = readFileSync(new URL("../js/income-app.js", import.meta.url), "utf8");
+const versionChain = [
+  ["income.html → income-app.js", htmlSource, /\.\/js\/income-app\.js\?v=([^"']+)/],
+  ["income-app.js → income-page.js", appSource, /\.\/pages\/income-page\.js\?v=([^"']+)/],
+  ["income-page.js → income-api.js", pageSource, /\.\.\/api\/income-api\.js\?v=([^"']+)/],
+  ["income-page.js → tuition-validation-preview.js", pageSource, /\.\.\/utils\/tuition-validation-preview\.js\?v=([^"']+)/],
+].map(([link, source, pattern]) => {
+  const matched = pattern.exec(source);
+  assert.ok(matched, `${link}: 找不到 ?v= 缓存版本键`);
+  return [link, matched[1]];
+});
+for (const [link, key] of versionChain) {
+  assert.equal(key, versionChain[0][1], `${link} 的版本键与链上其余不一致 ⇒ 会形成前后契约混合`);
+}
+
+console.log("atomic tuition generate frontend state fixtures: 34/34 PASS");
