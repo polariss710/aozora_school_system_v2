@@ -196,11 +196,14 @@ $post$;
 -- §4 闸门行为矩阵
 --
 --   十二组：两组角色拒绝、五组放行、五组范围拒绝。
---   放行组用 actor = NULL 去撞 core —— core 第一步就校验 actor，NULL 必然无匹配，
---   所以「打到了 core」可观测，且在 candidate、advisory lock 与插入【之前】就返回。
+--   放行组用 actor = NULL 去撞 core —— core 的实际顺序是
+--   actor → 理由 → advisory lock → candidate → 其余校验 → INSERT，
+--   NULL 在【第一步】就无匹配，故在 advisory lock、candidate 与插入之前即返回。
 --   core 的定义已在 §1 钉成 md5 断言；它一变，这个前提就要重新确认。
 --
---   ⚠️ 只有【精确认出的】三种异常才计入分类，其余一律 unclassified 并使整轮失败。
+--   ⚠️ 只有【SQLSTATE 相等 且 报文包含目标串】的三种异常才计入分类，
+--      其余一律 unclassified 并使整轮失败。注意是【包含】不是全文相等 ——
+--      入口与 core 的定义都已钉成 md5，报文不会悄悄变，但别把它说成精确匹配。
 --      早先的写法用 ELSE 'pass'，会把 core 缺失、权限异常、内部错误、
 --      乃至无异常返回统统算成「放行组通过」——那正是本矩阵要防的东西。
 --
@@ -245,7 +248,7 @@ BEGIN
       v_state := SQLSTATE; v_err := SQLERRM;
     END;
 
-    -- 只有【精确认出的】异常才算数。把没分类的失败归成成功，正是这个矩阵
+    -- 只有【SQLSTATE 相等 且 报文包含】的异常才算数。把没分类的失败归成成功，正是这个矩阵
     -- 想防的那类错误——core 缺失、权限异常、内部错误，乃至根本没抛异常，
     -- 都必须落到 unclassified 并让整轮失败，不能被算作「打到了 core」。
     v_got := CASE
