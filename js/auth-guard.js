@@ -14,17 +14,23 @@ let redirecting = false;
 // 新增页面默认只有管理员可进，需要开放时显式加进来。
 //
 // ---------------------------------------------------------------------------
-// 这是分阶段开放的第一版
+// 2026-09-10：教务老师兼任财务，定位已改
 // ---------------------------------------------------------------------------
 //
-// 用户 2026-09-03 确认的最终定位：教务老师应能处理**收入与支出以外的所有事务**，
-// 包括教师工资结算。因此下列页面属于「以后要开、这一版先不开」：
+// 2026-09-03 这里写的是「收入与支出以外的所有事务」。那是当时的构思，**不是结论**。
+// 与教务老师谈过之后，业务负责人 2026-09-10 定的是另一套划分：
 //
-//   settlement.html / settlement-detail.html    月度结算
-//   wage.html / wage-detail.html                工资结算
-//   wage-rule.html / wage-rule-detail.html      工资规则
+//   **她做财务（在账内产生凭证），他做出纳（资金实际进出）。**
 //
-// 开放它们时只需加进这个集合，不需要动别的地方。
+// 因此月度结算、工资结算、收入记录、支出记录四项都开放，而下列能力留给管理员
+// ——它们不是「页面能不能进」，而是页面内的具体写操作，由**数据库层的角色守卫**
+// 区分，不靠这里，也不靠藏按钮：
+//
+//   结算锁定 / 撤销锁定        · 工资快照作废
+//   Cash 提交（收入与支出）    · 冲销已收款收入
+//
+// 工资规则（wage-rule.html / wage-rule-detail.html）**不开放**：它改的是老师
+// 单价，属于「给谁发多少钱」的决定，不是记账。
 //
 // ---------------------------------------------------------------------------
 // 外部授课是永久排除，不是「以后再开」
@@ -55,12 +61,33 @@ const ROLE_PAGE_ALLOWLIST = {
     "weekly-lesson-dashboard.html",
     "weekly-schedule-image.html",
     "classroom-schedule.html",
+    // 2026-09-10 起：教务老师兼任财务
+    "settlement.html",
+    "settlement-detail.html",
+    "wage.html",
+    "wage-detail.html",
+    "income.html",
+    "income-detail.html",
+    "expense.html",
+    "expense-detail.html",
+  ]),
+
+  // read_only 与 operator 【不再共用】。原先共用是因为两者可见范围一致；
+  // 现在 operator 拿到了四个账目页面，而 read_only 是将来给「只看课务」的账号
+  // 预留的，不该跟着拿到收入、支出、结算、工资。
+  // 目前库里没有 read_only 成员，所以这次拆分不影响任何人。
+  read_only: new Set([
+    "student.html",
+    "lesson.html",
+    "lesson-detail.html",
+    "teacher.html",
+    "quote-plan.html",
+    "contract-generator.html",
+    "weekly-lesson-dashboard.html",
+    "weekly-schedule-image.html",
+    "classroom-schedule.html",
   ]),
 };
-
-// read_only 尚未单独设计，暂与 operator 共用同一份白名单。写入能力由数据库层
-// 的 assert 函数区分，不依赖这里。
-ROLE_PAGE_ALLOWLIST.read_only = ROLE_PAGE_ALLOWLIST.operator;
 
 // 被拒绝时的落点。选学生管理是因为它是教务工作的入口页，且在白名单内。
 const ROLE_FALLBACK_PAGE = "student.html";

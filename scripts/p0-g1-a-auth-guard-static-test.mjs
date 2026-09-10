@@ -100,4 +100,39 @@ const css = readFileSync("css/app.css", "utf8");
 assert.match(css, /html\.auth-pending body\s*\{\s*visibility: hidden;/);
 assert.match(css, /html\.auth-authorized body\s*\{\s*visibility: visible;/);
 
+// 角色页面白名单是 fail-closed 的安全边界，悄悄变宽不会有人发现。按【集合】比对，
+// 不是 assert.match —— 正则只能证明某一行在，证明不了没有多出别的行。
+function allowlistFor(role) {
+  const block = new RegExp(`${role}:\\s*new Set\\(\\[([\\s\\S]*?)\\]\\)`).exec(guard);
+  assert.ok(block, `找不到 ${role} 的白名单`);
+  return new Set([...block[1].matchAll(/"([^"]+\.html)"/g)].map((m) => m[1]));
+}
+
+const TEACHING_PAGES = [
+  "student.html", "lesson.html", "lesson-detail.html", "teacher.html",
+  "quote-plan.html", "contract-generator.html", "weekly-lesson-dashboard.html",
+  "weekly-schedule-image.html", "classroom-schedule.html",
+];
+// 2026-09-10：教务老师兼任财务，四项账目页面开放；写操作的分层在数据库，不在这里。
+const FINANCE_PAGES = [
+  "settlement.html", "settlement-detail.html", "wage.html", "wage-detail.html",
+  "income.html", "income-detail.html", "expense.html", "expense-detail.html",
+];
+
+const operatorPages = allowlistFor("operator");
+const readOnlyPages = allowlistFor("read_only");
+
+assert.deepEqual([...operatorPages].sort(), [...TEACHING_PAGES, ...FINANCE_PAGES].sort());
+// read_only 是给「只看课务」的账号预留的，不该跟着拿到账目页面。
+assert.deepEqual([...readOnlyPages].sort(), [...TEACHING_PAGES].sort());
+assert.doesNotMatch(guard, /ROLE_PAGE_ALLOWLIST\.read_only\s*=\s*ROLE_PAGE_ALLOWLIST\.operator/);
+
+// 外部授课是塾长个人的收入，永久排除；工资规则改的是单价，不是记账。
+for (const page of ["part-time-work.html", "part-time-work-annual.html",
+                    "wage-rule.html", "wage-rule-detail.html",
+                    "reimbursement.html", "profit-summary.html"]) {
+  assert.equal(operatorPages.has(page), false, `operator 不应含 ${page}`);
+  assert.equal(readOnlyPages.has(page), false, `read_only 不应含 ${page}`);
+}
+
 console.log("P0_G1_A_AUTH_GUARD_STATIC_TEST_PASS");
