@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 // Historical cache-key literals are intentionally not asserted; see the week-close handoff section 8.6.
 const rootHtmlFiles = readdirSync(".")
@@ -116,13 +116,23 @@ const TEACHING_PAGES = [
 ];
 // 2026-09-10：教务老师兼任财务，账目页面开放；写操作的分层在数据库，不在这里。
 const FINANCE_PAGES = [
-  "wage.html", "wage-detail.html",
-  "income.html", "income-detail.html", "expense.html", "expense-detail.html",
+  "wage.html", "wage-detail.html", "expense.html", "expense-detail.html",
 ];
-// 月度结算的草稿保存仍是 active-admin 专用（Edge 的
-// school_save_student_monthly_settlement_draft_online_admin）。在那批改完之前
-// 放开页面，只会得到「进得去但存不了」。钉死它不在白名单里，避免被顺手加回来。
-const SETTLEMENT_PAGES_PENDING = ["settlement.html", "settlement-detail.html"];
+
+// 下面两组是「已定要开放、但库内前置条件未完成」，钉死它们不在白名单里，
+// 避免被顺手加回来。前置条件做完时，把对应行从这里移进 FINANCE_PAGES。
+const PENDING_PAGES = {
+  // 月结草稿保存走 Edge 的
+  // school_save_student_monthly_settlement_draft_online_admin，仍是 admin 专用。
+  // 此时放开只会得到「进得去但存不了」。
+  "settlement.html": "月结草稿 Edge 仍是 admin 专用",
+  "settlement-detail.html": "同上",
+  // 收入列表读 school_operational_income_records（security_invoker 视图），
+  // 该视图与底表 RLS 都没有角色 / 个人归属 / part_time_work 隔离，
+  // 塾长的校外打工收入会出现在她的列表里。写入口加守卫不改变读取范围。
+  "income.html": "收入可见性隔离未完成，会露出塾长的校外打工收入",
+  "income-detail.html": "同上",
+};
 
 const operatorPages = allowlistFor("operator");
 const readOnlyPages = allowlistFor("read_only");
@@ -132,9 +142,8 @@ assert.deepEqual([...operatorPages].sort(), [...TEACHING_PAGES, ...FINANCE_PAGES
 assert.deepEqual([...readOnlyPages].sort(), [...TEACHING_PAGES].sort());
 assert.doesNotMatch(guard, /ROLE_PAGE_ALLOWLIST\.read_only\s*=\s*ROLE_PAGE_ALLOWLIST\.operator/);
 
-for (const page of SETTLEMENT_PAGES_PENDING) {
-  assert.equal(operatorPages.has(page), false,
-    `${page} 的草稿保存 Edge 仍是 admin 专用，此时放开只会「进得去但存不了」`);
+for (const [page, why] of Object.entries(PENDING_PAGES)) {
+  assert.equal(operatorPages.has(page), false, `${page} 尚不能开放：${why}`);
 }
 
 // 外部授课是塾长个人的收入，永久排除；工资规则改的是单价，不是记账。
@@ -146,49 +155,63 @@ for (const page of ["part-time-work.html", "part-time-work-annual.html",
 }
 
 // ---------------------------------------------------------------------------
-// 缓存键：auth-guard.js 改了却不升键，等于这次改动没有发布
+// 缓存链：模块改了却不升键，等于这次改动没有发布
 // ---------------------------------------------------------------------------
 //
-// 2026-09-10 的 b973808 就是这样：白名单改了，93 个加载链接一个没动。
-// 浏览器会继续用缓存里的旧模块，页面开放与 read_only 拆分全部不生效，
-// 而一切看起来都「已发布」。这一类静态测试原先完全没有覆盖。
+// 2026-09-10 的 b973808 就是这样：白名单改了，加载链接一个没动。浏览器会继续
+// 用缓存里的旧模块，页面开放与 read_only 拆分全部不生效，而一切看起来都
+// 「已发布」。这一类原先完全没有覆盖。
 //
-// 具体键值不钉（见文件开头的约定），钉的是两条不变量。
-function gitLines(args) {
-  return execFileSync("git", args, { encoding: "utf8" });
+// 只升 auth-guard.js 的键【也不够】：浏览器命中的是 HTML 里那个入口模块 URL，
+// 入口模块的缓存副本没换，就根本读不到 auth-guard 的新地址。整条
+// HTML → 入口模块 → auth-guard → auth-api 都要纳入（Codex 2026-09-11 P1）。
+//
+// 判断「该不该升键」要拿改动去比【线上正在跑的那一版】，不是比 HEAD——
+// 漏升键的改动一旦提交，比 HEAD 就永远相等，门槛自动失效（同上 P2）。
+// 基线文件由 scripts/refresh-auth-guard-chain-baseline.mjs 在发布后刷新。
+const baseline = JSON.parse(readFileSync("scripts/auth-guard-chain-baseline.json", "utf8"));
+
+// 当前每个模块实际被哪些键加载
+const currentKeys = new Map();
+const noteKey = (modulePath, key) => {
+  if (!currentKeys.has(modulePath)) currentKeys.set(modulePath, new Set());
+  currentKeys.get(modulePath).add(key);
+};
+
+for (const htmlFile of rootHtmlFiles) {
+  const html = readFileSync(htmlFile, "utf8");
+  for (const [, modPath, key] of html.matchAll(
+    /<script type="module" src="\.\/(js\/[A-Za-z0-9_-]+\.js)\?v=([^"]+)">/g
+  )) {
+    noteKey(modPath, key);
+    for (const [, , guardKey] of readFileSync(modPath, "utf8")
+      .matchAll(/\.\/(auth-guard\.js)\?v=([^"']+)/g)) {
+      noteKey("js/auth-guard.js", guardKey);
+    }
+  }
+}
+for (const [, , apiKey] of guard.matchAll(/\.\/(api\/auth-api\.js)\?v=([^"']+)/g)) {
+  noteKey("js/api/auth-api.js", apiKey);
 }
 
-const loaders = gitLines(["grep", "-h", "-o", "auth-guard\\.js?v=[^\"']*", "--", ".", ":!local"])
-  .split("\n")
-  .filter(Boolean);
-assert.ok(loaders.length > 0, "找不到任何 auth-guard.js 的加载链接");
+assert.ok(currentKeys.size > 0, "没扫到任何模块加载链接");
 
-// 其一：全仓库只能有一个键。漏改一部分文件时，新旧键会并存。
-const keys = new Set(loaders);
-assert.equal(
-  keys.size, 1,
-  `auth-guard.js 的缓存键不一致，说明只升了一部分文件：${[...keys].join(" / ")}`
-);
-
-// 其二：auth-guard.js 相对 HEAD 有改动时，键必须一起变。
-// 这条才抓得住「整个忘了升」。不在 git 仓库或文件尚未入库时跳过。
-let headGuard = null;
-try {
-  headGuard = gitLines(["show", "HEAD:js/auth-guard.js"]);
-} catch {
-  headGuard = null;
-}
-if (headGuard !== null && headGuard !== guard) {
-  const headKeys = new Set(
-    gitLines(["grep", "-h", "-o", "auth-guard\\.js?v=[^\"']*", "HEAD", "--", ".", ":!local"])
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => line.replace(/^HEAD:/, ""))
+for (const [modulePath, keys] of currentKeys) {
+  // 其一：同一个模块在全仓库只能有一个键。只升了一部分文件时，新旧键会并存。
+  assert.equal(
+    keys.size, 1,
+    `${modulePath} 的缓存键不一致，说明只升了一部分加载点：${[...keys].join(" / ")}`
   );
-  for (const key of headKeys) {
+
+  // 其二：内容相对发布基线有改动时，键必须一起变。这条才抓得住「整个忘了升」。
+  const recorded = baseline.modules[modulePath];
+  if (!recorded) continue;  // 基线之后新增的模块，下次刷新基线时纳入
+  const digest = createHash("sha256").update(readFileSync(modulePath)).digest("hex");
+  if (digest === recorded.sha256) continue;
+  for (const key of recorded.loadedWith) {
     assert.equal(
       keys.has(key), false,
-      `js/auth-guard.js 相对 HEAD 已改动，但缓存键仍是 ${key}——` +
+      `${modulePath} 相对发布基线 ${baseline.ref} 已改动，但缓存键仍是 ${key}——` +
       "浏览器会继续用缓存里的旧模块，这次改动不会生效"
     );
   }

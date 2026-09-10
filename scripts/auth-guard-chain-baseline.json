@@ -1,0 +1,204 @@
+{
+  "note": "会话守卫加载链的发布基线。由 scripts/refresh-auth-guard-chain-baseline.mjs 生成，请勿手改。",
+  "ref": "955cacf",
+  "modules": {
+    "js/account-app.js": {
+      "sha256": "8bb8533c4edce06e53d24b46f80de33ac0642c6d345294b123410ee31241d830",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/account-transaction-detail-app.js": {
+      "sha256": "88586ca7fa2e164672ac6c9d5fb5b98b0fef2964f55f66272d4896db51b19571",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/api/auth-api.js": {
+      "sha256": "0ffba2ae83679a95c1e0794263a3aaac6f62769c424db021a889bd9cb6c4105f",
+      "loadedWith": [
+        "p1-b2b-auth-storage-20260810-1"
+      ]
+    },
+    "js/app.js": {
+      "sha256": "7ba930fac621f59c557746a58914cd43f9f6b391cc1e83ef00ac189becc7a890",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/auth-guard.js": {
+      "sha256": "79d5727de3cbf06208caca85f64fc858dec6cbd285b76975c21094600f1f2adf",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/business-entity-app.js": {
+      "sha256": "bdcd29dfa49d78223b231f48024d5b719beceae139ce646fc3e60f81d306ab24",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/classroom-schedule-app.js": {
+      "sha256": "d2bed651ec46dee7e7b9793aa7cf35476b8c09346abc75d4b72db450248b0f93",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/contract-generator-app.js": {
+      "sha256": "e79d20e3e26d15668a5cab3b52841086634f5d7b60ae815087dc02ad9edb85c3",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/expense-app.js": {
+      "sha256": "be970830aa3ddf4bd14c1c62073fc4529bb80232cb98e76531027e1fa2dbcd77",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/expense-detail-app.js": {
+      "sha256": "637c37c4401f829d07b03c82ca88b5ee9429578871c20929666565579b68f3c3",
+      "loadedWith": [
+        "fixed-card-cross-currency-20260904-1"
+      ]
+    },
+    "js/income-app.js": {
+      "sha256": "0167c91e76a0388aa066765d8763a4b8e9df72f46c094585ece91cadbcfc3923",
+      "loadedWith": [
+        "ordering-ack-20260909-1"
+      ]
+    },
+    "js/income-detail-app.js": {
+      "sha256": "34ba18d052f6fc1dc13479eb7e0bf1d24ed2903391d80ab6ee3ebfe77272a9bc",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/lesson-app.js": {
+      "sha256": "c997c0fc39315bb97be6399b4eba24604e4728c1cf75256c24cfc198ad33cc32",
+      "loadedWith": [
+        "clearance-continuous-20260909-1"
+      ]
+    },
+    "js/lesson-detail-app.js": {
+      "sha256": "74592eac9709be6345bdf1dcff805481aa9b5f9d3270fb2fea2336d6278057e7",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/part-time-work-annual-app.js": {
+      "sha256": "307ca34ae38941047a79eab0224215a25fa05cc60ad9d0b47be91215a695ae7d",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/part-time-work-app.js": {
+      "sha256": "fabfadab78f3cea9e16ec42e295a8c0719216ab601724966b8e1f0bfdc55d899",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/payment-detail-app.js": {
+      "sha256": "d1fc59ccce2e6bb5d26da0d560c31c2ba714a365973990ae081fc5aa20d5431d",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/profit-summary-app.js": {
+      "sha256": "d583966e5bae05e9b35bdeb4c09af07f234cf770e9ec2109a48253b984cb53d5",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/quote-plan-app.js": {
+      "sha256": "583fdf16cc306d10fcd52ea83cee3b1a5a7dd1eaee91651543212e31f5bdf7f6",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/reimbursement-app.js": {
+      "sha256": "c8a43f8d4d75ffe654ea22b68fe8c337dba0b528ec4b3fabdf96a9fc61146faf",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/reimbursement-detail-app.js": {
+      "sha256": "0a67c7c62cfd48fa9937a3ce443db6afe145b68d1a8edd0347d3d9cd2f00fd5c",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/settlement-app.js": {
+      "sha256": "075c3d713a7c9234ec6fa8c5adad3333e7c8200f575917a57e1c108e3337fe6e",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/settlement-detail-app.js": {
+      "sha256": "a5f0032cc46acad1644e49e2837201a93cb062b4d801efe1880166e255b4fbc0",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/student-app.js": {
+      "sha256": "5b00931a39f6e5281b44b0f24b3d87557f3f44653e1f746fdebe36b1489555fa",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/subject-app.js": {
+      "sha256": "725c8ebd574fff84ef59cfecf5ee80b942465305ecf75146af7046b27894328a",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/teacher-app.js": {
+      "sha256": "82bd14df045eefb4303db209385de1bdcf41bdf168d0b0578961336fecfc97a7",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/tuition-receipt-app.js": {
+      "sha256": "fbaa6a787b06ca2857f07e8e461e9c96d1599ac80538fbf13ff12dea00c5645f",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/wage-app.js": {
+      "sha256": "1a4872ba2b39f0707f80c0c600158ee5eefb96c55d427a0c085c86434a215382",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/wage-detail-app.js": {
+      "sha256": "7059036e7c01050e146afdcf03e58105b5bcae3181f470dd947a30e239b3269f",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/wage-rule-app.js": {
+      "sha256": "7c94dbc974d8f2f90a3eb77e959754eec37846006f50a04aa0daa04b76e372f8",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/wage-rule-detail-app.js": {
+      "sha256": "7ca2a8bc8580ce167189e6c73a9074cfe23590f1e755369d7deaf69c531589fc",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/weekly-lesson-dashboard-app.js": {
+      "sha256": "e1417dd3dc1383649f737c0d960984731ba8ad7f04e528c7a6765c761d044c5e",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    },
+    "js/weekly-schedule-image-app.js": {
+      "sha256": "355a3e8d63d8e333faa08086b5a63014379da379ce734150b764b0688d6870e5",
+      "loadedWith": [
+        "operator-role-access-20260903-1"
+      ]
+    }
+  }
+}
