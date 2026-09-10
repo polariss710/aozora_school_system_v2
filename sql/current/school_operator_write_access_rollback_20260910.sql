@@ -54,10 +54,36 @@ BEGIN
       RAISE EXCEPTION 'OPWR_COMMENT_DRIFT: %(%) 注释与部署后不符', r.proname, r.nargs; END IF;
   END LOOP;
 
+  -- 新守卫必须【正是本次部署的那个】。只数个数不够：它若在部署后被单独改过，
+  -- 而 8 个 writer 没动，回滚仍会通过并把一个我们没见过的实现删掉。
   SELECT count(*) INTO v_n FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
    WHERE n.nspname='public' AND p.proname='school_require_current_app_operator';
   IF v_n <> 1 THEN
     RAISE EXCEPTION 'OPWR_GUARD_COUNT: 新守卫有 % 个（应为 1）', v_n; END IF;
+
+  DECLARE
+    g_oid oid; g_md5 text; g_acl text; g_cmt text; g_own text;
+    g_sec boolean; g_cfg text; g_args int;
+  BEGIN
+    SELECT p.oid, md5(pg_get_functiondef(p.oid)), coalesce(p.proacl::text,''),
+           obj_description(p.oid,'pg_proc'), pg_get_userbyid(p.proowner), p.prosecdef,
+           coalesce(array_to_string(p.proconfig,','),''), p.pronargs
+      INTO g_oid, g_md5, g_acl, g_cmt, g_own, g_sec, g_cfg, g_args
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+     WHERE n.nspname='public' AND p.proname='school_require_current_app_operator';
+    IF g_args <> 0 THEN
+      RAISE EXCEPTION 'OPWR_GUARD_NARGS: 新守卫有 % 个参数（应为 0）', g_args; END IF;
+    IF g_md5 <> '526c615da0c5bf179894ccbcc325008c' THEN
+      RAISE EXCEPTION 'OPWR_GUARD_DRIFT: 新守卫 md5=%  —— 不是本次部署的那个实现，'
+        '拒绝删除。请先弄清它被谁改过', g_md5; END IF;
+    IF g_acl <> '{postgres=X/postgres,authenticated=X/postgres}' THEN
+      RAISE EXCEPTION 'OPWR_GUARD_ACL_DRIFT: 新守卫 ACL=%', g_acl; END IF;
+    IF g_own <> 'postgres' OR g_sec IS NOT TRUE
+       OR g_cfg <> 'search_path=pg_catalog, public' THEN
+      RAISE EXCEPTION 'OPWR_GUARD_ATTRS: owner=% secdef=% cfg=%', g_own, g_sec, g_cfg; END IF;
+    IF g_cmt IS DISTINCT FROM 'P0-G1 active admin-or-operator assertion for the current authenticated auth.uid; callable only by authenticated user-scoped School clients.' THEN
+      RAISE EXCEPTION 'OPWR_GUARD_COMMENT_DRIFT: 新守卫注释=%', coalesce(g_cmt,'<null>'); END IF;
+  END;
 
   RAISE NOTICE 'OPWR: 回滚前基线通过（当前正是本次部署的结果）';
 END
@@ -1513,11 +1539,22 @@ DECLARE r record; v_def text; v_left int := 0;
 BEGIN
   -- ⚠️ 逐个查，不写成带 pg_get_functiondef 的聚合查询：规划器会把它提前到
   --    pg_proc 全表扫描上求值，碰到聚合函数就报错。deploy 脚本里已实测过。
-  FOR r IN SELECT p.oid, p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-            WHERE n.nspname='public' AND p.prokind='f' AND p.proname <> 'school_require_current_app_operator' LOOP
+  --
+  -- ⚠️ 覆盖【全部非系统 schema】的函数与过程，不只是 public 的函数：
+  --    引用写在别的 schema 或 procedure 里，只扫 public 的 function 就漏了。
+  --    prokind 限于 f/p —— 聚合与窗口函数取不到 functiondef，也不可能调它。
+  FOR r IN SELECT p.oid, n.nspname||'.'||p.proname AS proname
+             FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+            WHERE n.nspname NOT IN ('pg_catalog','information_schema','pg_toast')
+              AND n.nspname NOT LIKE 'pg_temp%' AND n.nspname NOT LIKE 'pg_toast_temp%'
+              AND p.prokind IN ('f','p')
+              AND p.proname <> 'school_require_current_app_operator' LOOP
     BEGIN
       v_def := pg_get_functiondef(r.oid);
-    EXCEPTION WHEN OTHERS THEN CONTINUE;  -- 取不到定义的跳过，不影响判断
+    EXCEPTION WHEN OTHERS THEN
+      -- ⛔ 「查不了」不等于「没引用」。取不到定义就停，交给人判断。
+      RAISE EXCEPTION 'OPWR_REF_SCAN_FAILED: 无法读取 % 的定义 —— '
+        '不能据此认定它没有引用新守卫  (%)', r.proname, SQLERRM;
     END;
     IF position('school_require_current_app_operator' in v_def) > 0 THEN
       v_left := v_left + 1;
