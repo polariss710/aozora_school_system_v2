@@ -2,8 +2,10 @@ import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import {
   initSchoolAuth,
   isActiveAdmin,
+  isActiveAdminOrOperator,
   requireActiveAdminForCashConfirmation,
-} from "../auth.js";
+  requireActiveAdminOrOperator,
+} from "../auth.js?v=operator-expense-create-20260911-1";
 import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
 import {
   createExpenseRecord,
@@ -315,7 +317,11 @@ function bindEvents() {
 
 function updateExpenseAdminControls() {
   const activeAdmin = isActiveAdmin();
-  dom.openCreateExpenseButton.hidden = !activeAdmin;
+  // 新增支出＝在账内产生凭证，教务老师（operator）自 2026-09-11 起可做；
+  // 数据库侧 school_create_expense_record 已在 09-10 换成 operator 守卫。
+  dom.openCreateExpenseButton.hidden = !isActiveAdminOrOperator();
+  // ⚠️ 以下两项是 Cash 提交＝资金实际进出＝出纳，【仍然只给管理员】。
+  //    不要因为「支出页对她开放了」就一并放开。
   dom.openBatchCashExpenseButton.hidden = !activeAdmin;
   dom.selectAllCashRequests.hidden = !activeAdmin;
 }
@@ -801,9 +807,9 @@ function openCreateExpenseDialog() {
   }
 
   if (
-    !requireActiveAdminForCashConfirmation((_type, message) => {
-      showMessage("error", message.replace("提交 Cash 确认请求", "新增支出"));
-    })
+    !requireActiveAdminOrOperator((_type, message) => {
+      showMessage("error", message);
+    }, "新增支出")
   ) {
     return;
   }

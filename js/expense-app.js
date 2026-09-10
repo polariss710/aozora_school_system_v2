@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=batch-cash-fixed-card-hint-20260902-1";
 import { requireGlobalSession } from "./auth-guard.js?v=operator-finance-access-20260911-1";
-import { initExpensePage } from "./pages/expense-page.js?v=batch-cash-fixed-card-hint-20260902-1";
+import { initExpensePage } from "./pages/expense-page.js?v=operator-expense-create-20260911-1";
 
 const globalSessionPromise = requireGlobalSession();
 

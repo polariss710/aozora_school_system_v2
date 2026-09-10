@@ -25,6 +25,32 @@ export function isActiveAdmin() {
   );
 }
 
+// 教务老师（operator）2026-09-11 起兼任财务，账内凭证类操作对她开放。
+//
+// ⚠️ 这两个函数【只决定界面上给不给入口】，不是权限。真正的准入在数据库的
+//    school_require_current_app_operator()；绕过界面直接调 RPC 一样会被拒。
+//
+// ⚠️ 不要拿它去替换 Cash 相关的 isActiveAdmin。按业务分工，
+//    「她做财务（在账内产生凭证），他做出纳（资金实际进出）」，
+//    Cash 提交属于出纳，仍然只给管理员。
+export function isActiveAdminOrOperator() {
+  const context = getCurrentAuthContext();
+  return Boolean(
+    getVerifiedSession()?.user &&
+    context?.membership?.is_active === true &&
+    ["admin", "operator"].includes(context.membership.role)
+  );
+}
+
+export function requireActiveAdminOrOperator(showMessage, action) {
+  if (isActiveAdminOrOperator()) return true;
+
+  if (typeof showMessage === "function") {
+    showMessage("error", `仅已启用的管理员或教务账号可以${action}。`);
+  }
+  return false;
+}
+
 export function requireActiveAdminForCashConfirmation(showMessage) {
   if (isActiveAdmin()) return true;
 
