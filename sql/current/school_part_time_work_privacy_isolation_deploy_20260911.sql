@@ -53,23 +53,28 @@ SELECT (:'mode'='commit') AS is_commit, (:'mode'='rehearsal') AS is_rehearsal \g
 BEGIN;
 
 DO $dep$
-DECLARE t record; v_n int; v_md5 text;
+DECLARE t record; v_n int; v_md5 text; v_acl text;
 BEGIN
   FOR t IN SELECT * FROM (VALUES
-      ('school_get_current_app_membership','2108cdeada67f8e357cda4df23d410b1'),
-      ('school_require_current_part_time_work_admin','18bf1db587a9c0a8815d47522bf3395a')
-    ) AS v(proname, md5)
+      ('school_get_current_app_membership','2108cdeada67f8e357cda4df23d410b1','{postgres=X/postgres,authenticated=X/postgres}'),
+      ('school_require_current_part_time_work_admin','18bf1db587a9c0a8815d47522bf3395a','{postgres=X/postgres}')
+    ) AS v(proname, md5, acl)
   LOOP
     SELECT count(*) INTO v_n FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
      WHERE n.nspname='public' AND p.proname=t.proname;
     IF v_n <> 1 THEN
       RAISE EXCEPTION 'PTWP_DEP_ARITY: public.% 有 % 个（应为 1）', t.proname, v_n;
     ELSE
-      SELECT md5(pg_get_functiondef(p.oid)) INTO v_md5
+      SELECT md5(pg_get_functiondef(p.oid)), coalesce(p.proacl::text,'') INTO v_md5, v_acl
         FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
        WHERE n.nspname='public' AND p.proname=t.proname;
       IF v_md5 <> t.md5 THEN
         RAISE EXCEPTION 'PTWP_DEP_DRIFT: % 的定义为 %，期望 %', t.proname, v_md5, t.md5;
+      END IF;
+      -- ⚠️ ACL 必须一起验：撤掉 membership 的 authenticated EXECUTE【不改变 md5】，
+      --    却会让两条策略的子查询报权限错 —— 只验 md5 的话脚本照样放行。
+      IF v_acl <> t.acl THEN
+        RAISE EXCEPTION 'PTWP_DEP_ACL: % 的 ACL 为 %，期望 %', t.proname, v_acl, t.acl;
       END IF;
     END IF;
   END LOOP;
@@ -1265,6 +1270,12 @@ BEGIN
 
   SELECT * INTO p FROM pg_policies
    WHERE schemaname='public' AND tablename='school_income_records' AND policyname='school_restrict_part_time_work_income';
+  -- ⚠️ 必须先查 FOUND：策略总数对得上、但那条被【同名以外】的策略顶替时，
+  --    p 的各列全是 NULL，`NULL <> '...'` 求值为 NULL，IF 不会进异常分支，
+  --    形状断言就静默通过了。
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PTWP_POST_INC_POLICY_MISSING: 找不到策略 school_restrict_part_time_work_income';
+  END IF;
   IF p.permissive <> 'RESTRICTIVE' OR p.cmd <> 'SELECT' OR p.roles::text <> '{public}'
      OR p.qual <> '(((source_type IS DISTINCT FROM ''part_time_work''::text) AND (income_category IS DISTINCT FROM ''part_time_work''::text)) OR (EXISTS ( SELECT 1
    FROM school_get_current_app_membership() membership(user_id, role, is_active)
@@ -1275,6 +1286,9 @@ BEGIN
 
   SELECT * INTO p FROM pg_policies
    WHERE schemaname='public' AND tablename='school_personal_cash_income_linkage_events' AND policyname='school_select_income_linkage_events_by_visible_parent';
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'PTWP_POST_EV_POLICY_MISSING: 找不到策略 school_select_income_linkage_events_by_visible_parent';
+  END IF;
   IF p.permissive <> 'PERMISSIVE' OR p.cmd <> 'SELECT' OR p.roles::text <> '{public}'
      OR p.qual <> '((EXISTS ( SELECT 1
    FROM school_income_records i
