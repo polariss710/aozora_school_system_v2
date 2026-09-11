@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   createWageRuleConfig,
   fetchWageRuleCurrentStudentCandidates,
@@ -6,15 +6,15 @@ import {
   fetchWageRules,
   setWageRuleActiveState,
   updateWageRuleConfig,
-} from "../api/wage-rule-api.js?v=chain-consistency-20260911-2";
+} from "../api/wage-rule-api.js?v=operator-settlement-draft-20260911-3";
 import {
   readStudentCandidateQuery,
   renderStudentMonthCandidateOptions,
   studentMonthCandidateLabel,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=chain-consistency-20260911-2";
+} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
-import { requirePrimarySchoolBusinessEntityId } from "../utils/business-entity-policy.js?v=chain-consistency-20260911-2";
+import { requirePrimarySchoolBusinessEntityId } from "../utils/business-entity-policy.js?v=operator-settlement-draft-20260911-3";
 
 const DEFAULT_FILTERS = {
   keyword: "",

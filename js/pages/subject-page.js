@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import { createSubjectProfile, fetchSubjects, updateSubjectProfile } from "../api/subject-api.js";
 import { formatDate, safeText } from "../utils/format.js";
 

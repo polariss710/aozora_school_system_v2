@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { initSchoolAuth, isLoggedIn } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   createPartTimeWorkIncomeRequest,
   createPartTimeWorkPlannedLesson,
@@ -31,7 +31,7 @@ import {
   partTimeWorkFiltersFromUrl,
   preservePartTimeWorkCollapseState,
   resolvePartTimeWorkSettlementYearMonth,
-} from "../utils/part-time-work-filter-state.js?v=chain-consistency-20260911-2";
+} from "../utils/part-time-work-filter-state.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, safeText } from "../utils/format.js";
 
 const WORKPLACE_OPTIONS = ["诺应教育", "致远教育", "新领域"];

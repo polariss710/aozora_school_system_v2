@@ -1,9 +1,9 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   fetchAccountTransactionDetailPage,
   reverseAccountAdjustment,
   reverseAccountTransfer,
-} from "../api/account-transaction-detail-api.js?v=chain-consistency-20260911-2";
+} from "../api/account-transaction-detail-api.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const TRANSACTION_TYPE_LABELS = {

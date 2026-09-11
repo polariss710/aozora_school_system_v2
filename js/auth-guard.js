@@ -22,8 +22,8 @@ let redirecting = false;
 //
 //   **她做财务（在账内产生凭证），他做出纳（资金实际进出）。**
 //
-// 因此月度结算、工资结算、收入记录、支出记录四项都要开放。本批先发后三项，
-// 月度结算等它的 Edge 改完（见下方 settlement 处的说明）。下列能力留给管理员
+// 因此月度结算、工资结算、收入记录、支出记录四项都要开放，至 2026-09-11 全部到位。
+// 下列能力留给管理员
 // ——它们不是「页面能不能进」，而是页面内的具体写操作，由**数据库层的角色守卫**
 // 区分，不靠这里，也不靠藏按钮：
 //
@@ -64,12 +64,12 @@ const ROLE_PAGE_ALLOWLIST = {
     "classroom-schedule.html",
     // 2026-09-10 起：教务老师兼任财务
     //
-    // ⚠️ settlement.html / settlement-detail.html 【暂不在此】。
-    //    月度结算的草稿保存走 Edge 的
-    //    school_save_student_monthly_settlement_draft_online_admin，
-    //    它仍是 active-admin 专用，本批没改。现在把页面放开，她进得去、
-    //    一存草稿就被拒——比进不去更难理解。等月结那批把 Edge 与库内
-    //    online 包装层一起改完再加进来。
+    // 月度结算：2026-09-11 拆开了草稿与锁定。
+    //   保存草稿 → 她（Edge save v8 + 库内 operator 断言）
+    //   正式锁定 → 仅管理员（Edge lock v5 + 库内 admin 断言，本次未动）
+    // 界面侧的对应拆分在 js/pages/settlement-online-state.js。
+    "settlement.html",
+    "settlement-detail.html",
     "wage.html",
     "wage-detail.html",
     // 2026-09-11 15:06 打工隐私隔离上线后开放。塾长的校外打工收入由库内

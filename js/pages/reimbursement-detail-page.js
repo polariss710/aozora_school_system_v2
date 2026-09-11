@@ -1,8 +1,8 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   fetchReimbursementDetailPage,
   reverseReimbursementRecord,
-} from "../api/reimbursement-detail-api.js?v=chain-consistency-20260911-2";
+} from "../api/reimbursement-detail-api.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const REIMBURSEMENT_STATUS_LABELS = {

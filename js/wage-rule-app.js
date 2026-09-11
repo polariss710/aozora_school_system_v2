@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=phase-d-lock-authoritative-source-20260826-1";
-import { requireGlobalSession } from "./auth-guard.js?v=chain-consistency-20260911-2";
-import { initWageRulePage } from "./pages/wage-rule-page.js?v=chain-consistency-20260911-2";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-settlement-draft-20260911-3";
+import { initWageRulePage } from "./pages/wage-rule-page.js?v=operator-settlement-draft-20260911-3";
 
 const globalSessionPromise = requireGlobalSession();
 

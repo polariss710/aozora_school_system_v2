@@ -1,6 +1,6 @@
-import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=chain-consistency-20260911-2";
-import { initSchoolAuth } from "../auth.js?v=chain-consistency-20260911-2";
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=operator-settlement-draft-20260911-3";
+import { initSchoolAuth } from "../auth.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,
@@ -10,8 +10,8 @@ import {
   reissueReversedPaymentRequest,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
-} from "../api/payment-api.js?v=chain-consistency-20260911-2";
-import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=chain-consistency-20260911-2";
+} from "../api/payment-api.js?v=operator-settlement-draft-20260911-3";
+import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=operator-settlement-draft-20260911-3";
 import {
   formatCurrency,
   formatDate,

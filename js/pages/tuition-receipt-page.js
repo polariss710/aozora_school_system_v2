@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import { fetchTuitionReceiptSource } from "../api/tuition-receipt-api.js";
 import { formatCurrency, safeText } from "../utils/format.js";
 

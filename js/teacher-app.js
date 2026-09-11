@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=filter-contract-b2-20260822-1";
-import { requireGlobalSession } from "./auth-guard.js?v=chain-consistency-20260911-2";
-import { initTeacherPage } from "./pages/teacher-page.js?v=chain-consistency-20260911-2";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-settlement-draft-20260911-3";
+import { initTeacherPage } from "./pages/teacher-page.js?v=operator-settlement-draft-20260911-3";
 
 const globalSessionPromise = requireGlobalSession();
 

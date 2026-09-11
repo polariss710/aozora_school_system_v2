@@ -1,17 +1,17 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
-import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=chain-consistency-20260911-2";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=chain-consistency-20260911-2";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { fetchLessonDetailPage } from "../api/lesson-detail-api.js?v=operator-settlement-draft-20260911-3";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=operator-settlement-draft-20260911-3";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
   shouldDisplayPlannedAirconDetails,
-} from "../utils/planned-aircon-display.js?v=chain-consistency-20260911-2";
+} from "../utils/planned-aircon-display.js?v=operator-settlement-draft-20260911-3";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
-} from "../utils/actual-overage.js?v=chain-consistency-20260911-2";
+} from "../utils/actual-overage.js?v=operator-settlement-draft-20260911-3";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",

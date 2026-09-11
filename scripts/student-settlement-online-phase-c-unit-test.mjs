@@ -9,6 +9,7 @@ const {
   ONLINE_ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES,
   buildOnlineDraftSaveInput,
+  canUseOnlineDraftLock,
   canUseOnlineDraftPreview,
   canUseOnlineDraftSave,
   canonicalDecimal,
@@ -101,9 +102,12 @@ function savedStatus(overrides = {}) {
   });
 }
 
-test("only active admin plus DB can_save sees save", () => {
-  assert.equal(canUseOnlineDraftSave("admin", status()), true);
-  for (const role of ["operator", "read_only", "inactive", "", null]) {
+test("admin and operator plus DB can_save see save", () => {
+  // 2026-09-11：草稿开放给教务老师，锁定仍留管理员。
+  for (const role of ["admin", "operator"]) {
+    assert.equal(canUseOnlineDraftSave(role, status()), true);
+  }
+  for (const role of ["read_only", "inactive", "", null]) {
     assert.equal(canUseOnlineDraftSave(role, status()), false);
   }
   assert.equal(canUseOnlineDraftSave("admin", status({ can_save: false })), false);
@@ -115,7 +119,24 @@ test("only active admin plus DB can_save sees save", () => {
   })), false);
 });
 
-test("current and future month blockers remain preview-only for active admin", () => {
+// ⛔ 这次拆分最关键的不变量：草稿放开了，锁定【没有】。
+// 锁定冻结当月结算并把结转带进下月账单 —— 界面、Edge（lock 仍是 v5）、
+// 库内断言三层都只认 admin。这里守住界面那一层。
+test("lock stays admin-only after the draft split", () => {
+  const lockable = status({ can_lock: true, requires_repreview: false });
+  assert.equal(canUseOnlineDraftLock("admin", lockable), true);
+  for (const role of ["operator", "read_only", "inactive", "", null]) {
+    assert.equal(canUseOnlineDraftLock(role, lockable), false);
+  }
+  assert.equal(canUseOnlineDraftLock("admin", status({
+    can_lock: true, requires_repreview: true,
+  })), false);
+  assert.equal(canUseOnlineDraftLock("admin", status({
+    can_lock: true, requires_repreview: false, lock_blocker_code: "SETTLEMENT_WAGE_BLOCKED",
+  })), false);
+});
+
+test("current and future month blockers remain preview-only for draft roles", () => {
   for (const code of [
     "SETTLEMENT_MONTH_NOT_CLOSED",
     "SETTLEMENT_FUTURE_MONTH_NOT_ALLOWED",
@@ -126,10 +147,12 @@ test("current and future month blockers remain preview-only for active admin", (
       save_blocker_message: "DB权威月份提示",
       immutable_blocker: { code, detail: "DB权威月份提示" },
     });
-    assert.equal(canUseOnlineDraftPreview("admin", blocked), true);
-    assert.equal(canUseOnlineDraftSave("admin", blocked), false);
+    for (const role of ["admin", "operator"]) {
+      assert.equal(canUseOnlineDraftPreview(role, blocked), true);
+      assert.equal(canUseOnlineDraftSave(role, blocked), false);
+    }
     assert.equal(onlineStatusDisplay(blocked).key, code);
-    for (const role of ["operator", "read_only", "inactive", "", null]) {
+    for (const role of ["read_only", "inactive", "", null]) {
       assert.equal(canUseOnlineDraftPreview(role, blocked), false);
     }
   }

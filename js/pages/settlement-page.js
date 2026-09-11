@@ -1,18 +1,18 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   fetchAuthoritativeLockFacts,
   fetchAuthoritativeLockStatus,
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=chain-consistency-20260911-2";
+} from "../api/settlement-api.js?v=operator-settlement-draft-20260911-3";
 import {
   getStudentSettlementOnlineStatus,
   lockStudentSettlementOnline,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=chain-consistency-20260911-2";
+} from "../api/student-settlement-online-api.js?v=operator-settlement-draft-20260911-3";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
@@ -33,11 +33,11 @@ import {
   readRegisteredVarianceSummary,
   statusConfirmsDraftLock,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=chain-consistency-20260911-2";
+} from "./settlement-online-state.js?v=operator-settlement-draft-20260911-3";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
-} from "../api/business-error.js?v=chain-consistency-20260911-2";
+} from "../api/business-error.js?v=operator-settlement-draft-20260911-3";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -50,10 +50,10 @@ import {
   readStudentCandidateQuery,
   renderStudentMonthCandidateOptions,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=chain-consistency-20260911-2";
+} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import { hasFrozenSettlementOverage } from "../utils/actual-overage.js";
-import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=chain-consistency-20260911-2";
+import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=operator-settlement-draft-20260911-3";
 
 const DEFAULT_FILTERS = {
   studentId: "",

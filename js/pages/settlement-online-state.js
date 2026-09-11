@@ -1,4 +1,4 @@
-import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=chain-consistency-20260911-2";
+import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=operator-settlement-draft-20260911-3";
 
 const DECIMAL_RE = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
 
@@ -69,8 +69,25 @@ export function readRegisteredVarianceSummary(preview) {
   };
 }
 
+// 2026-09-11：草稿与锁定的准入分家了。
+//
+//   保存草稿 / 预览  →  active admin 或 operator（她把当月结算算好存成草稿）
+//   正式锁定        →  仅 active admin（冻结当月并把结转带进下月账单）
+//
+// 这与库内和 Edge 的拆分一致：
+//   save Edge v8 → school_require_current_app_operator
+//                → school_assert_student_settlement_online_operator
+//   lock Edge v5 → school_require_current_app_admin
+//                → school_assert_student_settlement_online_admin
+//
+// ⚠️ 这里只决定【界面上给不给入口】。真正的准入在 Edge 与库内，
+//    绕过界面直接 invoke 一样会被拒。
+function isDraftRole(membershipRole) {
+  return membershipRole === "admin" || membershipRole === "operator";
+}
+
 export function canUseOnlineDraftSave(membershipRole, status) {
-  return membershipRole === "admin"
+  return isDraftRole(membershipRole)
     && status?.can_save === true
     && status?.effective_state?.effective_status === "incomplete"
     && !status?.save_blocker_code
@@ -84,7 +101,7 @@ const PREVIEW_ONLY_MONTH_BLOCKERS = new Set([
 ]);
 
 export function canUseOnlineDraftPreview(membershipRole, status) {
-  if (membershipRole !== "admin"
+  if (!isDraftRole(membershipRole)
       || status?.effective_state?.effective_status !== "incomplete") return false;
   if (canUseOnlineDraftSave(membershipRole, status)) return true;
   return PREVIEW_ONLY_MONTH_BLOCKERS.has(status?.save_blocker_code)
@@ -367,6 +384,7 @@ export function lockConfirmationAccepted(typedValue, authoritativeValue) {
 }
 
 export function canUseOnlineDraftLock(membershipRole, status) {
+  // ⛔ 锁定【不放开】：它冻结当月结算并把结转带进下月账单。
   return membershipRole === "admin"
     && status?.can_lock === true
     && status?.effective_state?.effective_status === "incomplete"

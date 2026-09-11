@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=makeup-date-hint-removal-20260816-1";
-import { requireGlobalSession } from "./auth-guard.js?v=chain-consistency-20260911-2";
-import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=chain-consistency-20260911-2";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-settlement-draft-20260911-3";
+import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=operator-settlement-draft-20260911-3";
 
 const globalSessionPromise = requireGlobalSession();
 

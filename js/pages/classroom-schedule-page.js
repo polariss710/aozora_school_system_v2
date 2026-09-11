@@ -3,7 +3,7 @@ import {
   fetchLessonStudentsByIds,
   fetchLessonSubjects,
   fetchLessonTeachers,
-} from "../api/lesson-api.js?v=chain-consistency-20260911-2";
+} from "../api/lesson-api.js?v=operator-settlement-draft-20260911-3";
 import { detectRegusOfficeConflictIds } from "../utils/classroom-capacity.js";
 
 const WEEKDAY_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];

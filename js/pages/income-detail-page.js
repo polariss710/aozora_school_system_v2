@@ -1,15 +1,15 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   isActiveAdmin,
   requireActiveAdminForCashConfirmation,
-} from "../auth.js?v=chain-consistency-20260911-2";
+} from "../auth.js?v=operator-settlement-draft-20260911-3";
 import {
   cancelPendingIncomeRecord,
   fetchIncomeDetailPage,
   requestCashIncomeConfirmationForRecord,
   reverseIncomeRecord,
   updateIncomeRecord,
-} from "../api/income-detail-api.js?v=chain-consistency-20260911-2";
+} from "../api/income-detail-api.js?v=operator-settlement-draft-20260911-3";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
@@ -20,7 +20,7 @@ import {
 import {
   fetchStudentMonthCandidates,
   renderStudentMonthCandidateOptions,
-} from "../api/student-status-api.js?v=chain-consistency-20260911-2";
+} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
 
 const INCOME_STATUS_LABELS = {
   pending: "待确认",

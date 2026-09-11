@@ -1,12 +1,12 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
-import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { fetchSettlementDetailPage } from "../api/settlement-detail-api.js?v=operator-settlement-draft-20260911-3";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
   hasFrozenSettlementOverage,
 } from "../utils/actual-overage.js";
-import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=chain-consistency-20260911-2";
+import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=operator-settlement-draft-20260911-3";
 
 const SETTLEMENT_STATUS_LABELS = {
   locked: "已锁定",

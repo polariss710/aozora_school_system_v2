@@ -117,18 +117,13 @@ const TEACHING_PAGES = [
 // 2026-09-10：教务老师兼任财务，账目页面开放；写操作的分层在数据库，不在这里。
 const FINANCE_PAGES = [
   "wage.html", "wage-detail.html", "expense.html", "expense-detail.html",
-  "income.html", "income-detail.html",
+  "income.html", "income-detail.html", "settlement.html", "settlement-detail.html",
 ];
 
-// 下面两组是「已定要开放、但库内前置条件未完成」，钉死它们不在白名单里，
-// 避免被顺手加回来。前置条件做完时，把对应行从这里移进 FINANCE_PAGES。
-const PENDING_PAGES = {
-  // 月结草稿保存走 Edge 的
-  // school_save_student_monthly_settlement_draft_online_admin，仍是 admin 专用。
-  // 此时放开只会得到「进得去但存不了」。
-  "settlement.html": "月结草稿 Edge 仍是 admin 专用",
-  "settlement-detail.html": "同上",
-};
+// 已定要开放但库内前置未完成的页面写在这里，钉死它们不在白名单里，
+// 避免被顺手加回来。前置做完时，把对应行移进 FINANCE_PAGES。
+// 2026-09-11：结算两页的前置（库 + Edge）已全部完成，故本表暂空。
+const PENDING_PAGES = {};
 
 const operatorPages = allowlistFor("operator");
 const readOnlyPages = allowlistFor("read_only");

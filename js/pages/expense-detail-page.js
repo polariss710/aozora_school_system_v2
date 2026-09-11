@@ -4,7 +4,7 @@ import {
   isLoggedIn,
   requireActiveAdminForCashConfirmation,
 } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   fetchExpenseDetailPage,
   fetchFixedCardSchedulePreview,
@@ -13,7 +13,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=chain-consistency-20260911-2";
+} from "../api/expense-detail-api.js?v=operator-settlement-draft-20260911-3";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {

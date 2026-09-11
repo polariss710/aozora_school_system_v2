@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { initSchoolAuth, isLoggedIn } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import {
   createTeacherWageExpenseRecord,
   fetchWageBusinessEntities,
@@ -15,7 +15,7 @@ import {
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js?v=chain-consistency-20260911-2";
+} from "../api/wage-api.js?v=operator-settlement-draft-20260911-3";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,
@@ -27,7 +27,7 @@ import {
   updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
-import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=chain-consistency-20260911-2";
+import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=operator-settlement-draft-20260911-3";
 
 const DEFAULT_FILTERS = {
   teacherId: "",

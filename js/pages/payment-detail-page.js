@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
 import { fetchPaymentDetailPage } from "../api/payment-detail-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
