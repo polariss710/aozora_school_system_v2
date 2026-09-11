@@ -1,17 +1,17 @@
 {
   "note": "会话守卫加载链的发布基线。由 scripts/refresh-auth-guard-chain-baseline.mjs 生成，请勿手改。",
-  "ref": "c8330c0",
+  "ref": "376d416",
   "modules": {
     "js/account-app.js": {
-      "sha256": "ad8bb6ad403da3325f3f6aac588c71ca6a1aadadf07cccb5c389727392e5cb09",
+      "sha256": "dedb13a847fe7a952918ba948275742e64f24d2020f7bfc326d0ff0c0c81a89b",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/account-transaction-detail-app.js": {
-      "sha256": "be255a053ac44dbe69b1926bfb5fb20c7c07b0e245aaa6ca3717ead8816ea1ba",
+      "sha256": "14f94ed0762c9ed527d2ced2bd3bf1c61ac2391967b448d5c3f414c104651a54",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/api/auth-api.js": {
@@ -21,183 +21,183 @@
       ]
     },
     "js/app.js": {
-      "sha256": "26c1033c3acd38c42b59fbac5abb2799988223108551a0ebf29297ba9b7d1e37",
+      "sha256": "d6e123b8ee46ad1fc98be08c78d10bf5a86192c3d09eff59df80de79c7672bc5",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/auth-guard.js": {
-      "sha256": "7e3f252560c9e02a1fd6b1c725b0663e053a7833c4c4f93fdf1e9e31c400c7e1",
+      "sha256": "a3b2d29ae2b297254b4fd7c52fcb238199efd372ba78e96b4397ddef675f6b4d",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/business-entity-app.js": {
-      "sha256": "244d748eb2fe074bfb30c5c0a1be2d413bf2fc0a4bc4d76e85ab924cef619e89",
+      "sha256": "cbcc73387a1966f9de0be4588d5b909bdd1833e3597d16a97a6aba2858e3f1fb",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/classroom-schedule-app.js": {
-      "sha256": "3a2cbd9dded93c540b2805b45e144cb5d4e1d8e30758f42a9a4aca9f3232c92e",
+      "sha256": "efdd9eb7370bdc07dde629c57a42a0b02618849bc9a022a4ad161b8d3551f925",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/contract-generator-app.js": {
-      "sha256": "afcef73924b1f0fdc695cfe2bc1947af1ee16aaf08b897624646de882587f5b1",
+      "sha256": "045330a05d53ad36b2d75aee5d7d14e9401e3669c3dc656a9a3217f19eb0cec6",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/expense-app.js": {
-      "sha256": "dafd1407cebac007a9cc22a687f5eb6f302584754083b2ba23c1384078cfc061",
+      "sha256": "d4c15990b147bc99ed1d98cae7347d0462b4e9d8e791c0a09d5a67dfc2419eba",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/expense-detail-app.js": {
-      "sha256": "d3aaa17d9ba74c239e6011153ead8768677af35a5acc641d35ddde975c432a5c",
+      "sha256": "8a0ccc44256b3f80dc287cb0867c9e171c4c15be7f21ec7eb29c37562f9e9436",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/income-app.js": {
-      "sha256": "f9249fb8560c318c0a286e1a33c085f86b86d3128021a1bfe98d19210e4c0e5c",
+      "sha256": "8c895db557c5ddda1fa870e899df1de32fdee7b70109f194bf5cd00aae702ac3",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/income-detail-app.js": {
-      "sha256": "468d32ef6da63ffaa299e21aecbc4351732c9119f2fb171e576d6e26b36b9cd6",
+      "sha256": "39f29e792b98fa588ef066c1956129d2e624276b3c5e857602da5cfa15c79558",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/lesson-app.js": {
-      "sha256": "20d0d15de2124508ebc5e9ccd9b75890ce1c1e1780bcea82f0a803bb0d708d48",
+      "sha256": "2e47b62f5a8e2d22c9f181acb94f6ec218c0f09767c777ea3ebf99d983f88d9c",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/lesson-detail-app.js": {
-      "sha256": "e67039ad7f9665d3c954f6d322e2f8c290c357c10c66ef72b9b309985b249655",
+      "sha256": "57cf66457d4dca96e7f3985908dec0fa00bedf6c6aa292a62bffded465cad81e",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/part-time-work-annual-app.js": {
-      "sha256": "e6eec3999eeba24acd06b40dd803ec8378b2f924f131f0c42641a1f511a3cb69",
+      "sha256": "3d8f4e07dd9a92c5468c7124cca02ddc4f5cefcf520c747060d18a54243e79e1",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/part-time-work-app.js": {
-      "sha256": "2400fcb35dfe66e8ccd1568f5c7dc3b6a271fad646d627412ba2f03e3987a2eb",
+      "sha256": "ecc238be83d31d9564af13ddd25a5b6cd3827202e0a9e316396adaff9cea0d7b",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/payment-detail-app.js": {
-      "sha256": "5c58c9db9d83e8f4f3d5bf375557dd82c8b242500b46b58722613363b8eeae7c",
+      "sha256": "41ef9eff2b07513d54b1fa12919a7b14a25bf4850ea006caa97de2639ef63b3f",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/profit-summary-app.js": {
-      "sha256": "dae46764d8a954c172fd86826685662627cdfa90a70f5a3fdcb7498ce93d473d",
+      "sha256": "b27e6eb94caf33dde0965242b79ffdca5d1a3a6dbc5afe9fb3aec127dac7bb21",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/quote-plan-app.js": {
-      "sha256": "377a8ca49f3ff4ef11263233a7342a7f11cd210546638caa12c59713e1a67bcb",
+      "sha256": "25f10cac2006a72a463140150ffc0b1b77f1de8c22356f3f054117c407fa7d89",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/reimbursement-app.js": {
-      "sha256": "5f9badd70f5ca40baf08d1a16e1e00adb8aa2020af6224d01e090c03de3d3b4a",
+      "sha256": "c6178f501510fd810cd8336a1a056b9faf2259d4aa9815838db3a9538dd1ec7f",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/reimbursement-detail-app.js": {
-      "sha256": "71ecbc00156647693976e8ae84e41376e8ecaa8c684041ec187cf4c1caa40329",
+      "sha256": "177ac22145d952e3de7a1b0a9f9247ed514b16976bdab2f3ec500f8dc2778aaa",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/settlement-app.js": {
-      "sha256": "4950ec7a4fbe1c94d80fbba7e667eb974d85e4b531c9d640b3a65ce868b7c2cf",
+      "sha256": "21ee78f371c6d2f69198f8d069fc53ff6a392a9be3d2329aa8d6d6582cc025b3",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/settlement-detail-app.js": {
-      "sha256": "51bc21feeb34b215177d8e3684676e7c74588130b082f93c4351e0d9a896b7ea",
+      "sha256": "ed3f69b376215888b0dd28026bc3d0d97975fca047cc70992746395ee239ecb7",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/student-app.js": {
-      "sha256": "990457696f9c291fb09009d12ed90ec2445d1b193aba39c3a2c964433f01e81c",
+      "sha256": "acd1dccd8eef53ff53a9688a576aba5a3bdbed054b2d80c9e73b22ae203fffcf",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/subject-app.js": {
-      "sha256": "39291dab69a64773dc5abc403cc2adf19b584f7d0bc0f74af2a67df5c9a2b036",
+      "sha256": "a209b7ba158ebb54594ad0df6cd4b5c2f6631dd9d93ad69d0ed48d225aae78e1",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/teacher-app.js": {
-      "sha256": "2294c3db141f7afb294d26dbff483e0262034a4234dd1f95b75776b79a5334ff",
+      "sha256": "cae0cfa1d89d5b5a7f32de90da683a54cf57b47340078d2c038fb2de2b9b9383",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/tuition-receipt-app.js": {
-      "sha256": "97071d813634c9b5f3115286c816c387ea32d856c54ca78a511431461dc3f62b",
+      "sha256": "ddffee681aa9c981a4645e1bd8279968ec3f6a781e31ea5c18b4a38ace1813b3",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/wage-app.js": {
-      "sha256": "74380136d6ca78aac3cf6337ddb1612cfa2ccff8f1bacc1aea8810e063859026",
+      "sha256": "16d71a25580d5d1e96638b0969a59170a6824b85d8462dde637682eaed5a51e3",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/wage-detail-app.js": {
-      "sha256": "1d5c4252d491d9e614325e3a65a38a65e5909503d37223421e32f6a090794f9a",
+      "sha256": "c1b9ca4c14a1a49c5562f0cc8a116856413e411053f4b422ac5ba7b4807893ef",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/wage-rule-app.js": {
-      "sha256": "4d8fbc67c6d05ef16fd61cecdbe3ddf20023e6983f987842c2f36359d1e60b29",
+      "sha256": "e3f9277be67719db627c63107f90216999fb2884c2f55506311f7dbbe65054e8",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/wage-rule-detail-app.js": {
-      "sha256": "5f2cbe5ea2b9430fc494042d6c067c66737d0a2ddcd60b69e72fa4124803954b",
+      "sha256": "f0837165af0c38aa31be8b97f26c3353fe5bf1da54d7c6a3d413e8625fcf6c16",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/weekly-lesson-dashboard-app.js": {
-      "sha256": "fbc3715e036def8e54ae516ddd336faba2b055b28f791fd6c013958cd9d0f4fa",
+      "sha256": "f5185e6a58829b0b42b7c9a30554657489bb2e7b38af75e9ce70786b7eddfd3c",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     },
     "js/weekly-schedule-image-app.js": {
-      "sha256": "86fde9da9813abf1d7ecd4a10f2f2ee4c2ecbe1d4b15ae91517c7db57ca141a7",
+      "sha256": "5933711a8d5850e73c16a8c8ae5f6fec08508cd698c9dcc40ce1ebc3cf9f0b8c",
       "loadedWith": [
-        "operator-income-access-20260911-1"
+        "operator-settlement-draft-20260911-3"
       ]
     }
   }
