@@ -25,3 +25,7 @@ docs/school-v1-decommission-*
 docs/school-v2-settlement-phase-d-*
 docs/school-v2-lesson-clearance-*
 docs/*.txt
+
+# 2026-09-11 本地演示材料：主题覆盖层、镜像页面、客户品牌资产。
+# 仓库是 PUBLIC 的，这里面有客户名与 logo，绝对不能进公开历史。
+local/
