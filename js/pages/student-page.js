@@ -1,12 +1,12 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
-import { isActiveAdmin } from "../auth.js?v=b5-20260807-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { isActiveAdmin } from "../auth.js?v=chain-consistency-20260911-2";
 import {
   createStudentProfile,
   fetchBusinessEntitiesForStudents,
   fetchStudentFilterOptions,
   fetchStudents,
   updateStudentProfile,
-} from "../api/student-api.js?v=b5-20260807-1";
+} from "../api/student-api.js?v=chain-consistency-20260911-2";
 import {
   correctStudentStatusEvent,
   fetchStudentStatusHistory,
@@ -14,11 +14,11 @@ import {
   previewStudentStatusCorrection,
   previewStudentStatusTransition,
   transitionStudentStatus,
-} from "../api/student-status-api.js?v=b5-20260807-1";
+} from "../api/student-status-api.js?v=chain-consistency-20260911-2";
 import { formatDate, safeText } from "../utils/format.js";
 import {
   requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+} from "../utils/business-entity-policy.js?v=chain-consistency-20260911-2";
 
 const DEFAULT_FILTERS = {
   keyword: "",

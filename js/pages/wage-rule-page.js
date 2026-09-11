@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
 import {
   createWageRuleConfig,
   fetchWageRuleCurrentStudentCandidates,
@@ -6,15 +6,15 @@ import {
   fetchWageRules,
   setWageRuleActiveState,
   updateWageRuleConfig,
-} from "../api/wage-rule-api.js?v=phase-b4-remaining-20260807-1";
+} from "../api/wage-rule-api.js?v=chain-consistency-20260911-2";
 import {
   readStudentCandidateQuery,
   renderStudentMonthCandidateOptions,
   studentMonthCandidateLabel,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=phase-b4-remaining-20260807-1";
+} from "../api/student-status-api.js?v=chain-consistency-20260911-2";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
-import { requirePrimarySchoolBusinessEntityId } from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+import { requirePrimarySchoolBusinessEntityId } from "../utils/business-entity-policy.js?v=chain-consistency-20260911-2";
 
 const DEFAULT_FILTERS = {
   keyword: "",

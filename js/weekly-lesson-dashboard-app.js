@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=filter-contract-b5-20260822-1";
-import { requireGlobalSession } from "./auth-guard.js?v=operator-income-access-20260911-1";
-import { initWeeklyLessonDashboardPage } from "./pages/weekly-lesson-dashboard-page.js?v=filter-contract-b5-20260822-1";
+import { requireGlobalSession } from "./auth-guard.js?v=chain-consistency-20260911-2";
+import { initWeeklyLessonDashboardPage } from "./pages/weekly-lesson-dashboard-page.js?v=chain-consistency-20260911-2";
 
 const globalSessionPromise = requireGlobalSession();
 

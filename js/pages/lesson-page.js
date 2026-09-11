@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { getCurrentAuthContext } from "../api/auth-api.js?v=p1-b2b-auth-storage-20260810-1";
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
 import {
   createActualLessonFromPlanned,
   createPartialCompletedActualFromPlanned,
@@ -24,13 +24,13 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=makeup-source-origin-v2-20260820-1";
-import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=phase-b4-lesson-candidates-20260806";
-import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
-import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=p0f-readfix-20260803-1";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=lesson-time-grid-frontend-20260810-1";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=p0f-readfix-20260803-1";
-import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=clearance-continuous-20260909-1";
+} from "../api/lesson-api.js?v=chain-consistency-20260911-2";
+import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=chain-consistency-20260911-2";
+import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=chain-consistency-20260911-2";
+import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=chain-consistency-20260911-2";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=chain-consistency-20260911-2";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=chain-consistency-20260911-2";
+import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=chain-consistency-20260911-2";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -39,22 +39,22 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=lesson-time-grid-frontend-20260810-1";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=chain-consistency-20260911-2";
 import {
   isLessonTimeValue as isTimeValue,
   validateLessonTimeGrid,
-} from "../utils/lesson-time-grid.js?v=lesson-time-grid-frontend-20260810-1";
+} from "../utils/lesson-time-grid.js?v=chain-consistency-20260911-2";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
   shouldDisplayPlannedAirconDetails,
-} from "../utils/planned-aircon-display.js?v=p0f-readfix-20260803-1";
+} from "../utils/planned-aircon-display.js?v=chain-consistency-20260911-2";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
   hasFrozenActualOverage,
   validateActualDurationForFlow,
-} from "../utils/actual-overage.js?v=p0f-readfix-20260803-1";
+} from "../utils/actual-overage.js?v=chain-consistency-20260911-2";
 import {
   CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE,
   createLatestRequestGate,
@@ -63,19 +63,19 @@ import {
   partitionAuthoritativeLessonRecords,
   validateCrossMonthMakeupLessonDate,
   validateUniqueLessonRecordIds,
-} from "../utils/lesson-settlement-filter.js?v=makeup-date-hint-removal-20260816-1";
+} from "../utils/lesson-settlement-filter.js?v=chain-consistency-20260911-2";
 import {
   isNewBusinessEntityId,
   requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=be-ui-20260806-1";
+} from "../utils/business-entity-policy.js?v=chain-consistency-20260911-2";
 import {
   canShowPlannedCancellationAction,
   isActiveLessonCancellationActor,
-} from "../utils/lesson-cancellation-capability.js?v=lesson-cancel-auth-context-20260812-1";
+} from "../utils/lesson-cancellation-capability.js?v=chain-consistency-20260911-2";
 import {
   formatMakeupSourceOriginDisplay,
   getMakeupSourceOriginDisplay,
-} from "../utils/makeup-source-origin-display.js?v=makeup-source-origin-v2-20260820-1";
+} from "../utils/makeup-source-origin-display.js?v=chain-consistency-20260911-2";
 
 const DEFAULT_FILTERS = {
   weekStart: "",

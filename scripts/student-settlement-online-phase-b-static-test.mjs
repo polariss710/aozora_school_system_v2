@@ -122,7 +122,7 @@ test("handler enforces origin, method, JSON, auth, admin, then wrapper", async (
       calls.push("auth");
       return { userId: UUID, privateContext: {} };
     },
-    requireActiveAdmin: async () => calls.push("admin"),
+    authorize: async () => calls.push("authorize"),
     invokeOnlineRpc: async () => {
       calls.push("rpc");
       return {
@@ -164,7 +164,7 @@ test("handler enforces origin, method, JSON, auth, admin, then wrapper", async (
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("access-control-allow-origin"),
     "https://polariss710.github.io");
-  assert.deepEqual(calls, ["auth", "admin", "rpc"]);
+  assert.deepEqual(calls, ["auth", "authorize", "rpc"]);
   const body = await response.json();
   assert.equal(body.request_id, UUID);
   assert.equal(body.result.actor_user_id, undefined);
@@ -185,7 +185,7 @@ test("every JSON failure includes a server request id", async () => {
       createRequestId: () => UUID,
       nowMs: () => 1,
       authenticateUser: async () => { throw new Error("must not be reached"); },
-      requireActiveAdmin: async () => {},
+      authorize: async () => {},
       invokeOnlineRpc: async () => ({}),
       log: () => {},
     },

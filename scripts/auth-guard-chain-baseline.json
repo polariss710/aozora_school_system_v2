@@ -1,6 +1,6 @@
 {
   "note": "会话守卫加载链的发布基线。由 scripts/refresh-auth-guard-chain-baseline.mjs 生成，请勿手改。",
-  "ref": "2553470",
+  "ref": "c8330c0",
   "modules": {
     "js/account-app.js": {
       "sha256": "ad8bb6ad403da3325f3f6aac588c71ca6a1aadadf07cccb5c389727392e5cb09",

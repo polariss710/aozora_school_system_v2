@@ -1,6 +1,6 @@
-import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=v2.112.0-cash-retry-attempts-20260614";
-import { initSchoolAuth } from "../auth.js?v=v10.3.38-payment-legacy-cash-cleanup";
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { DEFAULT_FILTERS, PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js?v=chain-consistency-20260911-2";
+import { initSchoolAuth } from "../auth.js?v=chain-consistency-20260911-2";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
 import {
   cancelPaymentRequest,
   confirmPaymentRequest,
@@ -10,8 +10,8 @@ import {
   reissueReversedPaymentRequest,
   reversePaidPaymentRequest,
   restoreCancelledPaymentRequest,
-} from "../api/payment-api.js?v=p1-b1b-payment-rpc-v2-20260809-1";
-import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=v2.112.0-cash-retry-attempts-20260614";
+} from "../api/payment-api.js?v=chain-consistency-20260911-2";
+import { fetchPersonalCashLinkageEvents } from "../api/personal-cash-linkage-api.js?v=chain-consistency-20260911-2";
 import {
   formatCurrency,
   formatDate,

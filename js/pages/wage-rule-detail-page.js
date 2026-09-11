@@ -1,5 +1,5 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
-import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=phase-b4-remaining-20260807-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=chain-consistency-20260911-2";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const SETTLEMENT_TYPE_LABELS = {

@@ -1,6 +1,6 @@
 import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
-import { requireGlobalSession } from "./auth-guard.js?v=operator-income-access-20260911-1";
-import { initAccountTransactionDetailPage } from "./pages/account-transaction-detail-page.js?v=be-ui-20260806-1";
+import { requireGlobalSession } from "./auth-guard.js?v=chain-consistency-20260911-2";
+import { initAccountTransactionDetailPage } from "./pages/account-transaction-detail-page.js?v=chain-consistency-20260911-2";
 
 const globalSessionPromise = requireGlobalSession();
 

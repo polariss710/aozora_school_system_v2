@@ -1,4 +1,4 @@
-import { fetchLessonStudentsByIds, fetchWeeklyLessonOperations } from "../api/lesson-api.js?v=phase-b4-remaining-20260807-1";
+import { fetchLessonStudentsByIds, fetchWeeklyLessonOperations } from "../api/lesson-api.js?v=chain-consistency-20260911-2";
 import { safeText } from "../utils/format.js";
 
 const dom = {};

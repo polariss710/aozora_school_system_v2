@@ -1,4 +1,4 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
 import { createSubjectProfile, fetchSubjects, updateSubjectProfile } from "../api/subject-api.js";
 import { formatDate, safeText } from "../utils/format.js";
 

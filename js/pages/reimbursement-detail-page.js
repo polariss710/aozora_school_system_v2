@@ -1,8 +1,8 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
 import {
   fetchReimbursementDetailPage,
   reverseReimbursementRecord,
-} from "../api/reimbursement-detail-api.js?v=be-ui-20260806-1";
+} from "../api/reimbursement-detail-api.js?v=chain-consistency-20260911-2";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const REIMBURSEMENT_STATUS_LABELS = {

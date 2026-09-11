@@ -1,4 +1,4 @@
-import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=phase-d-lock-authoritative-source-20260826-1";
+import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=chain-consistency-20260911-2";
 
 const DECIMAL_RE = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
 

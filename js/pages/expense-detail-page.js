@@ -4,7 +4,7 @@ import {
   isLoggedIn,
   requireActiveAdminForCashConfirmation,
 } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
 import {
   fetchExpenseDetailPage,
   fetchFixedCardSchedulePreview,
@@ -13,7 +13,7 @@ import {
   reverseExpenseRecord,
   updateExpenseRecord,
   voidUnsubmittedTeacherWageExpenseRecord,
-} from "../api/expense-detail-api.js?v=fixed-card-cross-currency-20260904-1";
+} from "../api/expense-detail-api.js?v=chain-consistency-20260911-2";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {

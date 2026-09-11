@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
-import { fetchProfitSummaryPageData } from "../api/profit-summary-api.js?v=be-ui-20260806-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=chain-consistency-20260911-2";
+import { fetchProfitSummaryPageData } from "../api/profit-summary-api.js?v=chain-consistency-20260911-2";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
