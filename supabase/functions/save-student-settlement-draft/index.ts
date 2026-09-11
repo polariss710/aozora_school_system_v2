@@ -43,6 +43,13 @@ const dependencies = createSettlementOnlineDependencies<SaveSettlementRequest>(
       input.expected_adjustment_draft_updated_at,
     p_request_correlation_id: input.client_correlation_id,
   }),
+  // 草稿保存：active admin 或 operator。库内 save 已于 2026-09-11 16:32
+  // 改调 school_assert_student_settlement_online_operator。
+  {
+    guardRpc: "school_require_current_app_operator",
+    errorCode: "SETTLEMENT_OPERATOR_REQUIRED",
+    message: "当前账号没有执行该操作的权限。",
+  },
 );
 
 Deno.serve((request) => handleSettlementOnlineRequest(request, {

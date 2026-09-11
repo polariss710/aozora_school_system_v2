@@ -35,6 +35,13 @@ const dependencies = createSettlementOnlineDependencies<LockSettlementRequest>(
     p_note: input.note,
     p_request_correlation_id: input.client_correlation_id,
   }),
+  // ⛔ 锁定【只给 active admin】：它冻结当月结算并把结转带进下月账单。
+  //    行为与线上 v5 完全一致，本次不重新部署 lock。
+  {
+    guardRpc: "school_require_current_app_admin",
+    errorCode: "SETTLEMENT_ADMIN_REQUIRED",
+    message: "当前账号没有执行该操作的管理员权限。",
+  },
 );
 
 Deno.serve((request) => handleSettlementOnlineRequest(request, {

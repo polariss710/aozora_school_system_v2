@@ -384,7 +384,10 @@ export type SettlementOnlineDependencies<TInput> = {
   createRequestId: () => string;
   nowMs: () => number;
   authenticateUser: (authorization: string) => Promise<SettlementOnlineAuthContext>;
-  requireActiveAdmin: (context: SettlementOnlineAuthContext) => Promise<void>;
+  // 2026-09-11：save 与 lock 的准入分家了（草稿给教务老师，锁定留管理员）。
+  // 共用 handler 只持有【一个】authorize 依赖，由各入口固定注入自己的实现——
+  // 不让 handler 同时揣着两套可选守卫，也不让请求体决定用哪套。
+  authorize: (context: SettlementOnlineAuthContext) => Promise<void>;
   invokeOnlineRpc: (actorUserId: string, input: TInput) => Promise<unknown>;
   log: (event: JsonRecord) => void;
 };
@@ -492,7 +495,7 @@ export async function handleSettlementOnlineRequest<TInput>(
       request.headers.get("authorization") || "",
     );
     const authContext = await config.dependencies.authenticateUser(authorization);
-    await config.dependencies.requireActiveAdmin(authContext);
+    await config.dependencies.authorize(authContext);
     const rpcResult = await config.dependencies.invokeOnlineRpc(authContext.userId, input);
     const safeResult = sanitizeOnlineResult(config.action, rpcResult);
 
@@ -610,6 +613,7 @@ export function sanitizeOnlineResult(
 
 const DB_ERROR_MAP: Record<string, { status: number; message: string; action: string }> = {
   SETTLEMENT_ADMIN_REQUIRED: { status: 403, message: "当前账号没有执行该操作的管理员权限。", action: "stop" },
+  SETTLEMENT_OPERATOR_REQUIRED: { status: 403, message: "当前账号没有执行该操作的权限。", action: "stop" },
   SETTLEMENT_TRUSTED_EDGE_ROLE_REQUIRED: { status: 403, message: "受信服务权限验证失败。", action: "stop" },
   SETTLEMENT_INPUT_INVALID: { status: 422, message: "结算请求参数无效。", action: "repreview" },
   SETTLEMENT_SCOPE_NOT_UNIQUE: { status: 409, message: "结算范围无法唯一确认。", action: "stop" },

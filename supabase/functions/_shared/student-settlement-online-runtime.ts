@@ -1,4 +1,11 @@
-import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+// ⚠️ 版本钉死。原来是浮动的 @2：
+//   · 线上 v5 包构建于 2026-08-25，里面是【那天】解析到的版本；
+//   · 只要重新部署，supabase-js 就必然跳到重新解析时的版本 —— 钉不钉都会跳。
+//   钉死的作用是让这次跳变成一次【明确记录的决定】，并让回退可复现：
+//   拿同一份源码重新部署，得到的是同一个依赖版本。
+//   2.112.4 = Codex 2026-09-11 取证时 @2 的解析结果。
+// ⚠️ 另外 6 个 Edge 仍是浮动的 @2，本批不动它们。
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.4";
 
 import {
   SettlementOnlinePublicError,
@@ -16,9 +23,19 @@ type PrivateAuthContext = {
   userClient: SupabaseClient;
 };
 
+// 准入描述符：由各入口固定注入，决定用哪个库内守卫、失败时报哪个码。
+// ⚠️ guardRpc 必须是 authenticated 可执行的守卫（用户 JWT 调用），
+//    库内那两个 assert 是 owner-only，不能从这里调。
+export type SettlementOnlineAuthorization = {
+  guardRpc: string;
+  errorCode: string;
+  message: string;
+};
+
 export function createSettlementOnlineDependencies<TInput>(
   rpcName: string,
   buildArguments: RpcArgumentsBuilder<TInput>,
+  authorization: SettlementOnlineAuthorization,
 ): SettlementOnlineDependencies<TInput> {
   return {
     createRequestId: () => crypto.randomUUID(),
@@ -55,15 +72,16 @@ export function createSettlementOnlineDependencies<TInput>(
       };
     },
 
-    async requireActiveAdmin(context: SettlementOnlineAuthContext): Promise<void> {
+    async authorize(context: SettlementOnlineAuthContext): Promise<void> {
       const privateContext = context.privateContext as PrivateAuthContext;
       const { data, error } = await privateContext.userClient.rpc(
-        "school_require_current_app_admin",
+        authorization.guardRpc,
       );
+      // 守卫返回调用者自己的 uuid；必须与已认证用户一致，否则不算通过。
       if (error || String(data || "").toLowerCase() !== context.userId.toLowerCase()) {
         throw new SettlementOnlinePublicError(
-          "SETTLEMENT_ADMIN_REQUIRED",
-          "当前账号没有执行该操作的管理员权限。",
+          authorization.errorCode,
+          authorization.message,
           403,
         );
       }
