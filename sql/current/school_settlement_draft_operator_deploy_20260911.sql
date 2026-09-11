@@ -186,7 +186,13 @@ begin
 end
 $function$;
 
+-- ⚠️ 只撤 PUBLIC 不够。生产上 public schema 有
+--    ALTER DEFAULT PRIVILEGES ... GRANT EXECUTE ON FUNCTIONS TO service_role，
+--    新建对象会【独立】拿到 service_role 的 EXECUTE，撤 PUBLIC 不会消除它。
+--    本地 harness 缺这条默认授权，所以不补就复现不出来（Codex P1）。
+--    目标是与 admin 版一致的 owner-only：{postgres=X/postgres}。
 REVOKE ALL ON FUNCTION public.school_assert_student_settlement_online_operator(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.school_assert_student_settlement_online_operator(uuid) FROM anon, authenticated, service_role;
 COMMENT ON FUNCTION public.school_assert_student_settlement_online_operator(uuid) IS 'Owner-only Phase A assertion for the draft-save path. The caller-supplied UUID is accepted only after an auth.users-backed active admin-or-operator membership row is locked FOR SHARE. JWT-to-actor binding remains an Edge responsibility. Locking keeps the admin-only assertion.';
 
 -- ===== B. save 改调新断言 =====

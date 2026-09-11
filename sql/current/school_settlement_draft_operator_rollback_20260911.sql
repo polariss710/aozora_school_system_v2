@@ -67,6 +67,45 @@ BEGIN
 END
 $cap$;
 
+-- ⚠️ lock 与 admin 断言必须【本来就是对的】，不只是「我没动过」。
+--    untouched 只能证明后者：若 admin 断言在本批之前就已被放宽到允许 operator，
+--    untouched 依然通过，而脚本会输出「锁定仍是管理员专属」—— 那句话就成了假的。
+--    本批的整个前提是「锁定只属于管理员」，所以这两个对象要按取证基线钉死。
+DO $pinned$
+DECLARE t record; v_md5 text; v_acl text; v_def text;
+BEGIN
+  FOR t IN SELECT * FROM (VALUES
+      ('school_lock_student_monthly_settlement_online_admin',    'ae5a0cdf7f7c14de2785845cbd08687d', '{postgres=X/postgres,service_role=X/postgres}'),
+      ('school_assert_student_settlement_online_admin', '1cbc270424a03e4b62906f0fafbdaab0',  '{postgres=X/postgres}')
+    ) AS v(proname, md5, acl)
+  LOOP
+    SELECT md5(pg_get_functiondef(p.oid)), coalesce(p.proacl::text,''), pg_get_functiondef(p.oid)
+      INTO v_md5, v_acl, v_def
+      FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+     WHERE n.nspname='public' AND p.proname=t.proname;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'SETL_PRE_BASELINE_MISSING: 找不到 %', t.proname;
+    END IF;
+    IF v_md5 <> t.md5 THEN
+      RAISE EXCEPTION 'SETL_PRE_BASELINE_MD5: % 的定义为 %，期望取证基线 %', t.proname, v_md5, t.md5;
+    END IF;
+    IF v_acl <> t.acl THEN
+      RAISE EXCEPTION 'SETL_PRE_BASELINE_ACL: % 的 ACL 为 %，期望 %', t.proname, v_acl, t.acl;
+    END IF;
+  END LOOP;
+
+  -- 再直接验一次语义：admin 断言的角色判据必须【仍然只认 admin】。
+  SELECT pg_get_functiondef(p.oid) INTO v_def
+    FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public' AND p.proname='school_assert_student_settlement_online_admin';
+  IF position('''operator''' in v_def) > 0 OR position('''admin''' in v_def) = 0 THEN
+    RAISE EXCEPTION 'SETL_PRE_BASELINE_ADMIN_ROLE: admin 断言的角色判据已被改动';
+  END IF;
+
+  RAISE NOTICE 'SETL_PRE: lock 与 admin 断言与取证基线一致（锁定确为管理员专属）';
+END
+$pinned$;
+
 DO $opr$
 DECLARE v_n int; v_md5 text; v_acl text; v_cmt text;
 BEGIN
