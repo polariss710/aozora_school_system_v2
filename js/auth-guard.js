@@ -72,15 +72,12 @@ const ROLE_PAGE_ALLOWLIST = {
     //    online 包装层一起改完再加进来。
     "wage.html",
     "wage-detail.html",
-    //
-    // ⚠️ income.html / income-detail.html 【暂不在此】。收入列表读的是
-    //    school_operational_income_records，它是 security_invoker 视图，
-    //    只过滤 status 与 operational_excluded；底表的 SELECT 策略同样没有
-    //    角色、个人归属或 part_time_work 隔离。
-    //    ⇒ 塾长在外部私塾的打工收入会出现在她的收入列表里。
-    //    给写入口加守卫【不改变读取范围】——这必须在库内先解决。
-    //    （排除 part-time-work.html 那两个页面解决不了这个问题：
-    //      那些收入记录本身就落在 school_income_records 里。）
+    // 2026-09-11 15:06 打工隐私隔离上线后开放。塾长的校外打工收入由库内
+    // RESTRICTIVE 策略挡住（收入表与 Cash 关联表各一条）；利润汇总 RPC
+    // 同时收紧为仅 admin —— 它是 postgres 的 SECURITY DEFINER，
+    // 而 postgres 有 BYPASSRLS，光靠表策略挡不住它。
+    "income.html",
+    "income-detail.html",
     "expense.html",
     "expense-detail.html",
   ]),

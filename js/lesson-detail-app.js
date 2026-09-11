@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js?v=makeup-date-hint-removal-20260816-1";
-import { requireGlobalSession } from "./auth-guard.js?v=operator-finance-access-20260911-1";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-income-access-20260911-1";
 import { initLessonDetailPage } from "./pages/lesson-detail-page.js?v=lesson-time-hint-removal-20260812-1";
 
 const globalSessionPromise = requireGlobalSession();

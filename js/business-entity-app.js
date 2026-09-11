@@ -1,4 +1,4 @@
-import { requireGlobalSession } from "./auth-guard.js?v=operator-finance-access-20260911-1";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-income-access-20260911-1";
 
 const globalSessionPromise = requireGlobalSession();
 

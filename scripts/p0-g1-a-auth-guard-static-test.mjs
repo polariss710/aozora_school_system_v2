@@ -117,6 +117,7 @@ const TEACHING_PAGES = [
 // 2026-09-10：教务老师兼任财务，账目页面开放；写操作的分层在数据库，不在这里。
 const FINANCE_PAGES = [
   "wage.html", "wage-detail.html", "expense.html", "expense-detail.html",
+  "income.html", "income-detail.html",
 ];
 
 // 下面两组是「已定要开放、但库内前置条件未完成」，钉死它们不在白名单里，
@@ -127,11 +128,6 @@ const PENDING_PAGES = {
   // 此时放开只会得到「进得去但存不了」。
   "settlement.html": "月结草稿 Edge 仍是 admin 专用",
   "settlement-detail.html": "同上",
-  // 收入列表读 school_operational_income_records（security_invoker 视图），
-  // 该视图与底表 RLS 都没有角色 / 个人归属 / part_time_work 隔离，
-  // 塾长的校外打工收入会出现在她的列表里。写入口加守卫不改变读取范围。
-  "income.html": "收入可见性隔离未完成，会露出塾长的校外打工收入",
-  "income-detail.html": "同上",
 };
 
 const operatorPages = allowlistFor("operator");

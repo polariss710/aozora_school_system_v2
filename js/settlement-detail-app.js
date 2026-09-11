@@ -1,5 +1,5 @@
 import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
-import { requireGlobalSession } from "./auth-guard.js?v=operator-finance-access-20260911-1";
+import { requireGlobalSession } from "./auth-guard.js?v=operator-income-access-20260911-1";
 import { initSettlementDetailPage } from "./pages/settlement-detail-page.js?v=settlement-writer-p0-closure-20260809-1";
 
 const SETTLEMENT_PAGE_VERSION = "settlement-writer-p0-closure-20260809-1";
