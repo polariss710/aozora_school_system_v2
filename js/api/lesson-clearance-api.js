@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { supabase } from "../supabase-client.js?v=v10-5-65-20260913-1";
 
 export const LESSON_CLEARANCE_READ_RPC_NAMES = Object.freeze({
   pending: "school_list_lesson_clearance_pending_balances_v3",

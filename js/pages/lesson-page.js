@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { getCurrentAuthContext } from "../api/auth-api.js?v=p1-b2b-auth-storage-20260810-1";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { getCurrentAuthContext } from "../api/auth-api.js?v=v10-5-65-20260913-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   createActualLessonFromPlanned,
   createPartialCompletedActualFromPlanned,
@@ -24,13 +24,13 @@ import {
   fetchLessonTeachers,
   generatePlannedLessonRecordsBatch,
   importPlannedLessonRecordsBatch,
-} from "../api/lesson-api.js?v=operator-settlement-draft-20260911-3";
-import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
-import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=operator-settlement-draft-20260911-3";
-import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=operator-settlement-draft-20260911-3";
-import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=operator-settlement-draft-20260911-3";
-import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=operator-settlement-draft-20260911-3";
-import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=operator-settlement-draft-20260911-3";
+} from "../api/lesson-api.js?v=v10-5-65-20260913-1";
+import { fetchStudentMonthCandidates } from "../api/student-status-api.js?v=v10-5-65-20260913-1";
+import { lessonClearanceApi } from "../api/lesson-clearance-api.js?v=v10-5-65-20260913-1";
+import { cacheLessonDeleteDialogDom, createLessonDeleteDialogController } from "../components/lesson-delete-dialog.js?v=v10-5-65-20260913-1";
+import { cacheLessonEditDialogDom, createLessonEditDialogController } from "../components/lesson-edit-dialog.js?v=v10-5-65-20260913-1";
+import { cacheLessonVoidDialogDom, createLessonVoidDialogController } from "../components/lesson-void-dialog.js?v=v10-5-65-20260913-1";
+import { createLessonClearanceWorkspace } from "../components/lesson-clearance-workspace.js?v=v10-5-65-20260913-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -39,22 +39,22 @@ import {
   setYearMonthSelectValue,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=operator-settlement-draft-20260911-3";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=v10-5-65-20260913-1";
 import {
   isLessonTimeValue as isTimeValue,
   validateLessonTimeGrid,
-} from "../utils/lesson-time-grid.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/lesson-time-grid.js?v=v10-5-65-20260913-1";
 import {
   hasAuthoritativePlannedFeeBundle,
   plannedAirconConditionLabel,
   shouldDisplayPlannedAirconDetails,
-} from "../utils/planned-aircon-display.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/planned-aircon-display.js?v=v10-5-65-20260913-1";
 import {
   buildActualOverageDisplay,
   buildLessonMonthSemantics,
   hasFrozenActualOverage,
   validateActualDurationForFlow,
-} from "../utils/actual-overage.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/actual-overage.js?v=v10-5-65-20260913-1";
 import {
   CROSS_MONTH_MAKEUP_DATE_MONTH_MESSAGE,
   createLatestRequestGate,
@@ -63,19 +63,19 @@ import {
   partitionAuthoritativeLessonRecords,
   validateCrossMonthMakeupLessonDate,
   validateUniqueLessonRecordIds,
-} from "../utils/lesson-settlement-filter.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/lesson-settlement-filter.js?v=v10-5-65-20260913-1";
 import {
   isNewBusinessEntityId,
   requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/business-entity-policy.js?v=v10-5-65-20260913-1";
 import {
   canShowPlannedCancellationAction,
   isActiveLessonCancellationActor,
-} from "../utils/lesson-cancellation-capability.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/lesson-cancellation-capability.js?v=v10-5-65-20260913-1";
 import {
   formatMakeupSourceOriginDisplay,
   getMakeupSourceOriginDisplay,
-} from "../utils/makeup-source-origin-display.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/makeup-source-origin-display.js?v=v10-5-65-20260913-1";
 
 const DEFAULT_FILTERS = {
   weekStart: "",

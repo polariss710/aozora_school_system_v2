@@ -650,7 +650,7 @@ assert.doesNotThrow(() => read(legacyExceptions[0].html));
 assert.doesNotThrow(() => read(legacyExceptions[0].page));
 
 const config = read("js/config.js");
-assert.match(config, /APP_VERSION = "v10\.5\.64"/);
+assert.match(config, /APP_VERSION = "v10\.5\.65"/);
 
 for (const pageFile of readdirSync("js/pages").filter((file) => file.endsWith(".js"))) {
   const source = read(`js/pages/${pageFile}`);

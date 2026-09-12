@@ -17,7 +17,7 @@ const hash = (value) => crypto.createHash("sha256").update(value).digest("hex");
 
 assert.equal(
   hash(api),
-  "476d5364e7f32ac00b2644e0285ccd3865debd9eff455e73d57cd57d84e524a9",
+  "a22370ad81684037853d5ae225d59f75521f6eab2fa77b79e4e56ac1107e3145",
   "part-time-work API/RPC contract must remain byte-identical",
 );
 

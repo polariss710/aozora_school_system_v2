@@ -1,9 +1,9 @@
-import { APP_VERSION } from "./config.js?v=p1-b2b-auth-storage-20260810-1";
+import { APP_VERSION } from "./config.js?v=v10-5-65-20260913-1";
 import {
   failClosedSignOut,
   signInAndVerify,
   verifyCurrentAuthContext,
-} from "./api/auth-api.js?v=p1-b2b-auth-storage-20260810-1";
+} from "./api/auth-api.js?v=v10-5-65-20260913-1";
 
 const form = document.querySelector("#loginForm");
 const emailInput = document.querySelector("#loginEmail");

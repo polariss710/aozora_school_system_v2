@@ -1,5 +1,5 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
-import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
+import { fetchWageRuleDetailPage } from "../api/wage-rule-api.js?v=v10-5-65-20260913-1";
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 
 const SETTLEMENT_TYPE_LABELS = {

@@ -3,13 +3,13 @@ import {
   fetchLessonStudentsByIds,
   fetchLessonSubjects,
   fetchLessonTeachers,
-} from "../api/lesson-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/lesson-api.js?v=v10-5-65-20260913-1";
 import {
   fetchStudentRangeCandidates,
   readStudentCandidateQuery,
   renderStudentRangeCandidateOptions,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/student-status-api.js?v=v10-5-65-20260913-1";
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 const IMAGE_WIDTH = 1080;

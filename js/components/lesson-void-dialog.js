@@ -1,6 +1,6 @@
-import { voidPlannedLesson } from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
+import { voidPlannedLesson } from "../api/lesson-api.js?v=v10-5-65-20260913-1";
 import { formatMonth, safeText } from "../utils/format.js";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=p0f-readfix-20260803-1";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=v10-5-65-20260913-1";
 
 const VOID_LESSON_FIELD_IDS = ["reason", "confirm"];
 

@@ -1,4 +1,4 @@
-import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=operator-settlement-draft-20260911-3";
+import { isAuthoritativeSnapshot } from "../api/settlement-api.js?v=v10-5-65-20260913-1";
 
 const DECIMAL_RE = /^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?$/;
 

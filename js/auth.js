@@ -3,7 +3,7 @@ import {
   getCurrentSession as getVerifiedSession,
   signInAndVerify,
   signOutLocal,
-} from "./api/auth-api.js?v=p1-b2b-auth-storage-20260810-1";
+} from "./api/auth-api.js?v=v10-5-65-20260913-1";
 
 const authDom = {};
 let isInitialized = false;

@@ -3,8 +3,8 @@ import {
   initSchoolAuth,
   isActiveAdmin,
   requireActiveAdminForCashConfirmation,
-} from "../auth.js?v=operator-settlement-draft-20260911-3";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+} from "../auth.js?v=v10-5-65-20260913-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   createIncomeRecord,
   createPendingCashIncomeRecord,
@@ -14,7 +14,7 @@ import {
   fetchStudentTuitionValidationPreviewDetails,
   generateStudentTuitionBillAtomic,
   requestCashIncomeConfirmationForRecord,
-} from "../api/income-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/income-api.js?v=v10-5-65-20260913-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import { fetchLessonSubjects, fetchLessonTeachers } from "../api/lesson-api.js";
 import {
@@ -38,16 +38,16 @@ import {
   mapAtomicTuitionGenerateError,
   mapTuitionValidationPreviewError,
   validateTuitionValidationPreviewDetails,
-} from "../utils/tuition-validation-preview.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/tuition-validation-preview.js?v=v10-5-65-20260913-1";
 import {
   requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/business-entity-policy.js?v=v10-5-65-20260913-1";
 import {
   fetchStudentMonthCandidates,
   readStudentCandidateQuery,
   renderStudentMonthCandidateOptions,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/student-status-api.js?v=v10-5-65-20260913-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",

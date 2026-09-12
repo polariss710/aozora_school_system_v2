@@ -5,8 +5,8 @@ import {
   isActiveAdminOrOperator,
   requireActiveAdminForCashConfirmation,
   requireActiveAdminOrOperator,
-} from "../auth.js?v=operator-settlement-draft-20260911-3";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+} from "../auth.js?v=v10-5-65-20260913-1";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   createExpenseRecord,
   createPendingCashExpenseRecord,
@@ -15,7 +15,7 @@ import {
   fetchExpensePaymentRequests,
   fetchExpenseRecords,
   requestCashExpenseConfirmation,
-} from "../api/expense-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/expense-api.js?v=v10-5-65-20260913-1";
 import { fetchSchoolEligibleCashAccountsViaFunction } from "../api/payment-api.js";
 import {
   currentJapanDate,
@@ -31,13 +31,13 @@ import {
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import {
   requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/business-entity-policy.js?v=v10-5-65-20260913-1";
 import {
   fetchStudentMonthCandidates,
   readStudentCandidateQuery,
   renderStudentMonthCandidateOptions,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/student-status-api.js?v=v10-5-65-20260913-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",

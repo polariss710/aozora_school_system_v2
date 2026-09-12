@@ -1,18 +1,18 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   fetchAuthoritativeLockFacts,
   fetchAuthoritativeLockStatus,
   fetchSettlementStudents,
   fetchStudentSettlementAdjustmentDialogPreview,
   fetchStudentSettlements,
-} from "../api/settlement-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/settlement-api.js?v=v10-5-65-20260913-1";
 import {
   getStudentSettlementOnlineStatus,
   lockStudentSettlementOnline,
   saveStudentSettlementDraftOnline,
   StudentSettlementOnlineError,
-} from "../api/student-settlement-online-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/student-settlement-online-api.js?v=v10-5-65-20260913-1";
 import {
   ONLINE_ADJUSTMENT_MODES as ADJUSTMENT_MODES,
   ONLINE_SOURCE_TREATMENT_MODES as SOURCE_TREATMENT_MODES,
@@ -33,11 +33,11 @@ import {
   readRegisteredVarianceSummary,
   statusConfirmsDraftLock,
   statusConfirmsDraftSave,
-} from "./settlement-online-state.js?v=operator-settlement-draft-20260911-3";
+} from "./settlement-online-state.js?v=v10-5-65-20260913-1";
 import {
   formatSettlementBusinessError,
   settlementMonthDateRange,
-} from "../api/business-error.js?v=operator-settlement-draft-20260911-3";
+} from "../api/business-error.js?v=v10-5-65-20260913-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -50,10 +50,10 @@ import {
   readStudentCandidateQuery,
   renderStudentMonthCandidateOptions,
   writeStudentCandidateQuery,
-} from "../api/student-status-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/student-status-api.js?v=v10-5-65-20260913-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 import { hasFrozenSettlementOverage } from "../utils/actual-overage.js";
-import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=operator-settlement-draft-20260911-3";
+import { formatTeacherWageBlockerDisplayReason } from "../utils/system-blocker-display.js?v=v10-5-65-20260913-1";
 
 const DEFAULT_FILTERS = {
   studentId: "",

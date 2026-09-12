@@ -1,7 +1,7 @@
 import {
   LESSON_CLEARANCE_DEFAULT_FILTERS,
   LessonClearanceWorkspaceState,
-} from "../utils/lesson-clearance-state.js?v=phase2c-d2-a3-clearance-completion-20260818-1";
+} from "../utils/lesson-clearance-state.js?v=v10-5-65-20260913-1";
 
 const ERROR_MESSAGES = new Map([
   ["LESSON_CLEARANCE_SCOPE_MISMATCH", "待补对象与可用超额不属于同一学生或业务范围，当前不能合并清偿。"],

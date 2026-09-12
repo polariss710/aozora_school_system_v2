@@ -1,5 +1,5 @@
 import { initSchoolAuth, isLoggedIn } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   adjustTeacherWageDetail,
   createTeacherWageExpenseRecord,
@@ -11,7 +11,7 @@ import {
   monthFromUrl,
   updateMonthScopedNavigation,
 } from "../utils/month-filter.js";
-import { exportWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=operator-settlement-draft-20260911-3";
+import { exportWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=v10-5-65-20260913-1";
 
 const WAGE_STATUS_LABELS = {
   locked: "已生成快照",

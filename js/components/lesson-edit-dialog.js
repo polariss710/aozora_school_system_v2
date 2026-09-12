@@ -1,11 +1,11 @@
-import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=p0f-readfix-20260803-1";
+import { updateLessonRecordGuarded } from "../api/lesson-api.js?v=v10-5-65-20260913-1";
 import { formatMonth, safeText } from "../utils/format.js";
-import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=p0f-readfix-20260803-1";
-import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=lesson-time-grid-frontend-20260810-1";
+import { buildActualOverageDisplay } from "../utils/actual-overage.js?v=v10-5-65-20260913-1";
+import { lessonUserErrorMessage } from "../utils/lesson-error-message.js?v=v10-5-65-20260913-1";
 import {
   isLessonTimeValue as isTimeValue,
   validateLessonTimeGrid,
-} from "../utils/lesson-time-grid.js?v=lesson-time-grid-frontend-20260810-1";
+} from "../utils/lesson-time-grid.js?v=v10-5-65-20260913-1";
 
 const LESSON_TYPE_LABELS = {
   planned: "预定",

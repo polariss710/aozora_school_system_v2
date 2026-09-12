@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -22,14 +21,14 @@ assert.match(source, /LESSON_CLEARANCE_PRICE_POLICY_REQUIRED/, "same-price stabl
 assert.match(source, /package_credit/, "package isolation must be explicit");
 assert.match(source, /idempotency/, "idempotency manifest must be present");
 
-const version = readFileSync(resolve(root, "js/config.js"), "utf8");
-assert.match(version, /APP_VERSION\s*=\s*"v10\.5\.47"/, "production version must remain v10.5.47");
-
-const productionDiff = execFileSync(
-  "git",
-  ["diff", "--", "lesson.html", "lesson-detail.html", "settlement.html", "js/config.js", "js/pages/lesson-page.js", "js/api/lesson-api.js", "css/app.css"],
-  { cwd: root, encoding: "utf8" },
-);
-assert.equal(productionDiff, "", "production lesson/settlement entrypoints must remain unchanged");
+// 2026-09-13 移除两条原型期【冻结】断言：
+//   · APP_VERSION 必须保持 v10.5.47
+//   · lesson/settlement 生产入口文件不得有未提交 diff
+// 二者都假定 phase2c-b 原型开发期间生产不动。该冻结期早已结束（生产已到
+// v10.5.65），这两条从 v10.5.48 起就一直失败，只会持续报红、淹没真实失败。
+//
+// ⚠️ 保留本文件而非整个删除：上面对 local/phase2c-b/ 的 7 条边界检查仍然有效，
+//    其中「不得直接 .rpc()」「不得表 DML」「不得出现 DB URL」对应 AGENTS.md
+//    的硬规则，那个原型目录至今仍在仓库里。
 
 console.log(`Phase 2C-B static boundary: PASS (${localFiles.length} isolated prototype files)`);

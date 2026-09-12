@@ -1,6 +1,6 @@
-import { APP_VERSION } from "./config.js?v=phase-d-lock-authoritative-source-20260826-1";
-import { requireGlobalSession } from "./auth-guard.js?v=operator-settlement-draft-20260911-3";
-import { initSettlementPage } from "./pages/settlement-page.js?v=operator-settlement-draft-20260911-3";
+import { APP_VERSION } from "./config.js?v=v10-5-65-20260913-1";
+import { requireGlobalSession } from "./auth-guard.js?v=v10-5-65-20260913-1";
+import { initSettlementPage } from "./pages/settlement-page.js?v=v10-5-65-20260913-1";
 
 const SETTLEMENT_PAGE_VERSION = "phase-d-lock-authoritative-source-20260826-1";
 

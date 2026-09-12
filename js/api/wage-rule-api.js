@@ -1,5 +1,5 @@
-import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
-import { fetchCurrentStudentMonthCandidates } from "./student-status-api.js?v=phase-b4-remaining-20260807-1";
+import { supabase } from "../supabase-client.js?v=v10-5-65-20260913-1";
+import { fetchCurrentStudentMonthCandidates } from "./student-status-api.js?v=v10-5-65-20260913-1";
 
 const WAGE_RULE_COLUMNS = [
   "id",

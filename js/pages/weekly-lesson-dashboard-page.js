@@ -1,4 +1,4 @@
-import { fetchLessonStudentsByIds, fetchWeeklyLessonOperations } from "../api/lesson-api.js?v=operator-settlement-draft-20260911-3";
+import { fetchLessonStudentsByIds, fetchWeeklyLessonOperations } from "../api/lesson-api.js?v=v10-5-65-20260913-1";
 import { safeText } from "../utils/format.js";
 
 const dom = {};

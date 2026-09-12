@@ -1,4 +1,4 @@
-import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
+import { supabase } from "../supabase-client.js?v=v10-5-65-20260913-1";
 
 export async function fetchStudentStatusManagement() {
   const { data, error } = await supabase.rpc("school_list_student_status_management_v1");

@@ -1,5 +1,5 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   createAccountAdjustment,
   createAccountProfile,
@@ -8,7 +8,7 @@ import {
   fetchAccounts,
   fetchBusinessEntitiesForAccounts,
   updateAccountProfile,
-} from "../api/account-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/account-api.js?v=v10-5-65-20260913-1";
 import {
   currentYearMonth,
   getYearMonthSelectValue,
@@ -19,7 +19,7 @@ import {
 import { formatCurrency, formatDate, safeText } from "../utils/format.js";
 import {
   requirePrimarySchoolBusinessEntityId,
-} from "../utils/business-entity-policy.js?v=operator-settlement-draft-20260911-3";
+} from "../utils/business-entity-policy.js?v=v10-5-65-20260913-1";
 
 const DEFAULT_FILTERS = {
   appType: "school",

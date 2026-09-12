@@ -1,8 +1,8 @@
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   fetchReimbursementDetailPage,
   reverseReimbursementRecord,
-} from "../api/reimbursement-detail-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/reimbursement-detail-api.js?v=v10-5-65-20260913-1";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
 
 const REIMBURSEMENT_STATUS_LABELS = {

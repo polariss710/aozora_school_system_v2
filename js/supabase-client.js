@@ -1,9 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SUPABASE_CONFIG } from "./config.js?v=v2.111.0-supabase-auth-client-init-20260614";
+import { SUPABASE_CONFIG } from "./config.js?v=v10-5-65-20260913-1";
 import {
   removeLegacyAuthStorage,
   V2_AUTH_STORAGE_KEY,
-} from "./auth-storage-isolation.js?v=p1-b2b-auth-storage-20260810-1";
+} from "./auth-storage-isolation.js?v=v10-5-65-20260913-1";
 
 const normalizedConfig = normalizeSupabaseConfig(SUPABASE_CONFIG);
 
