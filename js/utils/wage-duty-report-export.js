@@ -13,6 +13,16 @@ const DUTY_REPORT_HEADERS = [
   "教室费 JPY",
   "备注",
 ];
+// 两个阶段的表头说明各自成立，不要合并：
+//   snapshot  —— 发钱前复核。课时已随快照锁定，改动要走工资明细调整，故「请勿修改」。
+//   candidate —— 发给老师确认课时。整张表存在的意义就是让老师指出课时有无遗漏，
+//                此时再写「请勿修改结算课时」会与用途直接冲突。
+// 回流一律靠人工誊录（系统没有 Excel 导入），所以两阶段都要求不直接改已填数值。
+const DUTY_REPORT_NOTICE_SNAPSHOT =
+  "※ 本表用于老师确认工资快照明细并补充交通费、教室费、备注和支付信息。请勿修改系统已填写的日期、学生、课程、开始时间、结束时间和结算课时。";
+const DUTY_REPORT_NOTICE_CANDIDATE =
+  "※ 本表用于老师核对本月课时并补充交通费、教室费、备注和支付信息。课时如有遗漏或有误，请在空白行补写或在备注中注明，再将本表回传；请勿直接改动系统已填写的数值。表内金额为按现行工资规则试算的参考值，交通费尚未计入，最终金额以工资快照为准。";
+
 const ZIP_CRC32_TABLE = buildCrc32Table();
 
 export function exportWageDutyReportXlsx(data) {
@@ -27,7 +37,7 @@ export function exportWageDutyReportXlsx(data) {
   });
 }
 
-export function exportBatchWageDutyReportXlsx(reports, { month }) {
+export function exportBatchWageDutyReportXlsx(reports, { month, stage = "snapshot" } = {}) {
   const xlsx = window.XLSX;
   const usedFileNames = new Set();
   const zipEntries = [];
@@ -36,7 +46,7 @@ export function exportBatchWageDutyReportXlsx(reports, { month }) {
   for (const reportData of teacherReports) {
     const workbook = xlsx.utils.book_new();
     const fileName = uniqueFileName(buildWageDutyReportFileName(reportData.wageLock), usedFileNames);
-    appendWageDutyReportSheet(workbook, reportData, "勤务申报表");
+    appendWageDutyReportSheet(workbook, reportData, "勤务申报表", stage);
     zipEntries.push({
       name: fileName,
       data: normalizeZipEntryData(xlsx.write(workbook, {
@@ -51,10 +61,10 @@ export function exportBatchWageDutyReportXlsx(reports, { month }) {
   return zipEntries.length;
 }
 
-function appendWageDutyReportSheet(workbook, data, sheetName) {
+function appendWageDutyReportSheet(workbook, data, sheetName, stage = "snapshot") {
   const { wageLock, details } = data;
   const xlsx = window.XLSX;
-  const report = buildWageDutyReport(wageLock, details || []);
+  const report = buildWageDutyReport(wageLock, details || [], stage);
   const sheet = xlsx.utils.aoa_to_sheet(report.rows);
 
   sheet["!cols"] = [
@@ -78,7 +88,8 @@ function appendWageDutyReportSheet(workbook, data, sheetName) {
   xlsx.utils.book_append_sheet(workbook, sheet, sheetName);
 }
 
-export function buildWageDutyReport(wageLock, details) {
+export function buildWageDutyReport(wageLock, details, stage = "snapshot") {
+  const noticeText = stage === "candidate" ? DUTY_REPORT_NOTICE_CANDIDATE : DUTY_REPORT_NOTICE_SNAPSHOT;
   const detailRowCount = Math.max(DUTY_REPORT_MIN_DETAIL_ROWS, details.length);
   const rows = [
     ["勤务申报表（讲师填写用）", "", "", "", "", "", "", "", "", ""],
@@ -95,7 +106,7 @@ export function buildWageDutyReport(wageLock, details) {
       "",
     ],
     [
-      "※ 本表用于老师确认工资快照明细并补充交通费、教室费、备注和支付信息。请勿修改系统已填写的日期、学生、课程、开始时间、结束时间和结算课时。",
+      noticeText,
       "",
       "",
       "",

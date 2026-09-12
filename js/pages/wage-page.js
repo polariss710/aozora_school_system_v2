@@ -1,6 +1,6 @@
 import { PAYMENT_MONTH_FILTER_YEAR_RANGE } from "../config.js";
 import { initSchoolAuth, isLoggedIn } from "../auth.js";
-import { hasSupabaseConfig } from "../supabase-client.js?v=operator-settlement-draft-20260911-3";
+import { hasSupabaseConfig } from "../supabase-client.js?v=v10-5-65-20260913-1";
 import {
   createTeacherWageExpenseRecord,
   fetchWageBusinessEntities,
@@ -15,7 +15,7 @@ import {
   fetchWageSubjects,
   fetchWageTeachers,
   generateTeacherMonthlyWage,
-} from "../api/wage-api.js?v=operator-settlement-draft-20260911-3";
+} from "../api/wage-api.js?v=v10-5-65-20260913-1";
 import { fetchWageDetailPage } from "../api/wage-detail-api.js";
 import {
   currentYearMonth,
@@ -27,7 +27,7 @@ import {
   updateUrlMonthParams,
 } from "../utils/month-filter.js";
 import { formatCurrency, formatDate, formatMonth, safeText } from "../utils/format.js";
-import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=operator-settlement-draft-20260911-3";
+import { exportBatchWageDutyReportXlsx } from "../utils/wage-duty-report-export.js?v=v10-5-65-20260913-1";
 
 const DEFAULT_FILTERS = {
   teacherId: "",
@@ -1292,19 +1292,48 @@ async function handleBatchDutyReportExport() {
     return;
   }
 
+  // 勤务申报表确认的是【课时】，金额仅供参考，且生成时交通费尚未填写 ——
+  // 它本来就不承载最终金额，因此不必等工资快照。没有快照时按候选课时出表，
+  // 让老师先核对课时，再锁结算、生成快照。
+  // 有快照时仍走快照：快照上的 pay_hours 可能已被 school_adjust_teacher_wage_detail
+  // 调整过，改用候选会把那次修正吞掉。
   const rows = effectiveDutyReportWageLocks();
-  if (!rows.length) {
-    showMessage("error", `${formatMonth(filters.month)} 当前筛选结果没有可导出的未作废工资快照。`);
+  const useCandidateStage = !rows.length;
+  const candidateReports = useCandidateStage ? buildCandidateDutyReports(filters) : [];
+
+  if (useCandidateStage && !candidateReports.length) {
+    showMessage("error", `${formatMonth(filters.month)} 当前筛选结果既没有工资快照，也没有候选课时。`);
     return;
   }
 
   setDutyReportExportSubmitting(true);
-  showMessage("info", `正在读取 ${rows.length} 位老师的工资明细并打包勤务申报表 ZIP...`);
+  showMessage("info", useCandidateStage
+    ? `${formatMonth(filters.month)} 尚无工资快照，正在按候选课时打包 ${candidateReports.length} 位老师的勤务申报表 ZIP...`
+    : `正在读取 ${rows.length} 位老师的工资明细并打包勤务申报表 ZIP...`);
 
   try {
-    const reports = await Promise.all(rows.map((row) => fetchWageDetailPage(row.id)));
-    const exportedFileCount = exportBatchWageDutyReportXlsx(reports, { month: filters.month });
-    showMessage("success", `勤务申报表 ZIP 已导出：${exportedFileCount} 个老师 Excel 文件。`);
+    const reports = useCandidateStage
+      ? candidateReports
+      : await Promise.all(rows.map((row) => fetchWageDetailPage(row.id)));
+    const exportedFileCount = exportBatchWageDutyReportXlsx(reports, {
+      month: filters.month,
+      stage: useCandidateStage ? "candidate" : "snapshot",
+    });
+    if (!useCandidateStage) {
+      showMessage("success", `勤务申报表 ZIP 已导出：${exportedFileCount} 个老师 Excel 文件。`);
+    } else {
+      const unresolvedCount = candidateReports.reduce(
+        (sum, report) => sum + report.details.filter((detail) => detail.pay_hours === null).length,
+        0
+      );
+      showMessage(
+        unresolvedCount ? "info" : "success",
+        `勤务申报表 ZIP 已导出（候选课时，尚未生成工资快照）：${exportedFileCount} 个老师 Excel 文件。`
+        + (unresolvedCount
+          ? ` ⚠️ 其中 ${unresolvedCount} 节课没有唯一有效的工资规则，表上结算课时会显示 0，建议补齐工资规则后重新导出再发给老师。`
+          : "")
+      );
+    }
   } catch (error) {
     showMessage("error", `批量导出勤务申报表失败：${error.message || error}`);
   } finally {
@@ -1318,6 +1347,52 @@ function effectiveMonthlyWageLocks() {
 
 function effectiveDutyReportWageLocks() {
   return renderedWageLockRows.filter((row) => row.status !== "void" && !row.voided_at);
+}
+
+// 把候选课时拼成勤务申报表导出所需的 { wageLock, details } 形状。
+// 这里【不】计算任何课时或工资：每条的 pay_hours / lesson_wage_jpy 都由
+// preflight 原样带过来，null 就保持 null。合计仅用于表内展示，不写回任何业务表，
+// 与既有 buildWageSnapshotSummaryText 对多个快照求和属同一性质。
+function buildCandidateDutyReports(filters) {
+  const groups = new Map();
+  for (const row of generationScopeCandidateLessonsForFilters(filters)) {
+    const key = row.teacher_id || "";
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(row);
+  }
+
+  return Array.from(groups.entries()).map(([teacherId, lessons]) => {
+    const totals = lessons.reduce((acc, row) => ({
+      payHours: acc.payHours + Number(row.wagePayHours || 0),
+      lessonWageJpy: acc.lessonWageJpy + Number(row.wageLessonWageJpy || 0),
+    }), { payHours: 0, lessonWageJpy: 0 });
+
+    return {
+      wageLock: {
+        teacher_id: teacherId,
+        teacher_name: teacherNameById(teacherId),
+        settlement_month: filters.month,
+        pay_hours: totals.payHours,
+        lesson_wage_jpy: totals.lessonWageJpy,
+        // 候选阶段交通费/教室费尚未填写，合计即课时工资。
+        fee_jpy: 0,
+        total_jpy: totals.lessonWageJpy,
+      },
+      details: lessons.map((row) => ({
+        lesson_date: row.lesson_date,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        student_name: studentNameById(row.student_id),
+        subject_name: subjectNameById(row.subject_id),
+        lesson_content: row.lesson_content,
+        pay_hours: row.wagePayHours,
+        transport_fee_jpy: 0,
+        classroom_fee_jpy: 0,
+      })),
+    };
+  });
 }
 
 function exportMonthlySummaryWorkbook({ month, rows, feeSummaries }) {

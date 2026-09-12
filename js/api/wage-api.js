@@ -1,5 +1,5 @@
-import { supabase } from "../supabase-client.js?v=p1-b2b-auth-storage-20260810-1";
-import { fetchStudentMonthCandidates } from "./student-status-api.js?v=phase-b4-remaining-20260807-1";
+import { supabase } from "../supabase-client.js?v=v10-5-65-20260913-1";
+import { fetchStudentMonthCandidates } from "./student-status-api.js?v=v10-5-65-20260913-1";
 
 const WAGE_LOCK_COLUMNS = [
   "id",
@@ -193,6 +193,11 @@ export async function fetchWageCandidateLessons(month) {
       wagePrerequisiteSourceId: prerequisite.effective_source_id || "",
       wageSettlementType: prerequisite.settlement_type || "",
       wageNoWage: prerequisite.is_no_wage === true,
+      // 结算课时与课时工资由 preflight 逐条给出（2026-09-13 起）。
+      // null 表示该课没有唯一有效工资规则；前端一律不兜底、不用 actual_minutes 换算——
+      // 那样会把 no_wage 归零与规则缺失置 null 的判定抄进前端。
+      wagePayHours: prerequisite.pay_hours ?? null,
+      wageLessonWageJpy: prerequisite.lesson_wage_jpy ?? null,
     };
   });
 }
