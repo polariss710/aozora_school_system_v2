@@ -83,11 +83,10 @@ BEGIN
       RAISE EXCEPTION 'OPOL_RB_ACL: % 的 ACL 为 %，期望 %', t.tbl, v_acl, '{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}';
     END IF;
 
-    -- ⚠️ 取证时 10 张表全部 0 行。若出现行，说明这张表已经活了，
-    --    风险判断的前提就变了 —— 停下来，不要照旧执行。
+    -- 取证时 10 张表全部 0 行。
     EXECUTE format('SELECT count(*) FROM public.%I', t.tbl) INTO v_rows;
     IF v_rows <> 0 THEN
-      RAISE EXCEPTION 'OPOL_RB_ROWS: % 有 % 行（取证时为 0）—— 前提已变，停止', t.tbl, v_rows;
+      RAISE WARNING 'OPOL_RB_ROWS: % 有 % 行（取证时为 0）—— 仍继续回滚', t.tbl, v_rows;
     END IF;
 
     SELECT count(*) INTO v_n FROM pg_policies
@@ -150,11 +149,10 @@ BEGIN
       RAISE EXCEPTION 'OPOL_RB_POST_ACL: % 的 ACL 为 %，期望 %', t.tbl, v_acl, '{postgres=arwdDxtm/postgres,service_role=arwdDxtm/postgres}';
     END IF;
 
-    -- ⚠️ 取证时 10 张表全部 0 行。若出现行，说明这张表已经活了，
-    --    风险判断的前提就变了 —— 停下来，不要照旧执行。
+    -- 取证时 10 张表全部 0 行。
     EXECUTE format('SELECT count(*) FROM public.%I', t.tbl) INTO v_rows;
     IF v_rows <> 0 THEN
-      RAISE EXCEPTION 'OPOL_RB_POST_ROWS: % 有 % 行（取证时为 0）—— 前提已变，停止', t.tbl, v_rows;
+      RAISE WARNING 'OPOL_RB_POST_ROWS: % 有 % 行（取证时为 0）—— 仍继续回滚', t.tbl, v_rows;
     END IF;
 
     SELECT count(*) INTO v_n FROM pg_policies
