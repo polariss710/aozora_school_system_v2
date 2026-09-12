@@ -45,8 +45,11 @@ SELECT (:'mode'='commit') AS is_commit, (:'mode'='rehearsal') AS is_rehearsal \g
 \elif :is_rehearsal
 \echo '>>> mode=rehearsal —— 通过全部断言后将 ROLLBACK'
 \else
-\echo '!!! 必须指定 -v mode=rehearsal 或 -v mode=commit'
-\quit
+-- ⚠️ 不能用裸 \quit —— 它的退出码是 0，自动化会把「根本没执行」读成「成功」。
+--    回滚脚本尤其致命：在最需要它工作的时刻静默什么都不做。
+DO $mode$ BEGIN
+  RAISE EXCEPTION 'PTWP_MODE_INVALID: 必须指定 -v mode=rehearsal 或 -v mode=commit';
+END $mode$;
 \endif
 
 -- ⚠️ 回滚会把打工课时、时薪、月结、收入与 Cash 到账【重新暴露】给
