@@ -6,9 +6,11 @@
 --   school_account_adjustments / school_account_transfers
 --     · GRANT ALL TO authenticated（八项全给，含 TRUNCATE）
 --     · RLS 未启用、策略 0 条、业务写保护触发器 0 个
---   ⇒ 持有效登录态者可用公开 anon key + 自己的 JWT【直接 insert/update/
---      delete/truncate 这两张表】，绕过全部 RPC 守卫。
---     （anon 无授权，所以前提是有一个有效账号。）
+--   ⇒ 持有效登录态者可用公开 anon key + 自己的 JWT【直接写这两张表】，
+--      绕过全部 RPC 守卫。（anon 无授权，前提是有一个有效账号。）
+--   ⚠️ 数据库权限 ≠ HTTP 入口：持有 TRUNCATE 权限，不等于 REST 接口
+--      提供 TRUNCATE 动作。撤权是按【数据库权限面】收口，
+--      不是在断言「REST 现在能 TRUNCATE」。（Codex 2026-09-12 更正）
 --
 -- ⚠️ 而且不止直写：这两张表的【四个正规读写函数】
 --    create/reverse × adjustment/transfer
@@ -38,8 +40,11 @@ SELECT (:'mode'='commit') AS is_commit, (:'mode'='rehearsal') AS is_rehearsal \g
 \elif :is_rehearsal
 \echo '>>> mode=rehearsal —— 通过全部断言后将 ROLLBACK'
 \else
-\echo '!!! 必须指定 -v mode=rehearsal 或 -v mode=commit'
-\quit
+-- ⚠️ 不能用裸 \quit —— 它的退出码是 0，自动化会把「根本没执行」读成「成功」。
+--    用 RAISE 让 psql 以非零码退出（ON_ERROR_STOP 已开）。
+DO $mode$ BEGIN
+  RAISE EXCEPTION 'ACCT_MODE_INVALID: 必须指定 -v mode=rehearsal 或 -v mode=commit';
+END $mode$;
 \endif
 
 -- ⚠️ 回滚会把这两张表【重新开放】给 authenticated 直写（含 TRUNCATE），
@@ -73,7 +78,9 @@ BEGIN
 END
 $g$;
 
--- 四个函数的 COMMENT 与执行属性【不写死】：pre 段当场记下、post 段比对。
+-- 四个函数的 COMMENT【钉死】取证原文；执行属性用 pre 段捕获 + post 段比对。
+-- ⚠️ 只捕获检测不出【部署前就已存在】的注释漂移 —— 捕到的就是被改过的值，
+--    post 自然对得上。这个缺口是本批的阴性对照自己暴露出来的。
 -- 同样能证明「只改了定义」，且不必猜任何没逐字拿到的值。
 CREATE TEMP TABLE acct_before ON COMMIT DROP AS
 SELECT p.proname AS b_name,
